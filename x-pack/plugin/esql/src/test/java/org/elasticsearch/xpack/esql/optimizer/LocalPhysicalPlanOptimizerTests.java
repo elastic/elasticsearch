@@ -75,10 +75,12 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
@@ -97,12 +99,22 @@ import static org.hamcrest.Matchers.nullValue;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
+    public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
+        DataType.BOOLEAN,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.KEYWORD,
+        DataType.TEXT
+    );
     private static final String PARAM_FORMATTING = "%1$s";
 
     /**
      * Estimated size of a keyword field in bytes.
      */
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
+    public static final String MATCH_OPERATOR_QUERY = "from test | where %s:%s";
+    public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
     private TestPlannerOptimizer plannerOptimizer;
     private final Configuration config;
@@ -1268,6 +1280,96 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(Expressions.names(fields), contains("_meta_field", "gender", "job", "job.raw", "languages", "long_noidx"));
     }
 
+    /*
+     Checks that match filters are pushed down to Lucene when using no casting, for example:
+     WHERE first_name:"Anna")
+     WHERE age:17
+     WHERE salary:24.5
+     */
+    public void testSingleMatchOperatorFilterPushdownWithoutCasting() {
+        checkMatchFunctionPushDown(
+            (value, dataType) -> DataType.isString(dataType) ? "\"" + value + "\"" : value.toString(),
+            value -> value,
+            UNNECESSARY_CASTING_DATA_TYPES,
+            MATCH_OPERATOR_QUERY
+        );
+    }
+
+    /*
+    Checks that match filters are pushed down to Lucene when using casting, for example:
+    WHERE ip:"127.0.0.1"::IP
+    WHERE date:"2024-07-01"::DATETIME
+    WHERE date:"8.17.1"::VERSION
+    */
+    public void testSingleMatchOperatorFilterPushdownWithCasting() {
+        checkMatchFunctionPushDown(
+            LocalPhysicalPlanOptimizerTests::queryValueAsCasting,
+            value -> value,
+            Match.FIELD_DATA_TYPES,
+            MATCH_OPERATOR_QUERY
+        );
+    }
+
+    /*
+    Checks that match filters are pushed down to Lucene when using strings, for example:
+    WHERE ip:"127.0.0.1"
+    WHERE date:"2024-07-01"
+    WHERE date:"8.17.1"
+    */
+    public void testSingleMatchOperatorFilterPushdownWithStringValues() {
+        checkMatchFunctionPushDown(
+            (value, dataType) -> "\"" + value + "\"",
+            Object::toString,
+            Match.FIELD_DATA_TYPES,
+            MATCH_OPERATOR_QUERY
+        );
+    }
+
+    /*
+     Checks that match filters are pushed down to Lucene when using no casting, for example:
+     WHERE match(first_name, "Anna")
+     WHERE match(age, 17)
+     WHERE match(salary, 24.5)
+     */
+    public void testSingleMatchFunctionFilterPushdownWithoutCasting() {
+        checkMatchFunctionPushDown(
+            (value, dataType) -> DataType.isString(dataType) ? "\"" + value + "\"" : value.toString(),
+            value -> value,
+            UNNECESSARY_CASTING_DATA_TYPES,
+            MATCH_FUNCTION_QUERY
+        );
+    }
+
+    /*
+    Checks that match filters are pushed down to Lucene when using casting, for example:
+    WHERE match(ip, "127.0.0.1"::IP)
+    WHERE match(date, "2024-07-01"::DATETIME)
+    WHERE match(date, "8.17.1"::VERSION)
+    */
+    public void testSingleMatchFunctionPushdownWithCasting() {
+        checkMatchFunctionPushDown(
+            LocalPhysicalPlanOptimizerTests::queryValueAsCasting,
+            value -> value,
+            Match.FIELD_DATA_TYPES,
+            MATCH_FUNCTION_QUERY
+        );
+    }
+
+    /*
+    Checks that match filters are pushed down to Lucene when using strings, for example:
+    WHERE match(ip, "127.0.0.1")
+    WHERE match(date, "2024-07-01")
+    WHERE match(date, "8.17.1")
+    */
+    public void testSingleMatchFunctionFilterPushdownWithStringValues() {
+        checkMatchFunctionPushDown(
+            (value, dataType) -> "\"" + value + "\"",
+            Object::toString,
+            Match.FIELD_DATA_TYPES,
+            MATCH_FUNCTION_QUERY
+        );
+    }
+
     /**
      * Expects
      * LimitExec[1000[INTEGER]]
@@ -1278,26 +1380,22 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"match":{"first_name":{"query":"Anna"}}}][_doc{f}#13], limit[1000], sort[]
      *       estimatedRowSize[324]
      */
-    public void testSingleMatchFilterPushdown() {
+    private void checkMatchFunctionPushDown(
+        BiFunction<Object, DataType, String> queryValueProvider,
+        Function<Object, Object> expectedValueProvider,
+        Collection<DataType> fieldDataTypes, String queryFormat
+    ) {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-
-        BiFunction<Object, DataType, String> queryValueProvider = (value, dataType) -> {
-            if (dataType == DataType.TEXT || dataType == DataType.KEYWORD) {
-                return queryValueAsString(value, dataType);
-            }
-            return queryValueAsCasting(value, dataType);
-        };
-
         // Check for every possible query data type
-        for (DataType fieldDataType : Match.FIELD_DATA_TYPES) {
+        for (DataType fieldDataType : fieldDataTypes) {
             var queryValue = randomQueryValue(fieldDataType);
 
             String fieldName = fieldDataType == DataType.DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);
             var esqlQuery = String.format(
                 Locale.ROOT,
-                "from test | where %s:%s",
+                queryFormat,
                 fieldName,
-                queryValueAsCasting(queryValue, fieldDataType)
+                queryValueProvider.apply(queryValue, fieldDataType)
             );
 
             try {
@@ -1308,7 +1406,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var fieldExtract = as(project.child(), FieldExtractExec.class);
                 var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, queryValue);
+                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue));
                 assertThat("Unexpected match query for data type " + fieldDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
             } catch (ParsingException e) {
                 fail("Error parsing ESQL query: " + esqlQuery + "\n" + e.getMessage());
@@ -1317,9 +1415,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private static Object randomQueryValue(DataType dataType) {
-        if (Match.FIELD_DATA_TYPES.contains(dataType) == false) {
-            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
-        }
         Object value = EsqlTestUtils.randomLiteral(dataType).value();
         if (value instanceof BytesRef bytesRef) {
             switch (dataType) {
@@ -1342,9 +1437,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private static String queryValueAsCasting(Object value, DataType dataType) {
-        if (Match.FIELD_DATA_TYPES.contains(dataType) == false) {
-            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
-        }
         if (value instanceof String) {
             value = "\"" + value + "\"";
         }
@@ -1359,13 +1451,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             case UNSIGNED_LONG -> "\"" + value + "\"::UNSIGNED_LONG";
             default -> value.toString();
         };
-    }
-
-    private static String queryValueAsString(Object value, DataType dataType) {
-        if (Match.FIELD_DATA_TYPES.contains(dataType) == false) {
-            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
-        }
-        return "\"" + String.valueOf(value) + "\"";
     }
 
     /**

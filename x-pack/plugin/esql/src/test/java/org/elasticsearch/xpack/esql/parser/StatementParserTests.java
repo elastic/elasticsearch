@@ -2345,7 +2345,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchOperatorCasting() {
-        var plan = statement("FROM test | WHERE field:\"value\"::IP)");
+        var plan = statement("FROM test | WHERE field:\"value\"::IP");
         var filter = as(plan, Filter.class);
         var match = (Match) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();

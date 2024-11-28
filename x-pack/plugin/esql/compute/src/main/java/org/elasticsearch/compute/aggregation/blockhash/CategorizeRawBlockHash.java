@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
@@ -45,18 +44,9 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
 
         CategorizationAnalyzer analyzer;
         try {
-            analyzer = new CategorizationAnalyzer(
-                analysisRegistry.buildCustomAnalyzer(
-                    IndexService.IndexCreationContext.RELOAD_ANALYZERS,
-                    null,
-                    false,
-                    ANALYZER_CONFIG.getTokenizer(),
-                    ANALYZER_CONFIG.getCharFilters(),
-                    ANALYZER_CONFIG.getTokenFilters()
-                ),
-                true
-            );
+            analyzer = new CategorizationAnalyzer(analysisRegistry, ANALYZER_CONFIG);
         } catch (IOException e) {
+            categorizer.close();
             throw new RuntimeException(e);
         }
 

@@ -2678,6 +2678,57 @@ c2:l |c2_f:l |m2:i |m2_f:i |c:l
 1    |1      |5    |5      |21
 ;
 
+simpleCountOnFieldWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(emp_no) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(hire_date) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnStarWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(*) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(birth_date) where emp_no <= 10050
+;
+
+c1:long
+40
+;
+
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(job_positions) where emp_no <= 10003
+;
+
+c1:long
+3
+;
+
 commonFilterExtractionWithAliasing
 required_capability: per_agg_filtering
 from employees

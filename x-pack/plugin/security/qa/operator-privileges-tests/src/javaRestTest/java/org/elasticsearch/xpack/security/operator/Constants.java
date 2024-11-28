@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.cluster.metadata.DataStream;
+
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -358,6 +360,7 @@ public class Constants {
         "cluster:monitor/nodes/data_tier_usage",
         "cluster:monitor/nodes/features",
         "cluster:monitor/nodes/hot_threads",
+        "cluster:monitor/nodes/index_mode_stats",
         "cluster:monitor/nodes/info",
         "cluster:monitor/nodes/stats",
         "cluster:monitor/nodes/usage",
@@ -399,6 +402,7 @@ public class Constants {
         "cluster:monitor/xpack/info/frozen_indices",
         "cluster:monitor/xpack/info/graph",
         "cluster:monitor/xpack/info/ilm",
+        "cluster:monitor/xpack/info/logsdb",
         "cluster:monitor/xpack/info/logstash",
         "cluster:monitor/xpack/info/ml",
         "cluster:monitor/xpack/info/monitoring",
@@ -463,6 +467,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/health_api",
         "cluster:monitor/xpack/usage/ilm",
         "cluster:monitor/xpack/usage/inference",
+        "cluster:monitor/xpack/usage/logsdb",
         "cluster:monitor/xpack/usage/logstash",
         "cluster:monitor/xpack/usage/ml",
         "cluster:monitor/xpack/usage/monitoring",
@@ -488,6 +493,7 @@ public class Constants {
         "indices:admin/block/add[s]",
         "indices:admin/cache/clear",
         "indices:admin/data_stream/lazy_rollover",
+        "indices:admin/data_stream/reindex",
         "indices:internal/admin/ccr/restore/file_chunk/get",
         "indices:internal/admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/put",
@@ -504,9 +510,9 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
-        "indices:admin/data_stream/options/delete",
-        "indices:admin/data_stream/options/get",
-        "indices:admin/data_stream/options/put",
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/delete" : null,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/get" : null,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/put" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",

@@ -130,6 +130,11 @@ public class MockAzureBlobStore {
         blob.releaseLease(leaseId);
     }
 
+    public void breakLease(String path, @Nullable Integer leaseBreakPeriod) {
+        final AzureBlockBlob blob = getExistingBlob(path);
+        blob.breakLease(leaseBreakPeriod);
+    }
+
     public Map<String, BytesReference> blobs() {
         return Maps.transformValues(blobs, AzureBlockBlob::getContents);
     }
@@ -252,6 +257,12 @@ public class MockAzureBlobStore {
             }
         }
 
+        public void breakLease(@Nullable Integer leaseBreakPeriod) {
+            synchronized (writeLock) {
+                lease.breakLease(leaseBreakPeriod);
+            }
+        }
+
         public void checkLeaseForRead(@Nullable String leaseId) {
             lease.checkLeaseForRead(leaseId);
         }
@@ -273,20 +284,23 @@ public class MockAzureBlobStore {
         enum State {
             Available,
             Leased,
-            Expired
+            Expired,
+            Broken
         }
 
         private String leaseId;
         private State state = State.Available;
+        private int leaseDurationSeconds;
 
         public synchronized String acquire(@Nullable String proposedLeaseId, int leaseDurationSeconds) {
             maybeExpire(proposedLeaseId);
             switch (state) {
-                case Available, Expired -> {
+                case Available, Expired, Broken -> {
                     final State prevState = state;
                     state = State.Leased;
                     leaseId = proposedLeaseId != null ? proposedLeaseId : UUID.randomUUID().toString();
                     validateLeaseDuration(leaseDurationSeconds);
+                    this.leaseDurationSeconds = leaseDurationSeconds;
                     logger.debug("Granting lease, prior state={}, leaseId={}, expires={}", prevState, leaseId);
                 }
                 case Leased -> {
@@ -309,7 +323,7 @@ public class MockAzureBlobStore {
                     "LeaseNotPresentWithLeaseOperation",
                     "There is currently no lease on the blob/container."
                 );
-                case Leased, Expired -> {
+                case Leased, Expired, Broken -> {
                     if (leaseId.equals(requestLeaseId) == false) {
                         logger.debug("Mismatch on release - submitted leaseId: {}, active leaseId: {}", requestLeaseId, this.leaseId);
                         throw new ConflictException(
@@ -323,10 +337,26 @@ public class MockAzureBlobStore {
             }
         }
 
+        public synchronized void breakLease(Integer leaseBreakPeriod) {
+            // We haven't implemented the "Breaking" state so we don't support 'breaks' for non-infinite leases unless break-period is 0
+            if (leaseDurationSeconds != -1 && (leaseBreakPeriod == null || leaseBreakPeriod != 0)) {
+                failTestWithAssertionError(
+                    "MockAzureBlobStore only supports breaking non-infinite leases with 'x-ms-lease-break-period: 0'"
+                );
+            }
+            switch (state) {
+                case Available -> throw new ConflictException(
+                    "LeaseNotPresentWithLeaseOperation",
+                    "There is currently no lease on the blob/container."
+                );
+                case Leased, Expired, Broken -> state = State.Broken;
+            }
+        }
+
         public synchronized void checkLeaseForWrite(@Nullable String requestLeaseId) {
             maybeExpire(requestLeaseId);
             switch (state) {
-                case Available, Expired -> {
+                case Available, Expired, Broken -> {
                     if (requestLeaseId != null) {
                         throw new PreconditionFailedException(
                             "LeaseLost",
@@ -354,7 +384,7 @@ public class MockAzureBlobStore {
         public synchronized void checkLeaseForRead(@Nullable String requestLeaseId) {
             maybeExpire(requestLeaseId);
             switch (state) {
-                case Available, Expired -> {
+                case Available, Expired, Broken -> {
                     if (requestLeaseId != null) {
                         throw new PreconditionFailedException(
                             "LeaseLost",

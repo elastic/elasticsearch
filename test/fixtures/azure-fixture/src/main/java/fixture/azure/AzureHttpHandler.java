@@ -58,6 +58,7 @@ public class AzureHttpHandler implements HttpHandler {
     static final String X_MS_LEASE_ID = "x-ms-lease-id";
     static final String X_MS_PROPOSED_LEASE_ID = "x-ms-proposed-lease-id";
     static final String X_MS_LEASE_DURATION = "x-ms-lease-duration";
+    static final String X_MS_LEASE_BREAK_PERIOD = "x-ms-lease-break-period";
     static final String X_MS_BLOB_TYPE = "x-ms-blob-type";
     static final String X_MS_BLOB_CONTENT_LENGTH = "x-ms-blob-content-length";
 
@@ -179,7 +180,11 @@ public class AzureHttpHandler implements HttpHandler {
                         mockAzureBlobStore.releaseLease(blobPath(exchange), leaseId);
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     }
-                    case "renew", "change", "break" -> {
+                    case "break" -> {
+                        mockAzureBlobStore.breakLease(blobPath(exchange), getOptionalIntegerHeader(exchange, X_MS_LEASE_BREAK_PERIOD));
+                        exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
+                    }
+                    case "renew", "change" -> {
                         failTestWithAssertionError("Attempt was made to use not-implemented lease action: " + leaseAction);
                         throw new MockAzureBlobStore.AzureBlobStoreError(
                             RestStatus.NOT_IMPLEMENTED,
@@ -476,6 +481,16 @@ public class AzureHttpHandler implements HttpHandler {
         final String headerValue = requireHeader(exchange, headerName);
         try {
             return Integer.parseInt(headerValue);
+        } catch (NumberFormatException e) {
+            throw new MockAzureBlobStore.BadRequestException("InvalidHeaderValue", "Invalid " + headerName + " header");
+        }
+    }
+
+    @Nullable
+    private Integer getOptionalIntegerHeader(HttpExchange exchange, String headerName) {
+        final String headerValue = exchange.getRequestHeaders().getFirst(headerName);
+        try {
+            return headerValue == null ? null : Integer.parseInt(headerValue);
         } catch (NumberFormatException e) {
             throw new MockAzureBlobStore.BadRequestException("InvalidHeaderValue", "Invalid " + headerName + " header");
         }

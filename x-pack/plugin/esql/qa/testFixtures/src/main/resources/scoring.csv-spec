@@ -267,3 +267,19 @@ book_no:keyword | title:text               | author:text    | year:integer | c_s
 5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
 ;
 
+singleQstrScoringEval
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| eval c_score = ceil(_score) 
+| keep book_no, c_score 
+| sort book_no desc 
+| LIMIT 3;
+
+book_no:keyword | c_score:double
+8875            | 3.0
+7350            | 2.0
+7140            | 3.0
+;

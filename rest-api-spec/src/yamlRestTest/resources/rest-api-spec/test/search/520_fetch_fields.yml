@@ -128,6 +128,9 @@ fetch _seq_no via stored_fields:
 
 ---
 fetch _seq_no via fields:
+  - requires:
+      cluster_features: ["error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
       catch: bad_request

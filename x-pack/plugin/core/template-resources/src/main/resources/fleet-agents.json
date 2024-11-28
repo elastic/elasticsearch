@@ -1,6 +1,9 @@
 {
   "settings": {
-    "auto_expand_replicas": "0-1"
+    "auto_expand_replicas": "0-1",
+    "index": {
+      "default_pipeline": "fleet-agents@default-pipeline"
+    } 
   },
   "mappings": {
     "_doc": {
@@ -27,6 +30,30 @@
             },
             "version": {
               "type": "keyword"
+            }
+          }
+        },
+        "agent_policy": {
+          "properties": {
+            "name": {
+              "type": "text"
+            },
+            "package_policies": {
+              "properties": {
+                "name": {
+                  "type": "text"
+                },
+                "package": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "version": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
             }
           }
         },

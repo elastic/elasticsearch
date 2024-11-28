@@ -1,0 +1,23 @@
+{
+  "settings": {
+    "auto_expand_replicas": "0-1"
+  },
+  "mappings": {
+    "_doc" : {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}",
+        "managed_index_mappings_version": ${fleet.managed.index.version}
+      },
+      "properties": {
+        "policy_id": {
+          "type": "keyword"
+        },
+        "agent_policy": {
+          "type": "object",
+          "enabled": false
+        }
+      }
+    }
+  }
+}

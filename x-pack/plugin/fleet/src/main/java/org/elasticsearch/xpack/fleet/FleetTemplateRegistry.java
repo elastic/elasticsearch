@@ -17,13 +17,15 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 
 import java.util.List;
 import java.util.Map;
 
 public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
-    public static final int INDEX_TEMPLATE_VERSION = 1;
+    public static final int INDEX_TEMPLATE_VERSION = 2;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.fleet.template.version";
 
@@ -86,4 +88,18 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
     }
+
+    @Override
+    protected List<IngestPipelineConfig> getIngestPipelines() {
+        return INGEST_PIPELINE_CONFIGS;
+    }
+
+    private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
+        new JsonIngestPipelineConfig(
+            "fleet-agents@default-pipeline",
+            "/fleet-agents@default-pipeline.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        )
+    );
 }

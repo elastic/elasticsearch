@@ -1,0 +1,14 @@
+{
+  "processors": [
+    {
+      "pipeline": {
+        "name": "fleet-agents@enrich-agent-policies-pipeline",
+        "ignore_missing_pipeline": true
+      }
+    }
+  ],
+  "_meta": {
+    "description": "TODO",
+    "managed": true
+  }
+}

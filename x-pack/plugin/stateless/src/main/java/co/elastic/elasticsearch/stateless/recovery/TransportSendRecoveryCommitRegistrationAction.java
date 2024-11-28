@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -117,7 +118,9 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             return true;
         } else if (e instanceof IndexNotFoundException) {
             var state = clusterService.state();
-            return state.metadata().getProject().hasIndex(request.getShardId().getIndexName());
+            final ShardId shardId = request.getShardId();
+            // lookupProject checks whether index is still in the project metadata
+            return state.metadata().lookupProject(shardId.getIndex()).isPresent();
         } else {
             return false;
         }
@@ -134,7 +137,8 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             assert localShardIsUnpromotableOrNull(shardId)
                 : "TransportSendRecoveryCommitRegistrationAction can only be executed on a search shard";
             // Forward the request to the indexing shard
-            var shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            final ProjectMetadata projectMetadata = state.metadata().projectFor(shardId.getIndex()); // can throw IndexNotFoundException
+            var shardRoutingTable = state.routingTable(projectMetadata.id()).shardRoutingTable(shardId);
             if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
                 // TODO: A search shard should be able to continue using the found commit despite not being able to register it.
                 // For now, we retry the request to register the commit.

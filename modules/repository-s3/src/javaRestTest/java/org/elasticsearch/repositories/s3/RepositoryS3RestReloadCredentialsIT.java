@@ -78,12 +78,8 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
         keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        final Request reloadSecureSettingsRequest = newXContentRequest(
-            HttpMethod.POST,
-            "/_nodes/reload_secure_settings",
-            (b, p) -> b.field("secure_settings_password", "keystore-password")
-        );
-        assertOK(client().performRequest(reloadSecureSettingsRequest));
+
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using initial credentials
         assertOK(client().performRequest(verifyRequest));
@@ -103,10 +99,17 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         // Set up refreshed credentials
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(reloadSecureSettingsRequest));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using refreshed credentials
         assertOK(client().performRequest(verifyRequest));
     }
 
+    private Request createReloadSecureSettingsRequest() throws IOException {
+        return newXContentRequest(
+            HttpMethod.POST,
+            "/_nodes/reload_secure_settings",
+            (b, p) -> inFipsJvm() ? b.field("secure_settings_password", "keystore-password") : b
+        );
+    }
 }

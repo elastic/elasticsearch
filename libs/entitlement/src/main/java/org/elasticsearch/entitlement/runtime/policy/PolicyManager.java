@@ -62,7 +62,7 @@ public class PolicyManager {
             return;
         }
 
-        // TODO: real policy check. For now, we only allow our hardcoded System.exit policy for server.
+        // TODO: real policy check. For now, we only allow our hardcoded policies for server.
         // TODO: this will be checked using policies
         if (requestingModule.isNamed()
             && requestingModule.getName().equals("org.elasticsearch.server")

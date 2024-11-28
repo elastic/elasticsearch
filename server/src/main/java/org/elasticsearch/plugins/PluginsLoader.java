@@ -50,7 +50,6 @@ import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifie
  * to have all the plugin information they need prior to starting.
  */
 public class PluginsLoader {
-
     /**
      * Contains information about the {@link ClassLoader} required to load a plugin
      */
@@ -64,6 +63,11 @@ public class PluginsLoader {
          * @return The {@link ClassLoader} used to instantiate the main class for the plugin
          */
         ClassLoader pluginClassLoader();
+
+        /**
+         * @return The {@link ModuleLayer} for the plugin modules
+         */
+        ModuleLayer pluginModuleLayer();
     }
 
     /**
@@ -106,6 +110,10 @@ public class PluginsLoader {
         public static LayerAndLoader ofLoader(ClassLoader loader) {
             return new LayerAndLoader(ModuleLayer.boot(), loader);
         }
+
+        public static LayerAndLoader ofUberModuleLoader(UberModuleClassLoader loader) {
+            return new LayerAndLoader(loader.getLayer(), loader);
+        }
     }
 
     private static final Logger logger = LogManager.getLogger(PluginsLoader.class);
@@ -113,11 +121,8 @@ public class PluginsLoader {
 
     private final List<PluginDescriptor> moduleDescriptors;
     private final List<PluginDescriptor> pluginDescriptors;
-    private final Set<PluginBundle> allBundles;
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
-
-    private final Map<ModuleLayer, PluginDescriptor> modularPluginDescriptorByLayer = new HashMap<>();
-    private final Map<ClassLoader, PluginDescriptor> nonModularPluginDescriptorByClassLoader = new HashMap<>();
+    private final Set<PluginBundle> allBundles;
 
     /**
      * Constructs a new PluginsLoader
@@ -181,8 +186,6 @@ public class PluginsLoader {
             pluginDescriptors = Collections.emptyList();
         }
 
-        this.allBundles = Collections.unmodifiableSet(seenBundles);
-        this.loadedPluginLayers = Collections.unmodifiableMap(loadPluginLayers(seenBundles, qualifiedExports));
         Map<String, LoadedPluginLayer> loadedPluginLayers = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(seenBundles);
@@ -194,17 +197,19 @@ public class PluginsLoader {
             }
         }
 
-        return new PluginsLoader(moduleDescriptors, pluginDescriptors, loadedPluginLayers);
+        return new PluginsLoader(moduleDescriptors, pluginDescriptors, loadedPluginLayers, Set.copyOf(seenBundles));
     }
 
     PluginsLoader(
         List<PluginDescriptor> moduleDescriptors,
         List<PluginDescriptor> pluginDescriptors,
-        Map<String, LoadedPluginLayer> loadedPluginLayers
+        Map<String, LoadedPluginLayer> loadedPluginLayers,
+        Set<PluginBundle> allBundles
     ) {
         this.moduleDescriptors = moduleDescriptors;
         this.pluginDescriptors = pluginDescriptors;
         this.loadedPluginLayers = loadedPluginLayers;
+        this.allBundles = allBundles;
     }
 
     public List<PluginDescriptor> moduleDescriptors() {
@@ -215,28 +220,12 @@ public class PluginsLoader {
         return pluginDescriptors;
     }
 
-    public Set<PluginBundle> allBundles() {
-        return allBundles;
-    }
-
-    public String resolveClassToPluginName(Class<?> clazz) {
-        var module = clazz.getModule();
-        var layer = module.getLayer();
-
-        final PluginDescriptor pluginDescriptor;
-        if (module.isNamed() && layer != ModuleLayer.boot()) {
-            // Potentially a modular plugin
-            pluginDescriptor = modularPluginDescriptorByLayer.get(layer);
-            assert pluginDescriptor == null || pluginDescriptor.isModular();
-        } else {
-            pluginDescriptor = nonModularPluginDescriptorByClassLoader.get(clazz.getClassLoader());
-            assert pluginDescriptor == null || pluginDescriptor.isModular() == false;
-        }
-        return pluginDescriptor == null ? null : pluginDescriptor.getName();
-    }
-
     public Stream<PluginLayer> pluginLayers() {
         return loadedPluginLayers.values().stream().map(Function.identity());
+    }
+
+    public Set<PluginBundle> allBundles() {
+        return allBundles;
     }
 
     private static void loadPluginLayer(
@@ -315,7 +304,7 @@ public class PluginsLoader {
         }
     }
 
-    private LayerAndLoader createPluginLayerAndLoader(
+    private static LayerAndLoader createPluginLayerAndLoader(
         PluginBundle bundle,
         ClassLoader pluginParentLoader,
         List<LoadedPluginLayer> extendedPlugins,
@@ -329,12 +318,10 @@ public class PluginsLoader {
                 Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
                 extendedPlugins.stream().map(LoadedPluginLayer::spiModuleLayer)
             ).toList();
-            var layerAndLoader = createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
-            modularPluginDescriptorByLayer.put(layerAndLoader.layer(), plugin);
-            return layerAndLoader;
+            return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
         } else if (plugin.isStable()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
-            var layerAndLoader = LayerAndLoader.ofLoader(
+            return LayerAndLoader.ofUberModuleLoader(
                 UberModuleClassLoader.getInstance(
                     pluginParentLoader,
                     ModuleLayer.boot(),
@@ -343,13 +330,9 @@ public class PluginsLoader {
                     Set.of("org.elasticsearch.server") // TODO: instead of denying server, allow only jvm + stable API modules
                 )
             );
-            modularPluginDescriptorByLayer.put(layerAndLoader.layer(), plugin);
-            return layerAndLoader;
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
-            var layerAndLoader = LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
-            nonModularPluginDescriptorByClassLoader.put(layerAndLoader.loader(), plugin);
-            return layerAndLoader;
+            return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
         }
     }
 

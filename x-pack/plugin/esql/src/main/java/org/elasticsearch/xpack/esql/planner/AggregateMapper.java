@@ -332,13 +332,13 @@ final class AggregateMapper {
             case DataType.INTEGER, DataType.COUNTER_INTEGER -> "Int";
             case DataType.LONG, DataType.DATETIME, DataType.COUNTER_LONG, DataType.DATE_NANOS -> "Long";
             case DataType.DOUBLE, DataType.COUNTER_DOUBLE -> "Double";
-            case DataType.KEYWORD, DataType.IP, DataType.VERSION, DataType.TEXT -> "BytesRef";
+            case DataType.KEYWORD, DataType.IP, DataType.VERSION, DataType.TEXT, DataType.SEMANTIC_TEXT -> "BytesRef";
             case GEO_POINT -> "GeoPoint";
             case CARTESIAN_POINT -> "CartesianPoint";
             case GEO_SHAPE -> "GeoShape";
             case CARTESIAN_SHAPE -> "CartesianShape";
-            case SEMANTIC_TEXT, UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD,
-                TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
+            case UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD, TIME_DURATION,
+                DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
                     "illegal agg type: " + type.typeName()
                 );
         };

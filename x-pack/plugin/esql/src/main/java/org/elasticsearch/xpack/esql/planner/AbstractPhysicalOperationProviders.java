@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -52,6 +53,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     ) {
+        // The layout this operation will produce.
         Layout.Builder layout = new Layout.Builder();
         Operator.OperatorFactory operatorFactory = null;
         AggregatorMode aggregatorMode = aggregateExec.getMode();
@@ -95,12 +97,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
             for (Expression group : aggregateExec.groupings()) {
-                var groupAttribute = Expressions.attribute(group);
-                if (groupAttribute == null) {
+                Attribute groupAttribute = Expressions.attribute(group);
+                // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
+                Attribute sourceGroupAttribute = (aggregatorMode.isInputPartial() == false
+                    && group instanceof Alias as
+                    && as.child() instanceof Categorize categorize) ? Expressions.attribute(categorize.field()) : groupAttribute;
+                if (sourceGroupAttribute == null) {
                     throw new EsqlIllegalArgumentException("Unexpected non-named expression[{}] as grouping in [{}]", group, aggregateExec);
                 }
-                Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), groupAttribute.dataType());
-                groupAttributeLayout.nameIds().add(groupAttribute.id());
+                Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), sourceGroupAttribute.dataType());
+                groupAttributeLayout.nameIds()
+                    .add(group instanceof Alias as && as.child() instanceof Categorize ? groupAttribute.id() : sourceGroupAttribute.id());
 
                 /*
                  * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
@@ -119,7 +126,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             // check if there's any alias used in grouping - no need for the final reduction since the intermediate data
                             // is in the output form
                             // if the group points to an alias declared in the aggregate, use the alias child as source
-                            else if (aggregatorMode == AggregatorMode.INITIAL || aggregatorMode == AggregatorMode.INTERMEDIATE) {
+                            else if (aggregatorMode.isOutputPartial()) {
                                 if (groupAttribute.semanticEquals(a.toAttribute())) {
                                     groupAttribute = attr;
                                     break;
@@ -129,8 +136,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     }
                 }
                 layout.append(groupAttributeLayout);
-                Layout.ChannelAndType groupInput = source.layout.get(groupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
+                Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -164,6 +171,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             } else {
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec.estimatedRowSize())
                 );
@@ -178,10 +186,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     /***
      * Creates a standard layout for intermediate aggregations, typically used across exchanges.
      * Puts the group first, followed by each aggregation.
-     *
-     * It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
+     * <p>
+     *     It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
+     * </p>
      */
     public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+        // TODO: This should take CATEGORIZE into account:
+        // it currently works because the CATEGORIZE intermediate state is just 1 block with the same type as the function return,
+        // so the attribute generated here is the expected one
         var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();
@@ -304,12 +316,20 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }
 
-    private record GroupSpec(Integer channel, Attribute attribute) {
+    /**
+     * The input configuration of this group.
+     *
+     * @param channel The source channel of this group
+     * @param attribute The attribute, source of this group
+     * @param expression The expression being used to group
+     */
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return new BlockHash.GroupSpec(channel, elementType());
+
+            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize);
         }
 
         ElementType elementType() {

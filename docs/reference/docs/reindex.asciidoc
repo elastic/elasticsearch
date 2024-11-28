@@ -1143,8 +1143,8 @@ POST _reindex
 
 The `index` parameter must be specified with the remote cluster name and the index name, separated by 
 a colon (e.g., cluster_one:my-index-000001).
-Additionally, you must configure the remote cluster in advance and retrieve the remote cluster name.
-For more details, refer to the reference for <<add-remote-clusters>>.
+
+NOTE: Reindexing requires that the remote cluster be configured on the local cluster.
 
 [[reindex-ssl]]
 ===== Configuring SSL parameters

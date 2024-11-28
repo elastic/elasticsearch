@@ -20,31 +20,17 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
 
     @Override
-    public Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
-        return new InstrumenterImpl(classNameSuffix, instrumentationMethods);
-    }
-
-    /**
-     * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
-     */
-    public MethodKey methodKeyForTarget(Method targetMethod) {
-        Type actualType = Type.getMethodType(Type.getMethodDescriptor(targetMethod));
-        return new MethodKey(
-            Type.getInternalName(targetMethod.getDeclaringClass()),
-            targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
-        );
+    public Instrumenter newInstrumenter(Map<MethodKey, CheckerMethod> instrumentationMethods) {
+        return InstrumenterImpl.create(instrumentationMethods);
     }
 
     @Override

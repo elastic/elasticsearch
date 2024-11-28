@@ -37,20 +37,8 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public class InstrumenterImpl implements Instrumenter {
 
-    private static final String checkerClassDescriptor;
-    private static final String handleClass;
-    static {
-        int javaVersion = Runtime.version().feature();
-        final String classNamePrefix;
-        if (javaVersion >= 23) {
-            classNamePrefix = "Java23";
-        } else {
-            classNamePrefix = "";
-        }
-        String checkerClass = "org/elasticsearch/entitlement/bridge/" + classNamePrefix + "EntitlementChecker";
-        handleClass = checkerClass + "Handle";
-        checkerClassDescriptor = Type.getObjectType(checkerClass).getDescriptor();
-    }
+    private final String getCheckerClassMethodDescriptor;
+    private final String handleClass;
 
     /**
      * To avoid class name collisions during testing without an agent to replace classes in-place.
@@ -58,9 +46,34 @@ public class InstrumenterImpl implements Instrumenter {
     private final String classNameSuffix;
     private final Map<MethodKey, CheckerMethod> instrumentationMethods;
 
-    public InstrumenterImpl(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
+    InstrumenterImpl(
+        String handleClass,
+        String getCheckerClassMethodDescriptor,
+        String classNameSuffix,
+        Map<MethodKey, CheckerMethod> instrumentationMethods
+    ) {
+        this.handleClass = handleClass;
+        this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
         this.instrumentationMethods = instrumentationMethods;
+    }
+
+    static String getCheckerClassName() {
+        int javaVersion = Runtime.version().feature();
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        return "org/elasticsearch/entitlement/bridge/" + classNamePrefix + "EntitlementChecker";
+    }
+
+    public static InstrumenterImpl create(Map<MethodKey, CheckerMethod> instrumentationMethods) {
+        String checkerClass = getCheckerClassName();
+        String handleClass = checkerClass + "Handle";
+        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", instrumentationMethods);
     }
 
     public ClassFileInfo instrumentClassFile(Class<?> clazz) throws IOException {
@@ -290,7 +303,7 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", "()" + checkerClassDescriptor, false);
+        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
     }
 
     public record ClassFileInfo(String fileName, byte[] bytecodes) {}

@@ -69,7 +69,7 @@ public class EntitlementInitialization {
 
         var classesToTransform = methodMap.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), classesToTransform), true);
+        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter(methodMap), classesToTransform), true);
         // TODO: should we limit this array somehow?
         var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
         inst.retransformClasses(classesToRetransform);

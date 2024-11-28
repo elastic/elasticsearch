@@ -513,7 +513,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
      * @param shardTarget the shard target for this failure
      * @param e the failure reason
      */
-    void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
+    public void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
         if (TransportActions.isShardNotAvailableException(e)) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
             // temporary error.
@@ -666,6 +666,16 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
      */
     public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
+    }
+
+    @Override
+    public void addReleasable(Releasable releasable) {
+        releasables.add(releasable);
+    }
+
+    @Override
+    public void execute(Runnable command) {
+        executor.execute(command);
     }
 
     /**

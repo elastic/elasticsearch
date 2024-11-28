@@ -556,11 +556,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testSearchQueryThenFetch() throws Exception {
-        interceptTransportActions(
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME
-        );
+        interceptTransportActions(SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -580,16 +576,13 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
         interceptTransportActions(
             SearchTransportService.DFS_ACTION_NAME,
             SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME
+            SearchTransportService.FETCH_ID_ACTION_NAME
         );
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
@@ -611,8 +604,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

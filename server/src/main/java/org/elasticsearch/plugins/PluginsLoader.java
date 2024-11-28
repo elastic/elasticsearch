@@ -118,15 +118,30 @@ public class PluginsLoader {
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    @SuppressWarnings("this-escape")
-    public PluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
+    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
+        return createPluginsLoader(modulesDirectory, pluginsDirectory, true);
+    }
 
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-        addServerExportsService(qualifiedExports);
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param withServerExports {@code true} to add server module exports
+     */
+    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory, boolean withServerExports) {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
+        if (withServerExports) {
+            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
+            addServerExportsService(qualifiedExports);
+        } else {
+            qualifiedExports = Collections.emptyMap();
+        }
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
         // load (elasticsearch) module layers
+        List<PluginDescriptor> moduleDescriptors;
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
@@ -140,6 +155,7 @@ public class PluginsLoader {
         }
 
         // load plugin layers
+        List<PluginDescriptor> pluginDescriptors;
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
@@ -158,7 +174,28 @@ public class PluginsLoader {
             pluginDescriptors = Collections.emptyList();
         }
 
-        this.loadedPluginLayers = Collections.unmodifiableMap(loadPluginLayers(seenBundles, qualifiedExports));
+        Map<String, LoadedPluginLayer> loadedPluginLayers = new LinkedHashMap<>();
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(seenBundles);
+        if (sortedBundles.isEmpty() == false) {
+            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
+            for (PluginBundle bundle : sortedBundles) {
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                loadPluginLayer(bundle, loadedPluginLayers, qualifiedExports);
+            }
+        }
+
+        return new PluginsLoader(moduleDescriptors, pluginDescriptors, loadedPluginLayers);
+    }
+
+    PluginsLoader(
+        List<PluginDescriptor> moduleDescriptors,
+        List<PluginDescriptor> pluginDescriptors,
+        Map<String, LoadedPluginLayer> loadedPluginLayers
+    ) {
+        this.moduleDescriptors = moduleDescriptors;
+        this.pluginDescriptors = pluginDescriptors;
+        this.loadedPluginLayers = loadedPluginLayers;
     }
 
     public List<PluginDescriptor> moduleDescriptors() {
@@ -173,25 +210,7 @@ public class PluginsLoader {
         return loadedPluginLayers.values().stream().map(Function.identity());
     }
 
-    private Map<String, LoadedPluginLayer> loadPluginLayers(
-        Set<PluginBundle> bundles,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
-    ) {
-        Map<String, LoadedPluginLayer> loaded = new LinkedHashMap<>();
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-        if (sortedBundles.isEmpty() == false) {
-            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-            for (PluginBundle bundle : sortedBundles) {
-                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadPluginLayer(bundle, loaded, qualifiedExports);
-            }
-        }
-
-        return loaded;
-    }
-
-    private void loadPluginLayer(
+    private static void loadPluginLayer(
         PluginBundle bundle,
         Map<String, LoadedPluginLayer> loaded,
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
@@ -211,7 +230,7 @@ public class PluginsLoader {
         }
 
         final ClassLoader parentLoader = ExtendedPluginsClassLoader.create(
-            getClass().getClassLoader(),
+            PluginsLoader.class.getClassLoader(),
             extendedPlugins.stream().map(LoadedPluginLayer::spiClassLoader).toList()
         );
         LayerAndLoader spiLayerAndLoader = null;
@@ -427,7 +446,7 @@ public class PluginsLoader {
         }
     }
 
-    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+    private static void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         var exportsService = new ModuleQualifiedExportsService(serverModule) {
             @Override
             protected void addExports(String pkg, Module target) {

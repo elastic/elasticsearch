@@ -69,14 +69,14 @@ include::inference-shared.asciidoc[tag=service-settings]
 These settings are specific to the `elasticsearch` service.
 --
 
-`adaptive_allocations`:::
-(Optional, object)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
-
 `deployment_id`:::
 (Optional, string)
 The `deployment_id` of an existing trained model deployment.
 When `deployment_id` is used the `model_id` is optional.
+
+`adaptive_allocations`:::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
 
 `enabled`::::
 (Optional, Boolean)
@@ -119,7 +119,6 @@ include::inference-shared.asciidoc[tag=task-settings]
 Returns the document instead of only the index. Defaults to `true`.
 =====
 
-
 [discrete]
 [[inference-example-elasticsearch-elser]]
 ==== ELSER via the `elasticsearch` service
@@ -137,7 +136,7 @@ PUT _inference/sparse_embedding/my-elser-model
     "adaptive_allocations": { <1>
       "enabled": true,
       "min_number_of_allocations": 1,
-      "max_number_of_allocations": 10
+      "max_number_of_allocations": 4
     },
     "num_threads": 1,
     "model_id": ".elser_model_2" <2>
@@ -150,6 +149,34 @@ PUT _inference/sparse_embedding/my-elser-model
 Valid values are `.elser_model_2` and `.elser_model_2_linux-x86_64`.
 For further details, refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation].
 
+[discrete]
+[[inference-example-elastic-reranker]]
+==== Elastic Rerank via the `elasticsearch` service
+
+The following example shows how to create an {infer} endpoint called `my-elastic-rerank` to perform a `rerank` task type using the built-in Elastic Rerank cross-encoder model.
+
+The API request below will automatically download the Elastic Rerank model if it isn't already downloaded and then deploy the model.
+Once deployed, the model can be used for semantic re-ranking with a <<text-similarity-reranker-retriever-example-elastic-rerank,`text_similarity_reranker` retriever>>.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/my-elastic-rerank
+{
+  "service": "elasticsearch",
+  "service_settings": {
+    "model_id": ".rerank-v1", <1>
+    "num_threads": 1,
+    "adaptive_allocations": { <2>
+      "enabled": true,
+      "min_number_of_allocations": 1,
+      "max_number_of_allocations": 4
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The `model_id` must be the ID of the built-in Elastic Rerank model: `.rerank-v1`.
+<2> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations. 
 
 [discrete]
 [[inference-example-elasticsearch]]
@@ -186,7 +213,7 @@ If using the Python client, you can set the `timeout` parameter to a higher valu
 
 [discrete]
 [[inference-example-eland]]
-==== Models uploaded by Eland via the elasticsearch service
+==== Models uploaded by Eland via the `elasticsearch` service
 
 The following example shows how to create an {infer} endpoint called
 `my-msmarco-minilm-model` to perform a `text_embedding` task type.

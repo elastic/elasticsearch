@@ -130,11 +130,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             String chainedPath = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.chain.properties.chained.properties.search"
                 + ".properties.request.properties.body.enabled";
-            assertThat(source.getValue(chainedPath), is(false));
+            assertThat(source.getValue(chainedPath), nullValue());
         } else {
             String path = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
-            assertThat(source.getValue(path), is(false));
+            assertThat(source.getValue(path), nullValue());
         }
     }
 

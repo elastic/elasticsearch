@@ -136,6 +136,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
 
                 if(currentNodeShouldHandleRequest){
                     // Inference on current node
+                    log.info("Inference on current node [{}] for service [{}]", nodeClient.getLocalNodeId(), serviceName);
                     inferOnServiceWithMetrics(model, request, service.get(), timer, listener);
                 } else {
                         // Reroute to node responsible for service type

@@ -103,7 +103,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             }
                             if (fieldName != null) {
                                 if (count.hasFilter()) {
-                                    if (canPushToSource(count.filter()) == false) {
+                                    if (canPushToSource(count.filter(), fa -> false) == false) {
                                         return null; // can't push down
                                     }
                                     var countFilter = PlannerUtils.TRANSLATOR_HANDLER.asQuery(count.filter());

@@ -41,9 +41,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -60,14 +58,12 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -380,22 +376,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSingleCountWithStatsFilter() {
-        // an optimizer that filters out the ExtractAggregateCommonFilter rule
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config)) {
-            @Override
-            protected List<Batch<LogicalPlan>> batches() {
-                var oldBatches = super.batches();
-                List<Batch<LogicalPlan>> newBatches = new ArrayList<>(oldBatches.size());
-                for (var batch : oldBatches) {
-                    List<Rule<?, LogicalPlan>> rules = new ArrayList<>(List.of(batch.rules()));
-                    rules.removeIf(r -> r instanceof ExtractAggregateCommonFilter);
-                    newBatches.add(batch.with(rules.toArray(Rule[]::new)));
-                }
-                return newBatches;
-            }
-        };
-        var analyzer = makeAnalyzer("mapping-default.json");
-        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, logicalOptimizer);
+        var analyzer = makeAnalyzer("mapping-default.json", new EnrichResolution());
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
         var plan = plannerOptimizer.plan("""
             from test
             | stats c = count(hire_date) where emp_no < 10042
@@ -406,18 +388,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(agg.getMode(), is(FINAL));
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.stats().size(), is(1));
 
         Function<String, String> compact = s -> s.replaceAll("\\s+", "");
-        assertThat(compact.apply(esStatsQuery.query().toString()), is(compact.apply("""
+        assertThat(compact.apply(esStatsQuery.stats().get(0).query().toString()), is(compact.apply("""
             {
                 "bool": {
                     "must": [
-                        {
-                            "exists": {
-                                "field": "hire_date",
-                                "boost": 1.0
-                            }
-                        },
                         {
                             "esql_single_value": {
                                 "field": "emp_no",
@@ -430,6 +407,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                                     }
                                 },
                                 "source": "emp_no < 10042@2:36"
+                            }
+                        },
+                        {
+                            "exists": {
+                                "field": "hire_date",
+                                "boost": 1.0
                             }
                         }
                     ],

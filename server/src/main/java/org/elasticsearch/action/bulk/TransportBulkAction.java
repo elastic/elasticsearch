@@ -659,7 +659,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 // Check if the data stream has the failure store enabled
                 return MetadataIndexTemplateService.resolveDataStreamOptions(composableIndexTemplate, metadata.componentTemplates())
                     .map(DataStreamOptions.Template::toDataStreamOptions)
-                    .applyAndGet(DataStreamOptions::isFailureStoreEnabled);
+                    .mapAndGet(DataStreamOptions::isFailureStoreEnabled);
             }
         }
 

@@ -161,7 +161,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         public DataStreamOptions toDataStreamOptions() {
-            return new DataStreamOptions(failureStore.applyAndGet(DataStreamFailureStore.Template::toFailureStore));
+            return new DataStreamOptions(failureStore.mapAndGet(DataStreamFailureStore.Template::toFailureStore));
         }
 
         public static Builder builder(Template template) {
@@ -185,7 +185,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
              * instance contain data the configurations are merged.
              */
             public Builder updateFailureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
-                failureStore = failureStore.merge(newFailureStore, fs -> fs.mergeWith(newFailureStore.get()));
+                failureStore = ResettableValue.merge(failureStore, newFailureStore, DataStreamFailureStore.Template::merge);
                 return this;
             }
 

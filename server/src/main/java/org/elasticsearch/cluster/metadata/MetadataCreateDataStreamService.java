@@ -264,7 +264,7 @@ public class MetadataCreateDataStreamService {
         ResettableValue<DataStreamOptions.Template> dataStreamOptionsTemplate = isSystem
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveDataStreamOptions(template, metadata.componentTemplates());
-        final DataStreamOptions dataStreamOptions = dataStreamOptionsTemplate.applyAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        final DataStreamOptions dataStreamOptions = dataStreamOptionsTemplate.mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
         var isFailureStoreEnabled = dataStreamOptions != null && dataStreamOptions.isFailureStoreEnabled();
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do

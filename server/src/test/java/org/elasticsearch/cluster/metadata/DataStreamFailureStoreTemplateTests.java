@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.DataStreamFailureStore.Template.merge;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,11 +55,11 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
 
     public void testMerging() {
         DataStreamFailureStore.Template template = randomFailureStoreTemplate();
-        DataStreamFailureStore.Template result = template.mergeWith(template);
+        DataStreamFailureStore.Template result = merge(template, template);
         assertThat(result, equalTo(template));
 
         DataStreamFailureStore.Template negatedTemplate = mutateInstance(template);
-        result = template.mergeWith(negatedTemplate);
+        result = merge(template, negatedTemplate);
         assertThat(result, equalTo(negatedTemplate));
     }
 }

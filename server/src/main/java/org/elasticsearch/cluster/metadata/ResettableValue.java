@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -86,8 +87,9 @@ public class ResettableValue<T> {
     }
 
     /**
-     * @return the concrete value when that's defined or null
+     * @return the concrete value or null if it is in undefined or reset states.
      */
+    @Nullable
     public T get() {
         return value;
     }
@@ -131,9 +133,10 @@ public class ResettableValue<T> {
     }
 
     /**
-     * Gets the value and applies the function {@param f} when the value is not null.
+     * Gets the value and applies the function {@param f} when the value is not null. Slightly more efficient than
+     * <code>this.map(f).get()</code>.
      */
-    public <U> U applyAndGet(Function<? super T, ? extends U> f) {
+    public <U> U mapAndGet(Function<? super T, ? extends U> f) {
         if (isDefined() == false || shouldReset()) {
             return null;
         } else {
@@ -153,23 +156,20 @@ public class ResettableValue<T> {
     }
 
     /**
-     * Applies the {@param mergeFunction} to the current value while respecting the different states:
-     * - If the newer value is reset, it returns {@link #undefined()} since it resets any previous values
-     * - If the newer value is undefined, it returns <code>this</code>
-     * - If the current value is undefined, it returns {@param other}
-     * - otherwise, it merges the two values based on the provided function
+     * Ιt merges the values of the ResettableValue's when they are defined using the provided mergeFunction.
      */
-    public ResettableValue<T> merge(ResettableValue<T> other, Function<T, T> mergeFunction) {
-        if (other.shouldReset()) {
+    public static <T> ResettableValue<T> merge(ResettableValue<T> initial, ResettableValue<T> update, BiFunction<T, T, T> mergeFunction) {
+        if (update.shouldReset()) {
             return undefined();
         }
-        if (other.isDefined() == false) {
-            return this;
+        if (update.isDefined() == false) {
+            return initial;
         }
-        if (this.isDefined() == false || this.shouldReset()) {
-            return other;
+        if (initial.isDefined() == false || initial.shouldReset()) {
+            return update;
         }
-        return this.map(mergeFunction);
+        // Because we checked that's defined and not in reset state, we can directly apply the merge function.
+        return ResettableValue.create(mergeFunction.apply(initial.value, update.value));
     }
 
     @Override

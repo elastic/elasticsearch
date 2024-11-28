@@ -36,35 +36,35 @@ public class ResettableValueTests extends ESTestCase {
     public void testMerge() {
         // Initial state: undefined
         {
-            ResettableValue<Boolean> initialState = ResettableValue.undefined();
-            assertThat(initialState.merge(ResettableValue.reset(), Function.identity()), equalTo(ResettableValue.undefined()));
+            ResettableValue<Integer> initial = ResettableValue.undefined();
+            assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
 
-            assertThat(initialState.merge(ResettableValue.undefined(), Function.identity()), equalTo(ResettableValue.undefined()));
+            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(ResettableValue.undefined()));
 
             ResettableValue<Boolean> update = ResettableValue.create(randomBoolean());
-            assertThat(ResettableValue.<Boolean>undefined().merge(update, Function.identity()), equalTo(update));
+            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(update));
         }
 
         // Initial state: reset
         {
-            ResettableValue<Boolean> initialState = ResettableValue.undefined();
-            assertThat(initialState.merge(ResettableValue.reset(), Function.identity()), equalTo(ResettableValue.undefined()));
+            ResettableValue<Integer> initial = ResettableValue.reset();
+            assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
 
-            assertThat(initialState.merge(ResettableValue.undefined(), Function.identity()), equalTo(ResettableValue.undefined()));
+            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(ResettableValue.undefined()));
 
-            ResettableValue<Boolean> update = ResettableValue.create(randomBoolean());
-            assertThat(ResettableValue.<Boolean>undefined().merge(update, Function.identity()), equalTo(update));
+            ResettableValue<Integer> update = ResettableValue.create(randomInt());
+            assertThat(ResettableValue.merge(ResettableValue.undefined(), update, Integer::sum), equalTo(update));
         }
 
         // Initial state: value
         {
-            ResettableValue<Boolean> initialState = ResettableValue.create(randomBoolean());
-            assertThat(initialState.merge(ResettableValue.reset(), Function.identity()), equalTo(ResettableValue.undefined()));
+            ResettableValue<Integer> initial = ResettableValue.create(randomIntBetween(1, 200));
+            assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
 
-            assertThat(initialState.merge(ResettableValue.undefined(), Function.identity()), equalTo(initialState));
+            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(initial));
 
-            ResettableValue<Boolean> update = ResettableValue.create(initialState.get() == false);
-            assertThat(ResettableValue.<Boolean>undefined().merge(update, Function.identity()), equalTo(update));
+            ResettableValue<Integer> update = ResettableValue.create(randomIntBetween(1, 200));
+            assertThat(ResettableValue.merge(initial, update, Integer::sum), equalTo(initial.get() + update.get()));
         }
     }
 
@@ -76,12 +76,12 @@ public class ResettableValueTests extends ESTestCase {
         assertThat(ResettableValue.create(value).map(increment), equalTo(ResettableValue.create(value + 1)));
     }
 
-    public void testApplyAndGet() {
+    public void testMapAndGet() {
         Function<Integer, Integer> increment = x -> x + 1;
-        assertThat(ResettableValue.<Integer>undefined().applyAndGet(increment), nullValue());
-        assertThat(ResettableValue.<Integer>reset().applyAndGet(increment), nullValue());
+        assertThat(ResettableValue.<Integer>undefined().mapAndGet(increment), nullValue());
+        assertThat(ResettableValue.<Integer>reset().mapAndGet(increment), nullValue());
         int value = randomIntBetween(0, Integer.MAX_VALUE - 1);
-        assertThat(ResettableValue.create(value).applyAndGet(increment), equalTo(value + 1));
+        assertThat(ResettableValue.create(value).mapAndGet(increment), equalTo(value + 1));
     }
 
     public void testSerialisation() throws IOException {

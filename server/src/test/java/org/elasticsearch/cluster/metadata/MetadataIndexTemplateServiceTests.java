@@ -1765,7 +1765,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(state.metadata(), "my-template")
-            .applyAndGet(DataStreamOptions.Template::toDataStreamOptions);
+            .mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
         assertThat(resolvedDataStreamOptions, resolvedDataStreamOptions == null ? nullValue() : equalTo(expected));
     }
 

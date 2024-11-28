@@ -90,7 +90,7 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
     /**
      * This class is only used in template configuration. It wraps the fields of {@link DataStreamFailureStore} with {@link ResettableValue}
      * to allow a user to signal when they want to reset any previously encountered values during template composition. Furthermore, it
-     * provides the method {@link #mergeWith(Template)} that dictates how two templates can be composed.
+     * provides the method {@link #merge(Template, Template)} that dictates how two templates can be composed.
      */
     public record Template(ResettableValue<Boolean> enabled) implements Writeable, ToXContentObject {
 
@@ -145,12 +145,12 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
         }
 
         /**
-         * Returns a template that has the initial values overridden by the new template
-         *
-         * @param template the new template to merge with
+         * Returns a template which has the value of the initial template updated with the values of the update.
+         * Note: for now it's a trivial composition because we have only one non-null field.
+         * @return the composed template
          */
-        public Template mergeWith(Template template) {
-            return template;
+        public static Template merge(Template ignored, Template update) {
+            return update;
         }
 
         public DataStreamFailureStore toFailureStore() {

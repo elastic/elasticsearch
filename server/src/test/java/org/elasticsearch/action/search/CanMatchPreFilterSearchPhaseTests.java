@@ -541,7 +541,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             parserConfig(),
             mock(Client.class),
             System::currentTimeMillis,
-            () -> finalState,
+            () -> finalState.projectState(),
             (index) -> null
         );
 
@@ -1150,7 +1150,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             parserConfig(),
             mock(Client.class),
             System::currentTimeMillis,
-            () -> finalState,
+            () -> finalState.projectState(),
             (index) -> null
         );
 
@@ -1538,7 +1538,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 XContentParserConfiguration.EMPTY,
                 mock(Client.class),
                 System::currentTimeMillis,
-                () -> clusterState,
+                () -> clusterState.projectState(),
                 fields::get
             );
         }

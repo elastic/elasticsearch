@@ -29,8 +29,6 @@ tasks.named("yamlRestTest").configure {
     '^analytics/moving_percentiles/*',
     '^analytics/top_metrics/*',
     '^analytics/usage/*',
-    '^async_search/10_basic/*',
-    '^async_search/20-with-poin-in-time/*',
     '^constant_keyword/10_basic/*',
     '^data_streams/10_data_stream_resolvability/*',
     '^deprecation/10_basic/*',

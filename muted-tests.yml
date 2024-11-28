@@ -224,9 +224,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117591
 - class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117596
-- class: "org.elasticsearch.xpack.esql.CsvTests"
-  method: "test {scoring.*}"
-  issue: "https://github.com/elastic/elasticsearch/issues/117641"
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {scoring.*}
+  issue: https://github.com/elastic/elasticsearch/issues/117641
 
 # Examples:
 #

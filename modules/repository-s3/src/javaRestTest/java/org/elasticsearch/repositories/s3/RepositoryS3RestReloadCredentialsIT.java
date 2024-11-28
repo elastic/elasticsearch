@@ -61,8 +61,6 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
     }
 
     public void testReloadCredentialsFromKeystore() throws IOException {
-        assumeFalse("doesn't work in a FIPS JVM, but that's ok", inFipsJvm());
-
         // Register repository (?verify=false because we don't have access to the blob store yet)
         final var repositoryName = randomIdentifier();
         registerRepository(
@@ -77,15 +75,21 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         final var accessKey1 = randomIdentifier();
         repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
-        keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        final Request reloadSecureSettingsRequest = new Request("POST", "/_nodes/reload_secure_settings");
+        reloadSecureSettingsRequest.setJsonEntity("""
+            {
+              "secure_settings_password": "keystore-password"
+            }
+            """);
+        assertOK(client().performRequest(reloadSecureSettingsRequest));
 
         // Check access using initial credentials
         assertOK(client().performRequest(verifyRequest));
 
         // Rotate credentials in blob store
-        final var accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
+        final var accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomSecretKey);
         repositoryAccessKey = accessKey2;
 
         // Ensure that initial credentials now invalid
@@ -99,7 +103,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         // Set up refreshed credentials
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(reloadSecureSettingsRequest));
 
         // Check access using refreshed credentials
         assertOK(client().performRequest(verifyRequest));

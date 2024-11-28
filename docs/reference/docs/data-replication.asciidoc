@@ -1,6 +1,6 @@
 
 [[docs-replication]]
-=== Reading and Writing documents
+=== Reading and writing documents
 
 [discrete]
 ==== Introduction

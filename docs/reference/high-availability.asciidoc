@@ -26,5 +26,3 @@ to achieve high availability despite failures.
 --
 
 include::high-availability/cluster-design.asciidoc[]
-
-include::ccr/index.asciidoc[]

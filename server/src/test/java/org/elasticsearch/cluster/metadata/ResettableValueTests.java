@@ -41,8 +41,8 @@ public class ResettableValueTests extends ESTestCase {
 
             assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(ResettableValue.undefined()));
 
-            ResettableValue<Boolean> update = ResettableValue.create(randomBoolean());
-            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(update));
+            ResettableValue<Integer> update = ResettableValue.create(randomInt());
+            assertThat(ResettableValue.merge(initial, update, Integer::sum), equalTo(update));
         }
 
         // Initial state: reset
@@ -50,7 +50,7 @@ public class ResettableValueTests extends ESTestCase {
             ResettableValue<Integer> initial = ResettableValue.reset();
             assertThat(ResettableValue.merge(initial, ResettableValue.reset(), Integer::sum), equalTo(ResettableValue.undefined()));
 
-            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(ResettableValue.undefined()));
+            assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(initial));
 
             ResettableValue<Integer> update = ResettableValue.create(randomInt());
             assertThat(ResettableValue.merge(ResettableValue.undefined(), update, Integer::sum), equalTo(update));
@@ -64,7 +64,7 @@ public class ResettableValueTests extends ESTestCase {
             assertThat(ResettableValue.merge(initial, ResettableValue.undefined(), Integer::sum), equalTo(initial));
 
             ResettableValue<Integer> update = ResettableValue.create(randomIntBetween(1, 200));
-            assertThat(ResettableValue.merge(initial, update, Integer::sum), equalTo(initial.get() + update.get()));
+            assertThat(ResettableValue.merge(initial, update, Integer::sum).get(), equalTo(initial.get() + update.get()));
         }
     }
 

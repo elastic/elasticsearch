@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -149,7 +150,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         @Override
         public void visitRectangle(double minX, double maxX, double maxY, double minY) {
             if (minX > maxX) {
-                throw new IllegalArgumentException("Invalid cartesian rectangle: minX (%s) > maxX (%s)".formatted(minX, maxX));
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Invalid cartesian rectangle: minX (%s) > maxX (%s)", minX, maxX)
+                );
             }
             this.minX = Math.min(this.minX, minX);
             this.minY = Math.min(this.minY, minY);

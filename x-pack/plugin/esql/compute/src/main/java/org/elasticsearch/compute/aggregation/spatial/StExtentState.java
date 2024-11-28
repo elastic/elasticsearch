@@ -25,7 +25,7 @@ final class StExtentState implements AggregatorState {
     private int maxY = Integer.MIN_VALUE;
     private int minY = Integer.MAX_VALUE;
 
-    public StExtentState(PointType pointType) {
+    StExtentState(PointType pointType) {
         this.pointType = pointType;
     }
 

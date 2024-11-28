@@ -83,11 +83,24 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
                 .map(value -> WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes, value.offset, value.length))
                 .forEach(g -> g.visit(new SpatialEnvelopeVisitor(pointVisitor)));
             assert pointVisitor.isValid();
+            Rectangle result = pointVisitor.getResult();
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "SpatialStExtent[field=Attribute[channel=0]]",
                 fieldTypedData.type(),
-                new WellKnownBinaryBytesRefMatcher<Rectangle>(RectangleMatcher.closeTo(pointVisitor.getResult(), 1e-3))
+                new WellKnownBinaryBytesRefMatcher<Rectangle>(
+                    RectangleMatcher.closeTo(
+                        new Rectangle(
+                            // Since we use integers locally which are later decoded to doubles, all computation is effectively done using
+                            // floats, not doubles.
+                            (float) result.getMinX(),
+                            (float) result.getMaxX(),
+                            (float) result.getMaxY(),
+                            (float) result.getMinY()
+                        ),
+                        1e-3
+                    )
+                )
             );
         });
     }

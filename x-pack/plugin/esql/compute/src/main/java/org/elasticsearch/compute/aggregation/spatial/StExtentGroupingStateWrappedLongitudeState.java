@@ -32,11 +32,11 @@ final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayStat
     private IntArray maxYs;
     private IntArray minYs;
 
-    public StExtentGroupingStateWrappedLongitudeState() {
+    StExtentGroupingStateWrappedLongitudeState() {
         this(BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    public StExtentGroupingStateWrappedLongitudeState(BigArrays bigArrays) {
+    StExtentGroupingStateWrappedLongitudeState(BigArrays bigArrays) {
         super(bigArrays);
         this.minNegXs = bigArrays.newIntArray(0, false);
         this.minPosXs = bigArrays.newIntArray(0, false);

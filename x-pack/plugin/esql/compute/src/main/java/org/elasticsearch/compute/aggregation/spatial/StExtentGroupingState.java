@@ -28,11 +28,11 @@ final class StExtentGroupingState extends AbstractArrayState {
     private IntArray maxYs;
     private IntArray minYs;
 
-    public StExtentGroupingState(PointType pointType) {
+    StExtentGroupingState(PointType pointType) {
         this(pointType, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    public StExtentGroupingState(PointType pointType, BigArrays bigArrays) {
+    StExtentGroupingState(PointType pointType, BigArrays bigArrays) {
         super(bigArrays);
         this.pointType = pointType;
         this.minXs = bigArrays.newIntArray(0, false);

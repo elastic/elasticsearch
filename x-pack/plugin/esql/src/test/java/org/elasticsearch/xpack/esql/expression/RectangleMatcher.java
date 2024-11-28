@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.geometry.Rectangle;
 import org.hamcrest.Description;
-import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -17,7 +16,7 @@ public class RectangleMatcher extends TypeSafeMatcher<Rectangle> {
     private final Rectangle r;
     private final double error;
 
-    public static Matcher<Rectangle> closeTo(Rectangle r, double error) {
+    public static TypeSafeMatcher<Rectangle> closeTo(Rectangle r, double error) {
         return new RectangleMatcher(r, error);
     }
 
@@ -28,10 +27,10 @@ public class RectangleMatcher extends TypeSafeMatcher<Rectangle> {
 
     @Override
     protected boolean matchesSafely(Rectangle other) {
-        return Matchers.closeTo((float) r.getMinX(), error).matches(other.getMinX())
-            && Matchers.closeTo((float) r.getMaxX(), error).matches(other.getMaxX())
-            && Matchers.closeTo((float) r.getMaxY(), error).matches(other.getMaxY())
-            && Matchers.closeTo((float) r.getMinY(), error).matches(other.getMinY());
+        return Matchers.closeTo(r.getMinX(), error).matches(other.getMinX())
+            && Matchers.closeTo(r.getMaxX(), error).matches(other.getMaxX())
+            && Matchers.closeTo(r.getMaxY(), error).matches(other.getMaxY())
+            && Matchers.closeTo(r.getMinY(), error).matches(other.getMinY());
     }
 
     @Override

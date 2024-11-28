@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -419,10 +420,10 @@ public final class MultiRowTestCaseSupplier {
 
         switch (includingAltitude) {
             case YES:
-                addSuppliers(cases, minRows, maxRows, "<with alt %s>".formatted(name), type, () -> GEO.asWkb(gen.apply(true)));
+                addSuppliers(cases, minRows, maxRows, Strings.format("<with alt %s>", name), type, () -> GEO.asWkb(gen.apply(true)));
                 // Explicit fallthrough: always generate a case without altitude.
             case NO:
-                addSuppliers(cases, minRows, maxRows, "<no alt %s>".formatted(name), type, () -> GEO.asWkb(gen.apply(false)));
+                addSuppliers(cases, minRows, maxRows, Strings.format("<no alt %s>", name), type, () -> GEO.asWkb(gen.apply(false)));
         }
 
         return cases;

@@ -60,6 +60,18 @@ COUNT():long | VALUES(str):keyword | category:keyword
            1 | [a, b, c]           | .*?disconnected.*?
 ;
 
+skips stopwords
+required_capability: categorize_v2
+
+ROW message = ["Mon Tue connected to a", "Jul Aug connected to b September ", "UTC connected GMT to c UTC"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?connected.+?to.*?
+;
+
 with multiple indices
 required_capability: categorize_v3
 required_capability: union_types
@@ -203,9 +215,9 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
-           1 | .*?\.\*\?Connected\.\+\?to\.\*\?.*?
-           1 | .*?\.\*\?Connection\.\+\?error\.\*\?.*?
-           1 | .*?\.\*\?Disconnected\.\*\?.*?
+           1 | .*?Connected.+?to.*?
+           1 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
 ;
 
 stats without aggs
@@ -231,9 +243,9 @@ FROM hosts
 ;
 
 COUNT():long | category:keyword
-           2 | .*?DB.+?servers.*?
            2 | .*?Gateway.+?instances.*?
            5 | .*?Kubernetes.+?cluster.*?
+           2 | .*?servers.*?
            1 | null
 ;
 
@@ -274,9 +286,9 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
-           3 | .*?Connected.+?to.+?👍🏽😊.*?
-           3 | .*?Connection.+?error.+?👍🏽😊.*?
-           1 | .*?Disconnected.+?👍🏽😊.*?
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
 ;
 
 on REVERSE(CONCAT())
@@ -288,9 +300,9 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
-           1 | .*?😊👍🏽.+?detcennocsiD.*?
-           3 | .*?😊👍🏽.+?ot.+?detcennoC.*?
-           3 | .*?😊👍🏽.+?rorre.+?noitcennoC.*?
+           1 | .*?detcennocsiD.*?
+           3 | .*?ot.+?detcennoC.*?
+           3 | .*?rorre.+?noitcennoC.*?
 ;
 
 and then TO_LOWER
@@ -414,15 +426,15 @@ COUNT():long | category:keyword
 row aliases
 required_capability: categorize_v3
 
-ROW message = "connected to a"
+ROW message = "connected to xyz"
   | EVAL x = message
   | STATS COUNT() BY category=CATEGORIZE(x)
   | EVAL y = category
   | SORT y
 ;
 
-COUNT():long | category:keyword         | y:keyword
-           1 | .*?connected.+?to.+?a.*? | .*?connected.+?to.+?a.*?
+COUNT():long | category:keyword           | y:keyword
+           1 | .*?connected.+?to.+?xyz.*? | .*?connected.+?to.+?xyz.*?
 ;
 
 from aliases
@@ -444,7 +456,7 @@ COUNT():long | category:keyword         | y:keyword
 row aliases with keep
 required_capability: categorize_v3
 
-ROW message = "connected to a"
+ROW message = "connected to xyz"
   | EVAL x = message
   | KEEP x
   | STATS COUNT() BY category=CATEGORIZE(x)
@@ -454,7 +466,7 @@ ROW message = "connected to a"
 ;
 
 COUNT():long | y:keyword
-           1 | .*?connected.+?to.+?a.*?
+           1 | .*?connected.+?to.+?xyz.*?
 ;
 
 from aliases with keep
@@ -478,7 +490,7 @@ COUNT():long | y:keyword
 row rename
 required_capability: categorize_v3
 
-ROW message = "connected to a"
+ROW message = "connected to xyz"
   | RENAME message as x
   | STATS COUNT() BY category=CATEGORIZE(x)
   | RENAME category as y
@@ -486,7 +498,7 @@ ROW message = "connected to a"
 ;
 
 COUNT():long | y:keyword
-           1 | .*?connected.+?to.+?a.*?
+           1 | .*?connected.+?to.+?xyz.*?
 ;
 
 from rename

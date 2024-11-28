@@ -53,8 +53,6 @@ public class SearchStatesIT extends ESRestTestCase {
     record Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {}
 
     static List<Node> getNodes(RestClient restClient) throws IOException {
-        ensureHealth(restClient, (request) -> { request.addParameter("wait_for_nodes", "3"); });
-
         Response response = restClient.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> nodeMap = objectPath.evaluate("nodes");

@@ -38,7 +38,9 @@ public class InferenceFeatures implements FeatureSpecification {
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX
+            SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX
         );
     }
 }

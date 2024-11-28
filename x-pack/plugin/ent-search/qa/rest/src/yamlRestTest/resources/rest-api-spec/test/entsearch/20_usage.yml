@@ -199,7 +199,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: { total_count: 2, total_rule_count: 5, min_rule_count: 2, max_rule_count: 3, rule_criteria_total_counts: { exact: 5 } }
+      query_rulesets: { total_count: 2, total_rule_count: 5, min_rule_count: 2, max_rule_count: 3, rule_criteria_total_counts: { exact: 5 }, rule_type_total_counts: { pinned: 5 } }
     }
   }
 
@@ -216,7 +216,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: { total_count: 1, total_rule_count: 2, min_rule_count: 2, max_rule_count: 2, rule_criteria_total_counts: { exact: 2 } }
+      query_rulesets: { total_count: 1, total_rule_count: 2, min_rule_count: 2, max_rule_count: 2, rule_criteria_total_counts: { exact: 2 }, rule_type_total_counts: { pinned: 2 } }
     }
   }
 

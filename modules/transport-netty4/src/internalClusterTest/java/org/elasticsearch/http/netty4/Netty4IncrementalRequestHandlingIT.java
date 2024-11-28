@@ -173,7 +173,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
 
             // enable auto-read to receive channel close event
             handler.stream.channel().config().setAutoRead(true);
@@ -182,7 +182,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             // terminate connection and wait resources are released
             ctx.clientChannel.close();
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }
@@ -199,13 +199,13 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.streamClosed);
 
             // terminate connection on server and wait resources are released
             handler.channel.request().getHttpChannel().close();
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }

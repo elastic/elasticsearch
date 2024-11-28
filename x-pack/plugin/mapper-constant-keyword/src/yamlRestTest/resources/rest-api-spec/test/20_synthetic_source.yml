@@ -1,7 +1,7 @@
 constant_keyword:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
+      cluster_features: "gte_v8.16.0"
+      reason: behavior change in 8.16
 
   - do:
       indices.create:
@@ -26,12 +26,32 @@ constant_keyword:
           kwd: foo
 
   - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          kwd: foo
+          const_kwd: bar
+
+  - do:
       search:
         index: test
         body:
           query:
             ids:
               values: [1]
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [2]
   - match:
       hits.hits.0._source:
         kwd: foo

@@ -23,10 +23,12 @@ public final class SearchCapabilities {
     /** Support synthetic source with `bit` type in `dense_vector` field when `index` is set to `false`. */
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
+    private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
 
     public static final Set<String> CAPABILITIES = Set.of(
         RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
         BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY,
-        NESTED_RETRIEVER_INNER_HITS_SUPPORT
+        NESTED_RETRIEVER_INNER_HITS_SUPPORT,
+        RANDOM_SAMPLER_WITH_SCORED_SUBAGGS
     );
 }

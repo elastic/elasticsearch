@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
@@ -371,6 +372,54 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSingleCountWithStatsFilter() {
+        var analyzer = makeAnalyzer("mapping-default.json", new EnrichResolution());
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
+        var plan = plannerOptimizer.plan("""
+            from test
+            | stats c = count(hire_date) where emp_no < 10042
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.stats().size(), is(1));
+
+        Function<String, String> compact = s -> s.replaceAll("\\s+", "");
+        assertThat(compact.apply(esStatsQuery.stats().get(0).query().toString()), is(compact.apply("""
+            {
+                "bool": {
+                    "must": [
+                        {
+                            "esql_single_value": {
+                                "field": "emp_no",
+                                "next": {
+                                    "range": {
+                                        "emp_no": {
+                                            "lt": 10042,
+                                            "boost": 1.0
+                                        }
+                                    }
+                                },
+                                "source": "emp_no < 10042@2:36"
+                            }
+                        },
+                        {
+                            "exists": {
+                                "field": "hire_date",
+                                "boost": 1.0
+                            }
+                        }
+                    ],
+                    "boost": 1.0
+                }
+            }
+            """)));
     }
 
     /**

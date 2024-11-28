@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
-import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -69,19 +68,16 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    private final Sender elasticInferenceServiceRequestSender;
-
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ElasticInferenceServiceRequestSender.Factory elasticInferenceServiceSenderFactory
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(factory, serviceComponents);
-
-        this.elasticInferenceServiceRequestSender = elasticInferenceServiceSenderFactory.createSender();
+        this.sender = factory.createSender();
+        this.elasticInferenceServiceRequestSender = factory.createSender();
         this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
     }
 
@@ -116,7 +112,8 @@ public class ElasticInferenceService extends SenderService {
 
         ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
         var actionCreator = new ElasticInferenceServiceActionCreator(
-            this.elasticInferenceServiceRequestSender, getServiceComponents(), currentTraceInfo);
+            getSender(), getServiceComponents(), currentTraceInfo
+        );
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);

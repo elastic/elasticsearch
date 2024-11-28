@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ElasticInferenceServiceSettings {
@@ -49,7 +50,13 @@ public class ElasticInferenceServiceSettings {
     );
 
     public static List<Setting<?>> getSettingsDefinitions() {
-        return List.of(EIS_GATEWAY_URL, ELASTIC_INFERENCE_SERVICE_URL);
+        ArrayList<Setting<?>> settings = new ArrayList<>();
+        settings.add(EIS_GATEWAY_URL);
+        settings.add(ELASTIC_INFERENCE_SERVICE_URL);
+        settings.add(ELASTIC_INFERENCE_SERVICE_SSL_ENABLED);
+        settings.addAll(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS.getEnabledSettings());
+
+        return settings;
     }
 
     @Deprecated

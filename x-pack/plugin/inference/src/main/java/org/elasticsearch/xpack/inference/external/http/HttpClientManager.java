@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.nio.conn.NoopIOSessionStrategy;
+import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.http.pool.PoolStats;
@@ -21,6 +26,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
@@ -98,6 +105,17 @@ public class HttpClientManager implements Closeable {
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
+    public static HttpClientManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager,
+        SSLIOSessionStrategy sslioSessionStrategy
+    ) {
+        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+    }
+
     // Default for testing
     HttpClientManager(
         Settings settings,
@@ -119,6 +137,25 @@ public class HttpClientManager implements Closeable {
         connectionEvictor = createConnectionEvictor();
 
         this.addSettingsUpdateConsumers(clusterService);
+    }
+
+    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy) {
+        ConnectingIOReactor ioReactor;
+        try {
+            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
+            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
+        } catch (IOReactorException e) {
+            var message = "Failed to initialize the elastic inference service http client manager";
+            logger.error(message, e);
+            throw new ElasticsearchException(message, e);
+        }
+
+        Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+            .register("http", NoopIOSessionStrategy.INSTANCE)
+            .register("https", sslStrategy)
+            .build();
+
+        return new PoolingNHttpClientConnectionManager(ioReactor, null, registry);
     }
 
     private static PoolingNHttpClientConnectionManager createConnectionManager() {
@@ -208,5 +245,10 @@ public class HttpClientManager implements Closeable {
         logger.debug(() -> format("Eviction thread's max idle time updated to [%s]", connectionMaxIdle));
         this.connectionMaxIdle = connectionMaxIdle;
         connectionEvictor.setMaxIdleTime(connectionMaxIdle);
+    }
+
+    public static SSLIOSessionStrategy getSSLStrategy(String prefix) {
+        SSLService sslService = XPackPlugin.getSharedSslService();
+        return sslService.sslIOSessionStrategy(sslService.getSSLConfiguration(prefix));
     }
 }

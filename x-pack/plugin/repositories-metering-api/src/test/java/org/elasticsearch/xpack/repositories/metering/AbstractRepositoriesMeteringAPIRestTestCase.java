@@ -328,7 +328,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> {
                         long operationCount = e.getValue().longValue();
                         // The API is lossy, we don't get back operations/requests, so we'll assume they're all the same
-                        return new EndpointStats(operationCount, operationCount, operationCount);
+                        return new EndpointStats(operationCount, operationCount);
                     }));
                 RepositoryStats repositoryStats = new RepositoryStats(requestCounters);
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(

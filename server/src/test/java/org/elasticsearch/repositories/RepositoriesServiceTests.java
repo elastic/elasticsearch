@@ -580,7 +580,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-a";
-        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new EndpointStats(10, 13, 13)));
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new EndpointStats(10, 13)));
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
             super(
@@ -607,7 +607,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-b";
-        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new EndpointStats(20, 25, 25)));
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new EndpointStats(20, 25)));
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
             super(

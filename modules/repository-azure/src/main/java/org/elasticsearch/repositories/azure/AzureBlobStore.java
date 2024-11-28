@@ -744,13 +744,13 @@ public class AzureBlobStore implements BlobStore {
         }
 
         EndpointStats getEndpointStats() {
-            return new EndpointStats(operations.sum(), requests.sum(), operations.sum());
+            return new EndpointStats(operations.sum(), requests.sum());
         }
 
         EndpointStats addTo(EndpointStats other) {
             long ops = operations.sum() + other.operations();
             long reqs = requests.sum() + other.requests();
-            return new EndpointStats(ops, reqs, ops);
+            return new EndpointStats(ops, reqs);
         }
     }
 

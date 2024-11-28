@@ -158,7 +158,7 @@ class S3BlobStore implements BlobStore {
         }
 
         EndpointStats getEndpointStats() {
-            return new EndpointStats(operations.sum(), requests.sum(), requests.sum());
+            return new EndpointStats(operations.sum(), requests.sum());
         }
 
         @Override

@@ -35,7 +35,10 @@ public class RepositoryStats implements Writeable {
         if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
             this.requestCounts = in.readMap(EndpointStats::new);
         } else {
-            this.requestCounts = in.readMap(si -> new EndpointStats(in.readLong()));
+            this.requestCounts = in.readMap(si -> {
+                long legacyValue = in.readLong();
+                return new EndpointStats(legacyValue, legacyValue);
+            });
         }
     }
 
@@ -53,7 +56,7 @@ public class RepositoryStats implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
             out.writeMap(requestCounts, (so, v) -> v.writeTo(so));
         } else {
-            out.writeMap(requestCounts, (so, v) -> so.writeLong(v.legacyValue()));
+            out.writeMap(requestCounts, (so, v) -> so.writeLong(v.requests()));
         }
     }
 

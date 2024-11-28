@@ -74,7 +74,7 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
         builder.startObject("request_counts");
         for (Map.Entry<String, EndpointStats> entry : repositoryStats.requestCounts.entrySet()) {
             final EndpointStats stats = entry.getValue();
-            builder.field(entry.getKey(), stats.isLegacyStats() ? stats.legacyValue() : stats.operations());
+            builder.field(entry.getKey(), stats.operations());
         }
         builder.endObject();
         builder.field("archived", archived);

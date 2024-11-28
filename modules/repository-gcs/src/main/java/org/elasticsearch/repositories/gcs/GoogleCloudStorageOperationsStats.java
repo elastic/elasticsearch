@@ -51,11 +51,11 @@ final class GoogleCloudStorageOperationsStats {
     Map<String, EndpointStats> toMap() {
         final Map<String, EndpointStats> results = new HashMap<>();
         final long getOperations = getCount.get();
-        results.put("GetObject", new EndpointStats(getOperations, getOperations, getOperations));
+        results.put("GetObject", new EndpointStats(getOperations, getOperations));
         final long listOperations = listCount.get();
-        results.put("ListObjects", new EndpointStats(listOperations, listOperations, listOperations));
+        results.put("ListObjects", new EndpointStats(listOperations, listOperations));
         final long insertOperations = postCount.get() + putCount.get();
-        results.put("InsertObject", new EndpointStats(insertOperations, insertOperations, insertOperations));
+        results.put("InsertObject", new EndpointStats(insertOperations, insertOperations));
         return results;
     }
 }

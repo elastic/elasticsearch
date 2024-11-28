@@ -55,6 +55,7 @@ processingCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? joinCommand
+    | {this.isDevVersion()}? completionCommand
     ;
 
 whereCommand
@@ -338,4 +339,8 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+completionCommand
+    : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=primaryExpression (AS target=qualifiedName)?
     ;

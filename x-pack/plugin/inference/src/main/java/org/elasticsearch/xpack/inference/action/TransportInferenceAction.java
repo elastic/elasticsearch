@@ -13,6 +13,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
@@ -25,14 +28,22 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
+import org.elasticsearch.xpack.inference.common.ServiceToNodeGroupingClusterStateListener;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -44,10 +55,14 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
 
+    private final TransportService transportService;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
+    private final ServiceToNodeGroupingClusterStateListener serviceToNodeGroupingClusterStateListener;
+    private final NodeClient nodeClient;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportInferenceAction(
@@ -56,18 +71,27 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        ServiceToNodeGroupingClusterStateListener serviceToNodeGroupingClusterStateListener,
+        NodeClient nodeClient,
+        ThreadPool threadPool
     ) {
         super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.transportService = transportService;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;
         this.streamingTaskManager = streamingTaskManager;
+        this.serviceToNodeGroupingClusterStateListener = serviceToNodeGroupingClusterStateListener;
+        this.nodeClient = nodeClient;
+        this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
         var timer = InferenceTimer.start();
+        // TODO: check, if is streaming as soon as streaming on transport level is supported
+        boolean isCompletionRequest = TaskType.COMPLETION.equals(request.getTaskType());
 
         var getModelListener = ActionListener.wrap((UnparsedModel unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
@@ -86,6 +110,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 return;
             }
 
+
             var model = service.get()
                 .parsePersistedConfigWithSecrets(
                     unparsedModel.inferenceEntityId(),
@@ -93,7 +118,61 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
-            inferOnServiceWithMetrics(model, request, service.get(), timer, listener);
+
+            if(isCompletionRequest){
+                String serviceName = unparsedModel.service();
+                Map<String, DiscoveryNode> serviceToNodeGrouping = serviceToNodeGroupingClusterStateListener.serviceToNodeGrouping();
+                boolean currentNodeShouldHandleRequest;
+
+                if (serviceToNodeGrouping == null) {
+                    // Grouping not yet calculated, current node should handle the request
+                    currentNodeShouldHandleRequest = true;
+                } else {
+                    String localNodeId = nodeClient.getLocalNodeId();
+                    DiscoveryNode nodeToHandleRequest = serviceToNodeGrouping.get(serviceName);
+
+                    currentNodeShouldHandleRequest = nodeToHandleRequest != null && nodeToHandleRequest.getId().equals(localNodeId);
+                }
+
+                if(currentNodeShouldHandleRequest){
+                    // Inference on current node
+                    inferOnServiceWithMetrics(model, request, service.get(), timer, listener);
+                } else {
+                        // Reroute to node responsible for service type
+                        log.info("Rerouting request from node [{}] to node [{}] for service [{}]", nodeClient.getLocalNodeId(), serviceToNodeGrouping.get(serviceName).getId(), serviceName);
+
+                        transportService.sendRequest(
+                            serviceToNodeGrouping.get(serviceName),
+                            InferenceAction.NAME,
+                            request,
+                            // TODO: here we would need to stream on the transport level
+                            new TransportResponseHandler<InferenceAction.Response>() {
+                                @Override
+                                public Executor executor() {
+                                    return threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
+                                }
+
+                                @Override
+                                public void handleResponse(InferenceAction.Response response) {
+                                    listener.onResponse(response);
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    listener.onFailure(exp);
+                                }
+
+                                @Override
+                                public InferenceAction.Response read(StreamInput in) throws IOException {
+                                    return new InferenceAction.Response(in);
+                                }
+                            }
+                        );
+                }
+            } else {
+                // For other task types the current node will always handle the request
+                inferOnServiceWithMetrics(model, request, service.get(), timer, listener);
+            }
         }, e -> {
             try {
                 inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(e));

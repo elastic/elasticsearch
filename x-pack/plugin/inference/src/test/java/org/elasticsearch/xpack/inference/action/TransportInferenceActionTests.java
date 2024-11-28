@@ -72,7 +72,10 @@ public class TransportInferenceActionTests extends ESTestCase {
             modelRegistry,
             serviceRegistry,
             inferenceStats,
-            streamingTaskManager
+            streamingTaskManager,
+            mock(),
+            mock(),
+            mock()
         );
     }
 

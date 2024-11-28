@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpFixture;
+import io.netty.handler.codec.http.HttpMethod;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;

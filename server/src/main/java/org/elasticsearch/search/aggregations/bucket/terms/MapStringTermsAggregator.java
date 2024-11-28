@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
@@ -296,7 +295,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                     try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
                         B spare = null;
                         BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningOrd);
-                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder();
+                        BucketUpdater<B> bucketUpdater = bucketUpdater(owningOrd);
                         while (ordsEnum.next()) {
                             long docCount = bucketDocCount(ordsEnum.ord());
                             otherDocCounts.increment(ordIdx, docCount);
@@ -305,9 +304,9 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                             }
                             if (spare == null) {
                                 checkRealMemoryCBForInternalBucket();
-                                spare = emptyBucketBuilder.get();
+                                spare = buildEmptyBucket();
                             }
-                            updateBucket(owningOrd, spare, ordsEnum, docCount);
+                            bucketUpdater.updateBucket(spare, ordsEnum, docCount);
                             spare = ordered.insertWithOverflow(spare);
                         }
 
@@ -348,9 +347,9 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException;
 
         /**
-         * Build an empty temporary bucket.
+         * Build an empty bucket.
          */
-        abstract Supplier<B> emptyBucketBuilder();
+        abstract B buildEmptyBucket();
 
         /**
          * Build a {@link PriorityQueue} to sort the buckets. After we've
@@ -362,8 +361,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Update fields in {@code spare} to reflect information collected for
          * this bucket ordinal.
          */
-        abstract void updateBucket(long globalSubsetSize, B spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount)
-            throws IOException;
+        abstract BucketUpdater<B> bucketUpdater(long owningBucketOrd);
 
         /**
          * Build an array to hold the "top" buckets for each ordinal.
@@ -398,6 +396,10 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * shard.
          */
         abstract R buildEmptyResult();
+    }
+
+    interface BucketUpdater<B extends InternalMultiBucketAggregation.InternalBucket> {
+        void updateBucket(B spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount) throws IOException;
     }
 
     /**
@@ -491,8 +493,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        Supplier<StringTerms.Bucket> emptyBucketBuilder() {
-            return () -> new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0, format);
+        StringTerms.Bucket buildEmptyBucket() {
+            return new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0, format);
         }
 
         @Override
@@ -501,10 +503,12 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void updateBucket(long owningBucketOrd, StringTerms.Bucket spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount) {
-            ordsEnum.readValue(spare.termBytes);
-            spare.docCount = docCount;
-            spare.bucketOrd = ordsEnum.ord();
+        BucketUpdater<StringTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            return (spare, ordsEnum, docCount) -> {
+                ordsEnum.readValue(spare.termBytes);
+                spare.docCount = docCount;
+                spare.bucketOrd = ordsEnum.ord();
+            };
         }
 
         @Override
@@ -616,8 +620,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException {}
 
         @Override
-        Supplier<SignificantStringTerms.Bucket> emptyBucketBuilder() {
-            return () -> new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, null, format, 0);
+        SignificantStringTerms.Bucket buildEmptyBucket() {
+            return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, null, format, 0);
         }
 
         @Override
@@ -626,23 +630,20 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void updateBucket(
-            long owningBucketOrd,
-            SignificantStringTerms.Bucket spare,
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum,
-            long docCount
-        ) throws IOException {
-
-            ordsEnum.readValue(spare.termBytes);
-            spare.bucketOrd = ordsEnum.ord();
-            spare.subsetDf = docCount;
-            spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
-            /*
-             * During shard-local down-selection we use subset/superset stats
-             * that are for this shard only. Back at the central reducer these
-             * properties will be updated with global stats.
-             */
-            spare.updateScore(significanceHeuristic, subsetSizes.get(owningBucketOrd), supersetSize);
+        BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            long subsetSize = subsetSizes.get(owningBucketOrd);
+            return (spare, ordsEnum, docCount) -> {
+                ordsEnum.readValue(spare.termBytes);
+                spare.bucketOrd = ordsEnum.ord();
+                spare.subsetDf = docCount;
+                spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
+                /*
+                 * During shard-local down-selection we use subset/superset stats
+                 * that are for this shard only. Back at the central reducer these
+                 * properties will be updated with global stats.
+                 */
+                spare.updateScore(significanceHeuristic, subsetSize, supersetSize);
+            };
         }
 
         @Override

@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -177,7 +176,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                     try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
                         B spare = null;
                         BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder();
+                        BucketUpdater<B> bucketUpdater = bucketUpdater(owningBucketOrd);
                         while (ordsEnum.next()) {
                             long docCount = bucketDocCount(ordsEnum.ord());
                             otherDocCounts.increment(ordIdx, docCount);
@@ -186,9 +185,9 @@ public final class NumericTermsAggregator extends TermsAggregator {
                             }
                             if (spare == null) {
                                 checkRealMemoryCBForInternalBucket();
-                                spare = emptyBucketBuilder.get();
+                                spare = buildEmptyBucket();
                             }
-                            updateBucket(owningBucketOrd, spare, ordsEnum, docCount);
+                            bucketUpdater.updateBucket(spare, ordsEnum, docCount);
                             spare = ordered.insertWithOverflow(spare);
                         }
 
@@ -240,17 +239,16 @@ public final class NumericTermsAggregator extends TermsAggregator {
         abstract B[] buildBuckets(int size);
 
         /**
-         * Build a {@linkplain Supplier} that can be used to build "empty"
-         * buckets. Those buckets will then be {@link #updateBucket updated}
+         * Build an empty bucket. Those buckets will then be {@link #bucketUpdater(long)}  updated}
          * for each collected bucket.
          */
-        abstract Supplier<B> emptyBucketBuilder();
+        abstract B buildEmptyBucket();
 
         /**
          * Update fields in {@code spare} to reflect information collected for
          * this bucket ordinal.
          */
-        abstract void updateBucket(long owningBucketOrd, B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
+        abstract BucketUpdater<B> bucketUpdater(long owningBucketOrd);
 
         /**
          * Build a {@link ObjectArrayPriorityQueue} to sort the buckets. After we've
@@ -282,6 +280,10 @@ public final class NumericTermsAggregator extends TermsAggregator {
         abstract R buildEmptyResult();
     }
 
+    interface BucketUpdater<B extends InternalMultiBucketAggregation.InternalBucket> {
+        void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
+    }
+
     abstract class StandardTermsResultStrategy<R extends InternalMappedTerms<R, B>, B extends InternalTerms.Bucket<B>> extends
         ResultStrategy<R, B> {
         protected final boolean showTermDocCountError;
@@ -304,13 +306,6 @@ public final class NumericTermsAggregator extends TermsAggregator {
         final void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
-
-        @Override
-        Supplier<B> emptyBucketBuilder() {
-            return this::buildEmptyBucket;
-        }
-
-        abstract B buildEmptyBucket();
 
         @Override
         final void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException {
@@ -375,10 +370,12 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void updateBucket(long owningBucketOrd, LongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
-            spare.term = ordsEnum.value();
-            spare.docCount = docCount;
-            spare.bucketOrd = ordsEnum.ord();
+        BucketUpdater<LongTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            return (LongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) -> {
+                spare.term = ordsEnum.value();
+                spare.docCount = docCount;
+                spare.bucketOrd = ordsEnum.ord();
+            };
         }
 
         @Override
@@ -457,10 +454,12 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void updateBucket(long owningBucketOrd, DoubleTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
-            spare.term = NumericUtils.sortableLongToDouble(ordsEnum.value());
-            spare.docCount = docCount;
-            spare.bucketOrd = ordsEnum.ord();
+        BucketUpdater<DoubleTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            return (DoubleTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) -> {
+                spare.term = NumericUtils.sortableLongToDouble(ordsEnum.value());
+                spare.docCount = docCount;
+                spare.bucketOrd = ordsEnum.ord();
+            };
         }
 
         @Override
@@ -565,20 +564,22 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        Supplier<SignificantLongTerms.Bucket> emptyBucketBuilder() {
-            return () -> new SignificantLongTerms.Bucket(0, 0, 0, null, format, 0);
+        SignificantLongTerms.Bucket buildEmptyBucket() {
+            return new SignificantLongTerms.Bucket(0, 0, 0, null, format, 0);
         }
 
         @Override
-        void updateBucket(long owningBucketOrd, SignificantLongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount)
-            throws IOException {
-            spare.term = ordsEnum.value();
-            spare.subsetDf = docCount;
-            spare.supersetDf = backgroundFrequencies.freq(spare.term);
-            spare.bucketOrd = ordsEnum.ord();
-            // During shard-local down-selection we use subset/superset stats that are for this shard only
-            // Back at the central reducer these properties will be updated with global stats
-            spare.updateScore(significanceHeuristic, subsetSizes.get(owningBucketOrd), supersetSize);
+        BucketUpdater<SignificantLongTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            long subsetSize = subsetSizes.get(owningBucketOrd);
+            return (spare, ordsEnum, docCount) -> {
+                spare.term = ordsEnum.value();
+                spare.subsetDf = docCount;
+                spare.supersetDf = backgroundFrequencies.freq(spare.term);
+                spare.bucketOrd = ordsEnum.ord();
+                // During shard-local down-selection we use subset/superset stats that are for this shard only
+                // Back at the central reducer these properties will be updated with global stats
+                spare.updateScore(significanceHeuristic, subsetSize, supersetSize);
+            };
         }
 
         @Override

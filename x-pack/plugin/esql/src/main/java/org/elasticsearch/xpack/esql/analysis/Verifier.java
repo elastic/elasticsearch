@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -53,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
@@ -171,6 +175,20 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
+            } else if (p instanceof LookupJoin lj) {
+                // expect right side to always be a lookup index
+                lj.right().forEachUp(EsRelation.class, r -> {
+                    if (r.indexMode() != IndexMode.LOOKUP) {
+                        failures.add(
+                            fail(
+                                r,
+                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
+                                r.index().name(),
+                                r.indexMode().getName()
+                            )
+                        );
+                    }
+                });
             }
 
             else {
@@ -199,10 +217,12 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
+            checkSort(p, failures);
 
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -214,6 +234,25 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
+        // _score can only be set as metadata attribute
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
+            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+        }
+    }
+
+    private void checkSort(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof OrderBy ob) {
+            ob.order().forEach(o -> {
+                o.forEachDown(Function.class, f -> {
+                    if (f instanceof AggregateFunction) {
+                        failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+                    }
+                });
+            });
+        }
     }
 
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
@@ -495,7 +534,7 @@ public class Verifier {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
                 if (DataType.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+                    failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
         }
@@ -764,14 +803,19 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                QueryString.class,
-                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                qsf -> "[" + qsf.functionName() + "] " + qsf.functionType(),
-                failures
-            );
+
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,

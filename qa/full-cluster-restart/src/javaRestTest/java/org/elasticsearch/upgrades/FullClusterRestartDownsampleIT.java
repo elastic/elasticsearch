@@ -268,6 +268,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
     }
 
     public void testRollupIndex() throws Exception {
+        assumeTrue("Downsample got many stability improvements in 8.10.0", oldClusterHasFeature("gte_v8.10.0"));
         if (isRunningAgainstOldCluster()) {
             createIlmPolicy();
             createIndex();

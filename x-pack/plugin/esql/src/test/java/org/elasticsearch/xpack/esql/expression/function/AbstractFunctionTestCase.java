@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -130,7 +131,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("mod", Mod.class),
         entry("neg", Neg.class),
         entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class)
+        entry("is_not_null", IsNotNull.class),
+        // Match operator is both a function and an operator
+        entry("match_operator", Match.class)
     );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -226,7 +229,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         oc.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        oc.canBuildEvaluator()
                     );
                 }));
 
@@ -257,7 +261,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 oc.getExpectedTypeError(),
                                 null,
                                 null,
-                                null
+                                null,
+                                oc.canBuildEvaluator()
                             );
                         }));
                     }
@@ -645,18 +650,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
-            return new TestCaseSupplier.TestCase(
-                newData,
-                testCase.evaluatorToString(),
-                testCase.expectedType(),
-                testCase.getMatcher(),
-                testCase.getExpectedWarnings(),
-                testCase.getExpectedBuildEvaluatorWarnings(),
-                testCase.getExpectedTypeError(),
-                testCase.foldingExceptionClass(),
-                testCase.foldingExceptionMessage(),
-                testCase.extra()
-            );
+            return testCase.withData(newData);
         })).toList();
     }
 
@@ -813,6 +807,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (unaryOperator != null) {
             return RailRoadDiagram.unaryOperator(unaryOperator);
         }
+        String searchOperator = searchOperator(name);
+        if (searchOperator != null) {
+            return RailRoadDiagram.searchOperator(searchOperator);
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             return RailRoadDiagram.functionSignature(definition);
@@ -862,7 +860,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
+        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
         }
@@ -1254,6 +1252,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "mul" -> "*";
             case "not_equals" -> "!=";
             case "sub" -> "-";
+            default -> null;
+        };
+    }
+
+    /**
+     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
+     */
+    private static String searchOperator(String name) {
+        return switch (name) {
+            case "match_operator" -> ":";
             default -> null;
         };
     }

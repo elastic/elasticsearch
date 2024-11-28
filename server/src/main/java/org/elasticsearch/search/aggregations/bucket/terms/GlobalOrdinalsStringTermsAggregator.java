@@ -700,11 +700,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
 
             if (valueCount == 0) { // no context in this reader
-                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                    results[ordIdx] = buildNoValuesResult(owningBucketOrds.get(ordIdx));
-                }
-                return results;
+                return GlobalOrdinalsStringTermsAggregator.this.buildAggregations(
+                    Math.toIntExact(owningBucketOrds.size()),
+                    ordIdx -> buildNoValuesResult(owningBucketOrds.get(ordIdx))
+                );
             }
             try (
                 LongArray otherDocCount = bigArrays().newLongArray(owningBucketOrds.size(), true);
@@ -731,6 +730,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                                 otherDocCount.increment(finalOrdIdx, docCount);
                                 if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
                                     if (spare == null) {
+                                        checkRealMemoryCBForInternalBucket();
                                         spare = buildEmptyTemporaryBucket();
                                     }
                                     updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
@@ -742,6 +742,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         // Get the top buckets
                         topBucketsPreOrd.set(ordIdx, buildBuckets((int) ordered.size()));
                         for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                            checkRealMemoryCBForInternalBucket();
                             B bucket = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
                             topBucketsPreOrd.get(ordIdx)[i] = bucket;
                             otherDocCount.increment(ordIdx, -bucket.getDocCount());
@@ -751,11 +752,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
                 buildSubAggs(topBucketsPreOrd);
 
-                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(topBucketsPreOrd.size())];
-                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                    results[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCount.get(ordIdx), topBucketsPreOrd.get(ordIdx));
-                }
-                return results;
+                return GlobalOrdinalsStringTermsAggregator.this.buildAggregations(
+                    Math.toIntExact(owningBucketOrds.size()),
+                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCount.get(ordIdx), topBucketsPreOrd.get(ordIdx))
+                );
             }
         }
 
@@ -880,7 +880,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             BytesRef term = BytesRef.deepCopyOf(lookupGlobalOrd.apply(temp.globalOrd));
             StringTerms.Bucket result = new StringTerms.Bucket(term, temp.docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = temp.bucketOrd;
-            result.docCountError = 0;
             return result;
         }
 

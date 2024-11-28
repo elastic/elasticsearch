@@ -156,12 +156,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
   method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
   issue: https://github.com/elastic/elasticsearch/issues/116523
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testBWCSearchStates
-  issue: https://github.com/elastic/elasticsearch/issues/116617
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/116618
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694

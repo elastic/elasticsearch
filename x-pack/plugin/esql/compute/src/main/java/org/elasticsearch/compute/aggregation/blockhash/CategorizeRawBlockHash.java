@@ -64,7 +64,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     /**
      * Similar implementation to an Evaluator.
      */
-    public static final class CategorizeEvaluator implements Releasable {
+    public final class CategorizeEvaluator implements Releasable {
         private final CategorizationAnalyzer analyzer;
 
         private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
@@ -95,7 +95,8 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
                 BytesRef vScratch = new BytesRef();
                 for (int p = 0; p < positionCount; p++) {
                     if (vBlock.isNull(p)) {
-                        result.appendNull();
+                        seenNull = true;
+                        result.appendInt(NULL_ORD);
                         continue;
                     }
                     int first = vBlock.getFirstValueIndex(p);
@@ -126,7 +127,12 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         }
 
         private int process(BytesRef v) {
-            return categorizer.computeCategory(v.utf8ToString(), analyzer).getId();
+            var category = categorizer.computeCategory(v.utf8ToString(), analyzer);
+            if (category == null) {
+                seenNull = true;
+                return NULL_ORD;
+            }
+            return category.getId() + 1;
         }
 
         @Override

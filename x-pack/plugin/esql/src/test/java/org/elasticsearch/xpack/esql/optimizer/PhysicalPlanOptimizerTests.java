@@ -20,6 +20,7 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -6682,7 +6683,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFunc = assertAggregation(plan, aliasName, aggClass);
         var aggField = as(aggFunc.field(), Attribute.class);
         var spatialAgg = as(aggFunc, SpatialAggregateFunction.class);
-        assertThat("Expected spatial aggregation to use doc-values", spatialAgg.fieldExtractPreference(), equalTo(useDocValues));
+        assertThat(
+            "Expected spatial aggregation to use doc-values",
+            spatialAgg.fieldExtractPreference(),
+            equalTo(useDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE)
+        );
         assertThat("", aggField.dataType(), equalTo(fieldType));
     }
 

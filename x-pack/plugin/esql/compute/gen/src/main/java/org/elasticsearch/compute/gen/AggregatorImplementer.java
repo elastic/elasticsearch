@@ -626,7 +626,7 @@ public class AggregatorImplementer {
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantFloatBlockWith(state.floatValue(), 1)");
                 return;
             default:
-                throw new IllegalArgumentException("don't know how to convert state to result: " + stateType + ";");
+                throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);
         }
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -261,7 +262,8 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
         runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
-        sourceModeUsageCount = in.getTransportVersion().onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY)
+        var transportVersion = in.getTransportVersion();
+        sourceModeUsageCount = canReadOrWriteSourceModeTelemetry(transportVersion)
             ? in.readImmutableMap(StreamInput::readString, StreamInput::readVInt)
             : Map.of();
     }
@@ -275,9 +277,15 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY)) {
+        var transportVersion = out.getTransportVersion();
+        if (canReadOrWriteSourceModeTelemetry(transportVersion)) {
             out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);
         }
+    }
+
+    private static boolean canReadOrWriteSourceModeTelemetry(TransportVersion version) {
+        return version.isPatchFrom(TransportVersions.SOURCE_MODE_TELEMETRY_FIX_8_17)
+            || version.onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY);
     }
 
     private static OptionalLong ofNullable(Long l) {

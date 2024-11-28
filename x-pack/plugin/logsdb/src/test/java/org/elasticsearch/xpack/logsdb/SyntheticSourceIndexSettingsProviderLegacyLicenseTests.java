@@ -98,7 +98,7 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
     }
 
     public void testGetAdditionalIndexSettingsTsdbAfterCutoffDate() throws Exception {
-        long start = LocalDateTime.of(2024, 12, 20, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        long start = LocalDateTime.of(2025, 2, 2, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         License license = createGoldOrPlatinumLicense(start);
         long time = LocalDateTime.of(2024, 12, 31, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));

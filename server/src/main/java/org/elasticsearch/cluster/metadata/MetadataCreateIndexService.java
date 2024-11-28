@@ -150,7 +150,7 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
-    private final @Nullable ClusterBlocksTransformer blocksTransformerUponIndexCreation;
+    private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
 
     public MetadataCreateIndexService(
         final Settings settings,

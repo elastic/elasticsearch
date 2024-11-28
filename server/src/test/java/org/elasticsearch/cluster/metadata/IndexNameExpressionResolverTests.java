@@ -1421,11 +1421,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.isAllIndices(List.of("_all")), equalTo(true));
     }
 
-    public void testIsNoneIndices() {
+    public void testIsAllIndicesExplicitAllPlusOther() {
         assertThat(IndexNameExpressionResolver.isAllIndices(List.of("_all", "other")), equalTo(false));
     }
 
-    public void testIsAllIndicesExplicitAllPlusOther() {
+    public void testIsNoneIndices() {
         assertThat(IndexNameExpressionResolver.isNoneExpression(new String[] { "*", "-*" }), equalTo(true));
     }
 
@@ -3266,7 +3266,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             "<.marvel-{now/d}>",
             "name2",
             "<.logstash-{now/M{uuuu.MM}}>"
-        ).v1();
+        );
         assertThat(result.size(), equalTo(4));
         assertThat(result, contains("name1", dataMathIndex1, "name2", dateMathIndex2));
     }
@@ -3450,7 +3450,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
     }
 
-    static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
+    private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
         return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 

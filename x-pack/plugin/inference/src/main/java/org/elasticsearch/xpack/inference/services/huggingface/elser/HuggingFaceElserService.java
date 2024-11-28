@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -88,7 +87,6 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
@@ -123,6 +121,11 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
+    }
+
+    @Override
+    public Boolean hideFromConfigurationApi() {
+        return Boolean.TRUE;
     }
 
     @Override

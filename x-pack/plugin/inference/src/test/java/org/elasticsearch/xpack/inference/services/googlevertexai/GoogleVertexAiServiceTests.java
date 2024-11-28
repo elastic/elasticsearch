@@ -13,10 +13,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
@@ -28,9 +31,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -109,7 +114,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                             projectId
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    getTaskSettingsMap(true, InputType.INGEST),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
                 modelListener
@@ -154,7 +159,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                             projectId
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    getTaskSettingsMap(true, InputType.INGEST),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
@@ -200,7 +205,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                             projectId
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    getTaskSettingsMap(false, InputType.SEARCH),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
                 modelListener
@@ -281,7 +286,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         "project"
                     )
                 ),
-                getTaskSettingsMap(true),
+                getTaskSettingsMap(true, InputType.SEARCH),
                 getSecretSettingsMap("{}")
             );
             config.put("extra_key", "value");
@@ -308,7 +313,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             );
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap(true), getSecretSettingsMap("{}"));
+            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap(true, InputType.CLUSTERING), getSecretSettingsMap("{}"));
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
@@ -362,7 +367,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         "project"
                     )
                 ),
-                getTaskSettingsMap(true),
+                getTaskSettingsMap(true, null),
                 secretSettings
             );
 
@@ -399,7 +404,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, InputType.SEARCH),
                 getSecretSettingsMap(serviceAccountJson)
             );
 
@@ -417,7 +422,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, InputType.SEARCH)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
     }
@@ -447,7 +452,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, null),
                 createRandomChunkingSettingsMap(),
                 getSecretSettingsMap(serviceAccountJson)
             );
@@ -466,7 +471,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, null)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
@@ -497,7 +502,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, null),
                 getSecretSettingsMap(serviceAccountJson)
             );
 
@@ -515,7 +520,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, null)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
@@ -573,7 +578,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, InputType.INGEST),
                 getSecretSettingsMap(serviceAccountJson)
             );
             persistedConfig.config().put("extra_key", "value");
@@ -592,7 +597,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, InputType.INGEST)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
     }
@@ -625,7 +630,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, null),
                 secretSettingsMap
             );
 
@@ -643,7 +648,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, null)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
     }
@@ -676,7 +681,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(
                 serviceSettingsMap,
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, InputType.CLUSTERING),
                 getSecretSettingsMap(serviceAccountJson)
             );
 
@@ -694,7 +699,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, InputType.CLUSTERING)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
     }
@@ -711,7 +716,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             """;
 
         try (var service = createGoogleVertexAiService()) {
-            var taskSettings = getTaskSettingsMap(autoTruncate);
+            var taskSettings = getTaskSettingsMap(autoTruncate, InputType.SEARCH);
             taskSettings.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -745,7 +750,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, InputType.SEARCH)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
         }
     }
@@ -770,7 +775,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate),
+                getTaskSettingsMap(autoTruncate, null),
                 createRandomChunkingSettingsMap()
             );
 
@@ -783,7 +788,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, null)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
@@ -808,7 +813,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         true
                     )
                 ),
-                getTaskSettingsMap(autoTruncate)
+                getTaskSettingsMap(autoTruncate, null)
             );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
@@ -820,8 +825,39 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().location(), is(location));
             assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
+            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, null)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            var model = GoogleVertexAiRerankModelTests.createModel(randomAlphaOfLength(10), randomNonNegativeInt());
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), similarityMeasure);
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
 
@@ -838,12 +874,44 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                 {
                                     "task_type": "text_embedding",
                                     "configuration": {
+                                         "input_type": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "dropdown",
+                                             "label": "Input Type",
+                                             "options": [
+                                                 {
+                                                     "label": "classification",
+                                                     "value": "classification"
+                                                 },
+                                                 {
+                                                     "label": "clustering",
+                                                     "value": "clustering"
+                                                 },
+                                                 {
+                                                     "label": "ingest",
+                                                     "value": "ingest"
+                                                 },
+                                                 {
+                                                     "label": "search",
+                                                     "value": "search"
+                                                 }
+                                             ],
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the type of input passed to the model.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                        },
                                         "auto_truncate": {
                                             "default_value": null,
                                             "depends_on": [],
                                             "display": "toggle",
                                             "label": "Auto Truncate",
-                                            "order": 1,
+                                            "order": 2,
                                             "required": false,
                                             "sensitive": false,
                                             "tooltip": "Specifies if the API truncates inputs longer than the maximum token length automatically.",
@@ -1005,10 +1073,14 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         });
     }
 
-    private static Map<String, Object> getTaskSettingsMap(Boolean autoTruncate) {
+    private static Map<String, Object> getTaskSettingsMap(Boolean autoTruncate, @Nullable InputType inputType) {
         var taskSettings = new HashMap<String, Object>();
 
         taskSettings.put(GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE, autoTruncate);
+
+        if (inputType != null) {
+            taskSettings.put(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString());
+        }
 
         return taskSettings;
     }

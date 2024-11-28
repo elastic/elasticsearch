@@ -234,3 +234,58 @@
   - match: { values.2.1: "2024-08-01T00:00:00.000Z" }
   - match: { values.3.0: 1 }
   - match: { values.3.1: "2024-09-01T00:00:00.000Z" }
+
+---
+"Datetime interval as string":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ implicit_casting_string_literal_to_temporal_amount ]
+      reason: "interval in parameters as string"
+
+  - do:
+      indices.create:
+        index: test_bucket
+        body:
+          mappings:
+            properties:
+              ts :
+                type : date
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-06-16" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-07-16" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-08-16" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-09-16" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, ?bucket) | SORT b'
+          params: [{"bucket" : "1 month"}]
+
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "2024-06-01T00:00:00.000Z" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "2024-07-01T00:00:00.000Z" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "2024-08-01T00:00:00.000Z" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "2024-09-01T00:00:00.000Z" }

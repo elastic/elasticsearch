@@ -9,6 +9,7 @@ boolean | boolean | boolean
 cartesian_point | cartesian_point | boolean
 cartesian_shape | cartesian_shape | boolean
 date | date | boolean
+date_nanos | date_nanos | boolean
 double | double | boolean
 double | integer | boolean
 double | long | boolean

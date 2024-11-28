@@ -58,10 +58,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.parseSelectorExpression;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced

@@ -12,6 +12,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -41,19 +42,20 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
-    private final BytesReference source;
+    private final ReleasableBytesReference source;
     private final XContentType xContentType;
     private RestApiVersion restApiVersion;
 
     /**
      * Creates a new request with the given source and its content type
      */
-    public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+    public SimulatePipelineRequest(ReleasableBytesReference source, XContentType xContentType) {
         this(source, xContentType, RestApiVersion.current());
     }
 
-    public SimulatePipelineRequest(BytesReference source, XContentType xContentType, RestApiVersion restApiVersion) {
+    public SimulatePipelineRequest(ReleasableBytesReference source, XContentType xContentType, RestApiVersion restApiVersion) {
         this.source = Objects.requireNonNull(source);
+        assert source.hasReferences();
         this.xContentType = Objects.requireNonNull(xContentType);
         this.restApiVersion = restApiVersion;
     }
@@ -62,7 +64,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         super(in);
         id = in.readOptionalString();
         verbose = in.readBoolean();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         xContentType = in.readEnum(XContentType.class);
     }
 
@@ -88,6 +90,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     }
 
     public BytesReference getSource() {
+        assert source.hasReferences();
         return source;
     }
 
@@ -249,5 +252,25 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     public RestApiVersion getRestApiVersion() {
         return restApiVersion;
+    }
+
+    @Override
+    public final void incRef() {
+        source.incRef();
+    }
+
+    @Override
+    public final boolean tryIncRef() {
+        return source.tryIncRef();
+    }
+
+    @Override
+    public final boolean decRef() {
+        return source.decRef();
+    }
+
+    @Override
+    public final boolean hasReferences() {
+        return source.hasReferences();
     }
 }

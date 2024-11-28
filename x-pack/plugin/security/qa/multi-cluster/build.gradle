@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -35,7 +34,7 @@ tasks.named("javaRestTest") {
   exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
 }
 
-BuildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

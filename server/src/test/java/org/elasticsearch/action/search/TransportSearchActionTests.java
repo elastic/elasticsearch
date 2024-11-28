@@ -1758,6 +1758,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 transportService,
                 searchService,
+                null,
                 new SearchTransportService(transportService, client, null),
                 null,
                 clusterService,
@@ -1765,7 +1766,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 new IndexNameExpressionResolver(threadPool.getThreadContext(), EmptySystemIndices.INSTANCE),
                 null,
                 null,
-                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService()

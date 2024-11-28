@@ -935,8 +935,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Determine if role searchable. Consumers should prefer {@link OperationRouting#canSearchShard(ShardRouting, ClusterState)} to
-     * determine if a shard can be searched and {@link IndexRoutingTable#readyForSearch(ClusterState)} to determine if an index
+     * Determine if role searchable. Consumers should prefer {@link IndexRoutingTable#readyForSearch(ClusterState)} to determine if an index
      * is ready to be searched.
      */
     public boolean isSearchable() {

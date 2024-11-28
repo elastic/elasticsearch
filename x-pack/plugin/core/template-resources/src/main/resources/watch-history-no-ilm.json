@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".watcher-history-${xpack.watcher.template.version}*" ],
-  "priority": 2147483646,
+  "priority": 2147483647,
   "data_stream": {
     "hidden":true
   },
@@ -49,6 +49,15 @@
         {
           "disabled_jira_custom_fields": {
             "path_match": "result.actions.jira.fields.customfield_*",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
+          "disabled_result_input_chain_fields": {
+            "path_match": "result.input.chain",
             "mapping": {
               "type": "object",
               "enabled": false

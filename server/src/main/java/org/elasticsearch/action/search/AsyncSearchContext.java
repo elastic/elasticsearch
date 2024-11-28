@@ -9,10 +9,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
 public interface AsyncSearchContext {
@@ -34,4 +36,8 @@ public interface AsyncSearchContext {
     void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
 
     Transport.Connection getConnection(String clusterAlias, String nodeId);
+
+    OriginalIndices getOriginalIndices(int shardIndex);
+
+    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection);
 }

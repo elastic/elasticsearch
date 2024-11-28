@@ -102,7 +102,7 @@ final class FetchSearchPhase extends SearchPhase {
         assert this.reducedQueryPhase == null ^ this.resultConsumer == null;
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
-        final int numShards = context.getNumShards();
+        final int numShards = searchPhaseShardResults.length();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
         final boolean queryAndFetchOptimization = searchPhaseShardResults.length() == 1

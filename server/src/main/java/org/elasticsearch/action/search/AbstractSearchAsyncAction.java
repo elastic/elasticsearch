@@ -623,6 +623,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * We should not release search contexts that belong to the point in time during or after searches.
     */
     public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
+        return isPartOfPIT(namedWriteableRegistry, request, contextId);
+    }
+
+    public static boolean isPartOfPIT(
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchRequest request,
+        ShardSearchContextId contextId
+    ) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
             return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
@@ -728,7 +736,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
       *
       */
-    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
+    @Override
+    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
             searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());

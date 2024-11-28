@@ -704,6 +704,21 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             )
         );
 
+        // test group based on analyzer -- all fields are grouped into a cross field search
+        assertResponse(
+            prepareSearch("test").setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).analyzer("category").operator(Operator.AND)
+                )
+            ),
+            response -> {
+                assertHitCount(response, 1L);
+                assertFirstHit(response, hasId("theone"));
+            }
+        );
+
         // counter example
         assertHitCount(
             0L,

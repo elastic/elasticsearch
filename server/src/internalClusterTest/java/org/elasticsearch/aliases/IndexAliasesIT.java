@@ -508,6 +508,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
             searchResponse -> assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33")
         );
         assertResponse(
+            prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(6L))
+        );
+        assertResponse(
             prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33")
         );

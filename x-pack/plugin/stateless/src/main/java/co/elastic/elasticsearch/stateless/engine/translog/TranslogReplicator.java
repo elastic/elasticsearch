@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -48,6 +50,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,7 +123,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final StatelessClusterConsistencyService consistencyService
     ) {
         this(threadPool, settings, objectStoreService, consistencyService, shardId -> {
-            IndexMetadata index = consistencyService.state().metadata().getProject().index(shardId.getIndex());
+            final Metadata metadata = consistencyService.state().metadata();
+            IndexMetadata index = metadata.lookupProject(shardId.getIndex()).map(pm -> pm.index(shardId.getIndex())).orElse(null);
             if (index == null) {
                 return Long.MIN_VALUE;
             }
@@ -873,17 +877,20 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         private static boolean isShardRed(ClusterState state, ShardId shardId) {
-            var indexRoutingTable = state.routingTable().index(shardId.getIndex());
-            if (indexRoutingTable == null) {
+            final Index index = shardId.getIndex();
+            final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
+            if (projectMetadata == null) {
                 logger.debug("index not found while checking if shard {} is red", shardId);
-                if (state.getMetadata().getProject().hasIndex(shardId.getIndex()) == false) {
-                    return false;
-                } else {
-                    logger.warn("found no index routing for {} but found it in metadata", shardId);
-                    assert false;
-                    // better safe than sorry in this case.
-                    return true;
-                }
+                return false;
+            }
+
+            var indexRoutingTable = state.routingTable(projectMetadata.id()).index(index);
+            if (indexRoutingTable == null) {
+                // This should not be possible since https://github.com/elastic/elasticsearch/issues/33888
+                logger.warn("found no index routing for {} but found it in metadata", shardId);
+                assert false;
+                // better safe than sorry in this case.
+                return true;
             }
             var shardRoutingTable = indexRoutingTable.shard(shardId.id());
             assert shardRoutingTable != null;

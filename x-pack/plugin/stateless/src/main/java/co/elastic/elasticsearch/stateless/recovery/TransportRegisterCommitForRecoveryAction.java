@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -126,7 +127,8 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
     }
 
     private boolean isSearchShardInRoutingTable(ClusterState state, ShardId shardId, String nodeId) {
-        for (var shardRouting : state.routingTable().shardRoutingTable(shardId).unpromotableShards()) {
+        final ProjectMetadata projectMetadata = state.metadata().projectFor(shardId.getIndex()); // can throw IndexNotFoundException
+        for (var shardRouting : state.routingTable(projectMetadata.id()).shardRoutingTable(shardId).unpromotableShards()) {
             if (shardRouting.currentNodeId().equals(nodeId)) {
                 return true;
             }

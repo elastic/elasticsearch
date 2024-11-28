@@ -42,6 +42,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -317,7 +319,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
-        RoutingTable routingTable = clusterService.state().routingTable();
+        final ClusterState clusterState = clusterService.state();
+        final ProjectId projectId = clusterState.metadata().lookupProject(shardId.getIndex()).map(ProjectMetadata::id).orElse(null);
+        if (projectId == null) {
+            return Optional.empty();
+        }
+        RoutingTable routingTable = clusterState.routingTable(projectId);
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
     }
 

@@ -68,7 +68,7 @@ public class PluginsServiceTests extends ESTestCase {
         return new PluginsService(
             settings,
             null,
-            PluginsLoader.createPluginsLoader(null, TestEnvironment.newEnvironment(settings).pluginsFile(), false)
+            PluginsLoader.createPluginsLoaderWithoutServerExports(null, TestEnvironment.newEnvironment(settings).pluginsFile())
         );
     }
 

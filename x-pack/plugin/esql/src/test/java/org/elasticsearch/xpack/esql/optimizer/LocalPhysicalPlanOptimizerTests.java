@@ -10,9 +10,10 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
@@ -68,13 +70,9 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
-import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -1415,25 +1413,21 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private static Object randomQueryValue(DataType dataType) {
-        Object value = EsqlTestUtils.randomLiteral(dataType).value();
-        if (value instanceof BytesRef bytesRef) {
-            switch (dataType) {
-                case TEXT, KEYWORD -> value = bytesRef.utf8ToString();
-                case VERSION -> value = new Version(bytesRef).toString();
-                case IP -> {
-                    try {
-                        value = NetworkAddress.format(InetAddress.getByAddress(bytesRef.bytes));
-                    } catch (UnknownHostException e) {
-                        throw new IllegalArgumentException(e);
-                    }
-                }
-                default -> throw new IllegalArgumentException("Unexpected type: " + dataType + " has BytesRef as value");
-            }
-        } else if (dataType == DataType.UNSIGNED_LONG) {
-            value = BigInteger.valueOf((Long) value);
-        }
-
-        return value;
+        return switch (dataType) {
+            case BOOLEAN -> randomBoolean();
+            case INTEGER -> randomInt();
+            case LONG -> randomLong();
+            case UNSIGNED_LONG -> randomBigInteger();
+            case DATE_NANOS -> DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.getName())
+                .formatNanos(randomMillisUpToYear9999() * 1_000_000);
+            case DATETIME -> DateFormatter.forPattern(FormatNames.ISO8601.getName()).formatMillis(randomMillisUpToYear9999());
+            case DOUBLE -> randomDouble();
+            case KEYWORD -> randomAlphaOfLength(5);
+            case IP -> NetworkAddress.format(randomIp(randomBoolean()));
+            case TEXT -> randomAlphaOfLength(50);
+            case VERSION -> VersionUtils.randomVersion(random()).toString();
+            default -> throw new IllegalArgumentException("Unexpected type: " + dataType);
+        };
     }
 
     private static String queryValueAsCasting(Object value, DataType dataType) {

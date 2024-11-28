@@ -1434,6 +1434,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 indexingShardState.latestCommit(),
                 indexingShardState.otherBlobs()
             );
+            testHarness.commitService.finalizeRecoveredBcc(testHarness.shardId, Map.of());
 
             StatelessCommitRef recoveryCommit = mergedCommit;
             assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().lastCompoundCommit().generation();

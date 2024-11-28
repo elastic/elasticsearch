@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -491,5 +492,75 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
                 not(hasItem(nodeIdOfOldSearchNode))
             )
         );
+    }
+
+    public void testTrackOldSearchNodesWhenIndexingShardRelocates() throws Exception {
+        startMasterOnlyNode();
+        var indexSettings = Settings.builder()
+            .put(SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(30))
+            .build();
+        String indexNodeA = startMasterAndIndexNode(indexSettings);
+        String indexNodeB = startMasterAndIndexNode(indexSettings);
+        String searchNodeA = startSearchNode();
+        String searchNodeB = startSearchNode();
+
+        String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(excludeNodes(indexNodeB, searchNodeB).build()).build());
+        ensureGreen(indexName);
+
+        int numDocsToIndex = randomIntBetween(5, 100);
+        indexDocsAndRefresh(indexName, numDocsToIndex);
+        flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeA, indexName);
+
+        Set<PrimaryTermAndGeneration> commitsBeforeForceMerge;
+        ShardId shardId = findSearchShard(indexName).shardId();
+        var scrollSearchResponse = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .get();
+        try {
+            assertNotNull(scrollSearchResponse.getScrollId());
+            assertHitCount(scrollSearchResponse, numDocsToIndex);
+
+            indexDocsAndRefresh(indexName, numDocsToIndex);
+            client().admin().indices().forceMerge(new ForceMergeRequest(indexName).maxNumSegments(1)).actionGet();
+            flush(indexName);
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeA, indexName);
+
+            updateIndexSettings(excludeNodes(indexNodeB, searchNodeA), indexName);
+            ensureGreen(indexName);
+            updateIndexSettings(excludeNodes(indexNodeA, searchNodeA), indexName);
+            ensureGreen(indexName);
+
+            var indexNodeBCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeB);
+            assertThat(
+                getAllSearchNodesRetainingCommitsForShard(indexNodeBCommitService, shardId),
+                Matchers.containsInAnyOrder(getNodeId(searchNodeA), getNodeId(searchNodeB))
+            );
+
+            commitsBeforeForceMerge = listBlobsTermAndGenerations(shardId);
+
+            // Generate a new commit by a force merge
+            indexDocs(indexName, numDocsToIndex);
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
+            client().admin().indices().forceMerge(new ForceMergeRequest(indexName).maxNumSegments(1)).actionGet();
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
+
+            client().searchScroll(new SearchScrollRequest(scrollSearchResponse.getScrollId())).get().decRef();
+        } finally {
+            scrollSearchResponse.decRef();
+        }
+
+        flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
+        assertBusy(() -> {
+            kickConsistencyService(indexNodeB);
+            Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
+            commitsBeforeForceMerge.forEach(e -> assertThat(afterScrollReleaseCommitBlobs, not(hasItem(e))));
+        });
+    }
+
+    private static Settings.Builder excludeNodes(String... nodes) {
+        return Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", nodes));
     }
 }

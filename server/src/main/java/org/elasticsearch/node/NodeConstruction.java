@@ -824,6 +824,7 @@ class NodeConstruction {
             .bigArrays(bigArrays)
             .scriptService(scriptService)
             .clusterService(clusterService)
+            .projectResolver(projectResolver)
             .client(client)
             .featureService(featureService)
             .metaStateService(metaStateService)

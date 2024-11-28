@@ -2245,6 +2245,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .bigArrays(bigArrays)
                     .scriptService(scriptService)
                     .clusterService(clusterService)
+                    .projectResolver(DefaultProjectResolver.INSTANCE)
                     .client(client)
                     .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))

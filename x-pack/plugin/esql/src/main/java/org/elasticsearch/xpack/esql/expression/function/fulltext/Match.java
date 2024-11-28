@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -68,6 +69,10 @@ public class Match extends FullTextFunction implements Validatable {
     private Match(Source source, Expression field, Expression matchQuery, InferenceResults inferenceResults) {
         this(source, field, matchQuery);
         this.inferenceResults = inferenceResults;
+    }
+
+    public static Match newWithInferenceResults(Match match, InferenceResults inferenceResults) {
+        return new Match(match.source(), match.field(), match.query(), inferenceResults);
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
@@ -121,10 +126,6 @@ public class Match extends FullTextFunction implements Validatable {
         return new Match(source(), newChildren.get(0), newChildren.get(1), inferenceResults);
     }
 
-    public void setInferenceResults(InferenceResults inferenceResults) {
-        this.inferenceResults = inferenceResults;
-    }
-
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Match::new, field, query());
@@ -157,5 +158,23 @@ public class Match extends FullTextFunction implements Validatable {
             isOperator = source().text().toUpperCase(Locale.ROOT).matches("^" + super.functionName() + "\\s*\\(.*\\)") == false;
         }
         return isOperator;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), inferenceResults);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+
+        Match other = (Match) obj;
+        return functionType().equals(other.functionType())
+            && field.equals(other.field)
+            && query().equals(other.query())
+            && Objects.equals(inferenceResults, other.inferenceResults);
     }
 }

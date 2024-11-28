@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.SemanticQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -36,6 +37,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -74,13 +77,17 @@ public class InferenceResolver {
             return;
         }
 
+        ConcurrentMap<SemanticQuery, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
+
         GroupedActionListener<InferenceAction.Response> actionListener = new GroupedActionListener<>(
             semanticQueries.size(),
             new ActionListener<Collection<InferenceAction.Response>>() {
                 @Override
                 public void onResponse(Collection<InferenceAction.Response> ignored) {
                     try {
-                        callback.accept(plan, listener);
+                        LogicalPlan newPlan = updatedPlan(plan, inferenceResultsMap);
+                        newPlan.setAnalyzed();
+                        callback.accept(newPlan, listener);
                     } catch (Exception e) {
                         onFailure(e);
                     }
@@ -114,7 +121,7 @@ public class InferenceResolver {
                         inferenceResponse.getResults(),
                         semanticQuery.fieldName()
                     );
-                    setInferenceResult(plan, semanticQuery.fieldName(), semanticQuery.queryString(), inferenceResults);
+                    inferenceResultsMap.put(semanticQuery, inferenceResults);
                     next.onResponse(inferenceResponse);
                 })
             );
@@ -164,11 +171,15 @@ public class InferenceResolver {
         return result;
     }
 
-    private void setInferenceResult(LogicalPlan analyzedPlan, String fieldName, String query, InferenceResults inferenceResults) {
-        analyzedPlan.forEachExpressionDown(Match.class, match -> {
-            if (match.field().sourceText().equals(fieldName) && match.query().sourceText().equals(query)) {
-                match.setInferenceResults(inferenceResults);
+    private LogicalPlan updatedPlan(LogicalPlan plan, Map<SemanticQuery, InferenceResults> inferenceResultsMap) {
+        return plan.transformExpressionsDown(Match.class, match -> {
+            for (SemanticQuery semanticQuery : inferenceResultsMap.keySet()) {
+                if (match.field().sourceText().equals(semanticQuery.fieldName())
+                    && match.query().sourceText().equals(semanticQuery.queryString())) {
+                    return Match.newWithInferenceResults(match, inferenceResultsMap.get(semanticQuery));
+                }
             }
+            return match;
         });
     }
 

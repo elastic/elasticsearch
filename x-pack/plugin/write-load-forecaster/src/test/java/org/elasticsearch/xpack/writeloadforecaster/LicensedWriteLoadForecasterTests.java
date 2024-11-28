@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -55,7 +55,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
 
-        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectId());
         final String dataStreamName = "logs-es";
         final int numberOfBackingIndices = 10;
         final int numberOfShards = randomIntBetween(1, 5);
@@ -83,7 +83,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
 
-        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
             metadataBuilder
         );
@@ -103,7 +103,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
     public void testUptimeIsUsedToWeightWriteLoad() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
-        final var metadataBuilder = Metadata.builder();
+        final var metadataBuilder = ProjectMetadata.builder(randomProjectId());
         final String dataStreamName = "logs-es";
         final int numberOfShards = 5;
         final List<Index> backingIndices = new ArrayList<>();
@@ -137,7 +137,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
 
-        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
             metadataBuilder
         );
@@ -155,7 +155,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
 
-        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectId());
         final String dataStreamName = "logs-es";
         final int numberOfBackingIndices = 10;
         final int numberOfShards = randomIntBetween(1, 5);
@@ -184,7 +184,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
 
-        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
             metadataBuilder
         );

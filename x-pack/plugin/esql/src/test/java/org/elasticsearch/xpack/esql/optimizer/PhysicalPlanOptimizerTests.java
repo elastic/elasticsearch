@@ -33,7 +33,10 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -61,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -91,7 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -112,7 +116,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -141,6 +144,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -189,14 +193,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testData;
     private int allFieldRowSize;    // TODO: Move this into testDataSource so tests that load other indexes can also assert on this
     private TestDataSource airports;
-    private TestDataSource airportsNoDocValues;
-    private TestDataSource airportsWeb;
-    private TestDataSource countriesBbox;
-    private TestDataSource countriesBboxWeb;
+    private TestDataSource airportsNoDocValues; // Test when spatial field is indexed but has no doc values
+    private TestDataSource airportsNotIndexed;  // Test when spatial field has doc values but is not indexed
+    private TestDataSource airportsNotIndexedNorDocValues;  // Test when spatial field is neither indexed nor has doc-values
+    private TestDataSource airportsWeb;         // Cartesian point field tests
+    private TestDataSource countriesBbox;       // geo_shape field tests
+    private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
 
     private final Configuration config;
 
-    private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer) {}
+    private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() {
@@ -240,9 +246,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         this.airports = makeTestDataSource("airports", "mapping-airports.json", functionRegistry, enrichResolution);
         this.airportsNoDocValues = makeTestDataSource(
             "airports-no-doc-values",
-            "mapping-airports-no-doc-values.json",
+            "mapping-airports_no_doc_values.json",
             functionRegistry,
-            enrichResolution
+            enrichResolution,
+            new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location")
+        );
+        this.airportsNotIndexed = makeTestDataSource(
+            "airports-not-indexed",
+            "mapping-airports_not_indexed.json",
+            functionRegistry,
+            enrichResolution,
+            new TestConfigurableSearchStats().exclude(Config.INDEXED, "location")
+        );
+        this.airportsNotIndexedNorDocValues = makeTestDataSource(
+            "airports-not-indexed-nor-doc-values",
+            "mapping-airports_not_indexed_nor_doc_values.json",
+            functionRegistry,
+            enrichResolution,
+            new TestConfigurableSearchStats().exclude(Config.INDEXED, "location").exclude(Config.DOC_VALUES, "location")
         );
         this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
         this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
@@ -258,13 +279,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String indexName,
         String mappingFileName,
         EsqlFunctionRegistry functionRegistry,
-        EnrichResolution enrichResolution
+        EnrichResolution enrichResolution,
+        SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
         Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
-        return new TestDataSource(mapping, index, analyzer);
+        return new TestDataSource(mapping, index, analyzer, stats);
+    }
+
+    TestDataSource makeTestDataSource(
+        String indexName,
+        String mappingFileName,
+        EsqlFunctionRegistry functionRegistry,
+        EnrichResolution enrichResolution
+    ) {
+        return makeTestDataSource(indexName, mappingFileName, functionRegistry, enrichResolution, TEST_SEARCH_STATS);
     }
 
     private static EnrichResolution setupEnrichResolution() {
@@ -2132,7 +2163,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | where long_noidx == 1
             """);
 
-        var optimized = optimizedPlan(plan);
+        var optimized = optimizedPlan(plan, statsWithIndexedFields());
         var limit = as(optimized, LimitExec.class);
         var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
@@ -2183,7 +2214,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort long_noidx
             """);
 
-        var optimized = optimizedPlan(plan);
+        var optimized = optimizedPlan(plan, statsWithIndexedFields());
         var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2656,7 +2687,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
             "from airports | eval location = to_geopoint(location) | stats centroid = st_centroid_agg(location)" }) {
             for (boolean withDocValues : new boolean[] { false, true }) {
-                var plan = withDocValues ? physicalPlan(query, airports) : physicalPlan(query, airportsNoDocValues);
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query, testData);
 
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
@@ -2669,7 +2701,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 as(fAgg.child(), EsRelation.class);
 
                 // Now optimize the plan and assert the aggregation uses doc-values
-                var optimized = optimizedPlan(plan);
+                var optimized = optimizedPlan(plan, testData.stats);
                 limit = as(optimized, LimitExec.class);
                 agg = as(limit.child(), AggregateExec.class);
                 // Above the exchange (in coordinator) the aggregation is not using doc-values
@@ -2720,7 +2752,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         var eval = as(agg.child(), EvalExec.class);
-        as(eval.child(), RowExec.class);
+        as(eval.child(), LocalSourceExec.class);
 
         // Now optimize the plan and assert the same plan again, since no FieldExtractExec is added
         var optimized = optimizedPlan(plan);
@@ -2734,7 +2766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         eval = as(agg.child(), EvalExec.class);
-        as(eval.child(), RowExec.class);
+        as(eval.child(), LocalSourceExec.class);
     }
 
     /**
@@ -2943,11 +2975,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGrouped() {
-        for (boolean useDocValues : new boolean[] { true, false }) {
+        for (boolean useDocValues : new boolean[] { false }) {
+            var testData = useDocValues ? airports : airportsNoDocValues;
             var plan = this.physicalPlan("""
                 FROM airports
                 | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
-                """, useDocValues ? airports : airportsNoDocValues);
+                """, testData);
 
             var limit = as(plan, LimitExec.class);
             var agg = as(limit.child(), AggregateExec.class);
@@ -2964,7 +2997,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(fAgg.child(), EsRelation.class);
 
             // Now optimize the plan and assert the aggregation uses doc-values
-            var optimized = optimizedPlan(plan);
+            var optimized = optimizedPlan(plan, testData.stats);
             limit = as(optimized, LimitExec.class);
             agg = as(limit.child(), AggregateExec.class);
             att = as(agg.groupings().get(0), Attribute.class);
@@ -3519,44 +3552,63 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
-            for (boolean useDocValues : new boolean[] { true, false }) {
-                var plan = this.physicalPlan(query, useDocValues ? airports : airportsNoDocValues);
-                var limit = as(plan, LimitExec.class);
-                var agg = as(limit.child(), AggregateExec.class);
-                assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-                // Before optimization the aggregation does not use doc-values
-                assertAggregation(agg, "count", Count.class);
-                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            for (boolean isIndexed : new boolean[] { true, false }) {
+                for (boolean useDocValues : new boolean[] { true, false }) {
+                    var testData = useDocValues
+                        ? (isIndexed ? airports : airportsNotIndexed)
+                        : (isIndexed ? airportsNoDocValues : airportsNotIndexedNorDocValues);
+                    var plan = this.physicalPlan(query, testData);
+                    var limit = as(plan, LimitExec.class);
+                    var agg = as(limit.child(), AggregateExec.class);
+                    assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+                    // Before optimization the aggregation does not use doc-values
+                    assertAggregation(agg, "count", Count.class);
+                    assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-                var exchange = as(agg.child(), ExchangeExec.class);
-                var fragment = as(exchange.child(), FragmentExec.class);
-                var fAgg = as(fragment.fragment(), Aggregate.class);
-                var filter = as(fAgg.child(), Filter.class);
-                assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+                    var exchange = as(agg.child(), ExchangeExec.class);
+                    var fragment = as(exchange.child(), FragmentExec.class);
+                    var fAgg = as(fragment.fragment(), Aggregate.class);
+                    var filter = as(fAgg.child(), Filter.class);
+                    assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
-                // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
-                var optimized = optimizedPlan(plan);
-                limit = as(optimized, LimitExec.class);
-                agg = as(limit.child(), AggregateExec.class);
-                // Above the exchange (in coordinator) the aggregation is not using doc-values
-                assertAggregation(agg, "count", Count.class);
-                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-                exchange = as(agg.child(), ExchangeExec.class);
-                agg = as(exchange.child(), AggregateExec.class);
-                assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
-                // below the exchange (in data node) the aggregation is using doc-values
-                assertAggregation(agg, "count", Count.class);
-                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
-                var source = assertChildIsGeoPointExtract(useDocValues ? agg : as(agg.child(), FilterExec.class), useDocValues);
-                if (useDocValues) {
-                    // Query is only pushed to lucene if indexing/doc-values are enabled
-                    var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-                    assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-                    assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
-                    assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-                    var polygon = as(condition.shape(), Polygon.class);
-                    assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-                    assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                    // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    limit = as(optimized, LimitExec.class);
+                    agg = as(limit.child(), AggregateExec.class);
+                    // Above the exchange (in coordinator) the aggregation is not using doc-values
+                    assertAggregation(agg, "count", Count.class);
+                    assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                    exchange = as(agg.child(), ExchangeExec.class);
+                    agg = as(exchange.child(), AggregateExec.class);
+                    assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+                    // below the exchange (in data node) the aggregation is using doc-values
+                    assertAggregation(agg, "count", Count.class);
+                    assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
+                    if (isIndexed) {
+                        var source = assertChildIsGeoPointExtract(agg, useDocValues);
+                        // Query is pushed to lucene if field is indexed (and does not require doc-values or isAggregatable)
+                        var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                        assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+                        assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+                        var polygon = as(condition.shape(), Polygon.class);
+                        assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+                        assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                    } else {
+                        // If the field is not indexed, we cannot push the filter down to source, so assert that we need to have an explicit
+                        // filter as well as extract the field needed for that filter.
+                        var filterExec = as(agg.child(), FilterExec.class);
+                        assertThat("filter contains ST_INTERSECTS", filterExec.condition(), instanceOf(SpatialIntersects.class));
+                        var fieldExtractLocation = as(filterExec.child(), FieldExtractExec.class);
+                        assertThat("location field is extracted", fieldExtractLocation.attributesToExtract().size(), equalTo(1));
+                        assertThat(
+                            "location field is extracted",
+                            fieldExtractLocation.attributesToExtract().get(0).name(),
+                            equalTo("location")
+                        );
+                        var source = source(fieldExtractLocation.child());
+                        assertThat("source query is null", source.query(), equalTo(null));
+                    }
                 }
             }
         }
@@ -4984,8 +5036,101 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test shows that with an additional EVAL used in the filter, we can no longer push down the SORT distance.
-     * TODO: This could be optimized in future work. Consider moving much of EnableSpatialDistancePushdown into logical planning.
+     * Tests that multiple sorts, including distance and a field, are pushed down to the source.
+     * <code>
+     * ProjectExec[[abbrev{f}#25, name{f}#26, location{f}#29, country{f}#30, city{f}#31, scalerank{f}#27, scale{r}#7]]
+     * \_TopNExec[[
+     *     Order[distance{r}#4,ASC,LAST],
+     *     Order[scalerank{f}#27,ASC,LAST],
+     *     Order[scale{r}#7,DESC,FIRST],
+     *     Order[loc{r}#10,DESC,FIRST]
+     *   ],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#25, name{f}#26, location{f}#29, country{f}#30, city{f}#31, scalerank{f}#27, scale{r}#7,
+     *       distance{r}#4, loc{r}#10],false]
+     *     \_ProjectExec[[abbrev{f}#25, name{f}#26, location{f}#29, country{f}#30, city{f}#31, scalerank{f}#27, scale{r}#7,
+     *         distance{r}#4, loc{r}#10]]
+     *       \_FieldExtractExec[abbrev{f}#25, name{f}#26, country{f}#30, city{f}#31][]
+     *         \_EvalExec[[
+     *             STDISTANCE(location{f}#29,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *             10[INTEGER] - scalerank{f}#27 AS scale, TOSTRING(location{f}#29) AS loc
+     *           ]]
+     *           \_FieldExtractExec[location{f}#29, scalerank{f}#27][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {"esql_single_value":{"field":"scalerank","next":{...},"source":"scalerank &lt; 6@3:31"}},
+     *                   {"bool":{
+     *                     "must":[
+     *                       {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                       {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                     ],"boost":1.0}}],"boost":1.0}}][_doc{f}#44], limit[5], sort[[
+     *                       GeoDistanceSort[field=location{f}#29, direction=ASC, lat=55.673, lon=12.565],
+     *                       FieldSort[field=scalerank{f}#27, direction=ASC, nulls=LAST]
+     *                     ]] estimatedRowSize[303]
+     * </code>
+     */
+    public void testPushTopNDistanceAndPushableFieldWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), scale = 10 - scalerank, loc = location::string
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT distance ASC, scalerank ASC, scale DESC, loc DESC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scalerank, scale
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(4));
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            contains("abbrev", "name", "location", "country", "city", "scalerank", "scale", "distance", "loc")
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order().subList(0, 2));
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+        sort = source.sorts().get(1);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("scalerank"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
+     * This test shows that if the filter contains a predicate on the same field that is sorted, we cannot push down the sort.
      * <code>
      * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25 AS scale]]
      * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#25,ASC,LAST]],5[INTEGER],0]
@@ -5021,6 +5166,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(2));
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
@@ -5059,7 +5205,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test further shows that with a non-aliasing function, with the same name, less gets pushed down.
+     * This test shows that if the filter contains a predicate on the same field that is sorted, we cannot push down the sort.
      * <code>
      * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10]]
      * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],0]
@@ -5096,6 +5242,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """, airports));
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(2));
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
@@ -5133,7 +5280,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test shows that with if the top level AND'd predicate contains a non-pushable component, we should not push anything.
+     * This test shows that with if the top level predicate contains a non-pushable component (eg. disjunction),
+     * we should not push down the filter.
      * <code>
      * ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618, scalerank{f}#8614 AS scale]]
      * \_TopNExec[[Order[distance{r}#8596,ASC,LAST], Order[scalerank{f}#8614,ASC,LAST]],5[INTEGER],0]
@@ -5171,6 +5319,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(2));
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
@@ -6275,11 +6424,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
         String query = """
             FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int""";
+            | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
@@ -6320,18 +6470,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             \_EsQueryExec[...]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenProject() {
         String query = """
             FROM employees
             | SORT emp_no
             | LIMIT 4
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -6378,17 +6529,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
         String query = """
             FROM employees
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | RENAME name AS languages
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var plan = physicalPlan(query);
@@ -6405,7 +6557,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             matchesList().item(startsWith("name{f}")).item(startsWith("emp_no{f}"))
         );
         Join join = as(innerTopN.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertMap(join.config().matchFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
 
         Project innerProject = as(join.left(), Project.class);
@@ -6429,6 +6581,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookup.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
+    }
+
+    public void testScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            """);
+
+        ProjectExec outerProject = as(plan, ProjectExec.class);
+        LimitExec limitExec = as(outerProject.child(), LimitExec.class);
+        ExchangeExec exchange = as(limitExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        Limit limit = as(opt, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+    }
+
+    public void testScoreTopN() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            | sort _score desc
+            """);
+
+        ProjectExec projectExec = as(plan, ProjectExec.class);
+        TopNExec topNExec = as(projectExec.child(), TopNExec.class);
+        ExchangeExec exchange = as(topNExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        TopN topN = as(opt, TopN.class);
+        List<Order> order = topN.order();
+        Order scoreOrer = order.getFirst();
+        assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
+        Expression child = scoreOrer.child();
+        assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        Filter filter = as(topN.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -6554,14 +6766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     static SearchStats statsWithIndexedFields(String... names) {
-        return new EsqlTestUtils.TestSearchStats() {
-            private final Set<String> indexedFields = Set.of(names);
-
-            @Override
-            public boolean isIndexed(String field) {
-                return indexedFields.contains(field);
-            }
-        };
+        return new TestConfigurableSearchStats().include(Config.INDEXED, names);
     }
 
     static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {

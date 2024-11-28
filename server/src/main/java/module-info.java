@@ -31,6 +31,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.entitlement;
 
     requires hppc;
     requires HdrHistogram;
@@ -418,13 +419,12 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
+            org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures,
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.health.HealthFeatures,
-            org.elasticsearch.cluster.service.TransportFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
@@ -433,7 +433,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures;
+            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -470,5 +471,6 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.monitor.metrics;
 
 }

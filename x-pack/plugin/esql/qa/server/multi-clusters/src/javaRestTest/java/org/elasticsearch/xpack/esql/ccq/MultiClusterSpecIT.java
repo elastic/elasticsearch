@@ -38,7 +38,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,6 +45,11 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -102,17 +106,26 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
+        if (remoteMetadata) {
+            // remove the capability from the test to enable it
+            testCase.requiredCapabilities = testCase.requiredCapabilities.stream()
+                .filter(c -> c.equals("metadata_fields_remote_test") == false)
+                .toList();
+        }
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
-        assumeTrue("CCS requires its own resolve_fields API", remoteFeaturesService().clusterHasFeature("esql.resolve_fields_api"));
-        assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
+        // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
+        // because they may produce inconsistent results with multiple clusters.
+        assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
         assumeTrue(
             "Test " + testName + " is skipped on " + Clusters.oldVersion(),
             isEnabled(testName, instructions, Clusters.oldVersion())
         );
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats"));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats_v2"));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("join_planning_v1"));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V2.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
+        assumeFalse("LOOKUP JOIN not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_LOOKUP_V2.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -153,6 +166,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return twoClients(localClient, remoteClient);
     }
 
+    // These indices are used in metadata tests so we want them on remote only for consistency
+    public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
+
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk and _query requests.
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
@@ -168,6 +184,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
+            } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
+                return remoteClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && ENRICH_SOURCE_INDICES.stream().noneMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return bulkClient.performRequest(request);
             } else {
@@ -205,6 +223,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return clones;
     }
 
+    /**
+     * Convert FROM employees ... => FROM *:employees,employees
+     */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;
         String[] commands = query.split("\\|");
@@ -231,20 +252,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
-            final String pattern = "Line (\\d+):(\\d+):";
+            final String pattern = "\\b1:(\\d+)\\b";
             final Pattern regex = Pattern.compile(pattern);
-            testCase.adjustExpectedWarnings(warning -> {
-                Matcher matcher = regex.matcher(warning);
-                if (matcher.find()) {
-                    int line = Integer.parseInt(matcher.group(1));
-                    if (line == 1) {
-                        int position = Integer.parseInt(matcher.group(2));
-                        int newPosition = position + offset;
-                        return warning.replaceFirst(pattern, "Line " + line + ":" + newPosition + ":");
-                    }
-                }
-                return warning;
-            });
+            testCase.adjustExpectedWarnings(warning -> regex.matcher(warning).replaceAll(match -> {
+                int position = Integer.parseInt(match.group(1));
+                int newPosition = position + offset;
+                return "1:" + newPosition;
+            }));
         }
         return testCase;
     }

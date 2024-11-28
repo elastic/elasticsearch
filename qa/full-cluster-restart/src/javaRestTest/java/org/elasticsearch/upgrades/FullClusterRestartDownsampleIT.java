@@ -18,7 +18,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -269,10 +268,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
     }
 
     public void testRollupIndex() throws Exception {
-        assumeTrue(
-            "Downsample got many stability improvements in 8.10.0",
-            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_DOWNSAMPLING_STABLE)
-        );
+        assumeTrue("Downsample got many stability improvements in 8.10.0", oldClusterHasFeature("gte_v8.10.0"));
         if (isRunningAgainstOldCluster()) {
             createIlmPolicy();
             createIndex();

@@ -21,16 +21,23 @@ import java.util.Objects;
  *
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  * @param weightsPerNode The node weights calculated based on
- * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WeightFunction#nodeWeight}
+ * {@link org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction#nodeWeight}
  */
 public record DesiredBalance(
     long lastConvergedIndex,
     Map<ShardId, ShardAssignment> assignments,
-    Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode
+    Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
+    ComputationFinishReason finishReason
 ) {
 
+    enum ComputationFinishReason {
+        CONVERGED,
+        YIELD_TO_NEW_INPUT,
+        STOP_EARLY
+    }
+
     public DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
-        this(lastConvergedIndex, assignments, Map.of());
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
     }
 
     public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());

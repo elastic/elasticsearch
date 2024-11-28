@@ -3,14 +3,15 @@ config:
 steps:
   - group: packaging-tests-unix
     steps:
-      - label: "{{matrix.image}} / docker / packaging-tests-unix"
-        key: "packaging-tests-unix-docker"
-        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.docker-cloud-ess
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix"
+        key: "packaging-tests-unix"
+        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.{{matrix.PACKAGING_TASK}}
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
               - debian-11
+              - debian-12
               - opensuse-leap-15
               - oraclelinux-7
               - oraclelinux-8
@@ -25,60 +26,11 @@ steps:
               - rhel-8
               - rhel-9
               - almalinux-8
-        agents:
-          provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
-          diskSizeGb: 350
-          machineType: custom-16-32768
-      - label: "{{matrix.image}} / packages / packaging-tests-unix"
-        key: "packaging-tests-unix-packages"
-        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.packages
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            image:
-              - debian-11
-              - opensuse-leap-15
-              - oraclelinux-7
-              - oraclelinux-8
-              - sles-12
-              - sles-15
-              - ubuntu-1804
-              - ubuntu-2004
-              - ubuntu-2204
-              - rocky-8
-              - rocky-9
-              - rhel-7
-              - rhel-8
-              - rhel-9
-              - almalinux-8
-        agents:
-          provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
-          diskSizeGb: 350
-          machineType: custom-16-32768
-      - label: "{{matrix.image}} / archives / packaging-tests-unix"
-        key: "packaging-tests-unix-archives"
-        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.archives
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            image:
-              - debian-11
-              - opensuse-leap-15
-              - oraclelinux-7
-              - oraclelinux-8
-              - sles-12
-              - sles-15
-              - ubuntu-1804
-              - ubuntu-2004
-              - ubuntu-2204
-              - rocky-8
-              - rocky-9
-              - rhel-7
-              - rhel-8
-              - rhel-9
-              - almalinux-8
+            PACKAGING_TASK:
+              - docker
+              - docker-cloud-ess
+              - packages
+              - archives
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

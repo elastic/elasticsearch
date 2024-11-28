@@ -16,7 +16,7 @@ This is the list of available vector functions and vector access methods:
 6. <<vector-functions-accessing-vectors,`doc[<field>].vectorValue`>> – returns a vector's value as an array of floats
 7. <<vector-functions-accessing-vectors,`doc[<field>].magnitude`>> – returns a vector's magnitude
 
-NOTE: The `cosineSimilarity` and `dotProduct` functions are not supported for `bit` vectors.
+NOTE: The `cosineSimilarity` function is not supported for `bit` vectors.
 
 NOTE: The recommended way to access dense vectors is through the
 `cosineSimilarity`, `dotProduct`, `l1norm` or `l2norm` functions. Please note
@@ -332,6 +332,96 @@ When using `bit` vectors, not all the vector functions are available. The suppor
 * <<vector-functions-hamming,`hamming`>> – calculates Hamming distance, the sum of the bitwise XOR of the two vectors
 * <<vector-functions-l1,`l1norm`>> – calculates L^1^ distance, this is simply the `hamming` distance
 * <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance, this is the square root of the `hamming` distance
+* <<vector-functions-dot-product,`dotProduct`>> – calculates dot product. When comparing two `bit` vectors,
+this is the sum of the bitwise AND of the two vectors. If providing `float[]` or `byte[]`, who has `dims` number of elements, as a query vector, the `dotProduct` is
+the sum of the floating point values using the stored `bit` vector as a mask.
 
-Currently, the `cosineSimilarity` and `dotProduct` functions are not supported for `bit` vectors.
+NOTE: When comparing `floats` and `bytes` with `bit` vectors, the `bit` vector is treated as a mask in big-endian order.
+For example, if the `bit` vector is `10100001` (e.g. the single byte value `161`) and its compared
+with array of values `[1, 2, 3, 4, 5, 6, 7, 8]` the `dotProduct` will be `1 + 3 + 8 = 16`.
+
+Here is an example of using dot-product with bit vectors.
+
+[source,console]
+--------------------------------------------------
+PUT my-index-bit-vectors
+{
+  "mappings": {
+    "properties": {
+      "my_dense_vector": {
+        "type": "dense_vector",
+        "index": false,
+        "element_type": "bit",
+        "dims": 40 <1>
+      }
+    }
+  }
+}
+
+PUT my-index-bit-vectors/_doc/1
+{
+  "my_dense_vector": [8, 5, -15, 1, -7] <2>
+}
+
+PUT my-index-bit-vectors/_doc/2
+{
+  "my_dense_vector": [-1, 115, -3, 4, -128]
+}
+
+PUT my-index-bit-vectors/_doc/3
+{
+  "my_dense_vector": [2, 18, -5, 0, -124]
+}
+
+POST my-index-bit-vectors/_refresh
+--------------------------------------------------
+// TEST[continued]
+<1> The number of dimensions or bits for the `bit` vector.
+<2> This vector represents 5 bytes, or `5 * 8 = 40` bits, which equals the configured dimensions
+
+[source,console]
+--------------------------------------------------
+GET my-index-bit-vectors/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "match_all": {}
+      },
+      "script": {
+        "source": "dotProduct(params.query_vector, 'my_dense_vector')",
+        "params": {
+          "query_vector": [8, 5, -15, 1, -7] <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+<1> This vector is 40 bits, and thus will compute a bitwise `&` operation with the stored vectors.
+
+[source,console]
+--------------------------------------------------
+GET my-index-bit-vectors/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "match_all": {}
+      },
+      "script": {
+        "source": "dotProduct(params.query_vector, 'my_dense_vector')",
+        "params": {
+          "query_vector": [0.23, 1.45, 3.67, 4.89, -0.56, 2.34, 3.21, 1.78, -2.45, 0.98, -0.12, 3.45, 4.56, 2.78, 1.23, 0.67, 3.89, 4.12, -2.34, 1.56, 0.78, 3.21, 4.12, 2.45, -1.67, 0.34, -3.45, 4.56, -2.78, 1.23, -0.67, 3.89, -4.34, 2.12, -1.56, 0.78, -3.21, 4.45, 2.12, 1.67] <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+<1> This vector is 40 individual dimensions, and thus will sum the floating point values using the stored `bit` vector as a mask.
+
+Currently, the `cosineSimilarity` function is not supported for `bit` vectors.
 

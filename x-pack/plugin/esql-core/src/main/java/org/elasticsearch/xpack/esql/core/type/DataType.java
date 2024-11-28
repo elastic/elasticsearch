@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -210,7 +209,6 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
         Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)
     );
 
@@ -276,7 +274,7 @@ public enum DataType {
 
     private static final Collection<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
 
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE;
 
     private static final Map<String, DataType> ES_TO_TYPE;
 
@@ -287,6 +285,10 @@ public enum DataType {
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
+        // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
+        map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));
+        map.put("date", DataType.DATETIME);
+        NAME_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
     private static final Map<String, DataType> NAME_OR_ALIAS_TO_TYPE;
@@ -370,10 +372,7 @@ public enum DataType {
     }
 
     public static boolean isString(DataType t) {
-        if (EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG.isEnabled() && t == SEMANTIC_TEXT) {
-            return true;
-        }
-        return t == KEYWORD || t == TEXT;
+        return t == KEYWORD || t == TEXT || t == SEMANTIC_TEXT;
     }
 
     public static boolean isPrimitiveAndSupported(DataType t) {
@@ -589,6 +588,13 @@ public enum DataType {
 
     public DataType noText() {
         return isString(this) ? KEYWORD : this;
+    }
+
+    public boolean isDate() {
+        return switch (this) {
+            case DATETIME, DATE_NANOS -> true;
+            default -> false;
+        };
     }
 
     /**

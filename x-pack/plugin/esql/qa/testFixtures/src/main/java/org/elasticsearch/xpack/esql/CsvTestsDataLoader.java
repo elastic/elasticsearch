@@ -56,14 +56,20 @@ public class CsvTestsDataLoader {
     private static final TestsDataset APPS = new TestsDataset("apps");
     private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestsDataset LANGUAGES = new TestsDataset("languages");
+    private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
+        .withSetting("languages_lookup-settings.json");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
+    private static final TestsDataset MV_SAMPLE_DATA = new TestsDataset("mv_sample_data");
     private static final TestsDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
     private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
+    private static final TestsDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+        .withData("sample_data_ts_nanos.csv")
+        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
@@ -72,6 +78,10 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DECADES = new TestsDataset("decades");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports");
     private static final TestsDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestsDataset AIRPORTS_NO_DOC_VALUES = new TestsDataset("airports_no_doc_values").withData("airports.csv");
+    private static final TestsDataset AIRPORTS_NOT_INDEXED = new TestsDataset("airports_not_indexed").withData("airports.csv");
+    private static final TestsDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestsDataset("airports_not_indexed_nor_doc_values")
+        .withData("airports.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web");
     private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset("countries_bbox");
@@ -92,11 +102,14 @@ public class CsvTestsDataLoader {
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
@@ -105,6 +118,9 @@ public class CsvTestsDataLoader {
         Map.entry(DECADES.indexName, DECADES),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
         Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
+        Map.entry(AIRPORTS_NO_DOC_VALUES.indexName, AIRPORTS_NO_DOC_VALUES),
+        Map.entry(AIRPORTS_NOT_INDEXED.indexName, AIRPORTS_NOT_INDEXED),
+        Map.entry(AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES.indexName, AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),

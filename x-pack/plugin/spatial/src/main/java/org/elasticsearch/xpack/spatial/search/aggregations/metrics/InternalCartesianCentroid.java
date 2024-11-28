@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
@@ -25,14 +22,14 @@ import java.util.Map;
 public class InternalCartesianCentroid extends InternalCentroid implements CartesianCentroid {
 
     public InternalCartesianCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
-        super(name, centroid, count, metadata, new FieldExtractor("x", SpatialPoint::getX), new FieldExtractor("y", SpatialPoint::getY));
+        super(name, centroid, count, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public InternalCartesianCentroid(StreamInput in) throws IOException {
-        super(in, new FieldExtractor("x", SpatialPoint::getX), new FieldExtractor("y", SpatialPoint::getY));
+        super(in);
     }
 
     @Override
@@ -76,12 +73,22 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     }
 
     @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCartesianCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
+    protected String nameFirst() {
+        return "x";
     }
 
-    static class Fields {
-        static final ParseField CENTROID_X = new ParseField("x");
-        static final ParseField CENTROID_Y = new ParseField("y");
+    @Override
+    protected double extractFirst(SpatialPoint point) {
+        return point.getX();
+    }
+
+    @Override
+    protected String nameSecond() {
+        return "y";
+    }
+
+    @Override
+    protected double extractSecond(SpatialPoint point) {
+        return point.getY();
     }
 }

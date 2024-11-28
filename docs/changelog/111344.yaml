@@ -1,5 +1,0 @@
-pr: 111344
-summary: Add support for Azure Managed Identity
-area: Snapshot/Restore
-type: enhancement
-issues: []

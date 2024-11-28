@@ -148,7 +148,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 DataPartitioning.SEGMENT,
                 1,
                 10000,
-                DocIdSetIterator.NO_MORE_DOCS
+                DocIdSetIterator.NO_MORE_DOCS,
+                false // no scoring
             );
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 List.of(
@@ -183,7 +184,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 DataType.KEYWORD,
                 "lookup",
                 "data",
-                List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG)))
+                List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
+                Source.EMPTY
             );
             DriverContext driverContext = driverContext();
             try (

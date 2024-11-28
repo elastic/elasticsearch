@@ -1,0 +1,5 @@
+pr: 114914
+summary: Adding chunking settings to `IbmWatsonxService`
+area: Machine Learning
+type: enhancement
+issues: []

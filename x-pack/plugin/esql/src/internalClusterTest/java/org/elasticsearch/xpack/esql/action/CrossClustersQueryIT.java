@@ -31,6 +31,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -61,10 +63,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
     private static final String REMOTE_CLUSTER_2 = "remote-b";
-    private static String LOCAL_INDEX = "logs-1";
-    private static String IDX_ALIAS = "alias1";
-    private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
-    private static String REMOTE_INDEX = "logs-2";
+    private static final String LOCAL_INDEX = "logs-1";
+    private static final String IDX_ALIAS = "alias1";
+    private static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
+    private static final String REMOTE_INDEX = "logs-2";
 
     @Override
     protected Collection<String> remoteClusterAlias() {
@@ -81,6 +83,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPlugin.class);
         plugins.add(InternalExchangePlugin.class);
+        plugins.add(EsqlNodeFailureIT.FailingFieldPlugin.class);
         return plugins;
     }
 
@@ -1237,6 +1240,26 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         assertTrue(latch.await(30, TimeUnit.SECONDS));
     }
 
+    public void testRemoteFailureSkipUnavailable() throws IOException {
+        Map<String, Object> testClusterInfo = setupFailClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remote1Index = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
+        try (EsqlQueryResponse resp = runQuery(q, false)) {
+            assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.isCrossClusterSearch(), is(true));
+            assertExpectedClustersForMissingIndicesTests(
+                executionInfo,
+                List.of(
+                    new ExpectedCluster(LOCAL_CLUSTER, localIndex, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
+                    new ExpectedCluster(REMOTE_CLUSTER_1, remote1Index + "*", EsqlExecutionInfo.Cluster.Status.PARTIAL, 0)
+                )
+            );
+        }
+    }
+
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {
         try {
             final Map<String, Object> esqlResponseAsMap = XContentTestUtils.convertToMap(resp);
@@ -1330,6 +1353,22 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .get(skipUnavailableSetting);
         clusterInfo.put("remote.skip_unavailable", skipUnavailable);
 
+        return clusterInfo;
+    }
+
+    Map<String, Object> setupFailClusters() throws IOException {
+        int numShardsLocal = randomIntBetween(1, 5);
+        populateLocalIndices(LOCAL_INDEX, numShardsLocal);
+
+        int numShardsRemote = randomIntBetween(1, 5);
+        populateRemoteIndicesFail(REMOTE_CLUSTER_1, REMOTE_INDEX, numShardsRemote);
+
+        Map<String, Object> clusterInfo = new HashMap<>();
+        clusterInfo.put("local.num_shards", numShardsLocal);
+        clusterInfo.put("local.index", LOCAL_INDEX);
+        clusterInfo.put("remote.num_shards", numShardsRemote);
+        clusterInfo.put("remote.index", REMOTE_INDEX);
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
         return clusterInfo;
     }
 
@@ -1452,6 +1491,31 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         for (int i = 0; i < 10; i++) {
             remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
         }
+        remoteClient.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    void populateRemoteIndicesFail(String clusterAlias, String indexName, int numShards) throws IOException {
+        Client remoteClient = client(clusterAlias);
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
+        mapping.startObject("runtime");
+        {
+            mapping.startObject("fail_me");
+            {
+                mapping.field("type", "long");
+                mapping.startObject("script").field("source", "").field("lang", "fail").endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping(mapping.endObject())
+        );
+
+        remoteClient.prepareIndex(indexName).setSource("id", 0).get();
         remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
 

@@ -54,7 +54,6 @@ public class ClusterBlockTests extends ESTestCase {
     }
 
     public void testSerializationBwc() throws Exception {
-        //
         var out = new BytesStreamOutput();
         out.setTransportVersion(
             randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))

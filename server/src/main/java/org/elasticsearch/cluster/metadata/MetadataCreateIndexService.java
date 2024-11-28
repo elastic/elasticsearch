@@ -1776,6 +1776,8 @@ public class MetadataCreateIndexService {
         logger.debug("applying refresh block on index creation");
         return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {
             if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
+                // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
+                // started or a configurable delay is elapsed.
                 clusterBlocks.addIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
         };
@@ -1789,10 +1791,11 @@ public class MetadataCreateIndexService {
     }
 
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ClusterState clusterState, TransportVersion minTransportVersion) {
+        var hasRefreshBlock = clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
         if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata, minTransportVersion) == false) {
-            assert clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK) == false;
+            assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
-            assert clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+            assert hasRefreshBlock : indexMetadata.getIndex();
         }
         return true;
     }

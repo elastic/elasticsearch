@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.util.List;
 
@@ -47,7 +46,16 @@ public abstract class FullTextFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        return resolveNonQueryParamTypes().and(resolveQueryParamType());
+        return resolveNonQueryParamTypes().and(resolveQueryParamType().and(checkParamCompatibility()));
+    }
+
+    /**
+     * Checks parameter specific compatibility, to be overriden by subclasses
+     *
+     * @return TypeResolution for param compatibility
+     */
+    protected TypeResolution checkParamCompatibility() {
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     /**
@@ -77,12 +85,10 @@ public abstract class FullTextFunction extends Function {
      *
      * @return query expression as an object
      */
-    public final Object queryAsObject() {
+    public Object queryAsObject() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef bytesRef) {
             return bytesRef.utf8ToString();
-        } else if (query().dataType() == DataType.UNSIGNED_LONG) {
-            return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
         }
 
         return queryAsObject;

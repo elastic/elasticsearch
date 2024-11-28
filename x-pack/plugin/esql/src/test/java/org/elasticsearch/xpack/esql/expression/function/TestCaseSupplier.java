@@ -1443,7 +1443,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
-                true
+                // If the expected type is null, the test won't try to evaluate the expression
+                expectedType == null || DataType.isRepresentable(expectedType)
             );
         }
 

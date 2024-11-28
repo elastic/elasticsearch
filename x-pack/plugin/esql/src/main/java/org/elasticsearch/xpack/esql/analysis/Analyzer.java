@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -609,8 +608,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
-            // rewrite the join into a equi-join between the field with the same name between left and right
-            // per SQL standard, the USING columns are placed first in the output, followed by the rest of left, then right
+            // rewrite the join into an equi-join between the field with the same name between left and right
             if (type instanceof UsingJoinType using) {
                 List<Attribute> cols = using.columns();
                 // the lookup cannot be resolved, bail out
@@ -632,14 +630,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // resolve the using columns against the left and the right side then assemble the new join config
                 List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
-                List<Attribute> output = new ArrayList<>(join.left().output());
-                // the order is stable (since the AttributeSet preservers the insertion order)
-                output.addAll(join.right().outputSet().subtract(new AttributeSet(rightKeys)));
 
-                // update the config - pick the left keys as those in the output
-                type = new UsingJoinType(coreJoin, rightKeys);
-                config = new JoinConfig(type, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config, output);
+                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config);
             }
             // everything else is unsupported for now
             else {

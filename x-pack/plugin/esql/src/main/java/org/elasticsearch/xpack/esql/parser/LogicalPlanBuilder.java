@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -182,6 +183,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         }
+    }
+
+    @Override
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+        return p -> {
+            Source source = source(ctx);
+            UnresolvedAttribute target = visitQualifiedName(ctx.target);
+            return new Completion(source, p, target, expression(ctx.prompt), expression(ctx.inferenceId));
+        };
     }
 
     @Override

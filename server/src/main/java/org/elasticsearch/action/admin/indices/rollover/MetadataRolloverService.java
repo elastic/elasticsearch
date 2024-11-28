@@ -430,19 +430,18 @@ public class MetadataRolloverService {
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
 
-        Metadata.Builder metadataBuilder = Metadata.builder(newState.metadata());
+        final var newProject = newState.metadata().getProject();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(newProject);
         if (isLazyCreation == false) {
             metadataBuilder.put(
-                IndexMetadata.builder(newState.metadata().getProject().index(originalWriteIndex))
-                    .stats(sourceIndexStats)
-                    .putRolloverInfo(rolloverInfo)
+                IndexMetadata.builder(newProject.index(originalWriteIndex)).stats(sourceIndexStats).putRolloverInfo(rolloverInfo)
             );
         }
 
         metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
-        newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
+        newState = ClusterState.builder(newState).putProjectMetadata(metadataBuilder).build();
         newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false, isFailureStoreRollover);
 
         return new RolloverResult(newWriteIndexName, isLazyCreation ? NON_EXISTENT_SOURCE : originalWriteIndex.getName(), newState);
@@ -472,7 +471,7 @@ public class MetadataRolloverService {
         }
     }
 
-    public Metadata.Builder withShardSizeForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+    public ProjectMetadata.Builder withShardSizeForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
         final DataStream dataStream = metadata.dataStream(dataStreamName);
 
         if (dataStream == null) {

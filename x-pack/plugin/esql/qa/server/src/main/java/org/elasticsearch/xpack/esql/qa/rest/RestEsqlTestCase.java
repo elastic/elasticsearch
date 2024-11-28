@@ -357,7 +357,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             expectedTextBody("txt", count, null),
             mode == ASYNC
                 ? runEsqlAsync(builder, new AssertWarnings.NoWarnings(), "txt", null).get("result")
-                : runEsqlAsTextWithFormat(builder, "txt", null)
+                : runEsqlSync(builder, new AssertWarnings.NoWarnings(), "txt", null).get("result")
         );
 
     }
@@ -370,7 +370,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             expectedTextBody("csv", count, '|'),
             mode == ASYNC
                 ? runEsqlAsync(builder, new AssertWarnings.NoWarnings(), "csv", '|').get("result")
-                : runEsqlAsTextWithFormat(builder, "csv", '|')
+                : runEsqlSync(builder, new AssertWarnings.NoWarnings(), "csv", '|').get("result")
         );
     }
 
@@ -382,7 +382,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             expectedTextBody("tsv", count, null),
             mode == ASYNC
                 ? runEsqlAsync(builder, new AssertWarnings.NoWarnings(), "tsv", null).get("result")
-                : runEsqlAsTextWithFormat(builder, "tsv", null)
+                : runEsqlSync(builder, new AssertWarnings.NoWarnings(), "tsv", null).get("result")
         );
     }
 
@@ -1034,6 +1034,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
+        return runEsqlSync(requestObject, assertWarnings, null, null);
+    }
+
+    public static Map<String, Object> runEsqlSync(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        @Nullable String format,
+        @Nullable Character delimiter
+    ) throws IOException {
         requestObject.build();
         Request request = prepareRequest(SYNC);
         String mediaType = attachBody(requestObject, request);
@@ -1041,16 +1050,31 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-
+        boolean isTextFormat = format != null;
         if (randomBoolean()) {
-            options.addHeader("Accept", mediaType);
+            if (isTextFormat) {
+                switch (format) {
+                    case "txt" -> options.addHeader("Accept", "text/plain");
+                    case "csv" -> options.addHeader("Accept", "text/csv");
+                    case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+                }
+            } else {
+                options.addHeader("Accept", mediaType);
+            }
         } else {
-            request.addParameter("format", requestObject.contentType().queryParameter());
+            request.addParameter("format", isTextFormat ? format : requestObject.contentType().queryParameter());
+        }
+        if (delimiter != null) {
+            request.addParameter("delimiter", String.valueOf(delimiter));
         }
         request.setOptions(options);
 
         HttpEntity entity = performRequest(request, assertWarnings);
-        return entityToMap(entity, requestObject.contentType());
+        if (isTextFormat) {
+            return Map.of("result", Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        } else {
+            return entityToMap(entity, requestObject.contentType());
+        }
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
@@ -1247,31 +1271,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     static void deleteNonExistent(Request request) throws IOException {
         Response response = client().performRequest(request);
         assertEquals(404, response.getStatusLine().getStatusCode());
-    }
-
-    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter) throws IOException {
-        Request request = prepareRequest(SYNC);
-        String mediaType = attachBody(builder.build(), request);
-
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Content-Type", mediaType);
-
-        if (randomBoolean()) {
-            request.addParameter("format", format);
-        } else {
-            switch (format) {
-                case "txt" -> options.addHeader("Accept", "text/plain");
-                case "csv" -> options.addHeader("Accept", "text/csv");
-                case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
-            }
-        }
-        if (delimiter != null) {
-            request.addParameter("delimiter", String.valueOf(delimiter));
-        }
-        request.setOptions(options);
-
-        HttpEntity entity = performRequest(request, new AssertWarnings.NoWarnings());
-        return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
     }
 
     private static Request prepareRequest(Mode mode) {

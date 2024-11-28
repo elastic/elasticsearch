@@ -23,10 +23,12 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 
 /**
@@ -84,7 +86,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
                         randomIdentifier(),
-                        randomIdentifier(),
+                        randomAlphaOfLengthBetween(14, 20).toLowerCase(Locale.ROOT),
                         sessionToken
                     ).getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");

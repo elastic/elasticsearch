@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 
 /**
@@ -102,7 +103,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     ROLE_ARN,
                     ROLE_NAME,
                     sessionToken,
-                    randomIdentifier(),
+                    randomAlphaOfLengthBetween(14, 20).toLowerCase(Locale.ROOT),
                     ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
                     accessKey
                 ).getBytes(StandardCharsets.UTF_8);

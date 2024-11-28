@@ -219,11 +219,11 @@ count(*): long  | author.keyword:keyword
 ;
 
 testMatchIpField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from sample_data
-| where client_ip:"172.21.0.5"
+| where client_ip:"172.21.0.5"::IP
 | keep client_ip, message;
 
 client_ip:ip   | message:keyword
@@ -231,47 +231,23 @@ client_ip:ip   | message:keyword
 ;
 
 testMatchDateField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from date_nanos
-| where millis:"2023-10-23T13:55:01.543Z"
+| where millis:"2023-10-23T13:55:01.543Z"::DATETIME
 | keep millis;
 
 millis:date
 2023-10-23T13:55:01.543Z
 ;
 
-testMatchPartialDateField
-required_capability: match_operator_colon
-required_capability: match_additional_types
-
-from date_nanos
-| where millis:"1999-10-22"
-| keep millis;
-
-millis:date
-1999-10-22T12:15:03.360Z
-;
-
 testMatchDateNanosField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from date_nanos
-| where nanos:"2023-10-23T13:55:01.543123456Z"
-| keep nanos;
-
-nanos:date_nanos
-2023-10-23T13:55:01.543123456Z
-;
-
-testMatchPartialDateNanosField
-required_capability: match_operator_colon
-required_capability: match_additional_types
-
-from date_nanos
-| where nanos:"2023-10-23T13:55:01"
+| where nanos:"2023-10-23T13:55:01.543123456Z"::DATE_NANOS
 | keep nanos;
 
 nanos:date_nanos
@@ -279,7 +255,7 @@ nanos:date_nanos
 ;
 
 testMatchBooleanField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from employees 
@@ -295,7 +271,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from employees 
@@ -307,19 +283,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleField
-required_capability: match_operator_colon
-required_capability: match_additional_types
-
-from employees 
-| where salary_change:9.07
-| keep emp_no, salary_change;
-
-emp_no:integer | salary_change:double
-10014          | [-1.89, 9.07]   
-;
-
-testMatchDoubleField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from employees 
@@ -331,7 +295,7 @@ emp_no:integer | salary_change:double
 ;  
 
 testMatchLongField
-required_capability: match_operator_colon
+required_capability: match_function
 required_capability: match_additional_types
 
 from date_nanos
@@ -343,7 +307,119 @@ num:long
 ;
 
 testMatchUnsignedLongField
-required_capability: match_operator_colon
+required_capability: match_function
+required_capability: match_additional_types
+
+from ul_logs
+| where bytes_out:"12749081495402663265"::UNSIGNED_LONG
+| keep bytes_out;
+
+bytes_out:unsigned_long
+12749081495402663265
+;
+
+testMatchVersionField
+required_capability: match_function
+required_capability: match_additional_types
+
+from apps 
+| where version:"2.1"::VERSION 
+| keep name, version;
+
+name:keyword | version:version
+bbbbb        | 2.1
+;
+
+testMatchIpFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from sample_data
+| where client_ip:"172.21.0.5"
+| keep client_ip, message;
+
+client_ip:ip   | message:keyword
+172.21.0.5     | Disconnected
+;
+
+testMatchDateFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from date_nanos
+| where millis:"2023-10-23T13:55:01.543Z"
+| keep millis;
+
+millis:date
+2023-10-23T13:55:01.543Z
+;
+
+testMatchDateNanosFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from date_nanos
+| where nanos:"2023-10-23T13:55:01.543123456Z"
+| keep nanos;
+
+nanos:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+testMatchBooleanFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees 
+| where still_hired:true and height > 2.08 
+| keep first_name, still_hired, height;
+ignoreOrder:true
+
+first_name:keyword  | still_hired:boolean   | height:double
+Saniya              | true                  | 2.1
+Yongqiao            | true                  | 2.1
+Kwee                | true                  | 2.1
+Amabile             | true                  | 2.09
+;
+
+testMatchIntegerFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees 
+| where emp_no:10004
+| keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+;
+
+testMatchDoubleFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees 
+| where salary_change:9.07
+| keep emp_no, salary_change;
+
+emp_no:integer | salary_change:double
+10014          | [-1.89, 9.07]   
+;
+
+testMatchLongFieldAsString
+required_capability: match_function
+required_capability: match_additional_types
+
+from date_nanos
+| where num:1698069301543123456
+| keep num;
+
+num:long
+1698069301543123456
+;
+
+testMatchUnsignedLongFieldAsString
+required_capability: match_function
 required_capability: match_additional_types
 
 from ul_logs
@@ -354,8 +430,8 @@ bytes_out:unsigned_long
 12749081495402663265
 ;
 
-testMatchVersionField
-required_capability: match_operator_colon
+testMatchVersionFieldAsString
+required_capability: match_function
 required_capability: match_additional_types
 
 from apps 
@@ -365,4 +441,3 @@ from apps
 name:keyword | version:version
 bbbbb        | 2.1
 ;
-

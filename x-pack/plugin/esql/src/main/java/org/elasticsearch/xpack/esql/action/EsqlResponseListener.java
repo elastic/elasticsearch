@@ -94,7 +94,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     /**
      * Keep the initial query for logging purposes.
      */
-    private final String esqlQuery;
+    private final String esqlQueryOrId;
     /**
      * Stop the time it took to build a response to later log it. Use something thread-safe here because stopping time requires state and
      * {@link EsqlResponseListener} might be used from different threads.
@@ -109,21 +109,21 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
 
         this.channel = channel;
         this.restRequest = restRequest;
-        this.esqlQuery = esqlRequest.query();
+        this.esqlQueryOrId = esqlRequest.query();
         this.mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
 
         checkDelimiter();
     }
 
     /**
-     * Async query get API does not have an esqlRequest and mediaType defaults to JSON if no "format" in params
+     * Async query get API does not have an EsqlQueryRequest, store the async ID as an alternative
      */
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest) {
         super(channel);
 
         this.channel = channel;
         this.restRequest = restRequest;
-        this.esqlQuery = null;
+        this.esqlQueryOrId = restRequest.param("id");
         this.mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest);
 
         checkDelimiter();
@@ -207,14 +207,18 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             listener.onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
             LOGGER.debug(
-                "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
-                esqlQuery,
+                "Finished execution of ESQL query.\nQuery string or async ID: [{}]\nExecution time: [{}]ms",
+                esqlQueryOrId,
                 getTook(r, TimeUnit.MILLISECONDS)
             );
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = getTook(null, TimeUnit.MILLISECONDS);
-            LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            LOGGER.debug(
+                "Failed execution of ESQL query.\nQuery string or async ID: [{}]\nExecution time: [{}]ms",
+                esqlQueryOrId,
+                timeMillis
+            );
             listener.onFailure(ex);
         });
     }

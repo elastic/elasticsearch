@@ -42,27 +42,17 @@ public class EsqlMediaTypeParser {
      * combinations are detected.
      */
     public static MediaType getResponseMediaType(RestRequest request, EsqlQueryRequest esqlRequest) {
-        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        var mediaType = getResponseMediaType(request);
         validateColumnarRequest(esqlRequest.columnar(), mediaType);
         validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
         return checkNonNullMediaType(mediaType, request);
     }
 
     /*
-     * If requests have no media type in params nor headers, default to JSON
+     *  Get mediaType of a request without validating columnar
      */
     public static MediaType getResponseMediaType(RestRequest request) {
-        MediaType mediaType;
-        if (request.hasParam(URL_PARAM_FORMAT)) {
-            mediaType = mediaTypeFromParams(request);
-        } else {
-            ParsedMediaType acceptType = request.getParsedAccept();
-            mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
-        }
-        if (mediaType == null) {
-            mediaType = XContentType.JSON;
-        }
-        return mediaType;
+        return request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
     }
 
     private static MediaType mediaTypeFromHeaders(RestRequest request) {

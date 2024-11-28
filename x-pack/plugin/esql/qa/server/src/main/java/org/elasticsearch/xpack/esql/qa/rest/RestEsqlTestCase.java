@@ -353,33 +353,31 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        if (mode == ASYNC) {
-            assertEquals(expectedTextBody("txt", count, null), runEsqlAsyncAsTextWithFormat(builder, "txt", null));
-        } else {
-            assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
-        }
+        assertEquals(
+            expectedTextBody("txt", count, null),
+            mode == ASYNC ? runEsqlAsyncAsTextWithFormat(builder, "txt", null) : runEsqlAsTextWithFormat(builder, "txt", null)
+        );
+
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        if (mode == ASYNC) {
-            assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsyncAsTextWithFormat(builder, "csv", '|'));
-        } else {
-            assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
-        }
+        assertEquals(
+            expectedTextBody("csv", count, '|'),
+            mode == ASYNC ? runEsqlAsyncAsTextWithFormat(builder, "csv", '|') : runEsqlAsTextWithFormat(builder, "csv", '|')
+        );
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        if (mode == ASYNC) {
-            assertEquals(expectedTextBody("tsv", count, null), runEsqlAsyncAsTextWithFormat(builder, "tsv", null));
-        } else {
-            assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
-        }
+        assertEquals(
+            expectedTextBody("tsv", count, null),
+            mode == ASYNC ? runEsqlAsyncAsTextWithFormat(builder, "tsv", null) : runEsqlAsTextWithFormat(builder, "tsv", null)
+        );
     }
 
     public void testCSVNoHeaderMode() throws IOException {

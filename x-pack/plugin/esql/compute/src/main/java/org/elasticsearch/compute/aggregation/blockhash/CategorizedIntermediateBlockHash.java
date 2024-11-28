@@ -50,12 +50,9 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
 
         Map<Integer, Integer> idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
         try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
-            int categoryIdEnd = idMap.size() + 1;
-            if (idMap.containsKey(0)) {
-                categoryIdEnd--;
-                newIdsBuilder.appendInt(0);
-            }
-            for (int i = 1; i < categoryIdEnd; i++) {
+            int fromId = idMap.containsKey(0) ? 0 : 1;
+            int toId = fromId + idMap.size();
+            for (int i = fromId; i < toId; i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
             }
             try (IntBlock newIds = newIdsBuilder.build()) {

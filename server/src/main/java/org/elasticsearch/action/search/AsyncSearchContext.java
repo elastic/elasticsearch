@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.transport.Transport;
 
 public interface AsyncSearchContext {
 
@@ -31,4 +32,6 @@ public interface AsyncSearchContext {
     void execute(Runnable command);
 
     void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
+
+    Transport.Connection getConnection(String clusterAlias, String nodeId);
 }

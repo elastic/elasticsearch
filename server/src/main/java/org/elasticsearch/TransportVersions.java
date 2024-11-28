@@ -11,6 +11,8 @@ package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.internal.VersionExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -18,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -279,7 +282,7 @@ public class TransportVersions {
      */
     public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_0;
 
-    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
+    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds();
 
     // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
     static final TransportVersion LATEST_DEFINED;
@@ -291,7 +294,20 @@ public class TransportVersions {
         IDS = null;
     }
 
-    public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+    public static NavigableMap<Integer, TransportVersion> getAllVersionIds() {
+        NavigableMap<Integer, TransportVersion> transportVersions = collectAllVersionIdsDefinedInClass(TransportVersions.class);
+        Collection<TransportVersion> extendedVersions = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
+            .map(VersionExtension::getTransportVersions)
+            .orElse(Collections.emptyList());
+
+        for (TransportVersion extendedVersion : extendedVersions) {
+            transportVersions.put(extendedVersion.id(), extendedVersion);
+        }
+
+        return Collections.unmodifiableNavigableMap(transportVersions);
+    }
+
+    public static NavigableMap<Integer, TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
 

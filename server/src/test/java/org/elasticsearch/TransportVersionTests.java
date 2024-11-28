@@ -69,7 +69,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testStaticTransportVersionChecks() {
         assertThat(
-            TransportVersions.getAllVersionIds(CorrectFakeVersion.class),
+            TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
             equalTo(
                 Map.of(
                     199,
@@ -83,7 +83,10 @@ public class TransportVersionTests extends ESTestCase {
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersions.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> TransportVersions.collectAllVersionIdsDefinedInClass(DuplicatedIdFakeVersion.class)
+        );
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 

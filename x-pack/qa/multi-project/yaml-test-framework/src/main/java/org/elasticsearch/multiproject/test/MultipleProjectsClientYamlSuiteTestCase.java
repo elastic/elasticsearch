@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 
 /**
  * Base class for running YAML Rest tests against a cluster with multiple projects
@@ -74,7 +76,9 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
 
     @After
     public void removeProjects() throws Exception {
+        assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
         for (var project : extraProjects) {
+            assertEmptyProject(project);
             deleteProject(project);
         }
         deleteProject(activeProject);
@@ -101,6 +105,72 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
         } catch (ResponseException e) {
             logger.error("Failed to delete project: {}", project);
             throw e;
+        }
+    }
+
+    private void assertEmptyProject(String projectId) throws IOException {
+        final Request request = new Request("GET", "_cluster/state/metadata,routing_table,customs");
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId).build());
+
+        var response = responseAsMap(adminClient().performRequest(request));
+        ObjectPath state = new ObjectPath(response);
+
+        assertThat(
+            "Project [" + projectId + "] should not have indices",
+            ((Map<?, ?>) state.evaluate("metadata.indices")).keySet(),
+            empty()
+        );
+        assertThat(
+            "Project [" + projectId + "] should not have routing entries",
+            ((Map<?, ?>) state.evaluate("routing_table.indices")).keySet(),
+            empty()
+        );
+        assertThat(
+            "Project [" + projectId + "] should not have graveyard entries",
+            state.evaluate("metadata.index-graveyard.tombstones"),
+            empty()
+        );
+
+        final Map<String, ?> legacyTemplates = state.evaluate("metadata.templates");
+        if (legacyTemplates != null) {
+            var templateNames = legacyTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have legacy templates", templateNames, empty());
+        }
+
+        final Map<String, Object> indexTemplates = state.evaluate("metadata.index_template.index_template");
+        if (indexTemplates != null) {
+            var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard templates, but was null");
+        }
+
+        final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
+        if (componentTemplates != null) {
+            var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard component templates, but was null");
+        }
+
+        final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
+        if (pipelines != null) {
+            var pipelineNames = pipelines.stream()
+                .map(pipeline -> String.valueOf(pipeline.get("id")))
+                .filter(id -> isXPackIngestPipeline(id) == false)
+                .toList();
+            assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard ingest pipelines, but was null");
+        }
+
+        final Map<String, Object> ilmPolicies = state.evaluate("metadata.index_lifecycle.policies");
+        if (ilmPolicies != null) {
+            var policyNames = new HashSet<>(ilmPolicies.keySet());
+            policyNames.removeAll(preserveILMPolicyIds());
+            assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard ILM policies, but was null");
         }
     }
 

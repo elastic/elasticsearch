@@ -63,12 +63,7 @@ public class TransportVersionUtils {
         }
         int maxVersionIndex = ALL_VERSIONS.size() - 1;
         if (maxVersion != null) {
-            // current version might be serverless one and therefore might be after the last version in ALL_VERSIONS
-            if (maxVersion.after(ALL_VERSIONS.getLast()) && maxVersion.onOrBefore(TransportVersion.current())) {
-                maxVersionIndex = ALL_VERSIONS.size() - 1;
-            } else {
-                maxVersionIndex = Collections.binarySearch(ALL_VERSIONS, maxVersion);
-            }
+            maxVersionIndex = Collections.binarySearch(ALL_VERSIONS, maxVersion);
         }
         if (minVersionIndex < 0) {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");

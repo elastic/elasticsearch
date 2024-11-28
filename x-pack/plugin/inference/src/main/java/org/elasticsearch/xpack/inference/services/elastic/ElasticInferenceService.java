@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenc
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -76,8 +75,6 @@ public class ElasticInferenceService extends SenderService {
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(factory, serviceComponents);
-        this.sender = factory.createSender();
-        this.elasticInferenceServiceRequestSender = factory.createSender();
         this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
     }
 

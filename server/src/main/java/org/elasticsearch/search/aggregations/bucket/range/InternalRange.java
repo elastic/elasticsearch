@@ -36,7 +36,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @SuppressWarnings("rawtypes")
     static final Factory FACTORY = new Factory();
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable implements Range.Bucket {
 
         protected final transient DocValueFormat format;
         protected final double from;

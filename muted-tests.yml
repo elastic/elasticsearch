@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.upgrades.SearchStatesIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108991"
-  method: "testCanMatch"
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260

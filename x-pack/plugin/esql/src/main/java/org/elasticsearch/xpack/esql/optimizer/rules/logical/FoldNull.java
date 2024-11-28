@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
@@ -42,6 +43,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             }
         } else if (e instanceof Alias == false
             && e.nullable() == Nullability.TRUE
+            && e instanceof Categorize == false
             && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }

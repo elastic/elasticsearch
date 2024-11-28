@@ -84,7 +84,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         nodeLevelReduction = randomBoolean();
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));
@@ -436,6 +436,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     public void testTaskContentsForTopNQuery() throws Exception {
         READ_DESCRIPTION = ("\\_LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 1000, "
+            + "scoreMode = TOP_DOCS, "
             + "sorts = [{\"pause_me\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"long\"}}]]\n"
             + "\\_ValuesSourceReaderOperator[fields = [pause_me]]\n"
             + "\\_ProjectOperator[projection = [1]]\n"
@@ -470,7 +471,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     public void testTaskContentsForLimitQuery() throws Exception {
         String limit = Integer.toString(randomIntBetween(pageSize() + 1, 2 * numberOfDocs()));
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit()]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_ProjectOperator[projection = [1]]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit);
@@ -498,7 +499,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     public void testTaskContentsForGroupingStatsQuery() throws Exception {
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [foo]]
             \\_OrdinalsGroupingOperator(aggs = max of longs)
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));

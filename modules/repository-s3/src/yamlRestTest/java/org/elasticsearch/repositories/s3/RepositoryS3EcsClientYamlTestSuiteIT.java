@@ -10,12 +10,12 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.imds.Ec2ImdsHttpFixture;
-import fixture.s3.S3HttpFixtureWithSessionToken;
+import fixture.s3.DynamicS3Credentials;
+import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.ClassRule;
@@ -26,21 +26,18 @@ import java.util.Set;
 
 public class RepositoryS3EcsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
 
-    private static final String HASHED_SEED = Integer.toString(Murmur3HashFunction.hash(System.getProperty("tests.seed")));
-    private static final String ECS_ACCESS_KEY = "ecs-access-key-" + HASHED_SEED;
-    private static final String ECS_SESSION_TOKEN = "ecs-session-token-" + HASHED_SEED;
-
-    private static final S3HttpFixtureWithSessionToken s3Fixture = new S3HttpFixtureWithSessionToken(
-        "ecs_bucket",
-        "ecs_base_path",
-        ECS_ACCESS_KEY,
-        ECS_SESSION_TOKEN
-    );
+    private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        ECS_ACCESS_KEY,
-        ECS_SESSION_TOKEN,
+        dynamicS3Credentials::addValidCredentials,
         Set.of("/ecs_credentials_endpoint")
+    );
+
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        "ecs_bucket",
+        "ecs_base_path",
+        dynamicS3Credentials::isAuthorized
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,7 +32,6 @@ public class ServiceToNodeGroupingClusterStateListener implements ClusterStateLi
 
     private final AtomicReference<Map<String, DiscoveryNode>> serviceToNodeGrouping = new AtomicReference<>();
 
-    @Inject
     public ServiceToNodeGroupingClusterStateListener(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
         clusterService.addListener(this);
         logger.info("ServiceToNodeGroupingClusterStateListener registered");

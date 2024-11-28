@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -55,7 +56,7 @@ public class NodeAllocationStatsProvider {
         );
     }
 
-    public Map<String, NodeAllocationAndClusterBalanceStats> stats(
+    public Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats> stats(
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
@@ -66,7 +67,7 @@ public class NodeAllocationStatsProvider {
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
-        var stats = Maps.<String, NodeAllocationAndClusterBalanceStats>newMapWithExpectedSize(routingNodes.size());
+        var stats = Maps.<DiscoveryNode, NodeAllocationAndClusterBalanceStats>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
             int shards = 0;
             int undesiredShards = 0;
@@ -97,7 +98,7 @@ public class NodeAllocationStatsProvider {
                 avgDiskUsageInBytesPerNode
             );
             stats.put(
-                node.nodeId(),
+                node.node(),
                 new NodeAllocationAndClusterBalanceStats(
                     shards,
                     desiredBalance != null ? undesiredShards : -1,

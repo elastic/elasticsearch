@@ -13,9 +13,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -39,6 +41,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -72,10 +75,17 @@ public class DesiredBalanceComputer {
 
     private TimeValue progressLogInterval;
     private long maxBalanceComputationTimeDuringIndexCreationMillis;
+    private final NodeAllocationStatsProvider nodeAllocationStatsProvider;
 
-    public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
+    public DesiredBalanceComputer(
+        ClusterSettings clusterSettings,
+        TimeProvider timeProvider,
+        ShardsAllocator delegateAllocator,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
+    ) {
         this.delegateAllocator = delegateAllocator;
         this.timeProvider = timeProvider;
+        this.nodeAllocationStatsProvider = nodeAllocationStatsProvider;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -405,8 +415,54 @@ public class DesiredBalanceComputer {
             );
         }
 
+        var nodeWeightStats = routingNodes.getBalanceWeightStatsPerNode();
+        var nodeWeightStatsCalculatedFromRoutingNodes = getNodeWeightStats(routingAllocation);
+        assert assertWeightsEqual(nodeWeightStats, nodeWeightStatsCalculatedFromRoutingNodes) : "weight stats seem to be different!";
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+        return new DesiredBalance(lastConvergedIndex, assignments, nodeWeightStatsCalculatedFromRoutingNodes, finishReason);
+    }
+
+    private boolean assertWeightsEqual(
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> stats1,
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> stats2
+    ) {
+        assert stats1.size() == stats2.size() : "Different sizes";
+        for (var node : stats1.keySet()) {
+            var stat1 = stats1.get(node);
+            var stat2 = stats2.get(node);
+            assert stat2 != null : "stat for node " + node.getName() + " not found";
+            assert stat1.shardCount() == stat2.shardCount() : "shard count for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.writeLoad(), stat2.writeLoad()) : "write load for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.diskUsageInBytes(), stat2.diskUsageInBytes()) : "disk usage for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.nodeWeight(), stat2.nodeWeight()) : "node weight for " + node.getName() + "not equal";
+        }
+        return true;
+    }
+
+    private boolean doubleEqual(double d1, double d2) {
+        return Math.abs(d1 - d2) < 0.0001;
+    }
+
+    private Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> getNodeWeightStats(RoutingAllocation routingAllocation) {
+        var stats = nodeAllocationStatsProvider.stats(
+            routingAllocation.metadata(),
+            routingAllocation.routingNodes(),
+            routingAllocation.clusterInfo(),
+            null
+        );
+        return stats.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> new DesiredBalanceMetrics.NodeWeightStats(
+                        e.getValue().shards(),
+                        e.getValue().forecastedDiskUsage(),
+                        e.getValue().forecastedIngestLoad(),
+                        e.getValue().currentNodeWeight()
+                    )
+                )
+            );
     }
 
     // visible for testing

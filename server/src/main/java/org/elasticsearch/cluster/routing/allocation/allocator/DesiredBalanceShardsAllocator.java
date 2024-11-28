@@ -93,7 +93,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
+            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, nodeAllocationStatsProvider),
             reconciler,
             telemetryProvider,
             nodeAllocationStatsProvider

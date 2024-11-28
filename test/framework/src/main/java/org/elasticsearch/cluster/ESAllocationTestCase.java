@@ -442,7 +442,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         createBuiltInClusterSettings()
     ) {
         @Override
-        public Map<String, NodeAllocationAndClusterBalanceStats> stats(
+        public Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats> stats(
             Metadata metadata,
             RoutingNodes routingNodes,
             ClusterInfo clusterInfo,

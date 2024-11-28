@@ -403,7 +403,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), shardsAllocator, EMPTY_NODE_ALLOCATION_STATS) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -530,7 +530,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator, EMPTY_NODE_ALLOCATION_STATS) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -634,7 +634,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator, EMPTY_NODE_ALLOCATION_STATS) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -722,7 +722,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var clusterSettings = createBuiltInClusterSettings();
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator) {
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            clusterSettings,
+            threadPool,
+            delegateAllocator,
+            EMPTY_NODE_ALLOCATION_STATS
+        ) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
@@ -791,7 +796,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
 
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            threadPool,
+            delegateAllocator,
+            EMPTY_NODE_ALLOCATION_STATS
+        );
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
@@ -841,7 +851,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         final var resetCalled = new AtomicBoolean();
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            threadPool,
+            delegateAllocator,
+            EMPTY_NODE_ALLOCATION_STATS
+        );
         var desiredBalanceAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
@@ -930,7 +945,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator, EMPTY_NODE_ALLOCATION_STATS) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,

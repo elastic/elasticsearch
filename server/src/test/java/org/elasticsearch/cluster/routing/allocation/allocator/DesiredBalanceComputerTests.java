@@ -1238,7 +1238,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        });
+        }, EMPTY_NODE_ALLOCATION_STATS);
 
         assertThatLogger(() -> {
             var iteration = new AtomicInteger(0);
@@ -1346,7 +1346,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator);
+        return new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            TimeProviderUtils.create(() -> 0L),
+            allocator,
+            EMPTY_NODE_ALLOCATION_STATS
+        );
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

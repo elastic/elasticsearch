@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider.NodeAllocationAndClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -36,9 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -165,14 +162,7 @@ public class DesiredBalanceReconciler {
                 allocation.clusterInfo(),
                 desiredBalance
             );
-            Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats> nodeAllocationStats = new HashMap<>(stats.size());
-            for (var entry : stats.entrySet()) {
-                var node = allocation.nodes().get(entry.getKey());
-                if (node != null) {
-                    nodeAllocationStats.put(node, entry.getValue());
-                }
-            }
-            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), nodeAllocationStats);
+            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), stats);
         }
 
         private boolean allocateUnassignedInvariant() {

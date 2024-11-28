@@ -51,7 +51,7 @@ public class AllocationStatsService {
             .stream()
             .collect(
                 Collectors.toMap(
-                    Map.Entry::getKey,
+                    e -> e.getKey().getId(),
                     e -> new NodeAllocationStats(
                         e.getValue().shards(),
                         e.getValue().undesiredShards(),

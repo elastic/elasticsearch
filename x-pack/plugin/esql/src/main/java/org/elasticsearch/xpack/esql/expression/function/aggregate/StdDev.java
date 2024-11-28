@@ -91,6 +91,11 @@ public class StdDev extends AggregateFunction implements ToAggregator {
         return new StdDev(source(), newChildren.get(0), newChildren.get(1));
     }
 
+    @Override
+    public boolean isConstantFoldable() {
+        return false;
+    }
+
     public StdDev withFilter(Expression filter) {
         return new StdDev(source(), field(), filter);
     }

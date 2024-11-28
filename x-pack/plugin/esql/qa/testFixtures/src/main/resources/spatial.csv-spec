@@ -45,7 +45,7 @@ FROM airports
         centroidEvalNull = ST_CENTROID_AGG(z);
 
 centroidNull:null|centroidExpNull:geo_point|centroidEvalNull:geo_point
-POINT (NaN NaN)  |null                     |POINT (NaN NaN)
+POINT (NaN NaN)  |null                     |null
 ;
 
 centroidFromStringNested

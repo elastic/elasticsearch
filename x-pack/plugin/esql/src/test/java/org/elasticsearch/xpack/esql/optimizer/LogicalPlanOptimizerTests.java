@@ -4110,7 +4110,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals(
-            "3:31: third argument of [bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
+            "3:12: third argument of [bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
             e.getMessage().substring(header.length())
         );
     }
@@ -6318,7 +6318,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL x = date - to_timeduration(keyword)"""));
         assertEquals(
-            "1:47: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
+            "1:31: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
             e.getMessage().substring(header.length())
         );
 
@@ -6329,7 +6329,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL x = keyword, y = date - to_timeduration(x)"""));
-        assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
+        assertEquals("1:44: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
     }
 
     // These should pass eventually once we lift some restrictions on match function

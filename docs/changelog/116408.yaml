@@ -1,6 +1,0 @@
-pr: 116408
-summary: Propagating nested `inner_hits` to the parent compound retriever
-area: Ranking
-type: bug
-issues:
- - 116397

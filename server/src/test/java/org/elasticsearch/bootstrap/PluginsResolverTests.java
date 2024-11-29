@@ -30,13 +30,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ESTestCase.WithoutSecurityManager
-public class PluginsResolverTests  extends ESTestCase {
+public class PluginsResolverTests extends ESTestCase {
 
-    private record TestPluginLayer(
-        PluginBundle pluginBundle,
-        ClassLoader pluginClassLoader,
-        ModuleLayer pluginModuleLayer
-    ) implements PluginsLoader.PluginLayer { }
+    private record TestPluginLayer(PluginBundle pluginBundle, ClassLoader pluginClassLoader, ModuleLayer pluginModuleLayer)
+        implements
+            PluginsLoader.PluginLayer {}
 
     public void testResolveModularPlugin() throws IOException, ClassNotFoundException {
         String moduleName = "modular.plugin";
@@ -80,10 +78,9 @@ public class PluginsResolverTests  extends ESTestCase {
         PluginBundle bundle2 = createMockBundle("plugin2", "module.two", "q.B");
         PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(
-            new TestPluginLayer(bundle1, loader1, layer1),
-            new TestPluginLayer(bundle2, loader2, layer2)
-        ));
+        when(mockPluginsLoader.pluginLayers()).thenReturn(
+            Stream.of(new TestPluginLayer(bundle1, loader1, layer1), new TestPluginLayer(bundle2, loader2, layer2))
+        );
         PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
 
         var testClass1 = loader1.loadClass("p.A");
@@ -103,14 +100,13 @@ public class PluginsResolverTests  extends ESTestCase {
 
         Map<String, CharSequence> sources = Map.ofEntries(
             entry("module-info", "module module.two { exports q; requires module.one; }"),
-            entry("q.B", "package q; public class B { public p.A a = null; }"));
+            entry("q.B", "package q; public class B { public p.A a = null; }")
+        );
 
         var classToBytes = InMemoryJavaCompiler.compile(sources, "--add-modules", "module.one", "-p", home.toString());
         JarUtils.createJarWithEntries(
             pluginJar,
-            Map.ofEntries(
-                entry("module-info.class", classToBytes.get("module-info")),
-                entry("q/B.class", classToBytes.get("q.B")))
+            Map.ofEntries(entry("module-info.class", classToBytes.get("module-info")), entry("q/B.class", classToBytes.get("q.B")))
         );
 
         var layer = createModuleLayer("module.two", pluginJar, dependencyJar);
@@ -119,9 +115,7 @@ public class PluginsResolverTests  extends ESTestCase {
         PluginBundle bundle = createMockBundle("plugin2", "module.two", "q.B");
         PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(
-            new TestPluginLayer(bundle, loader, layer)
-        ));
+        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, layer)));
         PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
 
         var testClass1 = loader.loadClass("p.A");
@@ -136,35 +130,52 @@ public class PluginsResolverTests  extends ESTestCase {
     private static ModuleLayer createModuleLayer(String moduleName, Path... jars) {
         var finder = ModuleFinder.of(jars);
         Configuration cf = ModuleLayer.boot().configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
-        var moduleController = ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()),
-            ClassLoader.getPlatformClassLoader());
+        var moduleController = ModuleLayer.defineModulesWithOneLoader(
+            cf,
+            List.of(ModuleLayer.boot()),
+            ClassLoader.getPlatformClassLoader()
+        );
         return moduleController.layer();
     }
 
     private static PluginBundle createMockBundle(String pluginName, String moduleName, String fqClassName) {
-        PluginDescriptor pd = new PluginDescriptor(pluginName, null, null, null, null, fqClassName, moduleName, List.of(),
-            false, false, true, false);
+        PluginDescriptor pd = new PluginDescriptor(
+            pluginName,
+            null,
+            null,
+            null,
+            null,
+            fqClassName,
+            moduleName,
+            List.of(),
+            false,
+            false,
+            true,
+            false
+        );
 
         PluginBundle bundle = mock(PluginBundle.class);
         when(bundle.pluginDescriptor()).thenReturn(pd);
         return bundle;
     }
 
-    private static Path createPluginJar(Path home, String pluginName, String moduleName, String packageName, String className
-    ) throws IOException {
+    private static Path createPluginJar(Path home, String pluginName, String moduleName, String packageName, String className)
+        throws IOException {
         Path jar = home.resolve(pluginName + ".jar");
         String fqClassName = packageName + "." + className;
 
         Map<String, CharSequence> sources = Map.ofEntries(
             entry("module-info", "module " + moduleName + " { exports " + packageName + "; }"),
-            entry(fqClassName, "package " + packageName + "; public class " + className + " {}"));
+            entry(fqClassName, "package " + packageName + "; public class " + className + " {}")
+        );
 
         var classToBytes = InMemoryJavaCompiler.compile(sources);
         JarUtils.createJarWithEntries(
             jar,
             Map.ofEntries(
                 entry("module-info.class", classToBytes.get("module-info")),
-                entry(packageName + "/" + className + ".class", classToBytes.get(fqClassName)))
+                entry(packageName + "/" + className + ".class", classToBytes.get(fqClassName))
+            )
         );
         return jar;
     }

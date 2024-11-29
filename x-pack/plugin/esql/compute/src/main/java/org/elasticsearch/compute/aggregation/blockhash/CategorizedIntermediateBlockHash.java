@@ -40,9 +40,19 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
             return;
         }
         BytesRefBlock categorizerState = page.getBlock(channel());
+        if (categorizerState.areAllValuesNull()) {
+            seenNull = true;
+            try (var newIds = blockFactory.newConstantIntVector(NULL_ORD, 1)) {
+                addInput.add(0, newIds);
+            }
+            return;
+        }
+
         Map<Integer, Integer> idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
         try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
-            for (int i = 0; i < idMap.size(); i++) {
+            int fromId = idMap.containsKey(0) ? 0 : 1;
+            int toId = fromId + idMap.size();
+            for (int i = fromId; i < toId; i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
             }
             try (IntBlock newIds = newIdsBuilder.build()) {
@@ -59,10 +69,15 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
     private Map<Integer, Integer> readIntermediate(BytesRef bytes) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
+            if (in.readBoolean()) {
+                seenNull = true;
+                idMap.put(NULL_ORD, NULL_ORD);
+            }
             int count = in.readVInt();
             for (int oldCategoryId = 0; oldCategoryId < count; oldCategoryId++) {
                 int newCategoryId = categorizer.mergeWireCategory(new SerializableTokenListCategory(in)).getId();
-                idMap.put(oldCategoryId, newCategoryId);
+                // +1 because the 0 ordinal is reserved for null
+                idMap.put(oldCategoryId + 1, newCategoryId + 1);
             }
             return idMap;
         } catch (IOException e) {

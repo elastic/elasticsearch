@@ -32,7 +32,6 @@ public final class QueryableBuiltInRolesStore {
         final Collection<RoleDescriptor> roles,
         final ActionListener<BulkRolesResponse> listener
     ) {
-        assert roles.stream().allMatch(role -> (Boolean) role.getMetadata().get(MetadataUtils.RESERVED_METADATA_KEY));
         nativeRolesStore.putRoles(securityIndexManager, WriteRequest.RefreshPolicy.IMMEDIATE, roles, false, listener);
     }
 

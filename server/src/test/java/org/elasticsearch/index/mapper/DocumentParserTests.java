@@ -2055,7 +2055,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testSubobjectsFalseWithInnerDottedObjectDynamicFalse() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("metrics").field("type", "object").field("subobjects", false).field("dynamic", false);
+            b.startObject("metrics").field("type", "object").field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));
             b.startObject("properties").startObject("service.test.with.dots").field("type", "keyword").endObject().endObject();
             b.endObject();
         }));
@@ -2096,7 +2096,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testSubobjectsFalseRootWithInnerDottedObjectDynamicFalse() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("subobjects", false).field("dynamic", false);
+            b.field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));
             b.startObject("properties").startObject("service.test.with.dots").field("type", "keyword").endObject().endObject();
         }));
 

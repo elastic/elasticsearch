@@ -16,6 +16,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -53,6 +54,9 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
 public final class DocumentParser {
 
     public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
+    static final NodeFeature FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE = new NodeFeature(
+        "mapper.fix_parsing_subobjects_false_dynamic_false"
+    );
 
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;

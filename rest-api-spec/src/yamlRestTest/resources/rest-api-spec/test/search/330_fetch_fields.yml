@@ -1180,6 +1180,10 @@ fetch geo_point:
 
 ---
 root with subobjects false and dynamic false:
+  - requires:
+      cluster_features: mapper.fix_parsing_subobjects_false_dynamic_false
+      reason: bug fix
+
   - do:
       indices.create:
         index: test
@@ -1220,6 +1224,10 @@ root with subobjects false and dynamic false:
 
 ---
 object with subobjects false and dynamic false:
+  - requires:
+      cluster_features: mapper.fix_parsing_subobjects_false_dynamic_false
+      reason: bug fix
+
   - do:
       indices.create:
         index: test

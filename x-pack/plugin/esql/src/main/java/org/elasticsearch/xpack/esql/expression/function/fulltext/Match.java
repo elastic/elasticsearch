@@ -160,6 +160,7 @@ public class Match extends FullTextFunction implements Validatable {
         DataType fieldType = field().dataType();
         DataType queryType = query().dataType();
 
+        // Field and query types should match. If the query is a string, then it can match any field type.
         if ((fieldType == queryType) || (queryType == KEYWORD)) {
             return TypeResolution.TYPE_RESOLVED;
         }
@@ -193,13 +194,17 @@ public class Match extends FullTextFunction implements Validatable {
     public Object queryAsObject() {
         Object queryAsObject = query().fold();
 
+        // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
             return switch (query().dataType()) {
                 case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
                 case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
                 default -> bytesRef.utf8ToString();
             };
-        } else if (query().dataType() == DataType.UNSIGNED_LONG) {
+        }
+
+        // Converts specific types to the correct type for the query
+        if (query().dataType() == DataType.UNSIGNED_LONG) {
             return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
         } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
             // When casting to date and datetime, we get a long back. But Match query needs a date string

@@ -67,6 +67,9 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.allowPartialSearchResults(
                 request.paramAsBoolean("allow_partial_search_results", eqlRequest.allowPartialSearchResults())
             );
+            eqlRequest.allowPartialSequenceResults(
+                request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
+            );
         }
 
         return channel -> {

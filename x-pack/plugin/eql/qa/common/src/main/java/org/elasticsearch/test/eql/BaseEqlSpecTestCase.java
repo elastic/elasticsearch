@@ -33,6 +33,9 @@ import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
@@ -52,6 +55,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
      */
     private final int size;
     private final int maxSamplesPerKey;
+    private final Boolean allowPartialSearchResults;
+    private final Boolean allowPartialSequenceResults;
+    private final Boolean expectShardFailures;
 
     @Before
     public void setup() throws Exception {
@@ -104,7 +110,16 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             }
 
             results.add(
-                new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size(), spec.maxSamplesPerKey() }
+                new Object[] {
+                    spec.query(),
+                    name,
+                    spec.expectedEventIds(),
+                    spec.joinKeys(),
+                    spec.size(),
+                    spec.maxSamplesPerKey(),
+                    spec.allowPartialSearchResults(),
+                    spec.allowPartialSequenceResults(),
+                    spec.expectShardFailures() }
             );
         }
 
@@ -118,7 +133,10 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         List<long[]> eventIds,
         String[] joinKeys,
         Integer size,
-        Integer maxSamplesPerKey
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
     ) {
         this.index = index;
 
@@ -128,6 +146,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         this.joinKeys = joinKeys;
         this.size = size == null ? -1 : size;
         this.maxSamplesPerKey = maxSamplesPerKey == null ? -1 : maxSamplesPerKey;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
+        this.expectShardFailures = expectShardFailures;
     }
 
     public void test() throws Exception {
@@ -137,6 +158,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private void assertResponse(ObjectPath response) throws Exception {
         List<Map<String, Object>> events = response.evaluate("hits.events");
         List<Map<String, Object>> sequences = response.evaluate("hits.sequences");
+        Object shardFailures = response.evaluate("shard_failures");
 
         if (events != null) {
             assertEvents(events);
@@ -145,6 +167,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         } else {
             fail("No events or sequences found");
         }
+        assertShardFailures(shardFailures);
     }
 
     protected ObjectPath runQuery(String index, String query) throws Exception {
@@ -163,7 +186,15 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (maxSamplesPerKey > 0) {
             builder.field("max_samples_per_key", maxSamplesPerKey);
         }
-        if (randomBoolean()) {
+        boolean allowPartialResultsInBody = randomBoolean();
+        if (allowPartialSearchResults != null) {
+            if (allowPartialResultsInBody) {
+                builder.field("allow_partial_search_results", String.valueOf(allowPartialSearchResults));
+                if (allowPartialSequenceResults != null) {
+                    builder.field("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
+                }
+            }
+        } else if (randomBoolean()) {
             builder.field("allow_partial_search_results", randomBoolean());
         }
         builder.endObject();
@@ -173,7 +204,14 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (ccsMinimizeRoundtrips != null) {
             request.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
         }
-        if (randomBoolean()) {
+        if (allowPartialSearchResults != null) {
+            if (allowPartialResultsInBody == false) {
+                request.addParameter("allow_partial_search_results", String.valueOf(allowPartialSearchResults));
+                if (allowPartialSequenceResults != null) {
+                    request.addParameter("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
+                }
+            }
+        } else if (randomBoolean()) {
             request.addParameter("allow_partial_search_results", String.valueOf(randomBoolean()));
         }
         int timeout = Math.toIntExact(timeout().millis());
@@ -186,6 +224,18 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         request.setOptions(optionsBuilder.setRequestConfig(config).build());
         request.setJsonEntity(Strings.toString(builder));
         return ObjectPath.createFromResponse(client().performRequest(request));
+    }
+
+    private void assertShardFailures(Object shardFailures) {
+        if (expectShardFailures != null) {
+            if (expectShardFailures) {
+                assertNotNull(shardFailures);
+                List<?> list = (List<?>) shardFailures;
+                assertThat(list.size(), is(greaterThan(0)));
+            } else {
+                assertNull(shardFailures);
+            }
+        }
     }
 
     private void assertEvents(List<Map<String, Object>> events) {

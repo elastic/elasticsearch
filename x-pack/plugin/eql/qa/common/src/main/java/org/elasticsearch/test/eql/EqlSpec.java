@@ -30,6 +30,9 @@ public class EqlSpec {
 
     private Integer size;
     private Integer maxSamplesPerKey;
+    private Boolean allowPartialSearchResults;
+    private Boolean allowPartialSequenceResults;
+    private Boolean expectShardFailures;
 
     public String name() {
         return name;
@@ -103,6 +106,30 @@ public class EqlSpec {
         this.maxSamplesPerKey = maxSamplesPerKey;
     }
 
+    public Boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public void allowPartialSearchResults(Boolean allowPartialSearchResults) {
+        this.allowPartialSearchResults = allowPartialSearchResults;
+    }
+
+    public Boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
+    }
+
+    public void allowPartialSequenceResults(Boolean allowPartialSequenceResults) {
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
+    }
+
+    public Boolean expectShardFailures() {
+        return expectShardFailures;
+    }
+
+    public void expectShardFailures(Boolean expectShardFailures) {
+        this.expectShardFailures = expectShardFailures;
+    }
+
     @Override
     public String toString() {
         String str = "";
@@ -132,7 +159,15 @@ public class EqlSpec {
         if (maxSamplesPerKey != null) {
             str = appendWithComma(str, "max_samples_per_key", "" + maxSamplesPerKey);
         }
-
+        if (allowPartialSearchResults != null) {
+            str = appendWithComma(str, "allow_partial_search_results", String.valueOf(allowPartialSearchResults));
+        }
+        if (allowPartialSequenceResults != null) {
+            str = appendWithComma(str, "allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
+        }
+        if (expectShardFailures != null) {
+            str = appendWithComma(str, "expect_shard_failures", String.valueOf(expectShardFailures));
+        }
         return str;
     }
 
@@ -150,12 +185,22 @@ public class EqlSpec {
 
         return Objects.equals(this.query(), that.query())
             && Objects.equals(size, that.size)
-            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey);
+            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(allowPartialSequenceResults, that.allowPartialSequenceResults)
+            && Objects.equals(expectShardFailures, that.expectShardFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query, size, maxSamplesPerKey);
+        return Objects.hash(
+            this.query,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     private static String appendWithComma(String str, String name, String append) {

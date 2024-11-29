@@ -261,7 +261,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         return rescoreVectorBuilder;
     }
 
-// ---- FOR TESTING XCONTENT PARSING ----
+    // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {

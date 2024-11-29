@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,14 +43,15 @@ public class HashAggregationOperator implements Operator {
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize
+        int maxPageSize,
+        AnalysisRegistry analysisRegistry
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
                 return new HashAggregationOperator(
                     aggregators,
-                    () -> BlockHash.buildCategorizeBlockHash(groups, aggregatorMode, driverContext.blockFactory()),
+                    () -> BlockHash.buildCategorizeBlockHash(groups, aggregatorMode, driverContext.blockFactory(), analysisRegistry),
                     driverContext
                 );
             }

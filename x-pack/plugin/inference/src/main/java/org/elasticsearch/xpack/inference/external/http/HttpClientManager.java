@@ -145,7 +145,7 @@ public class HttpClientManager implements Closeable {
             var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
             ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
         } catch (IOReactorException e) {
-            var message = "Failed to initialize the elastic inference service http client manager";
+            var message = "Failed to initialize HTTP client manager with SSL.";
             logger.error(message, e);
             throw new ElasticsearchException(message, e);
         }

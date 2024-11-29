@@ -19,9 +19,12 @@ import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
 
@@ -67,17 +70,22 @@ public class PolicyParser {
             }
             List<Entitlement> entitlements = new ArrayList<>();
             while (policyParser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (policyParser.currentToken() != XContentParser.Token.START_OBJECT) {
+                if (policyParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    String entitlementType = policyParser.text();
+                    Entitlement entitlement = parseEntitlement(scopeName, entitlementType);
+                    entitlements.add(entitlement);
+                } else if (policyParser.currentToken() == XContentParser.Token.START_OBJECT) {
+                    if (policyParser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                        throw newPolicyParserException(scopeName, "expected object <entitlement type>");
+                    }
+                    String entitlementType = policyParser.currentName();
+                    Entitlement entitlement = parseEntitlement(scopeName, entitlementType);
+                    entitlements.add(entitlement);
+                    if (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        throw newPolicyParserException(scopeName, "expected closing object");
+                    }
+                } else {
                     throw newPolicyParserException(scopeName, "expected object <entitlement type>");
-                }
-                if (policyParser.nextToken() != XContentParser.Token.FIELD_NAME) {
-                    throw newPolicyParserException(scopeName, "expected object <entitlement type>");
-                }
-                String entitlementType = policyParser.currentName();
-                Entitlement entitlement = parseEntitlement(scopeName, entitlementType);
-                entitlements.add(entitlement);
-                if (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    throw newPolicyParserException(scopeName, "expected closing object");
                 }
             }
             return new Scope(scopeName, entitlements);
@@ -89,13 +97,8 @@ public class PolicyParser {
     protected Entitlement parseEntitlement(String scopeName, String entitlementType) throws IOException {
         Class<?> entitlementClass;
         try {
-            entitlementClass = Class.forName(
-                entitlementPackageName
-                    + "."
-                    + Character.toUpperCase(entitlementType.charAt(0))
-                    + entitlementType.substring(1)
-                    + "Entitlement"
-            );
+            var className = getEntitlementClassName(entitlementType);
+            entitlementClass = Class.forName(entitlementPackageName + "." + className);
         } catch (ClassNotFoundException cnfe) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
@@ -108,13 +111,17 @@ public class PolicyParser {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
 
-        if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw newPolicyParserException(scopeName, entitlementType, "expected entitlement parameters");
-        }
-        Map<String, Object> parsedValues = policyParser.map();
-
         Class<?>[] parameterTypes = entitlementConstructor.getParameterTypes();
         String[] parametersNames = entitlementMetadata.parameterNames();
+
+        if (parameterTypes.length != 0 || parametersNames.length != 0) {
+            if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw newPolicyParserException(scopeName, entitlementType, "expected entitlement parameters");
+            }
+        }
+
+        Map<String, Object> parsedValues = policyParser.map();
+
         Object[] parameterValues = new Object[parameterTypes.length];
         for (int parameterIndex = 0; parameterIndex < parameterTypes.length; ++parameterIndex) {
             String parameterName = parametersNames[parameterIndex];
@@ -141,6 +148,14 @@ public class PolicyParser {
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new IllegalStateException("internal error");
         }
+    }
+
+    static String getEntitlementClassName(String entitlementType) {
+        var tokens = entitlementType.split("[\\W_]+");
+        var caseAdjustedTokens = Arrays.stream(tokens)
+            .filter(Predicate.not(String::isEmpty))
+            .map(x -> Character.toUpperCase(x.charAt(0)) + x.substring(1));
+        return caseAdjustedTokens.collect(Collectors.joining()) + "Entitlement";
     }
 
     protected PolicyParserException newPolicyParserException(String message) {

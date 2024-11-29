@@ -128,7 +128,28 @@ include::{es-ref-dir}/high-availability-overview.asciidoc[]
 
 The {stack} is composed of many moving parts. There are the {es} nodes that form the cluster, plus {ls} instances, {kib} instances, {beats} agents, and clients all communicating with the cluster. In the case of *Elastic Cloud Hosted*, *Elastic Cloud Enterprise*, or *Elastic Cloud Serverless* deployments, you also need to consider the security of the Elastic Cloud instance.
 
+
+
 Review the following topics
+
+```
+ECE
+https://www.elastic.co/guide/en/cloud-enterprise/current/ece-securing-ece.html
+https://www.elastic.co/guide/en/cloud-enterprise/current/ece-securing-clusters.html 
+Elastic Cloud Enterprise supports most of the security features that are part of the Elastic Stack
+
+ESS
+https://www.elastic.co/guide/en/cloud/current/ec-security.html
+https://www.elastic.co/guide/en/cloud/current/ec-organizations.html 
+
+SERVERLESS
+https://www.elastic.co/guide/en/cloud/current/ec-organizations.html
+https://www.elastic.co/guide/en/serverless/current/custom-roles.html
+
+ECK
+https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-securing-stack.html
+https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-fips.html
+```
 
 Enabling security protects {es} clusters by:
 

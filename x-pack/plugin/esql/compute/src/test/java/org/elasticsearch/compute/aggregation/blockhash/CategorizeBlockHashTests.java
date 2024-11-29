@@ -95,7 +95,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (BlockHash hash = new CategorizeRawBlockHash(0, blockFactory, true, analysisRegistry)) {
+        try (BlockHash hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry)) {
             hash.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
@@ -168,8 +168,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         // Fill intermediatePages with the intermediate state from the raw hashes
         try (
-            BlockHash rawHash1 = new CategorizeRawBlockHash(0, blockFactory, true, analysisRegistry);
-            BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true, analysisRegistry);
+            BlockHash rawHash1 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
+            BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -226,7 +226,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page2.releaseBlocks();
         }
 
-        try (BlockHash intermediateHash = new CategorizedIntermediateBlockHash(0, blockFactory, true)) {
+        try (BlockHash intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INTERMEDIATE, null)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {

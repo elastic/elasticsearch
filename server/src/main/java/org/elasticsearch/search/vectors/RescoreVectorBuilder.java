@@ -24,7 +24,7 @@ import java.util.Objects;
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
-    public static final int MIN_OVERSAMPLE = 1;
+    public static final float MIN_OVERSAMPLE = 1.0F;
     private static final ConstructingObjectParser<RescoreVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rescore",
         args -> new RescoreVectorBuilder((Float) args[0])

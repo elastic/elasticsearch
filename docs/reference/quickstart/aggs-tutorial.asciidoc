@@ -253,8 +253,6 @@ POST kibana_sample_data_ecommerce/_bulk
 { "category": "Women's Shoes", "order_date": "2024-11-15T00:00:00.000Z", "customer_id": "3", "taxful_total_price": 120.0, "total_quantity": 1, "products": [{"category": "Women's Shoes", "price": 120.0, "quantity": 1}] }
 ----
 
-
-
 ////
 
 
@@ -319,8 +317,8 @@ GET kibana_sample_data_ecommerce/_search
 }
 ----
 // TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
-// TESTRESPONSE[s/"total": 1+/"total": "$body._shards.total"/]
-// TESTRESPONSE[s/"successful": 1+/"successful": "$body._shards.successful"/]
+// TESTRESPONSE[s/"total": 1/"total": "$body._shards.total"/]
+// TESTRESPONSE[s/"successful": 1/"successful": "$body._shards.successful"/]
 // TESTRESPONSE[s/"value":4675/"value": "$body.hits.total.value"/]
 // TESTRESPONSE[s/"value":75.05542864304813/"value": "$body.aggregations.avg_order_value.value"/]
 <1> Total number of orders in the dataset

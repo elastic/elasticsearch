@@ -95,6 +95,8 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
         assertEquals(sigTerms.getSignificanceHeuristic(), read.getSignificanceHeuristic());
+        assertThat(read.getSubsetSize(), equalTo(10L));
+        assertThat(read.getSupersetSize(), equalTo(20L));
         SignificantTerms.Bucket originalBucket = sigTerms.getBuckets().get(0);
         SignificantTerms.Bucket streamedBucket = read.getBuckets().get(0);
         assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
@@ -130,6 +132,8 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         List<InternalAggregation> aggs = createInternalAggregations();
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         SignificantTerms reducedAgg = (SignificantTerms) InternalAggregationTestCase.reduce(aggs, context);
+        assertThat(reducedAgg.getSubsetSize(), equalTo(16L));
+        assertThat(reducedAgg.getSupersetSize(), equalTo(30L));
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
         assertThat(reducedAgg.getBuckets().get(0).getSupersetDf(), equalTo(10L));

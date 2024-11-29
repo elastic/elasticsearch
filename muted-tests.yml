@@ -225,6 +225,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/117745
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {scoring.QstrWithFieldAndScoringSortedEval}
+  issue: https://github.com/elastic/elasticsearch/issues/117751
 
 # Examples:
 #

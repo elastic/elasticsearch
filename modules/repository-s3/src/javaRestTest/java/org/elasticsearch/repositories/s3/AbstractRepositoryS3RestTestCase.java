@@ -78,11 +78,6 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         return testSuiteName + "-" + Integer.toString(Murmur3HashFunction.hash(testSuiteName + System.getProperty("tests.seed")), 16) + "-";
     }
 
-    @Before
-    public void skipIfFips() {
-        assumeFalse("doesn't work in a FIPS JVM, but that's ok", inFipsJvm());
-    }
-
     private TestRepository newTestRepository() {
         return new TestRepository(randomIdentifier(), getClientName(), getBucketName(), getBasePath());
     }

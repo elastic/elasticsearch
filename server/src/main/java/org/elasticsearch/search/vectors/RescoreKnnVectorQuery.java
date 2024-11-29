@@ -72,11 +72,6 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
     public Query rewrite(IndexSearcher searcher) throws IOException {
         assert byteTarget == null ^ floatTarget == null : "Either byteTarget or floatTarget must be set";
 
-        Query rewritten = super.rewrite(searcher);
-        if (rewritten != this) {
-            return rewritten;
-        }
-
         final DoubleValuesSource valueSource;
         if (byteTarget != null) {
             valueSource = new VectorSimilarityByteValueSource(fieldName, byteTarget, vectorSimilarityFunction);
@@ -115,7 +110,10 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        queryProfiler.setVectorOpsCount(vectorOpsCount);
+        if (innerQuery instanceof ProfilingQuery profilingQuery) {
+            profilingQuery.profile(queryProfiler);
+        }
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
     @Override

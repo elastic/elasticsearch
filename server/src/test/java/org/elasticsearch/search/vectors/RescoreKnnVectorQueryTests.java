@@ -25,8 +25,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,6 +46,7 @@ import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class RescoreKnnVectorQueryTests extends ESTestCase {
 
@@ -51,7 +57,8 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     public RescoreKnnVectorQueryTests(VectorProvider vectorProvider, boolean useK) {
         this.vectorProvider = vectorProvider;
-        this.numDocs = randomIntBetween(10, 100);;
+        this.numDocs = randomIntBetween(10, 100);
+        ;
         this.k = useK ? randomIntBetween(1, numDocs - 1) : null;
     }
 
@@ -71,7 +78,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 // Use a RescoreKnnVectorQuery with a match all query, to ensure we get scoring of 1 from the inner query
                 // and thus we're rescoring the top k docs.
                 VectorData queryVector = vectorProvider.randomVector(numDims);
-                RescoreKnnVectorQuery rescoreKnnVectorQuery = vectorProvider.createRescoreQuery(queryVector, adjustedK);
+                RescoreKnnVectorQuery rescoreKnnVectorQuery = vectorProvider.createRescoreQuery(
+                    queryVector,
+                    adjustedK,
+                    new MatchAllDocsQuery()
+                );
 
                 IndexSearcher searcher = newSearcher(reader, true, false);
                 TopDocs docs = searcher.search(rescoreKnnVectorQuery, numDocs);
@@ -115,10 +126,90 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
     }
 
+    public void testProfiling() throws Exception {
+        int numDims = randomIntBetween(5, 100);
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims, vectorProvider);
+
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                VectorData queryVector = vectorProvider.randomVector(numDims);
+
+                checkProfiling(queryVector, reader, new MatchAllDocsQuery());
+                checkProfiling(queryVector, reader, new MockProfilingQuery(randomIntBetween(1, 100)));
+            }
+        }
+    }
+
+    private void checkProfiling(VectorData queryVector, IndexReader reader, Query innerQuery) throws IOException {
+        RescoreKnnVectorQuery rescoreKnnVectorQuery = vectorProvider.createRescoreQuery(queryVector, k, innerQuery);
+        IndexSearcher searcher = newSearcher(reader, true, false);
+        searcher.search(rescoreKnnVectorQuery, numDocs);
+
+        QueryProfiler queryProfiler = new QueryProfiler();
+        rescoreKnnVectorQuery.profile(queryProfiler);
+
+        long expectedVectorOpsCount = 0;
+        if (k != null) {
+            expectedVectorOpsCount += k;
+        }
+        if (innerQuery instanceof ProfilingQuery profilingQuery) {
+            QueryProfiler anotherProfiler = new QueryProfiler();
+            profilingQuery.profile(anotherProfiler);
+            assertThat(anotherProfiler.getVectorOpsCount(), greaterThan(0L));
+            expectedVectorOpsCount += anotherProfiler.getVectorOpsCount();
+        }
+
+        assertThat(queryProfiler.getVectorOpsCount(), equalTo(expectedVectorOpsCount));
+    }
+
+    /**
+     * A mock query that is used to test profiling
+     */
+    private static class MockProfilingQuery extends Query implements ProfilingQuery {
+
+        private final long vectorOpsCount;
+
+        private MockProfilingQuery(long vectorOpsCount) {
+            this.vectorOpsCount = vectorOpsCount;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "";
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new MatchAllDocsQuery().createWeight(searcher, scoreMode, boost);
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {}
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof MockProfilingQuery;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public void profile(QueryProfiler queryProfiler) {
+            queryProfiler.addVectorOpsCount(vectorOpsCount);
+        }
+    }
+
+    /**
+     * Vector operations depend on the type of vector field used. This interface abstracts the operations needed to perform the tests
+     */
     private interface VectorProvider {
         VectorData randomVector(int numDimensions);
 
-        RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k);
+        RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k, Query innerQuery);
 
         KnnVectorValues vectorValues(LeafReader leafReader) throws IOException;
 
@@ -140,14 +231,8 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
 
         @Override
-        public RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k) {
-            return new RescoreKnnVectorQuery(
-                FIELD_NAME,
-                queryVector.floatVector(),
-                VectorSimilarityFunction.COSINE,
-                k,
-                new MatchAllDocsQuery()
-            );
+        public RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k, Query innerQuery) {
+            return new RescoreKnnVectorQuery(FIELD_NAME, queryVector.floatVector(), VectorSimilarityFunction.COSINE, k, innerQuery);
         }
 
         @Override
@@ -163,7 +248,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public VectorData dataVectorForDoc(KnnVectorValues vectorValues, int docId) throws IOException {
-            return VectorData.fromFloats(((FloatVectorValues)vectorValues).vectorValue(docId));
+            return VectorData.fromFloats(((FloatVectorValues) vectorValues).vectorValue(docId));
         }
 
         @Override
@@ -183,14 +268,8 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
 
         @Override
-        public RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k) {
-            return new RescoreKnnVectorQuery(
-                FIELD_NAME,
-                queryVector.byteVector(),
-                VectorSimilarityFunction.COSINE,
-                k,
-                new MatchAllDocsQuery()
-            );
+        public RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k, Query innerQuery) {
+            return new RescoreKnnVectorQuery(FIELD_NAME, queryVector.byteVector(), VectorSimilarityFunction.COSINE, k, innerQuery);
         }
 
         @Override
@@ -206,7 +285,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public VectorData dataVectorForDoc(KnnVectorValues vectorValues, int docId) throws IOException {
-            return VectorData.fromBytes(((ByteVectorValues)vectorValues).vectorValue(docId));
+            return VectorData.fromBytes(((ByteVectorValues) vectorValues).vectorValue(docId));
         }
 
         @Override
@@ -230,39 +309,12 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-
         List<Object[]> params = new ArrayList<>();
-        params.add(new Object[] {new FloatVectorProvider(), true});
-        params.add(new Object[] {new FloatVectorProvider(), false});
-        params.add(new Object[] {new ByteVectorProvider(), true});
-        params.add(new Object[] {new ByteVectorProvider(), false});
+        params.add(new Object[] { new FloatVectorProvider(), true });
+        params.add(new Object[] { new FloatVectorProvider(), false });
+        params.add(new Object[] { new ByteVectorProvider(), true });
+        params.add(new Object[] { new ByteVectorProvider(), false });
 
         return params;
     }
-
-//    public void testProfiling() throws Exception {
-//        int numDocs = randomIntBetween(10, 100);
-//        int numDims = randomIntBetween(5, 100);
-//
-//        try (Directory d = newDirectory()) {
-//            addRandomDocuments(numDocs, d, numDims, vectorProvider);
-//
-//            try (IndexReader reader = DirectoryReader.open(d)) {
-//                float[] queryVector = randomVector(numDims);
-//
-//                RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
-//                    FIELD_NAME,
-//                    queryVector,
-//                    VectorSimilarityFunction.COSINE,
-//                    randomIntBetween(5, numDocs - 1),
-//                    new MatchAllDocsQuery()
-//                );
-//
-//                IndexSearcher searcher = newSearcher(reader, true, false);
-//                QueryProfiler queryProfiler = new QueryProfiler();
-//                rescoreKnnVectorQuery.profile(queryProfiler);
-//            }
-//        }
-//    }
-
 }

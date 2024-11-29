@@ -33,7 +33,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements Profilin
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        queryProfiler.setVectorOpsCount(vectorOpsCount);
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
     public Integer kParam() {

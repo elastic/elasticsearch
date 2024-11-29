@@ -21,6 +21,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,7 +31,7 @@ import static org.elasticsearch.common.Strings.format;
 /**
  * This query provides a simple post-filter for the provided Query. The query is assumed to be a Knn(Float|Byte)VectorQuery.
  */
-public class VectorSimilarityQuery extends Query {
+public class VectorSimilarityQuery extends Query implements ProfilingQuery {
     private final float similarity;
     private final float docScore;
     private final Query innerKnnQuery;
@@ -76,6 +77,13 @@ public class VectorSimilarityQuery extends Query {
             innerWeight = innerKnnQuery.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
         }
         return new MinScoreWeight(innerWeight, docScore, similarity, this, boost);
+    }
+
+    @Override
+    public void profile(QueryProfiler queryProfiler) {
+        if (innerKnnQuery instanceof ProfilingQuery profilingQuery) {
+            profilingQuery.profile(queryProfiler);
+        }
     }
 
     @Override

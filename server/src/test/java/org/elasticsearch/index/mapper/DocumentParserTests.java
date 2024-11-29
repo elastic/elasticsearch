@@ -2065,6 +2065,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
 
         doc = mapper.parse(source("""
+            { "metrics": { "service.test": { "with.dots": "foo" }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
             { "metrics": { "service": { "test": { "with.dots": "foo" }  }  } }"""));
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
     }
@@ -2098,6 +2102,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source("""
             { "service": { "test.with.dots": "foo" } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service.test": { "with.dots": "foo" } }"""));
         assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
 
         doc = mapper.parse(source("""

@@ -716,7 +716,8 @@ public class ClusterStateTests extends ESTestCase {
                               "read",
                               "write",
                               "metadata_read",
-                              "metadata_write"
+                              "metadata_write",
+                              "refresh"
                             ]
                           }
                         },

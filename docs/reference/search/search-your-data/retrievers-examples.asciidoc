@@ -134,7 +134,7 @@ GET /retrievers_example/_search
 ----
 // TEST
 
-Which would return the following response based on the final rrf score for each result
+This returns the following response based on the final rrf score for each result.
 
 .Example response
 [%collapsible]
@@ -234,7 +234,7 @@ GET /retrievers_example/_search
 ----
 // TEST[continued]
 
-Which would return the following response collapsed results
+This returns the following response with collapsed results.
 
 .Example response
 [%collapsible]
@@ -451,7 +451,7 @@ would then be included in the response as usual, i.e. under each search hit.
 
 We can also define `inner_hits` to be computed on any of the sub-retrievers, and propagate those computations to the top
 level compound retriever. For example, let's create a new index with a `knn` field, nested under the `nested_field` field,
-and index  a couple of documents.
+and index a couple of documents.
 
 
 [source,console]
@@ -542,7 +542,7 @@ POST /retrievers_example_nested/_refresh
 ----
 // TEST[continued]
 
-Then, let's run an `rrf` retriever query, where we also want to compute <<inner-hits, inner hits>> for the `nested_field.nested_vector`
+Now we can run an `rrf` retriever query and also compute <<inner-hits, inner hits>> for the `nested_field.nested_vector`
 field, based on the `knn` query specified.
 
 [source,console]
@@ -601,7 +601,6 @@ GET /retrievers_example_nested/_search
 // TEST[continued]
 
 This would propagate the `inner_hits` defined for the `knn` query to the `rrf` retriever, and compute inner hits for `rrf`'s top results.
-The response would look like the following:
 
 .Example response
 [%collapsible]
@@ -771,7 +770,7 @@ The response would look like the following:
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
 ==============
 
-Note:: if using more than one `inner_hits` we currently need to provide custom names for each `inner_hits` so that they
+Note: if using more than one `inner_hits` we need to provide custom names for each `inner_hits` so that they
 are unique across all retrievers within the request.
 
 [discrete]
@@ -832,7 +831,6 @@ GET retrievers_example/_search
 .Example response
 [%collapsible]
 ==============
-The output of which would look like the following:
 [source, console-result]
 ----
 {
@@ -921,9 +919,10 @@ The output of which would look like the following:
 [discrete]
 [[retrievers-examples-explain-multiple-rrf]]
 ==== Example: Explainability with multiple retrievers
+
 By adding `explain: true` to the request, each retriever will now provide a detailed explanation of all the steps
-and calculations that took place for the final score to be computed. Composability is fully supported as well in the context of `explain`, and
-each retriever will provide its own explanation, as we can see in the example below
+and calculations required to compute the final score. Composability is fully supported in the context of `explain`, and
+each retriever will provide its own explanation, as shown in the example below.
 
 [source,console]
 ----
@@ -983,7 +982,8 @@ GET /retrievers_example/_search
 ----
 // TEST[continued]
 
-The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking
+The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking.
+
 .Example response
 [%collapsible]
 ==============
@@ -1094,7 +1094,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
 
 To demonstrate the full functionality of retrievers, the following examples also require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
 
-Let's setup a reranking service and use it through the `text_similarity_reranker` retriever to rerank our top results.
+In this example we'll set up a reranking service and use it with the `text_similarity_reranker` retriever to rerank our top results.
 
 [source,console]
 ----

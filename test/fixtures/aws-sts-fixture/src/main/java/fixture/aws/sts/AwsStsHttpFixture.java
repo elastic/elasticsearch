@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package fixture.aws.imds;
+package fixture.aws.sts;
 
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -17,23 +17,22 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 
-public class Ec2ImdsHttpFixture extends ExternalResource {
+public class AwsStsHttpFixture extends ExternalResource {
 
     private HttpServer server;
 
     private final BiConsumer<String, String> newCredentialsConsumer;
-    private final Set<String> alternativeCredentialsEndpoints;
+    private final String webIdentityToken;
 
-    public Ec2ImdsHttpFixture(BiConsumer<String, String> newCredentialsConsumer, Set<String> alternativeCredentialsEndpoints) {
+    public AwsStsHttpFixture(BiConsumer<String, String> newCredentialsConsumer, String webIdentityToken) {
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
-        this.alternativeCredentialsEndpoints = Objects.requireNonNull(alternativeCredentialsEndpoints);
+        this.webIdentityToken = Objects.requireNonNull(webIdentityToken);
     }
 
     protected HttpHandler createHandler() {
-        return new Ec2ImdsHttpHandler(newCredentialsConsumer, alternativeCredentialsEndpoints);
+        return new AwsStsHttpHandler(newCredentialsConsumer, webIdentityToken);
     }
 
     public String getAddress() {

@@ -396,7 +396,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        this.service.close();
+        service.onBlobStoreClose();
     }
 
     @Override

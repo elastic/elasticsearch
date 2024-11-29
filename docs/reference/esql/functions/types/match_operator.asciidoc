@@ -27,7 +27,10 @@ long | integer | boolean
 long | keyword | boolean
 long | long | boolean
 text | keyword | boolean
+unsigned_long | double | boolean
+unsigned_long | integer | boolean
 unsigned_long | keyword | boolean
+unsigned_long | long | boolean
 unsigned_long | unsigned_long | boolean
 version | keyword | boolean
 version | version | boolean

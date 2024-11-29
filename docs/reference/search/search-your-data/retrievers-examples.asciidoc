@@ -99,37 +99,37 @@ retriever. This retriever operates on top of two other retrievers: a `knn` retri
 ----
 GET /retrievers_example/_search
 {
-   "retriever":{
-       "rrf": {
-           "retrievers":[
-               {
-                   "standard":{
-                       "query":{
-                           "query_string":{
-                              "query": "(information retrieval) OR (artificial intelligence)",
-                              "default_field": "text"
-                           }
-                       }
-                   }
-               },
-               {
-                   "knn": {
-                       "field": "vector",
-                       "query_vector": [
-                           0.23,
-                           0.67,
-                           0.89
-                       ],
-                       "k": 3,
-                       "num_candidates": 5
-                   }
-               }
-           ],
-           "rank_window_size": 10,
-           "rank_constant": 1
-       }
-   },
-   "_source": false
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false
 }
 ----
 // TEST
@@ -192,43 +192,45 @@ we'll collapse our results based on the `year` field.
 ----
 GET /retrievers_example/_search
 {
-   "retriever":{
-       "rrf": {
-           "retrievers":[
-               {
-                   "standard":{
-                       "query":{
-                           "query_string":{
-                              "query": "(information retrieval) OR (artificial intelligence)",
-                              "default_field": "text"
-                           }
-                       }
-                   }
-               },
-               {
-                   "knn": {
-                       "field": "vector",
-                       "query_vector": [
-                           0.23,
-                           0.67,
-                           0.89
-                       ],
-                       "k": 3,
-                       "num_candidates": 5
-                   }
-               }
-           ],
-           "rank_window_size": 10,
-           "rank_constant": 1
-       }
-   },
-   "collapse": {
-       "field": "year",
-       "inner_hits": {
-           "name": "topic related documents",
-           "_source": ["year"]
-       }
-   },
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "collapse": {
+        "field": "year",
+        "inner_hits": {
+            "name": "topic related documents",
+            "_source": [
+                "year"
+            ]
+        }
+    },
     "_source": false
 }
 ----
@@ -1114,44 +1116,44 @@ Let's start by reranking the results of the `rrf` retriever in our previous exam
 ----
 GET retrievers_example/_search
 {
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "rrf": {
-                   "retrievers": [
-                       {
-                           "standard":{
-                               "query":{
-                                   "query_string":{
-                                      "query": "(information retrieval) OR (artificial intelligence)",
-                                      "default_field": "text"
-                                   }
-                               }
-                           }
-                       },
-                       {
-                           "knn": {
-                               "field": "vector",
-                               "query_vector": [
-                                   0.23,
-                                   0.67,
-                                   0.89
-                               ],
-                               "k": 3,
-                               "num_candidates": 5
-                           }
-                       }
-                   ],
-                   "rank_window_size": 10,
-                   "rank_constant": 1
-               }
-           },
-           "field": "text",
-           "inference_id": "my-rerank-model",
-           "inference_text": "What are the state of the art applications of AI in information retrieval?"
-       }
-   },
-   "_source": false
+    "retriever": {
+        "text_similarity_reranker": {
+            "retriever": {
+                "rrf": {
+                    "retrievers": [
+                        {
+                            "standard": {
+                                "query": {
+                                    "query_string": {
+                                        "query": "(information retrieval) OR (artificial intelligence)",
+                                        "default_field": "text"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "knn": {
+                                "field": "vector",
+                                "query_vector": [
+                                    0.23,
+                                    0.67,
+                                    0.89
+                                ],
+                                "k": 3,
+                                "num_candidates": 5
+                            }
+                        }
+                    ],
+                    "rank_window_size": 10,
+                    "rank_constant": 1
+                }
+            },
+            "field": "text",
+            "inference_id": "my-rerank-model",
+            "inference_text": "What are the state of the art applications of AI in information retrieval?"
+        }
+    },
+    "_source": false
 }
 
 ----
@@ -1221,34 +1223,34 @@ imagine we have a computationally expensive reranker that's specialized for AI c
 ----
 GET retrievers_example/_search
 {
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "text_similarity_reranker": {
-                   "retriever": {
-                       "knn": {
-                           "field": "vector",
-                           "query_vector": [
-                               0.23,
-                               0.67,
-                               0.89
-                           ],
-                           "k": 3,
-                           "num_candidates": 5
-                       }
-                   },
-                   "rank_window_size": 100,
-                   "field": "text",
-                   "inference_id": "my-rerank-model",
-                   "inference_text": "What are the state of the art applications of AI in information retrieval?"
-               }
-           },
-           "rank_window_size": 10,
-           "field": "text",
-           "inference_id": "my-other-more-expensive-rerank-model",
-           "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
-       }
-   },
+    "retriever": {
+        "text_similarity_reranker": {
+            "retriever": {
+                "text_similarity_reranker": {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "rank_window_size": 100,
+                    "field": "text",
+                    "inference_id": "my-rerank-model",
+                    "inference_text": "What are the state of the art applications of AI in information retrieval?"
+                }
+            },
+            "rank_window_size": 10,
+            "field": "text",
+            "inference_id": "my-other-more-expensive-rerank-model",
+            "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
+        }
+    },
     "_source": false
 }
 ----

@@ -35,7 +35,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -253,16 +252,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,
-                    SearchShardTarget shard,
+                    Transport.Connection connection,
                     SearchActionListener<SearchPhaseResult> phaseListener
                 ) {
-                    final Transport.Connection connection;
-                    try {
-                        connection = connectionLookup.apply(shardIt.getClusterAlias(), shard.getNodeId());
-                    } catch (Exception e) {
-                        phaseListener.onFailure(e);
-                        return;
-                    }
                     transportService.sendChildRequest(
                         connection,
                         OPEN_SHARD_READER_CONTEXT_NAME,

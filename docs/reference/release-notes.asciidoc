@@ -10,6 +10,7 @@ This section summarizes the changes in each release.
 * <<release-notes-8.17.0>>
 * <<release-notes-8.16.1>>
 * <<release-notes-8.16.0>>
+* <<release-notes-8.15.5>>
 * <<release-notes-8.15.4>>
 * <<release-notes-8.15.3>>
 * <<release-notes-8.15.2>>
@@ -82,6 +83,7 @@ include::release-notes/8.18.0.asciidoc[]
 include::release-notes/8.17.0.asciidoc[]
 include::release-notes/8.16.1.asciidoc[]
 include::release-notes/8.16.0.asciidoc[]
+include::release-notes/8.15.5.asciidoc[]
 include::release-notes/8.15.4.asciidoc[]
 include::release-notes/8.15.3.asciidoc[]
 include::release-notes/8.15.2.asciidoc[]

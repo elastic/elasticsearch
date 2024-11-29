@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
+import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 
 /**
  * Minimal HTTP handler that emulates the EC2 IMDS server
@@ -82,7 +83,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
                         randomIdentifier(),
-                        randomIdentifier(),
+                        randomSecretKey(),
                         sessionToken
                     ).getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");

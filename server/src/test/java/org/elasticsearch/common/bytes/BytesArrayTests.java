@@ -108,9 +108,4 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         assertThat(e.getMessage(), equalTo("Index 9 out of bounds for length 9"));
     }
 
-    public void testCopyBytes() {
-        var data = randomByteArrayOfLength(between(1024, 1024 * 1024 * 50));
-        var copy = BytesReference.copyBytes(new BytesArray(data));
-        assertArrayEquals(data, BytesReference.toBytes(copy));
-    }
 }

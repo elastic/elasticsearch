@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.util.List;
-import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
@@ -26,10 +25,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  */
 public class LookupJoin extends Join implements SurrogateLogicalPlan {
 
-    private final List<Attribute> output;
-
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), emptyList());
+        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
     }
 
     public LookupJoin(
@@ -39,15 +36,13 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
         JoinType type,
         List<Attribute> joinFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields,
-        List<Attribute> output
+        List<Attribute> rightFields
     ) {
-        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields), output);
+        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields));
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, List<Attribute> output) {
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
         super(source, left, right, joinConfig);
-        this.output = output;
     }
 
     /**
@@ -55,20 +50,14 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
      */
     @Override
     public LogicalPlan surrogate() {
-        JoinConfig cfg = config();
-        JoinConfig newConfig = new JoinConfig(LEFT, cfg.matchFields(), cfg.leftFields(), cfg.rightFields());
-        Join normalized = new Join(source(), left(), right(), newConfig);
+        Join normalized = new Join(source(), left(), right(), config());
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Project(source(), normalized, output);
-    }
-
-    public List<Attribute> output() {
-        return output;
+        return new Project(source(), normalized, output());
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new LookupJoin(source(), left, right, config(), output);
+        return new LookupJoin(source(), left, right, config());
     }
 
     @Override
@@ -81,23 +70,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
             config().type(),
             config().matchFields(),
             config().leftFields(),
-            config().rightFields(),
-            output
+            config().rightFields()
         );
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), output);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
-            return false;
-        }
-
-        LookupJoin other = (LookupJoin) obj;
-        return Objects.equals(output, other.output);
     }
 }

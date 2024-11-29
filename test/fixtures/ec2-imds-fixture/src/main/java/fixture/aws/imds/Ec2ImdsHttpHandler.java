@@ -25,8 +25,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
+import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 
 /**
  * Minimal HTTP handler that emulates the EC2 IMDS server
@@ -36,13 +38,11 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
 
     private static final String IMDS_SECURITY_CREDENTIALS_PATH = "/latest/meta-data/iam/security-credentials/";
 
-    private final String accessKey;
-    private final String sessionToken;
+    private final BiConsumer<String, String> newCredentialsConsumer;
     private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
 
-    public Ec2ImdsHttpHandler(String accessKey, String sessionToken, Collection<String> alternativeCredentialsEndpoints) {
-        this.accessKey = Objects.requireNonNull(accessKey);
-        this.sessionToken = Objects.requireNonNull(sessionToken);
+    public Ec2ImdsHttpHandler(BiConsumer<String, String> newCredentialsConsumer, Collection<String> alternativeCredentialsEndpoints) {
+        this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
     }
 
@@ -70,6 +70,9 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     exchange.getResponseBody().write(response);
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
+                    final String accessKey = randomIdentifier();
+                    final String sessionToken = randomIdentifier();
+                    newCredentialsConsumer.accept(accessKey, sessionToken);
                     final byte[] response = Strings.format(
                         """
                             {
@@ -82,7 +85,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
                         randomIdentifier(),
-                        randomIdentifier(),
+                        randomSecretKey(),
                         sessionToken
                     ).getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");

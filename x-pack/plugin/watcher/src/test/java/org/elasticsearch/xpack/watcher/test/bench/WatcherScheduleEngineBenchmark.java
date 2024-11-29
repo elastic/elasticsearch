@@ -111,7 +111,7 @@ public class WatcherScheduleEngineBenchmark {
         try (
             Node node = new Node(
                 internalNodeEnv,
-                PluginsLoader.createPluginsLoaderWithServerExports(internalNodeEnv.modulesFile(), internalNodeEnv.pluginsFile())
+                PluginsLoader.createPluginsLoader(internalNodeEnv.modulesFile(), internalNodeEnv.pluginsFile())
             ).start()
         ) {
             final Client client = node.client();

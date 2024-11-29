@@ -77,7 +77,7 @@ public class ScriptScoreBenchmark {
     private final PluginsService pluginsService = new PluginsService(
         Settings.EMPTY,
         null,
-        PluginsLoader.createPluginsLoaderWithServerExports(null, Path.of(System.getProperty("plugins.dir")))
+        PluginsLoader.createPluginsLoader(null, Path.of(System.getProperty("plugins.dir")))
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 

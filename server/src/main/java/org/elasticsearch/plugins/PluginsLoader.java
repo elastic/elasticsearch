@@ -113,21 +113,21 @@ public class PluginsLoader {
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
 
     /**
-     * Constructs a new PluginsLoader. The set of qualified exports/opens to Java modular modules/plugins will include all qualified
-     * exports from the server module. This is the desired behaviour in production use.
+     * Constructs a new PluginsLoader. With this factory method, the set of qualified exports/opens to Java modular modules/plugins will
+     * include all qualified exports from the server module. This is the desired behaviour in production use.
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    public static PluginsLoader createPluginsLoaderWithServerExports(Path modulesDirectory, Path pluginsDirectory) {
+    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
         addServerExportsService(qualifiedExports);
         return createPluginsLoader(modulesDirectory, pluginsDirectory, qualifiedExports);
     }
 
     /**
-     * Constructs a new PluginsLoader. The set of qualified exports/opens to Java modular modules/plugins will not include qualified
-     * exports from the server module. This is the desired behaviour in test use.
+     * Constructs a new PluginsLoader. With this factory method, the set of qualified exports/opens to Java modular modules/plugins will
+     * not include qualified exports from the server module. This is the desired behaviour in test use, as tests are running non-modular.
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem

@@ -156,12 +156,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
   method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
   issue: https://github.com/elastic/elasticsearch/issues/116523
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testBWCSearchStates
-  issue: https://github.com/elastic/elasticsearch/issues/116617
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/116618
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
@@ -222,8 +216,15 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testStopWorksInMiddleOfProcessing
   issue: https://github.com/elastic/elasticsearch/issues/117591
-- class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/117596
+- class: "org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: "org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/117745
 
 # Examples:
 #

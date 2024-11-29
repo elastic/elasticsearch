@@ -189,7 +189,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             SearchListenerPlugin.allowQueryPhase();
         }
     }
-    
+
     public void testCancel() throws Exception {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
         indexDocs(client(LOCAL_CLUSTER), "demo");

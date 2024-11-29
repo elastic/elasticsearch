@@ -70,6 +70,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         this.listener = listener;
     }
 
+    public boolean supersedes(ReservedStateUpdateTask prev) {
+        return versionCheck.test(prev.stateChunk.metadata().version(), this.stateChunk.metadata().version());
+    }
+
     @Override
     public void onFailure(Exception e) {
         listener.onFailure(e);
@@ -213,4 +217,11 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return "ReservedStateUpdateTask{" +
+            "namespace='" + namespace + '\'' +
+            ", metadata=" + stateChunk.metadata() +
+            '}';
+    }
 }

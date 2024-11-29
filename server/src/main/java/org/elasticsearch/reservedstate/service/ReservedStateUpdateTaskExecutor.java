@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 
+import java.util.ArrayList;
+
 /**
  * Reserved cluster state update task executor
  */
@@ -40,27 +42,55 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
             return initState;
         }
 
-        // Only the last update is relevant; the others can be skipped.
-        // However, if that last update task fails, we should fall back to the preceding one.
-        for (var iterator = taskContexts.listIterator(taskContexts.size()); iterator.hasPrevious();) {
-            var taskContext = iterator.previous();
+        // In a given batch of update tasks, only one will actually take effect,
+        // and we want to execute only that task, because if we execute all the tasks
+        // one after another, that will require all the tasks to be capable of executing
+        // correctly even without prior state updates being applied.
+        //
+        // The correct task to run would be whichever one would take effect if we were to
+        // run the tasks one-per-batch. In effect, this is the task with the highest version number;
+        // if multiple tasks have the same version number, their ReservedStateVersionCheck fields
+        // will be used to break the tie.
+        //
+        // One wrinkle is: if the tasks fails, then we will know retroactively that it was
+        // not the task that actually took effect, and we must eliminate that one and try again.
+
+        var candidates = new ArrayList<>(taskContexts);
+        while (candidates.isEmpty() == false) {
+            TaskContext<ReservedStateUpdateTask> taskContext = removeEffectiveTaskContext(candidates);
+            logger.info("Effective task: {}", taskContext.getTask());
             ClusterState clusterState = initState;
             try (var ignored = taskContext.captureResponseHeaders()) {
                 var task = taskContext.getTask();
                 clusterState = task.execute(clusterState);
                 taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
-                logger.debug("Update task succeeded");
+                logger.debug("-> Update task succeeded");
                 return clusterState;
             } catch (Exception e) {
                 taskContext.onFailure(e);
-                if (iterator.hasPrevious()) {
-                    logger.warn("Update task failed; will try the previous update task");
+                if (candidates.isEmpty() == false) {
+                    logger.warn("-> Update task failed; will try the previous update task");
                 }
             }
         }
 
         logger.warn("All {} update tasks failed; returning initial state", taskContexts.size());
         return initState;
+    }
+
+    /**
+     * Removes and returns the {@link TaskContext} corresponding to the task that would take effect
+     * if the tasks were executed one after the other.
+     */
+    private TaskContext<ReservedStateUpdateTask> removeEffectiveTaskContext(ArrayList<? extends TaskContext<ReservedStateUpdateTask>> candidates) {
+        assert candidates.isEmpty() == false;
+        int winner = 0;
+        for (int candidate = 1; candidate < candidates.size(); candidate++) {
+            if (candidates.get(candidate).getTask().supersedes(candidates.get(winner).getTask())) {
+                winner = candidate;
+            }
+        }
+        return candidates.remove(winner);
     }
 
     @Override

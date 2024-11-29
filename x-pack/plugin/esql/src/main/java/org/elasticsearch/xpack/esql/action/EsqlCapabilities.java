@@ -402,11 +402,8 @@ public class EsqlCapabilities {
 
         /**
          * Supported the text categorization function "CATEGORIZE".
-         * <p>
-         *     This capability was initially named `CATEGORIZE`, and got renamed after the function started correctly returning keywords.
-         * </p>
          */
-        CATEGORIZE_V2(Build.current().isSnapshot()),
+        CATEGORIZE_V4(Build.current().isSnapshot()),
 
         /**
          * QSTR function
@@ -524,7 +521,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V3(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -539,7 +536,12 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
          */
-        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,;
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

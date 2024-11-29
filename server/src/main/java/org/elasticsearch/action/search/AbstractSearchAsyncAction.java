@@ -349,7 +349,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * of the next phase. If there are no successful operations in the context when this method is executed the search is aborted and
      * a response is returned to the user indicating that all shards have failed.
      */
-    protected void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
         /* This is the main search phase transition where we move to the next phase. If all shards
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.

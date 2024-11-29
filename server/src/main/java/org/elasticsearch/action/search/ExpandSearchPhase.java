@@ -119,7 +119,7 @@ final class ExpandSearchPhase extends SearchPhase {
                 }
             }
             onPhaseDone();
-        }, context::onFailure));
+        }, e -> context.onPhaseFailure(this, "", e)));
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {

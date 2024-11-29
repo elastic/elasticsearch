@@ -17,6 +17,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
+import java.util.function.Supplier;
+
 public interface AsyncSearchContext {
 
     SearchRequest getRequest();
@@ -40,4 +42,6 @@ public interface AsyncSearchContext {
     OriginalIndices getOriginalIndices(int shardIndex);
 
     void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection);
+
+    void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
 }

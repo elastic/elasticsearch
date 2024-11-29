@@ -243,12 +243,12 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     @Override
     public SearchTransportService getSearchTransport() {
-        return null;
+        return searchTransportService;
     }
 
     @Override
     public SearchTask getTask() {
-        return null;
+        return task;
     }
 
     private SearchResponse buildSearchResponse(
@@ -585,7 +585,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         executeNextPhase(this, this::getNextPhase);
     }
 
-    protected void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+    @Override
+    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
         /* This is the main search phase transition where we move to the next phase. If all shards
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.

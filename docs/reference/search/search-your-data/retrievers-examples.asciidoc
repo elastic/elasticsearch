@@ -453,7 +453,6 @@ We can also define `inner_hits` to be computed on any of the sub-retrievers, and
 level compound retriever. For example, let's create a new index with a `knn` field, nested under the `nested_field` field,
 and index a couple of documents.
 
-
 [source,console]
 ----
 PUT retrievers_example_nested

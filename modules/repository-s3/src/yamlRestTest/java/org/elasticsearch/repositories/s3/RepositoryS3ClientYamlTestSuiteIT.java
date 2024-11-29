@@ -27,12 +27,20 @@ import org.junit.rules.TestRule;
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture();
+    private static final String ACCESS_KEY = "RepositoryS3ClientYamlTestSuiteIT-access-key";
+    private static final String SECRET_KEY = "RepositoryS3ClientYamlTestSuiteIT-secret-key";
+
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        "bucket",
+        "base_path_integration_tests",
+        S3HttpFixture.fixedAccessKey(ACCESS_KEY)
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
-        .keystore("s3.client.integration_test_permanent.access_key", System.getProperty("s3PermanentAccessKey"))
-        .keystore("s3.client.integration_test_permanent.secret_key", System.getProperty("s3PermanentSecretKey"))
+        .keystore("s3.client.integration_test_permanent.access_key", ACCESS_KEY)
+        .keystore("s3.client.integration_test_permanent.secret_key", SECRET_KEY)
         .setting("s3.client.integration_test_permanent.endpoint", s3Fixture::getAddress)
         .build();
 

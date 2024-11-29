@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESTestCase.WithoutSecurityManager
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsLoaderTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(PluginsLoaderTests.class);

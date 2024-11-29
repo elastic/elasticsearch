@@ -91,7 +91,8 @@ public class Match extends FullTextFunction implements Validatable {
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Performs a <<query-dsl-match-query,match query>> on the specified field. Returns true if the provided query matches the row.",
+        description = "Performs a <<query-dsl-match-query,match query>> on the specified field. "
+            + "Returns true if the provided query matches the row.",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
     public Match(

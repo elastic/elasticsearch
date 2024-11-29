@@ -6530,7 +6530,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
         TopN topN = as(opt, TopN.class);
         List<Order> order = topN.order();
-        Order scoreOrer = order.getFirst();
+        Order scoreOrer = order.get(0);
         assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
         Expression child = scoreOrer.child();
         assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));

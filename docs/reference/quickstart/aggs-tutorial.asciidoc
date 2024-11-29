@@ -252,6 +252,7 @@ POST kibana_sample_data_ecommerce/_bulk
 { "index": {} }
 { "category": "Women's Shoes", "order_date": "2024-11-15T00:00:00.000Z", "customer_id": "3", "taxful_total_price": 120.0, "total_quantity": 1, "products": [{"category": "Women's Shoes", "price": 120.0, "quantity": 1}] }
 ----
+// TEST
 
 ////
 
@@ -282,7 +283,7 @@ GET kibana_sample_data_ecommerce/_search
  }
 }
 ----
-// TEST
+// TEST[continued]
 <1> Set `size` to 0 to avoid returning matched documents in the response and return only the aggregation results
 <2> A meaningful name that describes what this metric represents
 <3> Configures an `avg` aggregation, which calculates a simple arithmetic mean

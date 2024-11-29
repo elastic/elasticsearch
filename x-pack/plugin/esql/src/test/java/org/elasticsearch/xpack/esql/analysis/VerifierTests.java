@@ -1846,7 +1846,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeSingleGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V3.isEnabled());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
 
         query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
         query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
@@ -1875,7 +1875,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeNestedGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V3.isEnabled());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
 
         query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
 
@@ -1890,7 +1890,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeWithinAggregations() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V3.isEnabled());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
 
         query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
 

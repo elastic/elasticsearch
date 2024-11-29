@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -101,6 +102,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     private static final int numDocs = 10;
     private static final int extraDocs = 1;
 
+    /**
+     * We set up the data in the old version cluster and take a snapshot to a file system directory.
+     * We only need to do this once before all other tests because they can re-mount the data from that
+     * directory.
+     */
     @BeforeClass
     public static void setupOldRepo() throws IOException {
         String repoLocationBase = repoDirectory.getRoot().getPath();
@@ -207,16 +213,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void runTest(boolean sourceOnlyRepository) throws IOException {
-        // boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         checkClusterVersion(client(), Version.CURRENT);
         String repoLocation = repoDirectory.getRoot().getPath();
         repoLocation = PathUtils.get(repoLocation).resolve(REPO_LOCATION_BASE + sourceOnlyRepository).toString();
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-        assumeTrue(
-            "source only repositories only supported since ES 6.5.0",
-            sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))
-        );
-
         assertThat("Index version should be added to archive tests", oldVersion, lessThan(Version.V_8_10_0));
         IndexVersion indexVersion = IndexVersion.fromId(oldVersion.id);
 
@@ -299,10 +299,18 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         // restore / mount again
         restoreMountAndVerify(numDocs, expectedIds, numberOfShards, sourceOnlyRepository, indexName, repoName, snapshotName);
 
-        // TODO restart current cluster
-        // ensureGreen("restored_" + indexName);
-        // ensureGreen("mounted_full_copy_" + indexName);
-        // ensureGreen("mounted_shared_cache_" + indexName);
+        currentCluster.stop(false);
+        currentCluster.start();
+
+        // we need to replace the nodes for the clients can connect to the restarted cluster
+        List<HttpHost> hosts = parseClusterHosts(currentCluster.getHttpAddresses(), (host, port) -> new HttpHost(host, port));
+        List<Node> nodes = hosts.stream().map(Node::new).collect(Collectors.toList());
+        client().setNodes(nodes);
+        adminClient().setNodes(nodes);
+
+        ensureGreen("restored_" + indexName);
+        ensureGreen("mounted_full_copy_" + indexName);
+        ensureGreen("mounted_shared_cache_" + indexName);
     }
 
     private static String sourceForDoc(int i) {

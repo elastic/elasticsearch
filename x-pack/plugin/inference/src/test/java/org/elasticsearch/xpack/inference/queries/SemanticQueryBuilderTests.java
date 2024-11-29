@@ -27,9 +27,11 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -41,7 +43,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -67,7 +68,6 @@ import java.util.List;
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
-import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -114,17 +114,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, FakeMlPlugin.class);
+        return List.of(InferencePlugin.class, MapperExtrasPlugin.class, FakeMlPlugin.class);
     }
 
     @Override
     protected Settings createTestIndexSettings() {
-        // Randomize index version within compatible range
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        IndexVersion indexVersionCreated = randomBoolean()
-            ? IndexVersion.current()
-            : IndexVersionUtils.randomVersionBetween(random(), NEW_SPARSE_VECTOR, IndexVersion.current());
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
     }
 
     @Override
@@ -148,6 +143,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // field
         SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType, denseVectorElementType);
         if (sourceToParse != null) {
+            System.out.println(sourceToParse.source().utf8ToString());
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
             mapperService.merge(
                 "_doc",
@@ -193,9 +189,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private void assertSparseEmbeddingLuceneQuery(Query query) {
-        Query innerQuery = assertOuterBooleanQuery(query);
+        assertThat(query, instanceOf(SparseVectorQuery.class));
+        Query termsQuery = ((SparseVectorQuery) query).getTermsQuery();
+        Query innerQuery = assertOuterBooleanQuery(termsQuery);
         assertThat(innerQuery, instanceOf(BooleanQuery.class));
-
         BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
@@ -347,15 +344,16 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         if (modelSettings != null) {
             SemanticTextField semanticTextField = new SemanticTextField(
                 SEMANTIC_TEXT_FIELD,
+                INFERENCE_ID,
+                modelSettings,
                 List.of(),
-                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, List.of()),
                 XContentType.JSON
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            builder.field(semanticTextField.fieldName());
-            builder.value(semanticTextField);
-            builder.endObject();
+            builder.startObject(InferenceMetadataFieldsMapper.NAME);
+            builder.field(semanticTextField.fieldName(), semanticTextField);
+            builder.endObject().endObject();
             sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
         }
 

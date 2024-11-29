@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.search;
+package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,7 +126,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         return (this.tokenPruningConfig == null)
-            ? WeightedTokensUtils.queryBuilderWithAllTokens(tokens, ft, context)
+            ? WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, tokens, ft, context)
             : WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, tokens, ft, context);
     }
 

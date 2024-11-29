@@ -55,6 +55,11 @@ public class WordBoundaryChunker implements Chunker {
         }
     }
 
+    @Override
+    public List<Chunk> chunkOffset(String input, ChunkingSettings chunkingSettings) {
+        return List.of();
+    }
+
     /**
      * Break the input text into small chunks as dictated
      * by the chunking parameters

@@ -71,6 +71,7 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        context.markInferenceMetadata();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String fieldName = parser.currentName();

@@ -36,7 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
+import static org.elasticsearch.xpack.inference.mapper.LegacySemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {

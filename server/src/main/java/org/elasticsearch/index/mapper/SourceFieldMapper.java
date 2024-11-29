@@ -402,7 +402,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType);
+        final BytesReference adaptedSource = applyFilters(context, originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -420,7 +420,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(
-        @Nullable MappingLookup mappingLookup,
+        @Nullable DocumentParserContext context,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType
     ) throws IOException {
@@ -428,7 +428,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return null;
         }
         var modSourceFilter = sourceFilter;
-        if (mappingLookup != null && mappingLookup.inferenceFields().isEmpty() == false) {
+        if (context != null && context.hasInferenceMetadata()) {
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {
                 System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);

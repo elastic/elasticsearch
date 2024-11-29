@@ -24,7 +24,10 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -37,6 +40,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -67,9 +71,15 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.OffsetSourceMetaFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.TextExpansionQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -391,8 +401,23 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(
+            InferenceMetadataFieldsMapper.NAME,
+            InferenceMetadataFieldsMapper.PARSER,
+            OffsetSourceMetaFieldMapper.NAME,
+            OffsetSourceMetaFieldMapper.PARSER
+        );
+    }
+
+    @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        return Map.of(
+            SemanticTextFieldMapper.CONTENT_TYPE,
+            SemanticTextFieldMapper.PARSER,
+            OffsetSourceFieldMapper.CONTENT_TYPE,
+            OffsetSourceFieldMapper.PARSER
+        );
     }
 
     @Override
@@ -401,7 +426,22 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     public List<QuerySpec<?>> getQueries() {
-        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+        return List.of(
+            new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent),
+            new QuerySpec<>(SparseVectorQueryBuilder.NAME, SparseVectorQueryBuilder::new, SparseVectorQueryBuilder::fromXContent),
+            new QuerySpec<QueryBuilder>(
+                TextExpansionQueryBuilder.NAME,
+                TextExpansionQueryBuilder::new,
+                TextExpansionQueryBuilder::fromXContent
+            ),
+            // TODO: The WeightedTokensBuilder is slated for removal after the SparseVectorQueryBuilder is available.
+            // The logic to create a Boolean query based on weighted tokens will remain and/or be moved to server.
+            new QuerySpec<QueryBuilder>(
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
+            )
+        );
     }
 
     @Override
@@ -410,5 +450,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RetrieverSpec<>(new ParseField(TextSimilarityRankBuilder.NAME), TextSimilarityRankRetrieverBuilder::fromXContent),
             new RetrieverSpec<>(new ParseField(RandomRankBuilder.NAME), RandomRankRetrieverBuilder::fromXContent)
         );
+    }
+
+    @Override
+    public Map<String, Highlighter> getHighlighters() {
+        return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
     }
 }

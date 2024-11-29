@@ -66,6 +66,11 @@ public abstract class DocumentParserContext {
         }
 
         @Override
+        public void markInferenceMetadata() {
+            in.markInferenceMetadata();
+        }
+
+        @Override
         public ContentPath path() {
             return in.path();
         }
@@ -149,6 +154,8 @@ public abstract class DocumentParserContext {
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
+
+    private boolean inferenceMetadata;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -340,6 +347,14 @@ public abstract class DocumentParserContext {
             return tuple.v1();
         }
         return this;
+    }
+
+    public void markInferenceMetadata() {
+        this.inferenceMetadata = true;
+    }
+
+    public final boolean hasInferenceMetadata() {
+        return false;// TODO: inferenceMetadata;
     }
 
     /**

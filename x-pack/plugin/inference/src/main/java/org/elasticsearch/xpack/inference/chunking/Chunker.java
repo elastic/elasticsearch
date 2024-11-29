@@ -12,5 +12,9 @@ import org.elasticsearch.inference.ChunkingSettings;
 import java.util.List;
 
 public interface Chunker {
+    record Chunk(int startOffset, int endOffset) {}
+
     List<String> chunk(String input, ChunkingSettings chunkingSettings);
+
+    List<Chunk> chunkOffset(String input, ChunkingSettings chunkingSettings);
 }

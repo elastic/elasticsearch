@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.search;
+package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
@@ -35,13 +35,15 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.inference.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -75,7 +77,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(XPackClientPlugin.class, MapperExtrasPlugin.class);
+        return List.of(InferencePlugin.class, MapperExtrasPlugin.class, XPackClientPlugin.class);
     }
 
     @Override
@@ -271,8 +273,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     private void assertCorrectLuceneQuery(String name, Query query, List<String> expectedFeatureFields) {
-        assertTrue(query instanceof BooleanQuery);
-        List<BooleanClause> booleanClauses = ((BooleanQuery) query).clauses();
+        assertTrue(query instanceof SparseVectorQuery);
+        Query termsQuery = ((SparseVectorQuery) query).getTermsQuery();
+        assertTrue(termsQuery instanceof BooleanQuery);
+        List<BooleanClause> booleanClauses = ((BooleanQuery) termsQuery).clauses();
         assertEquals(
             name + " had " + booleanClauses.size() + " clauses, expected " + expectedFeatureFields.size(),
             expectedFeatureFields.size(),
@@ -343,8 +347,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected void doAssertLuceneQuery(WeightedTokensQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(query, instanceOf(SparseVectorQuery.class));
+        Query termsQuery = ((SparseVectorQuery) query).getTermsQuery();
+        assertThat(termsQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) termsQuery;
         assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
         assertThat(booleanQuery.clauses(), hasSize(NUM_TOKENS));
 

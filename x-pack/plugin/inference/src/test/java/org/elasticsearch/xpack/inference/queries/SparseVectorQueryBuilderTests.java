@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
@@ -40,9 +40,8 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -50,7 +49,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.QUERY_VECTOR_FIELD;
+import static org.elasticsearch.xpack.inference.queries.SparseVectorQueryBuilder.QUERY_VECTOR_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -102,7 +101,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MachineLearning.class, MapperExtrasPlugin.class, XPackClientPlugin.class);
+        return List.of(InferencePlugin.class, MapperExtrasPlugin.class, XPackClientPlugin.class);
     }
 
     @Override
@@ -237,7 +236,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             // It's possible that all documents were pruned for aggressive pruning configurations
             assertTrue(query instanceof BooleanQuery || query instanceof MatchNoDocsQuery);
         } else {
-            assertTrue(query instanceof BooleanQuery);
+            assertTrue(query instanceof SparseVectorQuery);
         }
     }
 

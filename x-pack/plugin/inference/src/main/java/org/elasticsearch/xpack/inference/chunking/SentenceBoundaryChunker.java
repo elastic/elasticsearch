@@ -15,6 +15,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Split text into chunks aligned on sentence boundaries.
@@ -58,6 +59,20 @@ public class SentenceBoundaryChunker implements Chunker {
         }
     }
 
+    @Override
+    public List<Chunk> chunkOffset(String input, ChunkingSettings chunkingSettings) {
+        if (chunkingSettings instanceof SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings) {
+            return chunkOffset(input, sentenceBoundaryChunkingSettings.maxChunkSize, sentenceBoundaryChunkingSettings.sentenceOverlap > 0);
+        } else {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "SentenceBoundaryChunker can't use ChunkingSettings with strategy [%s]",
+                    chunkingSettings.getChunkingStrategy()
+                )
+            );
+        }
+    }
+
     /**
      * Break the input text into small chunks on sentence boundaries.
      *
@@ -66,7 +81,19 @@ public class SentenceBoundaryChunker implements Chunker {
      * @return The input text chunked
      */
     public List<String> chunk(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
-        var chunks = new ArrayList<String>();
+        var chunks = chunkOffset(input, maxNumberWordsPerChunk, includePrecedingSentence);
+        return chunks.stream().map(c -> input.substring(c.startOffset(), c.endOffset())).collect(Collectors.toList());
+    }
+
+    /**
+     * Break the input text into small chunks on sentence boundaries.
+     *
+     * @param input Text to chunk
+     * @param maxNumberWordsPerChunk Maximum size of the chunk
+     * @return The input text chunked
+     */
+    public List<Chunk> chunkOffset(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
+        var chunks = new ArrayList<Chunk>();
 
         sentenceIterator.setText(input);
         wordIterator.setText(input);
@@ -91,7 +118,7 @@ public class SentenceBoundaryChunker implements Chunker {
                 int nextChunkWordCount = wordsInSentenceCount;
                 if (chunkWordCount > 0) {
                     // add a new chunk containing all the input up to this sentence
-                    chunks.add(input.substring(chunkStart, chunkEnd));
+                    chunks.add(new Chunk(chunkStart, chunkEnd));
 
                     if (includePrecedingSentence) {
                         if (wordsInPrecedingSentenceCount + wordsInSentenceCount > maxNumberWordsPerChunk) {
@@ -127,7 +154,7 @@ public class SentenceBoundaryChunker implements Chunker {
                     for (; i < sentenceSplits.size() - 1; i++) {
                         // Because the substring was passed to splitLongSentence()
                         // the returned positions need to be offset by chunkStart
-                        chunks.add(input.substring(chunkStart + sentenceSplits.get(i).start(), chunkStart + sentenceSplits.get(i).end()));
+                        chunks.add(new Chunk(chunkStart + sentenceSplits.get(i).start(), chunkStart + sentenceSplits.get(i).end()));
                     }
                     // The final split is partially filled.
                     // Set the next chunk start to the beginning of the
@@ -151,7 +178,7 @@ public class SentenceBoundaryChunker implements Chunker {
         }
 
         if (chunkWordCount > 0) {
-            chunks.add(input.substring(chunkStart));
+            chunks.add(new Chunk(chunkStart, input.length()));
         }
 
         return chunks;

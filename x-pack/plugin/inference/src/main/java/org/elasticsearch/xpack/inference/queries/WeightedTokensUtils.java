@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.search;
+package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,13 +25,18 @@ public final class WeightedTokensUtils {
 
     private WeightedTokensUtils() {}
 
-    public static Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
+    public static Query queryBuilderWithAllTokens(
+        String fieldName,
+        List<WeightedToken> tokens,
+        MappedFieldType ft,
+        SearchExecutionContext context
+    ) {
         var qb = new BooleanQuery.Builder();
 
         for (var token : tokens) {
             qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
         }
-        return qb.setMinimumNumberShouldMatch(1).build();
+        return new SparseVectorQuery(fieldName, qb.setMinimumNumberShouldMatch(1).build());
     }
 
     public static Query queryBuilderWithPrunedTokens(
@@ -64,7 +70,7 @@ public final class WeightedTokensUtils {
             }
         }
 
-        return qb.setMinimumNumberShouldMatch(1).build();
+        return new SparseVectorQuery(fieldName, qb.setMinimumNumberShouldMatch(1).build());
     }
 
     /**

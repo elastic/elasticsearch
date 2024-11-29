@@ -52,7 +52,6 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
-  testImplementation project(':modules:mapper-extras')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'

@@ -42,12 +42,13 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.inference.mapper.LegacySemanticTextField;
+import org.elasticsearch.xpack.inference.mapper.LegacySemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -55,8 +56,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -375,8 +374,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         /**
          * Applies the {@link FieldInferenceResponseAccumulator} to the provided {@link BulkItemRequest}.
          * If the response contains failures, the bulk item request is marked as failed for the downstream action.
-         * Otherwise, the source of the request is augmented with the field inference results under the
-         * {@link SemanticTextField#INFERENCE_FIELD} field.
+         * Otherwise, the source of the request is augmented with the field inference results.
          */
         private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) {
             if (response.failures().isEmpty() == false) {
@@ -396,22 +394,33 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                List<String> inputs = responses.stream().filter(r -> r.isOriginalFieldInput).map(r -> r.input).collect(Collectors.toList());
+                List<String> inputs = responses.stream()
+                    .filter(r -> r.field().equals(fieldName))
+                    .map(r -> r.input)
+                    .collect(Collectors.toList());
+                assert inputs.size() == 1;
                 List<ChunkedInferenceServiceResults> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
-                var result = new SemanticTextField(
-                    fieldName,
-                    inputs,
-                    new SemanticTextField.InferenceResult(
+                if (addMetadataField) {
+                    var result = new SemanticTextField(
+                        fieldName,
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        toSemanticTextFieldChunks(results, indexRequest.getContentType())
-                    ),
-                    indexRequest.getContentType()
-                );
-                if (addMetadataField) {
+                        SemanticTextField.toSemanticTextFieldChunks(fieldName, inputs.get(0), results, indexRequest.getContentType()),
+                        indexRequest.getContentType()
+                    );
                     inferenceFieldsMap.put(fieldName, result);
                 } else {
-                    SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
+                    var result = new LegacySemanticTextField(
+                        fieldName,
+                        inputs,
+                        new LegacySemanticTextField.InferenceResult(
+                            model.getInferenceEntityId(),
+                            new LegacySemanticTextField.ModelSettings(model),
+                            LegacySemanticTextField.toSemanticTextFieldChunks(results, indexRequest.getContentType())
+                        ),
+                        indexRequest.getContentType()
+                    );
+                    LegacySemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
                 }
             }
             if (addMetadataField) {
@@ -489,57 +498,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             continue;
                         }
                         ensureResponseAccumulatorSlot(itemIndex);
-                        final List<String> values;
+                        final String value;
                         try {
-                            values = nodeStringValues(field, valueObj);
+                            value = SemanticTextField.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
                             addInferenceResponseFailure(item.id(), exc);
                             break;
                         }
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        for (var v : values) {
-                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, v, order++, isOriginalFieldInput));
-                        }
+                        fieldRequests.add(new FieldInferenceRequest(itemIndex, field, value, order++, isOriginalFieldInput));
                     }
                 }
             }
             return fieldRequestsMap;
         }
-    }
-
-    /**
-     * This method converts the given {@code valueObj} into a list of strings.
-     * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
-     */
-    private static List<String> nodeStringValues(String field, Object valueObj) {
-        if (valueObj instanceof Number || valueObj instanceof Boolean) {
-            return List.of(valueObj.toString());
-        } else if (valueObj instanceof String value) {
-            return List.of(value);
-        } else if (valueObj instanceof Collection<?> values) {
-            List<String> valuesString = new ArrayList<>();
-            for (var v : values) {
-                if (v instanceof Number || v instanceof Boolean) {
-                    valuesString.add(v.toString());
-                } else if (v instanceof String value) {
-                    valuesString.add(value);
-                } else {
-                    throw new ElasticsearchStatusException(
-                        "Invalid format for field [{}], expected [String] got [{}]",
-                        RestStatus.BAD_REQUEST,
-                        field,
-                        valueObj.getClass().getSimpleName()
-                    );
-                }
-            }
-            return valuesString;
-        }
-        throw new ElasticsearchStatusException(
-            "Invalid format for field [{}], expected [String] got [{}]",
-            RestStatus.BAD_REQUEST,
-            field,
-            valueObj.getClass().getSimpleName()
-        );
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

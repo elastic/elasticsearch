@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -85,6 +87,14 @@ public class FetchContext {
             sfc = StoredFieldsContext.metadataOnly();
         }
         return sfc;
+    }
+
+    public ShardSearchRequest request() {
+        return searchContext.request();
+    }
+
+    public BitsetFilterCache bitsetFilterCache() {
+        return searchContext.bitsetFilterCache();
     }
 
     /**

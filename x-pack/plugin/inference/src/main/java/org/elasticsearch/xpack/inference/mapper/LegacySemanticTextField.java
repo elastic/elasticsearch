@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -19,7 +17,6 @@ import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -34,7 +31,6 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,49 +38,39 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
-import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A {@link ToXContentObject} that is used to represent the transformation of the semantic text field's inputs.
+ * The resulting object preserves the original input under the {@link LegacySemanticTextField#TEXT_FIELD} and exposes
+ * the inference results under the {@link LegacySemanticTextField#INFERENCE_FIELD}.
  *
  * @param fieldName The original field name.
+ * @param originalValues The original values associated with the field name.
+ * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
  */
-public record SemanticTextField(
-    String fieldName,
-    String inferenceId,
-    ModelSettings modelSettings,
-    List<Chunk> chunks,
-    XContentType contentType
-) implements ToXContentObject {
+public record LegacySemanticTextField(String fieldName, List<String> originalValues, InferenceResult inference, XContentType contentType)
+    implements
+        ToXContentObject {
 
+    static final String TEXT_FIELD = "text";
+    static final String INFERENCE_FIELD = "inference";
     static final String INFERENCE_ID_FIELD = "inference_id";
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
-    static final String CHUNKED_OFFSET_FIELD = "offset";
-    static final String CHUNKED_OFFSET_SOURCE_FIELD = "field";
-    static final String CHUNKED_OFFSET_START_FIELD = "start";
-    static final String CHUNKED_OFFSET_END_FIELD = "end";
+    static final String CHUNKED_TEXT_FIELD = "text";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
 
-    public record Chunk(Offset offset, BytesReference rawEmbeddings) {}
+    public record InferenceResult(String inferenceId, ModelSettings modelSettings, List<Chunk> chunks) {}
 
-    public record Offset(String sourceFieldName, int startOffset, int endOffset) implements ToXContentObject {
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CHUNKED_OFFSET_SOURCE_FIELD, sourceFieldName());
-            builder.field(CHUNKED_OFFSET_START_FIELD, startOffset());
-            builder.field(CHUNKED_OFFSET_END_FIELD, endOffset());
-            return builder.endObject();
-        }
-    }
+    public record Chunk(String text, BytesReference rawEmbeddings) {}
 
     public record ModelSettings(
         TaskType taskType,
@@ -186,15 +172,23 @@ public record SemanticTextField(
         }
     }
 
+    public static String getOriginalTextFieldName(String fieldName) {
+        return fieldName + "." + TEXT_FIELD;
+    }
+
+    public static String getInferenceFieldName(String fieldName) {
+        return fieldName + "." + INFERENCE_FIELD;
+    }
+
     public static String getChunksFieldName(String fieldName) {
-        return fieldName + "." + CHUNKS_FIELD;
+        return getInferenceFieldName(fieldName) + "." + CHUNKS_FIELD;
     }
 
     public static String getEmbeddingsFieldName(String fieldName) {
         return getChunksFieldName(fieldName) + "." + CHUNKED_EMBEDDINGS_FIELD;
     }
 
-    static SemanticTextField parse(XContentParser parser, Tuple<String, XContentType> context) throws IOException {
+    static LegacySemanticTextField parse(XContentParser parser, Tuple<String, XContentType> context) throws IOException {
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
     }
 
@@ -223,13 +217,16 @@ public record SemanticTextField(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INFERENCE_ID_FIELD, inferenceId);
-        builder.field(MODEL_SETTINGS_FIELD, modelSettings);
+        if (originalValues.isEmpty() == false) {
+            builder.field(TEXT_FIELD, originalValues.size() == 1 ? originalValues.get(0) : originalValues);
+        }
+        builder.startObject(INFERENCE_FIELD);
+        builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
         builder.startArray(CHUNKS_FIELD);
-        for (var chunk : chunks) {
+        for (var chunk : inference.chunks) {
             builder.startObject();
-            builder.field(CHUNKED_OFFSET_FIELD);
-            chunk.offset.toXContent(builder, params);
+            builder.field(CHUNKED_TEXT_FIELD, chunk.text);
             XContentParser parser = XContentHelper.createParserNotCompressed(
                 XContentParserConfiguration.EMPTY,
                 chunk.rawEmbeddings,
@@ -240,33 +237,36 @@ public record SemanticTextField(
         }
         builder.endArray();
         builder.endObject();
+        builder.endObject();
         return builder;
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SemanticTextField, Tuple<String, XContentType>> SEMANTIC_TEXT_FIELD_PARSER =
+    private static final ConstructingObjectParser<LegacySemanticTextField, Tuple<String, XContentType>> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(
             SemanticTextFieldMapper.CONTENT_TYPE,
             true,
-            (args, context) -> new SemanticTextField(
+            (args, context) -> new LegacySemanticTextField(
                 context.v1(),
-                (String) args[0],
-                (ModelSettings) args[1],
-                (List<Chunk>) args[2],
+                (List<String>) (args[0] == null ? List.of() : args[0]),
+                (InferenceResult) args[1],
                 context.v2()
             )
         );
 
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<InferenceResult, Void> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
+        INFERENCE_FIELD,
+        true,
+        args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (List<Chunk>) args[2])
+    );
+
     private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
         CHUNKS_FIELD,
         true,
-        args -> new Chunk((Offset) args[0], (BytesReference) args[1])
+        args -> new Chunk((String) args[0], (BytesReference) args[1])
     );
-    private static final ConstructingObjectParser<Offset, Void> OFFSET_PARSER = new ConstructingObjectParser<>(
-        CHUNKED_OFFSET_FIELD,
-        true,
-        args -> new Offset((String) args[0], (int) args[1], (int) args[2])
-    );
+
     private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
         MODEL_SETTINGS_FIELD,
         true,
@@ -280,34 +280,25 @@ public record SemanticTextField(
             return new ModelSettings(taskType, dimensions, similarity, elementType);
         }
     );
+
     static {
-        SEMANTIC_TEXT_FIELD_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
+        SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(
             constructorArg(),
-            (p, c) -> MODEL_SETTINGS_PARSER.parse(p, null),
-            new ParseField(MODEL_SETTINGS_FIELD)
-        );
-        SEMANTIC_TEXT_FIELD_PARSER.declareObjectArray(
-            constructorArg(),
-            (p, c) -> CHUNKS_PARSER.parse(p, null),
-            new ParseField(CHUNKS_FIELD)
+            (p, c) -> INFERENCE_RESULT_PARSER.parse(p, null),
+            new ParseField(INFERENCE_FIELD)
         );
 
-        CHUNKS_PARSER.declareField(
-            constructorArg(),
-            (p, c) -> OFFSET_PARSER.parse(p, null),
-            new ParseField(CHUNKED_OFFSET_FIELD),
-            ObjectParser.ValueType.OBJECT
-        );
+        INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
+        INFERENCE_RESULT_PARSER.declareObject(constructorArg(), MODEL_SETTINGS_PARSER, new ParseField(MODEL_SETTINGS_FIELD));
+        INFERENCE_RESULT_PARSER.declareObjectArray(constructorArg(), CHUNKS_PARSER, new ParseField(CHUNKS_FIELD));
+
+        CHUNKS_PARSER.declareString(constructorArg(), new ParseField(CHUNKED_TEXT_FIELD));
         CHUNKS_PARSER.declareField(constructorArg(), (p, c) -> {
             XContentBuilder b = XContentBuilder.builder(p.contentType().xContent());
             b.copyCurrentStructure(p);
             return BytesReference.bytes(b);
         }, new ParseField(CHUNKED_EMBEDDINGS_FIELD), ObjectParser.ValueType.OBJECT_ARRAY);
-
-        OFFSET_PARSER.declareString(constructorArg(), new ParseField(CHUNKED_OFFSET_SOURCE_FIELD));
-        OFFSET_PARSER.declareInt(constructorArg(), new ParseField(CHUNKED_OFFSET_START_FIELD));
-        OFFSET_PARSER.declareInt(constructorArg(), new ParseField(CHUNKED_OFFSET_END_FIELD));
 
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TASK_TYPE_FIELD));
         MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
@@ -318,46 +309,16 @@ public record SemanticTextField(
     /**
      * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
      */
-    public static List<Chunk> toSemanticTextFieldChunks(
-        String sourceFieldName,
-        String input,
-        List<ChunkedInferenceServiceResults> results,
-        XContentType contentType
-    ) {
+    public static List<Chunk> toSemanticTextFieldChunks(List<ChunkedInferenceServiceResults> results, XContentType contentType) {
         List<Chunk> chunks = new ArrayList<>();
         for (var result : results) {
             for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it
                 .hasNext();) {
                 var chunkAsByteReference = it.next();
-                int startOffset = input.indexOf(chunkAsByteReference.matchedText());
-                chunks.add(
-                    new Chunk(
-                        new Offset(sourceFieldName, startOffset, startOffset + chunkAsByteReference.matchedText().length()),
-                        chunkAsByteReference.bytesReference()
-                    )
-                );
+                chunks.add(new Chunk(chunkAsByteReference.matchedText(), chunkAsByteReference.bytesReference()));
             }
         }
         return chunks;
     }
 
-    /**
-     * This method converts the given {@code valueObj} into a list of strings.
-     * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
-     */
-    public static String nodeStringValues(String field, Object valueObj) {
-        if (valueObj instanceof Number || valueObj instanceof Boolean) {
-            return valueObj.toString();
-        } else if (valueObj instanceof String value) {
-            return value;
-        } else if (valueObj instanceof Collection<?> values) {
-            return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
-        }
-        throw new ElasticsearchStatusException(
-            "Invalid format for field [{}], expected [String] got [{}]",
-            RestStatus.BAD_REQUEST,
-            field,
-            valueObj.getClass().getSimpleName()
-        );
-    }
 }

@@ -135,5 +135,4 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         assertThat(appender.getLastEventAndReset(), nullValue());
     }
 
-
 }

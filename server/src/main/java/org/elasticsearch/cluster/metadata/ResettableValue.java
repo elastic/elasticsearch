@@ -172,14 +172,6 @@ public class ResettableValue<T> {
         return ResettableValue.create(mergeFunction.apply(initial.value, update.value));
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ResettableValue<?> that = (ResettableValue<?>) o;
-        return isDefined == that.isDefined && Objects.equals(value, that.value);
-    }
-
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params, String field) throws IOException {
         return toXContent(builder, params, field, Function.identity());
     }
@@ -202,6 +194,14 @@ public class ResettableValue<T> {
 
     public static ToXContent.Params disableResetValues(ToXContent.Params params) {
         return new ToXContent.DelegatingMapParams(SKIP_RESET_VALUES_PARAMS, params);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ResettableValue<?> that = (ResettableValue<?>) o;
+        return isDefined == that.isDefined && Objects.equals(value, that.value);
     }
 
     @Override

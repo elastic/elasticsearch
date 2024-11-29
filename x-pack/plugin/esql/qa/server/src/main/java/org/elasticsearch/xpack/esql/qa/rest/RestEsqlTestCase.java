@@ -355,9 +355,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(
             expectedTextBody("txt", count, null),
-            mode == ASYNC
-                ? runEsqlAsync(builder, new AssertWarnings.NoWarnings(), "txt", null).get("result")
-                : runEsqlSync(builder, new AssertWarnings.NoWarnings(), "txt", null).get("result")
+            runEsql(builder, new AssertWarnings.NoWarnings(), mode, "txt", null).get("result")
         );
 
     }
@@ -368,9 +366,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(
             expectedTextBody("csv", count, '|'),
-            mode == ASYNC
-                ? runEsqlAsync(builder, new AssertWarnings.NoWarnings(), "csv", '|').get("result")
-                : runEsqlSync(builder, new AssertWarnings.NoWarnings(), "csv", '|').get("result")
+            runEsql(builder, new AssertWarnings.NoWarnings(), mode, "csv", '|').get("result")
         );
     }
 
@@ -380,9 +376,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(
             expectedTextBody("tsv", count, null),
-            mode == ASYNC
-                ? runEsqlAsync(builder, new AssertWarnings.NoWarnings(), "tsv", null).get("result")
-                : runEsqlSync(builder, new AssertWarnings.NoWarnings(), "tsv", null).get("result")
+            runEsql(builder, new AssertWarnings.NoWarnings(), mode, "tsv", null).get("result")
         );
     }
 
@@ -1026,10 +1020,20 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
+        return runEsql(requestObject, assertWarnings, mode, null, null);
+    }
+
+    static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        Mode mode,
+        @Nullable String format,
+        @Nullable Character delimiter
+    ) throws IOException {
         if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, assertWarnings);
+            return runEsqlAsync(requestObject, assertWarnings, format, delimiter);
         } else {
-            return runEsqlSync(requestObject, assertWarnings);
+            return runEsqlSync(requestObject, assertWarnings, format, delimiter);
         }
     }
 

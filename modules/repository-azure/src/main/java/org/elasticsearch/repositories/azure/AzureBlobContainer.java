@@ -180,7 +180,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     private boolean skipRegisterOperation(ActionListener<?> listener) {
-        return skipCas(listener) || skipIfNotPrimaryOnlyLocationMode(listener);
+        return skipIfNotPrimaryOnlyLocationMode(listener);
     }
 
     private boolean skipIfNotPrimaryOnlyLocationMode(ActionListener<?> listener) {

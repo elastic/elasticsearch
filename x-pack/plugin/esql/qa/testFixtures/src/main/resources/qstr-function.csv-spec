@@ -100,7 +100,6 @@ book_no:keyword | title:text
 7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
-
 qstrWithMultivaluedTextField
 required_capability: qstr_function
 

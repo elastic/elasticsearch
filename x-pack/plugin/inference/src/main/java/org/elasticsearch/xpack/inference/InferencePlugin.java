@@ -257,11 +257,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
             var sslStrategy = HttpClientManager.getSSLStrategy(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX);
             var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
-                settings, services.threadPool(), services.clusterService(), throttlerManager, sslStrategy
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                throttlerManager,
+                sslStrategy
             );
 
             var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
-                serviceComponents.get(), elasticInferenceServiceHttpClientManager, services.clusterService()
+                serviceComponents.get(),
+                elasticInferenceServiceHttpClientManager,
+                services.clusterService()
             );
             elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 

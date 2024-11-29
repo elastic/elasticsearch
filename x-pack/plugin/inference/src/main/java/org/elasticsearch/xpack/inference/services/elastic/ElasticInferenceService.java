@@ -108,9 +108,7 @@ public class ElasticInferenceService extends SenderService {
         var currentTraceInfo = getCurrentTraceInfo();
 
         ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(
-            getSender(), getServiceComponents(), currentTraceInfo
-        );
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);

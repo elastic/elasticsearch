@@ -104,7 +104,11 @@ public abstract class AbstractMockObjectStoreIntegTestCase extends AbstractObjec
     }
 
     @After
-    public void tearDownHttpServer() {
+    public void tearDownHttpServer() throws Exception {
+        // explicitly clean up the cluster here
+        // the cluster needs to be stopped BEFORE the http server is stopped
+        cleanUpCluster();
+
         if (handlers != null) {
             for (String handler : handlers.keySet()) {
                 httpServer.removeContext(handler);

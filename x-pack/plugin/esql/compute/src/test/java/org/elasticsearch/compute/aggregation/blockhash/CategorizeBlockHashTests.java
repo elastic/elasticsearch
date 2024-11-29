@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,7 +37,15 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,6 +59,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CategorizeBlockHashTests extends BlockHashTestCase {
+
+    private AnalysisRegistry analysisRegistry;
+
+    @Before
+    private void initAnalysisRegistry() throws IOException {
+        analysisRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(
+                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+            ),
+            List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+    }
 
     public void testCategorizeRaw() {
         final Page page;
@@ -72,7 +95,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (BlockHash hash = new CategorizeRawBlockHash(0, blockFactory, true)) {
+        try (BlockHash hash = new CategorizeRawBlockHash(0, blockFactory, true, analysisRegistry)) {
             hash.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
@@ -145,8 +168,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         // Fill intermediatePages with the intermediate state from the raw hashes
         try (
-            BlockHash rawHash1 = new CategorizeRawBlockHash(0, blockFactory, true);
-            BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true)
+            BlockHash rawHash1 = new CategorizeRawBlockHash(0, blockFactory, true, analysisRegistry);
+            BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true, analysisRegistry);
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -267,14 +290,16 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(10);
                 LongVector.Builder countsBuilder = driverContext.blockFactory().newLongVectorBuilder(10)
             ) {
-                textsBuilder.appendBytesRef(new BytesRef("a"));
-                textsBuilder.appendBytesRef(new BytesRef("b"));
+                // Note that just using "a" or "aaa" doesn't work, because the ml_standard
+                // tokenizer drops numbers, including hexadecimal ones.
+                textsBuilder.appendBytesRef(new BytesRef("aaazz"));
+                textsBuilder.appendBytesRef(new BytesRef("bbbzz"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye jan"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye nik"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye tom"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello jan"));
-                textsBuilder.appendBytesRef(new BytesRef("c"));
-                textsBuilder.appendBytesRef(new BytesRef("d"));
+                textsBuilder.appendBytesRef(new BytesRef("ccczz"));
+                textsBuilder.appendBytesRef(new BytesRef("dddzz"));
                 countsBuilder.appendLong(1);
                 countsBuilder.appendLong(2);
                 countsBuilder.appendLong(800);
@@ -293,10 +318,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             ) {
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello nik"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello nik"));
-                textsBuilder.appendBytesRef(new BytesRef("c"));
+                textsBuilder.appendBytesRef(new BytesRef("ccczz"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye chris"));
-                textsBuilder.appendBytesRef(new BytesRef("d"));
-                textsBuilder.appendBytesRef(new BytesRef("e"));
+                textsBuilder.appendBytesRef(new BytesRef("dddzz"));
+                textsBuilder.appendBytesRef(new BytesRef("eeezz"));
                 countsBuilder.appendLong(9);
                 countsBuilder.appendLong(90);
                 countsBuilder.appendLong(3);
@@ -320,7 +345,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
                     ),
-                    16 * 1024
+                    16 * 1024,
+                    analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add),
@@ -339,7 +365,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
                     ),
-                    16 * 1024
+                    16 * 1024,
+                    analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add),
@@ -360,7 +387,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new SumLongAggregatorFunctionSupplier(List.of(1, 2)).groupingAggregatorFactory(AggregatorMode.FINAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(3, 4)).groupingAggregatorFactory(AggregatorMode.FINAL)
                     ),
-                    16 * 1024
+                    16 * 1024,
+                    analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add),
@@ -385,15 +413,15 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             sums,
             equalTo(
                 Map.of(
-                    ".*?a.*?",
+                    ".*?aaazz.*?",
                     1L,
-                    ".*?b.*?",
+                    ".*?bbbzz.*?",
                     2L,
-                    ".*?c.*?",
+                    ".*?ccczz.*?",
                     33L,
-                    ".*?d.*?",
+                    ".*?dddzz.*?",
                     44L,
-                    ".*?e.*?",
+                    ".*?eeezz.*?",
                     5L,
                     ".*?words.+?words.+?words.+?goodbye.*?",
                     8888L,
@@ -406,15 +434,15 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             maxs,
             equalTo(
                 Map.of(
-                    ".*?a.*?",
+                    ".*?aaazz.*?",
                     1L,
-                    ".*?b.*?",
+                    ".*?bbbzz.*?",
                     2L,
-                    ".*?c.*?",
+                    ".*?ccczz.*?",
                     30L,
-                    ".*?d.*?",
+                    ".*?dddzz.*?",
                     40L,
-                    ".*?e.*?",
+                    ".*?eeezz.*?",
                     5L,
                     ".*?words.+?words.+?words.+?goodbye.*?",
                     8000L,

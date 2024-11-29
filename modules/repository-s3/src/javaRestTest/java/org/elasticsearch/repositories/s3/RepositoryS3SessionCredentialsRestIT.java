@@ -11,53 +11,62 @@ package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpFixture;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
-public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
+public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String ACCESS_KEY = "RepositoryS3ClientYamlTestSuiteIT-access-key";
-    private static final String SECRET_KEY = "RepositoryS3ClientYamlTestSuiteIT-secret-key";
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3SessionCredentialsRestIT");
+    private static final String BUCKET = PREFIX + "bucket";
+    private static final String BASE_PATH = PREFIX + "base_path";
+    private static final String ACCESS_KEY = PREFIX + "access-key";
+    private static final String SECRET_KEY = PREFIX + "secret-key";
+    private static final String SESSION_TOKEN = PREFIX + "session-token";
+    private static final String CLIENT = "session_credentials_client";
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
-        "bucket",
-        "base_path_integration_tests",
-        S3HttpFixture.fixedAccessKey(ACCESS_KEY)
+        BUCKET,
+        BASE_PATH,
+        S3HttpFixture.fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN)
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
-        .keystore("s3.client.integration_test_permanent.access_key", ACCESS_KEY)
-        .keystore("s3.client.integration_test_permanent.secret_key", SECRET_KEY)
-        .setting("s3.client.integration_test_permanent.endpoint", s3Fixture::getAddress)
+        .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
+        .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
+        .keystore("s3.client." + CLIENT + ".session_token", SESSION_TOKEN)
+        .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .build();
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters(new String[] { "repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials" });
-    }
-
-    public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected String getBucketName() {
+        return BUCKET;
+    }
+
+    @Override
+    protected String getBasePath() {
+        return BASE_PATH;
+    }
+
+    @Override
+    protected String getClientName() {
+        return CLIENT;
     }
 }

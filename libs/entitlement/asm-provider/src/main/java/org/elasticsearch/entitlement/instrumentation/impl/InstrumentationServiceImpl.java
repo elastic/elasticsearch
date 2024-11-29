@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -29,14 +29,14 @@ import java.util.Map;
 public class InstrumentationServiceImpl implements InstrumentationService {
 
     @Override
-    public Instrumenter newInstrumenter(Map<MethodKey, CheckerMethod> instrumentationMethods) {
-        return InstrumenterImpl.create(instrumentationMethods);
+    public Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods) {
+        return InstrumenterImpl.create(checkMethods);
     }
 
     @Override
-    public Map<MethodKey, CheckerMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
+    public Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
         IOException {
-        var methodsToInstrument = new HashMap<MethodKey, CheckerMethod>();
+        var methodsToInstrument = new HashMap<MethodKey, CheckMethod>();
         var checkerClass = Class.forName(entitlementCheckerClassName);
         var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
         ClassReader reader = new ClassReader(classFileInfo.bytecodes());
@@ -55,9 +55,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
 
                 var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                var checkerMethod = new CheckerMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
+                var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
 
-                methodsToInstrument.put(methodToInstrument, checkerMethod);
+                methodsToInstrument.put(methodToInstrument, checkMethod);
 
                 return mv;
             }

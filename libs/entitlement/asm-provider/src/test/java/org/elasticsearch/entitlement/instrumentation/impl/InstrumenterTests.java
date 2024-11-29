@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
 import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.callStaticMethod;
-import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.getCheckerMethod;
+import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.getCheckMethod;
 import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.methodKeyForConstructor;
 import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.methodKeyForTarget;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -182,12 +182,12 @@ public class InstrumenterTests extends ESTestCase {
     public void testSystemExitIsInstrumented() throws Exception {
         var classToInstrument = ClassToInstrument.class;
 
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForTarget(classToInstrument.getMethod("systemExit", int.class)),
-            getCheckerMethod(EntitlementChecker.class, "check$java_lang_System$exit", Class.class, int.class)
+            getCheckMethod(EntitlementChecker.class, "check$java_lang_System$exit", Class.class, int.class)
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -214,12 +214,12 @@ public class InstrumenterTests extends ESTestCase {
     public void testURLClassLoaderIsInstrumented() throws Exception {
         var classToInstrument = ClassToInstrument.class;
 
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForConstructor(classToInstrument, List.of(Type.getInternalName(URL[].class))),
-            getCheckerMethod(EntitlementChecker.class, "check$java_net_URLClassLoader$", Class.class, URL[].class)
+            getCheckMethod(EntitlementChecker.class, "check$java_net_URLClassLoader$", Class.class, URL[].class)
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -253,10 +253,10 @@ public class InstrumenterTests extends ESTestCase {
      * MethodKey and instrumentationMethod with slightly different signatures (using the common interface
      * Testable) which is not what would happen when it's run by the agent.
      */
-    private InstrumenterImpl createInstrumenter(Map<MethodKey, CheckerMethod> methods) throws NoSuchMethodException {
+    private InstrumenterImpl createInstrumenter(Map<MethodKey, CheckMethod> checkMethods) throws NoSuchMethodException {
         Method getter = InstrumenterTests.class.getMethod("getTestEntitlementChecker");
 
-        return new InstrumenterImpl(null, null, "_NEW", methods) {
+        return new InstrumenterImpl(null, null, "_NEW", checkMethods) {
             /**
              * We're not testing the bridge library here.
              * Just call our own getter instead.

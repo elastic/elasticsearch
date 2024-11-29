@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -24,7 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
 import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
 import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.callStaticMethod;
-import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.getCheckerMethod;
+import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.getCheckMethod;
 import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.methodKeyForTarget;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -166,13 +166,13 @@ public class SyntheticInstrumenterTests extends ESTestCase {
     public void testClassIsInstrumented() throws Exception {
         var classToInstrument = TestClassToInstrument.class;
 
-        CheckerMethod checkerMethod = getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class);
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        CheckMethod checkMethod = getCheckMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class);
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class)),
-            checkerMethod
+            checkMethod
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -199,13 +199,13 @@ public class SyntheticInstrumenterTests extends ESTestCase {
     public void testClassIsNotInstrumentedTwice() throws Exception {
         var classToInstrument = TestClassToInstrument.class;
 
-        CheckerMethod checkerMethod = getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class);
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        CheckMethod checkMethod = getCheckMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class);
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class)),
-            checkerMethod
+            checkMethod
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         InstrumenterImpl.ClassFileInfo initial = getClassFileInfo(classToInstrument);
         var internalClassName = Type.getInternalName(classToInstrument);
@@ -231,15 +231,15 @@ public class SyntheticInstrumenterTests extends ESTestCase {
     public void testClassAllMethodsAreInstrumentedFirstPass() throws Exception {
         var classToInstrument = TestClassToInstrument.class;
 
-        CheckerMethod checkerMethod = getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class);
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        CheckMethod checkMethod = getCheckMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class);
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class)),
-            checkerMethod,
+            checkMethod,
             methodKeyForTarget(classToInstrument.getMethod("anotherStaticMethod", int.class)),
-            checkerMethod
+            checkMethod
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         InstrumenterImpl.ClassFileInfo initial = getClassFileInfo(classToInstrument);
         var internalClassName = Type.getInternalName(classToInstrument);
@@ -268,14 +268,14 @@ public class SyntheticInstrumenterTests extends ESTestCase {
     public void testInstrumenterWorksWithOverloads() throws Exception {
         var classToInstrument = TestClassToInstrument.class;
 
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class)),
-            getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class),
+            getCheckMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class),
             methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class, String.class)),
-            getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class, String.class)
+            getCheckMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class, String.class)
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -303,12 +303,12 @@ public class SyntheticInstrumenterTests extends ESTestCase {
     public void testInstrumenterWorksWithInstanceMethodsAndOverloads() throws Exception {
         var classToInstrument = TestClassToInstrument.class;
 
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             methodKeyForTarget(classToInstrument.getMethod("someMethod", int.class, String.class)),
-            getCheckerMethod(MockEntitlementChecker.class, "checkSomeInstanceMethod", Class.class, Testable.class, int.class, String.class)
+            getCheckMethod(MockEntitlementChecker.class, "checkSomeInstanceMethod", Class.class, Testable.class, int.class, String.class)
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -336,14 +336,14 @@ public class SyntheticInstrumenterTests extends ESTestCase {
     public void testInstrumenterWorksWithConstructors() throws Exception {
         var classToInstrument = TestClassToInstrument.class;
 
-        Map<MethodKey, CheckerMethod> methods = Map.of(
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
             new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of()),
-            getCheckerMethod(MockEntitlementChecker.class, "checkCtor", Class.class),
+            getCheckMethod(MockEntitlementChecker.class, "checkCtor", Class.class),
             new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of("I")),
-            getCheckerMethod(MockEntitlementChecker.class, "checkCtor", Class.class, int.class)
+            getCheckMethod(MockEntitlementChecker.class, "checkCtor", Class.class, int.class)
         );
 
-        var instrumenter = createInstrumenter(methods);
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -373,11 +373,11 @@ public class SyntheticInstrumenterTests extends ESTestCase {
      * MethodKey and instrumentationMethod with slightly different signatures (using the common interface
      * Testable) which is not what would happen when it's run by the agent.
      */
-    private InstrumenterImpl createInstrumenter(Map<MethodKey, CheckerMethod> methods) {
+    private InstrumenterImpl createInstrumenter(Map<MethodKey, CheckMethod> checkMethods) {
         String checkerClass = Type.getInternalName(SyntheticInstrumenterTests.MockEntitlementChecker.class);
         String handleClass = Type.getInternalName(SyntheticInstrumenterTests.TestEntitlementCheckerHolder.class);
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
 
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "_NEW", methods);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "_NEW", checkMethods);
     }
 }

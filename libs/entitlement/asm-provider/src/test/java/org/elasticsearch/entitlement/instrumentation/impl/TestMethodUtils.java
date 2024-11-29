@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.objectweb.asm.Type;
 
@@ -37,9 +37,9 @@ class TestMethodUtils {
         return new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", params);
     }
 
-    static CheckerMethod getCheckerMethod(Class<?> clazz, String methodName, Class<?>... parameterTypes) throws NoSuchMethodException {
+    static CheckMethod getCheckMethod(Class<?> clazz, String methodName, Class<?>... parameterTypes) throws NoSuchMethodException {
         var method = clazz.getMethod(methodName, parameterTypes);
-        return new CheckerMethod(
+        return new CheckMethod(
             Type.getInternalName(clazz),
             method.getName(),
             Arrays.stream(Type.getArgumentTypes(method)).map(Type::getDescriptor).toList()

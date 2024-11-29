@@ -531,7 +531,8 @@ public final class DocumentParser {
 
     private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+        // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
+        if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
             if (context.canAddIgnoredField()) {
                 context.addIgnoredField(

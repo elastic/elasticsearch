@@ -105,6 +105,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
             assertNull(source.query());
             assertThat(source.knnSearch().size(), equalTo(1));
             assertThat(source.knnSearch().get(0).getFilterQueries().size(), equalTo(knnRetriever.preFilterQueryBuilders.size()));
+            assertThat(source.knnSearch().get(0).getRescoreVectorBuilder(), equalTo(knnRetriever.rescoreVectorBuilder()));
             for (int j = 0; j < knnRetriever.preFilterQueryBuilders.size(); j++) {
                 assertThat(
                     source.knnSearch().get(0).getFilterQueries().get(j),

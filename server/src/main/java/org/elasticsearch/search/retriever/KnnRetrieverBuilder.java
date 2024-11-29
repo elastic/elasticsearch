@@ -257,7 +257,11 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         searchSourceBuilder.knnSearch(knnSearchBuilders);
     }
 
-    // ---- FOR TESTING XCONTENT PARSING ----
+    RescoreVectorBuilder rescoreVectorBuilder() {
+        return rescoreVectorBuilder;
+    }
+
+// ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -278,7 +282,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (rescoreVectorBuilder != null) {
-            builder.field(RESCORE_FIELD.getPreferredName(), rescoreVectorBuilder);
+            builder.startObject(RESCORE_FIELD.getPreferredName());
+            rescoreVectorBuilder.toXContent(builder, params);
+            builder.endObject();
         }
     }
 

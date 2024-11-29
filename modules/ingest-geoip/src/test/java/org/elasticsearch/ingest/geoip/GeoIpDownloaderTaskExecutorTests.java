@@ -13,14 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -28,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -47,9 +46,8 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(metadata.indices()).thenReturn(Map.of("index", indexMetadata));
 
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
-            ingestMetadata[0] = new IngestMetadata(
-                Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
-            );
+            ingestMetadata[0] = new IngestMetadata(Map.of("_id1", jsonPipelineConfiguration("_id1", pipelineConfigJson)));
+
             // The pipeline is not used in any index, expected to return false.
             indexSettings[0] = Settings.EMPTY;
             assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
@@ -76,18 +74,14 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         {
             // Test that hasAtLeastOneGeoipProcessor returns true for any pipeline with a geoip processor:
             for (String pipeline : expectHitsInputs) {
-                ingestMetadata[0] = new IngestMetadata(
-                    Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
-                );
+                ingestMetadata[0] = new IngestMetadata(Map.of("_id1", jsonPipelineConfiguration("_id1", pipeline)));
                 assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
             }
         }
         {
             // Test that hasAtLeastOneGeoipProcessor returns false for any pipeline without a geoip processor:
             for (String pipeline : expectMissesInputs) {
-                ingestMetadata[0] = new IngestMetadata(
-                    Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
-                );
+                ingestMetadata[0] = new IngestMetadata(Map.of("_id1", jsonPipelineConfiguration("_id1", pipeline)));
                 assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
             }
         }
@@ -99,11 +93,11 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             Map<String, PipelineConfiguration> configs = new HashMap<>();
             for (String pipeline : expectHitsInputs) {
                 String id = randomAlphaOfLength(20);
-                configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
+                configs.put(id, jsonPipelineConfiguration(id, pipeline));
             }
             for (String pipeline : expectMissesInputs) {
                 String id = randomAlphaOfLength(20);
-                configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
+                configs.put(id, jsonPipelineConfiguration(id, pipeline));
             }
             ingestMetadata[0] = new IngestMetadata(configs);
             assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));

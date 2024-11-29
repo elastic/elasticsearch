@@ -60,6 +60,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.xcontentPipelineConfiguration;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -546,7 +547,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                     // we cannot mock PipelineConfiguration as it is a final class
                     ingestPipelineConfigurations.put(
                         ingestPipelineConfig.getId(),
-                        new PipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig(), XContentType.YAML)
+                        xcontentPipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig(), XContentType.YAML)
                     );
                 }
             }

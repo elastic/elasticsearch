@@ -67,7 +67,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        ingestService.putPipeline(request, listener, (nodeListener) -> {
+        ingestService.putPipeline(request.parse(), listener, nodeListener -> {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
             nodesInfoRequest.clear();
             nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());

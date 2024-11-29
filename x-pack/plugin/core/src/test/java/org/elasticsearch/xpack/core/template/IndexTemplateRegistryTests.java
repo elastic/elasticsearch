@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -70,6 +69,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.xcontentPipelineConfiguration;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -721,7 +722,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(request, instanceOf(PutPipelineRequest.class));
         final PutPipelineRequest putRequest = (PutPipelineRequest) request;
         assertThat(putRequest.getId(), oneOf(pipelineIds));
-        PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(
+        PipelineConfiguration pipelineConfiguration = xcontentPipelineConfiguration(
             putRequest.getId(),
             putRequest.getSource(),
             putRequest.getXContentType()
@@ -798,11 +799,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             // we cannot mock PipelineConfiguration as it is a final class
             ingestPipelines.put(
                 pipelineEntry.getKey(),
-                new PipelineConfiguration(
-                    pipelineEntry.getKey(),
-                    new BytesArray(Strings.format("{\"version\": %d}", pipelineEntry.getValue())),
-                    XContentType.JSON
-                )
+                jsonPipelineConfiguration(pipelineEntry.getKey(), Strings.format("{\"version\": %d}", pipelineEntry.getValue()))
             );
         }
         IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);

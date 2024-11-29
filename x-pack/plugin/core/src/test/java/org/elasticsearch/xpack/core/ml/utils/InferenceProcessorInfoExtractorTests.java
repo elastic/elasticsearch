@@ -21,7 +21,6 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 
 import java.io.IOException;
@@ -34,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
@@ -120,7 +120,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         ) {
             configurations.put(
                 "pipeline_with_model_nested",
-                new PipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder), XContentType.JSON)
+                jsonPipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder))
             );
         }
 
@@ -163,7 +163,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
                     )
                 )
         ) {
-            return new PipelineConfiguration("pipeline_without_model_" + i, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+            return jsonPipelineConfiguration("pipeline_without_model_" + i, BytesReference.bytes(xContentBuilder));
         }
     }
 
@@ -212,7 +212,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .map(Collections.singletonMap("processors", Collections.singletonList(inferenceProcessorForModel(modelId))))
         ) {
-            return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+            return jsonPipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder));
         }
     }
 
@@ -221,7 +221,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .map(Collections.singletonMap("processors", Collections.singletonList(forEachProcessorWithInference(modelId))))
         ) {
-            return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+            return jsonPipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder));
         }
     }
 
@@ -235,11 +235,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
                     )
                 )
         ) {
-            return new PipelineConfiguration(
-                "pipeline_with_script_and_model_" + modelId,
-                BytesReference.bytes(xContentBuilder),
-                XContentType.JSON
-            );
+            return jsonPipelineConfiguration("pipeline_with_script_and_model_" + modelId, BytesReference.bytes(xContentBuilder));
         }
     }
 

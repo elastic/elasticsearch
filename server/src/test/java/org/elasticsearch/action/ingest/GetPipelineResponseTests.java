@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.xcontentPipelineConfiguration;
 
 public class GetPipelineResponseTests extends AbstractXContentSerializingTestCase<GetPipelineResponse> {
 
@@ -48,7 +49,7 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
         builder.field("value", value);
         builder.endObject();
         builder.endObject();
-        return new PipelineConfiguration(pipelineId, BytesReference.bytes(builder), builder.contentType());
+        return xcontentPipelineConfiguration(pipelineId, BytesReference.bytes(builder), builder.contentType());
     }
 
     private Map<String, PipelineConfiguration> createPipelineConfigMap() throws IOException {
@@ -92,7 +93,7 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
             parser.nextToken();
             try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
                 contentBuilder.generator().copyCurrentStructure(parser);
-                PipelineConfiguration pipeline = new PipelineConfiguration(
+                PipelineConfiguration pipeline = xcontentPipelineConfiguration(
                     pipelineId,
                     BytesReference.bytes(contentBuilder),
                     contentBuilder.contentType()

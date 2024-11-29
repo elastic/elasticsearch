@@ -27,9 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -38,7 +36,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -54,6 +51,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_NAME_PATTERN;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
@@ -472,11 +471,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             // we cannot mock PipelineConfiguration as it is a final class
             ingestPipelines.put(
                 pipelineEntry.getKey(),
-                new PipelineConfiguration(
-                    pipelineEntry.getKey(),
-                    new BytesArray(Strings.format("{\"version\": %d}", pipelineEntry.getValue())),
-                    XContentType.JSON
-                )
+                jsonPipelineConfiguration(pipelineEntry.getKey(), format("{\"version\": %d}", pipelineEntry.getValue()))
             );
         }
         IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);

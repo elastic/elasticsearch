@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -139,5 +140,26 @@ public class IngestPipelineTestUtils {
      */
     public static SimulatePipelineRequest jsonSimulatePipelineRequest(BytesReference jsonBytes) {
         return new SimulatePipelineRequest(ReleasableBytesReference.wrap(jsonBytes), XContentType.JSON);
+    }
+
+    /**
+     * Construct a new {@link PipelineConfiguration} whose content is the given JSON document, represented as a {@link String}.
+     */
+    public static PipelineConfiguration jsonPipelineConfiguration(String id, String jsonString) {
+        return jsonPipelineConfiguration(id, new BytesArray(jsonString));
+    }
+
+    /**
+     * Construct a new {@link PipelineConfiguration} whose content is the given JSON document, represented as a {@link BytesReference}.
+     */
+    public static PipelineConfiguration jsonPipelineConfiguration(String id, BytesReference jsonBytes) {
+        return xcontentPipelineConfiguration(id, jsonBytes, XContentType.JSON);
+    }
+
+    /**
+     * Construct a new {@link PipelineConfiguration} whose content is the given XContent document, represented as a {@link BytesReference}.
+     */
+    public static PipelineConfiguration xcontentPipelineConfiguration(String id, BytesReference xcontentBytes, XContentType xContentType) {
+        return new PipelineConfiguration(id, XContentHelper.convertToMap(xcontentBytes, true, xContentType).v2());
     }
 }

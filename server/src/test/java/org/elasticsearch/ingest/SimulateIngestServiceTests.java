@@ -13,18 +13,17 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,8 +40,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
     }
 
     public void testGetPipeline() {
-        PipelineConfiguration pipelineConfiguration = new PipelineConfiguration("pipeline1", new BytesArray("""
-            {"processors": [{"processor1" : {}}]}"""), XContentType.JSON);
+        PipelineConfiguration pipelineConfiguration = jsonPipelineConfiguration("pipeline1", """
+            {"processors": [{"processor1" : {}}]}""");
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("pipeline1", pipelineConfiguration));
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(

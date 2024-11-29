@@ -84,7 +84,8 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
 
         ClusterState state = prevState.state();
 
-        for (var request : requests) {
+        for (var rawRequest : requests) {
+            final var request = rawRequest.parse();
             var nopUpdate = IngestService.isNoOpPipelineUpdate(state, request);
 
             if (nopUpdate) {

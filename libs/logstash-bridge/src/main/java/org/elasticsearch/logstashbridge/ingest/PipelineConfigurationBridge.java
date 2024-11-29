@@ -9,6 +9,7 @@
 package org.elasticsearch.logstashbridge.ingest;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,7 +22,12 @@ public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineC
     }
 
     public PipelineConfigurationBridge(final String pipelineId, final String jsonEncodedConfig) {
-        this(new PipelineConfiguration(pipelineId, new BytesArray(jsonEncodedConfig), XContentType.JSON));
+        this(
+            new PipelineConfiguration(
+                pipelineId,
+                XContentHelper.convertToMap(new BytesArray(jsonEncodedConfig), true, XContentType.JSON).v2()
+            )
+        );
     }
 
     public String getId() {

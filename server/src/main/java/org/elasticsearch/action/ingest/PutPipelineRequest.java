@@ -15,14 +15,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> implements ToXContentObject {
+public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> {
 
     private final String id;
     private final BytesReference source;
@@ -90,13 +88,12 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         out.writeOptionalInt(version);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (source != null) {
-            builder.rawValue(source.streamInput(), xContentType);
-        } else {
-            builder.startObject().endObject();
-        }
-        return builder;
+    public ParsedPutPipelineRequest parse() {
+        return new ParsedPutPipelineRequest(
+            masterNodeTimeout(),
+            getId(),
+            getVersion(),
+            XContentHelper.convertToMap(getSource(), true, getXContentType()).v2()
+        );
     }
 }

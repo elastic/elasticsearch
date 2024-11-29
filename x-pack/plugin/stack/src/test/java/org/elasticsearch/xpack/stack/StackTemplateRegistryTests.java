@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -515,7 +516,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         }
         registry.getIngestPipelines()
             .stream()
-            .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
+            .map(ipc -> jsonPipelineConfiguration(ipc.getId(), ipc.loadConfig()))
             .map(PipelineConfiguration::getConfig)
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
     }
@@ -633,7 +634,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 // we cannot mock PipelineConfiguration as it is a final class
                 ingestPipelines.put(
                     ingestPipelineConfig.getId(),
-                    new PipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig(), XContentType.JSON)
+                    jsonPipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig())
                 );
             }
         }

@@ -82,18 +82,6 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         this.config = deepCopy(config, true); // defensive deep copy
     }
 
-    /**
-     * A convenience constructor that parses some bytes as a map representing a pipeline's config and then delegates to the
-     * conventional {@link #PipelineConfiguration(String, Map)} constructor.
-     *
-     * @param id the id of the pipeline
-     * @param config a parse-able bytes reference that will return a pipeline configuration
-     * @param xContentType the content-type to use while parsing the pipeline configuration
-     */
-    public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
-        this(id, XContentHelper.convertToMap(config, true, xContentType).v2());
-    }
-
     public String getId() {
         return id;
     }

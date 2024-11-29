@@ -9,11 +9,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ContextParser;
@@ -25,11 +23,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -66,11 +64,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     }
 
     public void testSerialization() throws IOException {
-        PipelineConfiguration configuration = new PipelineConfiguration(
-            "1",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
+        PipelineConfiguration configuration = jsonPipelineConfiguration("1", "{}");
         assertThat(configuration.getConfig(), anEmptyMap());
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
@@ -80,21 +74,13 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     }
 
     public void testMetaSerialization() throws IOException {
-        String configJson = """
-            {"description": "blah", "_meta" : {"foo": "bar"}}""";
-        PipelineConfiguration configuration = new PipelineConfiguration(
-            "1",
-            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
+        PipelineConfiguration configuration = jsonPipelineConfiguration("1", """
+            {"description": "blah", "_meta" : {"foo": "bar"}}""");
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(
-            XContentHelper.convertToMap(new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), true, XContentType.JSON).v2(),
-            serialized.getConfig()
-        );
+        assertEquals(Map.of("description", "blah", "_meta", Map.of("foo", "bar")), serialized.getConfig());
     }
 
     public void testParser() throws IOException {
@@ -102,10 +88,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference bytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON).toXContent(
-                builder,
-                ToXContent.EMPTY_PARAMS
-            );
+            jsonPipelineConfiguration("1", "{}").toXContent(builder, ToXContent.EMPTY_PARAMS);
             bytes = BytesReference.bytes(builder);
         }
 
@@ -119,39 +102,23 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     public void testGetVersion() {
         {
             // missing version
-            String configJson = """
-                {"description": "blah", "_meta" : {"foo": "bar"}}""";
-            PipelineConfiguration configuration = new PipelineConfiguration(
-                "1",
-                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            );
+            PipelineConfiguration configuration = jsonPipelineConfiguration("1", """
+                {"description": "blah", "_meta" : {"foo": "bar"}}""");
             assertNull(configuration.getVersion());
         }
         {
             // null version
             int version = randomInt();
-            String configJson = Strings.format("""
+            PipelineConfiguration configuration = jsonPipelineConfiguration("1", Strings.format("""
                 {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
-                """, version);
-            PipelineConfiguration configuration = new PipelineConfiguration(
-                "1",
-                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            );
+                """, version));
             assertThat(configuration.getVersion(), equalTo(version));
         }
     }
 
     @Override
     protected PipelineConfiguration createTestInstance() {
-        BytesArray config;
-        if (randomBoolean()) {
-            config = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
-        } else {
-            config = new BytesArray("{\"foo\": \"bar\"}".getBytes(StandardCharsets.UTF_8));
-        }
-        return new PipelineConfiguration(randomAlphaOfLength(4), config, XContentType.JSON);
+        return jsonPipelineConfiguration(randomAlphaOfLength(4), randomFrom("{}", "{\"foo\": \"bar\"}"));
     }
 
     @Override

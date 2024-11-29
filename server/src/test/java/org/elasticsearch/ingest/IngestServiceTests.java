@@ -97,6 +97,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipelineRequest;
 import static org.elasticsearch.ingest.IngestService.NOOP_PIPELINE_NAME;
 import static org.elasticsearch.ingest.IngestService.hasPipeline;
@@ -231,8 +232,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.pipelines().size(), is(0));
 
-        PipelineConfiguration pipeline = new PipelineConfiguration("_id", new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+        PipelineConfiguration pipeline = jsonPipelineConfiguration("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
@@ -251,7 +252,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors();
         assertThat(ingestService.pipelines().size(), is(0));
 
-        PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PipelineConfiguration pipeline1 = jsonPipelineConfiguration("_id1", "{\"processors\": []}");
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -262,7 +263,7 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(p1.getProcessors().size(), equalTo(0));
         }
 
-        PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PipelineConfiguration pipeline2 = jsonPipelineConfiguration("_id2", "{\"processors\": []}");
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -276,7 +277,7 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(p2.getProcessors().size(), equalTo(0));
         }
 
-        PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PipelineConfiguration pipeline3 = jsonPipelineConfiguration("_id3", "{\"processors\": []}");
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2, "_id3", pipeline3));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -306,8 +307,8 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(p3.getProcessors().size(), equalTo(0));
         }
 
-        pipeline3 = new PipelineConfiguration("_id3", new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+        pipeline3 = jsonPipelineConfiguration("_id3", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -349,8 +350,8 @@ public class IngestServiceTests extends ESTestCase {
             // will result in a placeholder pipeline being substituted
 
             IngestService ingestService = createWithProcessors(processors);
-            PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
-                {"processors": [{"fail_validation" : {}}]}"""), XContentType.JSON);
+            PipelineConfiguration config = jsonPipelineConfiguration("_id", """
+                {"processors": [{"fail_validation" : {}}]}""");
             IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
             ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
             ClusterState previousClusterState = clusterState;
@@ -372,8 +373,8 @@ public class IngestServiceTests extends ESTestCase {
             // a processor is being created from a processor factory
 
             IngestService ingestService = createWithProcessors(processors);
-            PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
-                {"processors": [{"fail_extra_validation" : {}}]}"""), XContentType.JSON);
+            PipelineConfiguration config = jsonPipelineConfiguration("_id", """
+                {"processors": [{"fail_extra_validation" : {}}]}""");
             IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
             ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
             ClusterState previousClusterState = clusterState;
@@ -392,8 +393,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testDelete() {
         IngestService ingestService = createWithProcessors();
-        PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+        PipelineConfiguration config = jsonPipelineConfiguration("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -782,11 +783,11 @@ public class IngestServiceTests extends ESTestCase {
     public void testDeleteUsingWildcard() {
         IngestService ingestService = createWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
-        BytesArray definition = new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
-        pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
-        pipelines.put("p2", new PipelineConfiguration("p2", definition, XContentType.JSON));
-        pipelines.put("q1", new PipelineConfiguration("q1", definition, XContentType.JSON));
+        final String definition = """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""";
+        pipelines.put("p1", jsonPipelineConfiguration("p1", definition));
+        pipelines.put("p2", jsonPipelineConfiguration("p2", definition));
+        pipelines.put("q1", jsonPipelineConfiguration("q1", definition));
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -836,9 +837,8 @@ public class IngestServiceTests extends ESTestCase {
     public void testDeleteWithExistingUnmatchedPipelines() {
         IngestService ingestService = createWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
-        BytesArray definition = new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
-        pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
+        pipelines.put("p1", jsonPipelineConfiguration("p1", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""));
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -860,8 +860,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testDeleteWithIndexUsePipeline() {
         IngestService ingestService = createWithProcessors();
-        PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+        PipelineConfiguration config = jsonPipelineConfiguration("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
         Metadata.Builder builder = Metadata.builder();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -924,8 +924,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testGetPipelines() {
         Map<String, PipelineConfiguration> configs = new HashMap<>();
-        configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON));
-        configs.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON));
+        configs.put("_id1", jsonPipelineConfiguration("_id1", "{\"processors\": []}"));
+        configs.put("_id2", jsonPipelineConfiguration("_id2", "{\"processors\": []}"));
 
         assertThat(IngestService.innerGetPipelines(null, "_id1").isEmpty(), is(true));
 
@@ -2665,7 +2665,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private void testUpdatingPipeline(String pipelineString) throws Exception {
         var pipelineId = randomAlphaOfLength(5);
-        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var existingPipeline = jsonPipelineConfiguration(pipelineId, pipelineString);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
@@ -2725,7 +2725,7 @@ public class IngestServiceTests extends ESTestCase {
             }
         };
 
-        var request = putJsonPipelineRequest(pipelineId, pipelineString);
+        var request = putJsonPipelineRequest(pipelineId, pipelineString).parse();
         ingestService.putPipeline(request, listener, consumer);
         latch.await();
 
@@ -2766,7 +2766,7 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineId = randomAlphaOfLength(5);
         final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
-        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var existingPipeline = jsonPipelineConfiguration(pipelineId, pipelineString);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
@@ -2799,7 +2799,7 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineId = randomAlphaOfLength(5);
         final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
-        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var existingPipeline = jsonPipelineConfiguration(pipelineId, pipelineString);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
@@ -2820,7 +2820,7 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineId = randomAlphaOfLength(5);
         final Integer existingVersion = randomInt();
         var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
-        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var existingPipeline = jsonPipelineConfiguration(pipelineId, pipelineString);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
@@ -2846,7 +2846,7 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineId = randomAlphaOfLength(5);
         final Integer existingVersion = randomInt();
         var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
-        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var existingPipeline = jsonPipelineConfiguration(pipelineId, pipelineString);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
@@ -3102,7 +3102,9 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
-        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
+        return List.of(
+            new IngestService.PutPipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request.parse())
+        );
     }
 
     private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {

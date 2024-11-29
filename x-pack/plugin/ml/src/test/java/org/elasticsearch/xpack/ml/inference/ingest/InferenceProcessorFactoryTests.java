@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -72,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -921,7 +921,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .map(Collections.singletonMap("processors", Collections.singletonList(inferenceProcessorForModel(modelId))))
         ) {
-            return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+            return jsonPipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder));
         }
     }
 
@@ -930,7 +930,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .map(Collections.singletonMap("processors", Collections.singletonList(forEachProcessorWithInference(modelId))))
         ) {
-            return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+            return jsonPipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder));
         }
     }
 

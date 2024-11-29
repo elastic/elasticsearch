@@ -19,10 +19,11 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.junit.After;
 import org.junit.Before;
+
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 
 public class LegacyStackTemplateRegistryTests extends ESTestCase {
     private LegacyStackTemplateRegistry registry;
@@ -55,7 +56,7 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
         }
         registry.getIngestPipelines()
             .stream()
-            .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
+            .map(ipc -> jsonPipelineConfiguration(ipc.getId(), ipc.loadConfig()))
             .map(PipelineConfiguration::getConfig)
             .forEach(p -> assertTrue((Boolean) p.get("deprecated")));
     }

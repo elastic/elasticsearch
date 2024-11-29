@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonPipelineConfiguration;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -37,10 +38,10 @@ import static org.hamcrest.Matchers.not;
 public class IngestMetadataTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        PipelineConfiguration pipeline = new PipelineConfiguration("1", new BytesArray("""
-            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
-        PipelineConfiguration pipeline2 = new PipelineConfiguration("2", new BytesArray("""
-            {"processors": [{"set" : {"field": "_field1", "value": "_value1"}}]}"""), XContentType.JSON);
+        PipelineConfiguration pipeline = jsonPipelineConfiguration("1", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        PipelineConfiguration pipeline2 = jsonPipelineConfiguration("2", """
+            {"processors": [{"set" : {"field": "_field1", "value": "_value1"}}]}""");
         Map<String, PipelineConfiguration> map = new HashMap<>();
         map.put(pipeline.getId(), pipeline);
         map.put(pipeline2.getId(), pipeline2);
@@ -65,14 +66,14 @@ public class IngestMetadataTests extends ESTestCase {
         BytesReference pipelineConfig = new BytesArray("{}");
 
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", pipelineConfig, XContentType.JSON));
-        pipelines.put("2", new PipelineConfiguration("2", pipelineConfig, XContentType.JSON));
+        pipelines.put("1", jsonPipelineConfiguration("1", pipelineConfig));
+        pipelines.put("2", jsonPipelineConfiguration("2", pipelineConfig));
         IngestMetadata ingestMetadata1 = new IngestMetadata(pipelines);
 
         pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", pipelineConfig, XContentType.JSON));
-        pipelines.put("3", new PipelineConfiguration("3", pipelineConfig, XContentType.JSON));
-        pipelines.put("4", new PipelineConfiguration("4", pipelineConfig, XContentType.JSON));
+        pipelines.put("1", jsonPipelineConfiguration("1", pipelineConfig));
+        pipelines.put("3", jsonPipelineConfiguration("3", pipelineConfig));
+        pipelines.put("4", jsonPipelineConfiguration("4", pipelineConfig));
         IngestMetadata ingestMetadata2 = new IngestMetadata(pipelines);
 
         IngestMetadata.IngestMetadataDiff diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata2.diff(ingestMetadata1);
@@ -83,13 +84,13 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata endResult = (IngestMetadata) diff.apply(ingestMetadata2);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
         assertThat(endResult.getPipelines().size(), equalTo(3));
-        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, XContentType.JSON)));
-        assertThat(endResult.getPipelines().get("3"), equalTo(new PipelineConfiguration("3", pipelineConfig, XContentType.JSON)));
-        assertThat(endResult.getPipelines().get("4"), equalTo(new PipelineConfiguration("4", pipelineConfig, XContentType.JSON)));
+        assertThat(endResult.getPipelines().get("1"), equalTo(jsonPipelineConfiguration("1", pipelineConfig)));
+        assertThat(endResult.getPipelines().get("3"), equalTo(jsonPipelineConfiguration("3", pipelineConfig)));
+        assertThat(endResult.getPipelines().get("4"), equalTo(jsonPipelineConfiguration("4", pipelineConfig)));
 
         pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", new BytesArray("{}"), XContentType.JSON));
-        pipelines.put("2", new PipelineConfiguration("2", new BytesArray("{}"), XContentType.JSON));
+        pipelines.put("1", jsonPipelineConfiguration("1", "{}"));
+        pipelines.put("2", jsonPipelineConfiguration("2", "{}"));
         IngestMetadata ingestMetadata3 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata3.diff(ingestMetadata1);
@@ -100,12 +101,12 @@ public class IngestMetadataTests extends ESTestCase {
         endResult = (IngestMetadata) diff.apply(ingestMetadata3);
         assertThat(endResult, equalTo(ingestMetadata1));
         assertThat(endResult.getPipelines().size(), equalTo(2));
-        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, XContentType.JSON)));
-        assertThat(endResult.getPipelines().get("2"), equalTo(new PipelineConfiguration("2", pipelineConfig, XContentType.JSON)));
+        assertThat(endResult.getPipelines().get("1"), equalTo(jsonPipelineConfiguration("1", pipelineConfig)));
+        assertThat(endResult.getPipelines().get("2"), equalTo(jsonPipelineConfiguration("2", pipelineConfig)));
 
         pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", new BytesArray("{}"), XContentType.JSON));
-        pipelines.put("2", new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON));
+        pipelines.put("1", jsonPipelineConfiguration("1", "{}"));
+        pipelines.put("2", jsonPipelineConfiguration("2", "{\"key\" : \"value\"}"));
         IngestMetadata ingestMetadata4 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata4.diff(ingestMetadata1);
@@ -115,20 +116,16 @@ public class IngestMetadataTests extends ESTestCase {
         endResult = (IngestMetadata) diff.apply(ingestMetadata4);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
         assertThat(endResult.getPipelines().size(), equalTo(2));
-        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, XContentType.JSON)));
-        assertThat(
-            endResult.getPipelines().get("2"),
-            equalTo(new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON))
-        );
+        assertThat(endResult.getPipelines().get("1"), equalTo(jsonPipelineConfiguration("1", pipelineConfig)));
+        assertThat(endResult.getPipelines().get("2"), equalTo(jsonPipelineConfiguration("2", "{\"key\" : \"value\"}")));
     }
 
     public void testChunkedToXContent() {
-        final BytesReference pipelineConfig = new BytesArray("{}");
         final int pipelines = randomInt(10);
         final Map<String, PipelineConfiguration> pipelineConfigurations = new HashMap<>();
         for (int i = 0; i < pipelines; i++) {
             final String id = Integer.toString(i);
-            pipelineConfigurations.put(id, new PipelineConfiguration(id, pipelineConfig, XContentType.JSON));
+            pipelineConfigurations.put(id, jsonPipelineConfiguration(id, "{}"));
         }
         AbstractChunkedSerializingTestCase.assertChunkCount(
             new IngestMetadata(pipelineConfigurations),
@@ -137,7 +134,7 @@ public class IngestMetadataTests extends ESTestCase {
     }
 
     public void testMaybeUpgradeProcessors_appliesUpgraderToSingleProcessor() {
-        String originalPipelineConfig = """
+        IngestMetadata originalMetadata = new IngestMetadata(Map.of("pipeline1", jsonPipelineConfiguration("pipeline1", """
             {
               "processors": [
                 {
@@ -152,15 +149,12 @@ public class IngestMetadataTests extends ESTestCase {
                 }
               ]
             }
-            """;
-        IngestMetadata originalMetadata = new IngestMetadata(
-            Map.of("pipeline1", new PipelineConfiguration("pipeline1", new BytesArray(originalPipelineConfig), XContentType.JSON))
-        );
+            """)));
         IngestMetadata upgradedMetadata = originalMetadata.maybeUpgradeProcessors(
             "foo",
             config -> config.putIfAbsent("fooString", "new") == null
         );
-        String expectedPipelineConfig = """
+        IngestMetadata expectedMetadata = new IngestMetadata(Map.of("pipeline1", jsonPipelineConfiguration("pipeline1", """
             {
               "processors": [
                 {
@@ -176,15 +170,12 @@ public class IngestMetadataTests extends ESTestCase {
                 }
               ]
             }
-            """;
-        IngestMetadata expectedMetadata = new IngestMetadata(
-            Map.of("pipeline1", new PipelineConfiguration("pipeline1", new BytesArray(expectedPipelineConfig), XContentType.JSON))
-        );
+            """)));
         assertEquals(expectedMetadata, upgradedMetadata);
     }
 
     public void testMaybeUpgradeProcessors_returnsSameObjectIfNoUpgradeNeeded() {
-        String originalPipelineConfig = """
+        IngestMetadata originalMetadata = new IngestMetadata(Map.of("pipeline1", jsonPipelineConfiguration("pipeline1", """
             {
               "processors": [
                 {
@@ -200,10 +191,7 @@ public class IngestMetadataTests extends ESTestCase {
                 }
               ]
             }
-            """;
-        IngestMetadata originalMetadata = new IngestMetadata(
-            Map.of("pipeline1", new PipelineConfiguration("pipeline1", new BytesArray(originalPipelineConfig), XContentType.JSON))
-        );
+            """)));
         IngestMetadata upgradedMetadata = originalMetadata.maybeUpgradeProcessors(
             "foo",
             config -> config.putIfAbsent("fooString", "new") == null
@@ -247,9 +235,9 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata originalMetadata = new IngestMetadata(
             Map.of(
                 "pipeline1",
-                new PipelineConfiguration("pipeline1", new BytesArray(originalPipelineConfig1), XContentType.JSON),
+                jsonPipelineConfiguration("pipeline1", originalPipelineConfig1),
                 "pipeline2",
-                new PipelineConfiguration("pipeline2", new BytesArray(originalPipelineConfig2), XContentType.JSON)
+                jsonPipelineConfiguration("pipeline2", originalPipelineConfig2)
             )
         );
         IngestMetadata upgradedMetadata = originalMetadata.maybeUpgradeProcessors(
@@ -293,9 +281,9 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata expectedMetadata = new IngestMetadata(
             Map.of(
                 "pipeline1",
-                new PipelineConfiguration("pipeline1", new BytesArray(expectedPipelineConfig1), XContentType.JSON),
+                jsonPipelineConfiguration("pipeline1", expectedPipelineConfig1),
                 "pipeline2",
-                new PipelineConfiguration("pipeline2", new BytesArray(expectedPipelineConfig2), XContentType.JSON)
+                jsonPipelineConfiguration("pipeline2", expectedPipelineConfig2)
             )
         );
         assertEquals(expectedMetadata, upgradedMetadata);

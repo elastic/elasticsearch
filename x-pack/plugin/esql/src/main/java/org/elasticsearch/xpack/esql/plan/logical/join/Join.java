@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,12 +23,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.RIGHT;
 
 public class Join extends BinaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
@@ -100,6 +97,19 @@ public class Join extends BinaryPlan {
         return lazyOutput;
     }
 
+    public List<Attribute> rightOutputFields() {
+        AttributeSet leftInputs = left().outputSet();
+
+        List<Attribute> rightOutputFields = new ArrayList<>();
+        for (Attribute attr : output()) {
+            if (leftInputs.contains(attr) == false) {
+                rightOutputFields.add(attr);
+            }
+        }
+
+        return rightOutputFields;
+    }
+
     /**
      * Combine the two lists of attributes into one.
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
@@ -108,18 +118,11 @@ public class Join extends BinaryPlan {
         JoinType joinType = config.type();
         List<Attribute> output;
         // TODO: make the other side nullable
-        Set<String> matchFieldNames = config.matchFields().stream().map(NamedExpression::name).collect(Collectors.toSet());
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left except for match fields, which we preserve from the left
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
-                .filter(attr -> matchFieldNames.contains(attr.name()) == false)
-                .toList();
+            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+            AttributeSet rightKeys = new AttributeSet(config.rightFields());
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
             output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
-        } else if (RIGHT.equals(joinType)) {
-            List<Attribute> leftOutputWithoutMatchFields = leftOutput.stream()
-                .filter(attr -> matchFieldNames.contains(attr.name()) == false)
-                .toList();
-            output = mergeOutputAttributes(leftOutputWithoutMatchFields, rightOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

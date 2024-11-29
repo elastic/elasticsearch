@@ -15,7 +15,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1168,19 +1167,12 @@ public abstract class StreamOutput extends OutputStream {
         writeCollection(list, StreamOutput::writeNamedWriteable);
     }
 
-    private static <E extends Enum<E>> boolean assertEnumToWrite(E enumValue, TransportVersion version) {
-        assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
-        assert enumValue != ClusterBlockLevel.REFRESH || version.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)
-            : "ClusterBlockLevel.REFRESH should only be sent to nodes with recent version";
-        return true;
-    }
-
     /**
      * Writes an enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding test
      * which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
-        assert assertEnumToWrite(enumValue, version);
+        assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
         writeVInt(enumValue.ordinal());
     }
 
@@ -1193,7 +1185,7 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            assert assertEnumToWrite(enumValue, version);
+            assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
             writeVInt(enumValue.ordinal());
         }
     }

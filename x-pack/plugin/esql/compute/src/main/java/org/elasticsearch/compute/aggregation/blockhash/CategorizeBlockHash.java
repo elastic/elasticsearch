@@ -81,11 +81,11 @@ public class CategorizeBlockHash extends BlockHash {
         );
 
         if (aggregatorMode.isInputPartial() == false) {
-            Objects.requireNonNull(analysisRegistry);
             CategorizationAnalyzer analyzer;
             try {
+                Objects.requireNonNull(analysisRegistry);
                 analyzer = new CategorizationAnalyzer(analysisRegistry, ANALYZER_CONFIG);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 categorizer.close();
                 throw new RuntimeException(e);
             }

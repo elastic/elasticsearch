@@ -114,9 +114,6 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         ).actionGet().getNodes().get(0);
         assertRepositoryStats(nodeResponse.getRepositoryStats());
         assertObsRepositoryStatsSnapshots(nodeResponse.getObsRepositoryStats());
-
-        // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
-        internalCluster().stopCurrentMasterNode();
     }
 
     protected abstract void assertRepositoryStats(RepositoryStats repositoryStats);

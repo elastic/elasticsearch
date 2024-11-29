@@ -16,8 +16,13 @@ import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -27,6 +32,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -526,12 +532,33 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
-    private record MergeResult(
+    public record MergeResult(
         List<SearchShard> processedShards,
         TopDocs reducedTopDocs,
         InternalAggregations reducedAggs,
         long estimatedSize
-    ) {}
+    ) implements Writeable {
+
+        static MergeResult readFrom(StreamInput in) throws IOException {
+            return new MergeResult(
+                in.readCollectionAsImmutableList(i -> new SearchShard(i.readOptionalString(), new ShardId(i))),
+                Lucene.readTopDocs(in).topDocs,
+                in.readOptionalWriteable(InternalAggregations::readFrom),
+                in.readVLong()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(processedShards, (o, s) -> {
+                o.writeOptionalString(s.clusterAlias());
+                s.shardId().writeTo(o);
+            });
+            Lucene.writeTopDocs(out, new TopDocsAndMaxScore(reducedTopDocs, 0.0f));
+            out.writeOptionalWriteable(reducedAggs);
+            out.writeVLong(estimatedSize);
+        }
+    }
 
     private static class MergeTask {
         private final List<SearchShard> emptyResults;

@@ -26,6 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -41,6 +44,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +53,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,9 +97,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
-    private final int maxConcurrentRequestsPerNode;
-    private final Map<String, AbstractSearchAsyncAction.PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
-    private final boolean throttleConcurrentRequests;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     // protected for tests
@@ -158,9 +159,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-        this.maxConcurrentRequestsPerNode = request.getMaxConcurrentShardRequests();
-        // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
-        this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -306,13 +304,71 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         return shardRequest;
     }
 
-    protected void executePhaseOnShard(
-        final SearchShardIterator shardIt,
-        final Transport.Connection connection,
-        final SearchActionListener<SearchPhaseResult> listener
-    ) {
-        ShardSearchRequest request = rewriteShardSearchRequest(buildShardSearchRequest(shardIt, listener.requestIndex));
-        searchTransportService.sendExecuteQuery(connection, request, task, listener);
+    public static class NodeQueryResponse extends TransportResponse {
+        private final Map<Integer, Exception> failedShards;
+        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+
+        NodeQueryResponse(StreamInput in) throws IOException {
+            super(in);
+            this.failedShards = in.readMap(StreamInput::readVInt, StreamInput::readException);
+            this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
+        }
+
+        NodeQueryResponse(Map<Integer, Exception> failedShards, QueryPhaseResultConsumer.MergeResult mergeResult) {
+            this.failedShards = failedShards;
+            this.mergeResult = mergeResult;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(failedShards, StreamOutput::writeVInt, StreamOutput::writeException);
+            mergeResult.writeTo(out);
+        }
+    }
+
+    public static class NodeQueryRequest extends TransportRequest {
+        private final List<ShardToQuery> shards;
+        private final SearchRequest searchRequest;
+
+        private NodeQueryRequest(List<ShardToQuery> shards, SearchRequest searchRequest) {
+            this.shards = shards;
+            this.searchRequest = searchRequest;
+        }
+
+        private NodeQueryRequest(StreamInput in) throws IOException {
+            super(in);
+            this.shards = in.readCollectionAsImmutableList(ShardToQuery::readFrom);
+            this.searchRequest = new SearchRequest(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(shards);
+            searchRequest.writeTo(out);
+        }
+    }
+
+    private record ShardToQuery(float boost, OriginalIndices originalIndices, int shardIndex, ShardSearchContextId contextId)
+        implements
+            Writeable {
+
+        static ShardToQuery readFrom(StreamInput in) throws IOException {
+            return new ShardToQuery(
+                in.readFloat(),
+                OriginalIndices.readOriginalIndices(in),
+                in.readVInt(),
+                in.readOptionalWriteable(ShardSearchContextId::new)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeFloat(boost);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
+            out.writeVInt(shardIndex);
+            out.writeOptionalWriteable(contextId);
+        }
     }
 
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
@@ -428,15 +484,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     }
 
     protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        if (throttleConcurrentRequests) {
-            var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
-                shard.getNodeId(),
-                n -> new AbstractSearchAsyncAction.PendingExecutions(maxConcurrentRequestsPerNode)
-            );
-            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, l));
-        } else {
-            doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
-        }
+        doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
@@ -464,9 +512,11 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             shardListener.onFailure(e);
             return;
         }
-        executePhaseOnShard(shardIt, connection, shardListener);
+        ShardSearchRequest request = rewriteShardSearchRequest(buildShardSearchRequest(shardIt, shardIndex));
+        searchTransportService.sendExecuteQuery(connection, request, task, shardListener);
     }
 
+    @Override
     public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
         return nodeIdToConnection.apply(clusterAlias, nodeId);
     }

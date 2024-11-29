@@ -290,6 +290,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(10);
                 LongVector.Builder countsBuilder = driverContext.blockFactory().newLongVectorBuilder(10)
             ) {
+                // Note that just using "a" or "aaa" doesn't work, because the ml_standard
+                // tokenizer drops numbers, including hexadecimal ones.
                 textsBuilder.appendBytesRef(new BytesRef("aaazz"));
                 textsBuilder.appendBytesRef(new BytesRef("bbbzz"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye jan"));

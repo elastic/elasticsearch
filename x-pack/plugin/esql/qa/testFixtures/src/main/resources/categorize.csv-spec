@@ -247,6 +247,9 @@ COUNT():long | category:keyword
            5 | .*?Kubernetes.+?cluster.*?
            2 | .*?servers.*?
            1 | null
+
+// Note: DB is removed from "DB servers", because the ml_standard
+// tokenizer drops numbers, including hexadecimal ones.
 ;
 
 on TO_UPPER

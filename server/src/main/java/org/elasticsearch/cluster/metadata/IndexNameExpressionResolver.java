@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
@@ -292,7 +293,7 @@ public class IndexNameExpressionResolver {
             IndexComponentSelector selector = null;
             String baseExpression = originalExpression;
             if (context.getOptions().gatekeeperOptions().allowSelectors()) {
-                Tuple<String, IndexComponentSelector> tuple = parseSelectorExpression(baseExpression);
+                Tuple<String, IndexComponentSelector> tuple = SelectorResolver.parseSelectorExpression(baseExpression);
                 baseExpression = tuple.v1();
                 selector = tuple.v2() == null ? context.getOptions().selectorOptions().defaultSelector() : tuple.v2();
             }
@@ -1595,7 +1596,7 @@ public class IndexNameExpressionResolver {
             boolean hasExpanded
         ) {
             if (context.getOptions().allowNoIndices() == false && hasExpanded == false) {
-                String expressionWithSelector = selector == null ? expression : expression + SELECTOR_SEPARATOR + selector.getKey();
+                String expressionWithSelector = selector == null ? expression : expression + SelectorResolver.SELECTOR_SEPARATOR + selector.getKey();
                 throw notFoundException(expressionWithSelector);
             }
         }

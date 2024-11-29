@@ -421,3 +421,29 @@ from apps
 name:keyword | version:version
 bbbbb        | 2.1
 ;
+
+testMatchIntegerAsDouble
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees 
+| where match(emp_no, 10004.0)
+| keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+;
+
+testMatchDoubleAsIntegerField
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees
+| where match(height, 2)
+| keep emp_no, height;
+
+emp_no:integer | height:double
+10037          | 2.0            
+10048          | 2.0            
+10098          | 2.0     
+;

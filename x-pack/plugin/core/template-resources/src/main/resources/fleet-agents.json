@@ -35,13 +35,31 @@
         },
         "agent_policy": {
           "properties": {
+            "id": {
+              "type": "keyword"
+            },
             "name": {
               "type": "text"
             },
+            "namespace": {
+              "type": "keyword"
+            },
+            "is_managed": {
+              "type": "boolean"
+            },
+            "inactivity_timeout": {
+              "type": "integer"
+            },
             "package_policies": {
               "properties": {
+                "id": {
+                  "type": "keyword"
+                },
                 "name": {
                   "type": "text"
+                },
+                "namespace": {
+                  "type": "keyword"
                 },
                 "package": {
                   "properties": {

@@ -307,6 +307,7 @@ class S3Service implements Closeable {
         releaseCachedClients();
     }
 
+    @Override
     public void close() throws IOException {
         releaseCachedClients();
         webIdentityTokenCredentialsProvider.shutdown();

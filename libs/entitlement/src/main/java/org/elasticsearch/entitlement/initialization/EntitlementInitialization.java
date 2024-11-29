@@ -18,7 +18,6 @@ import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.CreateClassloaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FlagEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
@@ -89,14 +88,16 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() throws IOException {
         Map<String, Policy> pluginPolicies = createPluginPolicies(EntitlementBootstrap.bootstrapArgs().pluginData());
 
-        // TODO: What should the name be?
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
             "server",
             List.of(
                 new Scope(
                     "org.elasticsearch.server",
-                    List.of(new FlagEntitlement(FlagEntitlementType.SYSTEM_EXIT), new CreateClassloaderEntitlement())
+                    List.of(
+                        new FlagEntitlement(FlagEntitlementType.SYSTEM_EXIT),
+                        new FlagEntitlement(FlagEntitlementType.CREATE_CLASSLOADER)
+                    )
                 )
             )
         );

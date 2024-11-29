@@ -371,7 +371,7 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from employees 
-| where still_hired:true and height > 2.08 
+| where still_hired:"true" and height > 2.08 
 | keep first_name, still_hired, height;
 ignoreOrder:true
 
@@ -387,7 +387,7 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from employees 
-| where emp_no:10004
+| where emp_no:"10004"
 | keep emp_no, first_name;
 
 emp_no:integer | first_name:keyword
@@ -399,7 +399,7 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from employees 
-| where salary_change:9.07
+| where salary_change:"9.07"
 | keep emp_no, salary_change;
 
 emp_no:integer | salary_change:double
@@ -411,7 +411,7 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from date_nanos
-| where num:1698069301543123456
+| where num:"1698069301543123456"
 | keep num;
 
 num:long
@@ -423,7 +423,7 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from ul_logs
-| where bytes_out:12749081495402663265
+| where bytes_out:"12749081495402663265"
 | keep bytes_out;
 
 bytes_out:unsigned_long

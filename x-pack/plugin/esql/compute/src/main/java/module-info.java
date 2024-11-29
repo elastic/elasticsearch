@@ -19,6 +19,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.ml;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.geo;
+    requires org.elasticsearch.xcore;
     requires hppc;
 
     exports org.elasticsearch.compute;

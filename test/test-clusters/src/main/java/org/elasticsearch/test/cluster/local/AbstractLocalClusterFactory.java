@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -473,6 +474,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void addKeystoreSettings() {
             spec.resolveKeystore().forEach((key, value) -> {
+                Objects.requireNonNull(value, "keystore setting for '" + key + "' may not be null");
                 String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;

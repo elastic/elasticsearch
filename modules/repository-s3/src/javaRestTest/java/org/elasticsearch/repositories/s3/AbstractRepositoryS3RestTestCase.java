@@ -19,7 +19,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;

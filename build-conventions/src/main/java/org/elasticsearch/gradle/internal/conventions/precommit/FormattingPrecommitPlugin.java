@@ -68,13 +68,8 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 java.importOrderFile(project.getRootProject().file(importOrderPath));
 
                 // Most formatting is done through the Eclipse formatter
-<<<<<<< HEAD
                 java.eclipse().withP2Mirrors(Map.of("https://download.eclipse.org/", "https://mirror.umd.edu/eclipse/"))
-                    .configFile(new File(elasticsearchWorkspace, formatterConfigPath)).configFile(project.getRootProject().file(formatterConfigPath));
-=======
-                java.eclipse().withP2Mirrors(Map.of("https://download.eclipse.org/", "https://mirror.umd.edu/eclipse/"))
-                    .configFile(new File(elasticsearchWorkspace, formatterConfigPath));
->>>>>>> c35777a175f ([Build] Declare mirror for eclipse p2 repository (#117732))
+                    configFile(project.getRootProject().file(formatterConfigPath));
 
                 // Ensure blank lines are actually empty. Since formatters are applied in
                 // order, apply this one last, otherwise non-empty blank lines can creep

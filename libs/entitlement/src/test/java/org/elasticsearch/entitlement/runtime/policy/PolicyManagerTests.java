@@ -118,48 +118,45 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("example"),Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
         // So we use a random module in the boot layer, and a random class from that module (not java.base -- it is
         // loaded too early) to mimic a class that would be in the server module.
-        var mockServerClass =
-                ModuleLayer.boot().findLoader("jdk.httpserver")
-                        .loadClass("com.sun.net.httpserver.HttpServer");
+        var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
         var ex = assertThrows(
-                "No policy for this module in server",
-                NotEntitledException.class,
-                () -> policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule)
+            "No policy for this module in server",
+            NotEntitledException.class,
+            () -> policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule)
         );
 
         assertEquals(
-                "Caller [class com.sun.net.httpserver.HttpServer] in module [jdk.httpserver] does not have any policy",
-                ex.getMessage()
+            "Caller [class com.sun.net.httpserver.HttpServer] in module [jdk.httpserver] does not have any policy",
+            ex.getMessage()
         );
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"),Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
         // So we use a random module in the boot layer, and a random class from that module (not java.base -- it is
         // loaded too early) to mimic a class that would be in the server module.
-        var mockServerClass =
-                ModuleLayer.boot().findLoader("jdk.httpserver")
-                        .loadClass("com.sun.net.httpserver.HttpServer");
+        var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
         var entitlements = policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule);
         assertThat(
-                entitlements.flagEntitlements,
-                contains(
-                        transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.SYSTEM_EXIT)),
-                        transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER)))
+            entitlements.flagEntitlements,
+            contains(
+                transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.SYSTEM_EXIT)),
+                transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER))
+            )
         );
     }
 
@@ -169,9 +166,9 @@ public class PolicyManagerTests extends ESTestCase {
         Path jar = creteMockPluginJar(home);
 
         var policyManager = new PolicyManager(
-                createEmptyTestServerPolicy(),
-                Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
-                c -> "mock-plugin"
+            createEmptyTestServerPolicy(),
+            Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
+            c -> "mock-plugin"
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -180,13 +177,10 @@ public class PolicyManagerTests extends ESTestCase {
 
         var entitlements = policyManager.getEntitlementsOrThrow(mockPluginClass, requestingModule);
         assertThat(
-                entitlements.flagEntitlements,
-                contains(transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER)))
+            entitlements.flagEntitlements,
+            contains(transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER)))
         );
-        assertThat(
-                entitlements.fileEntitlements,
-                contains(transformedMatch(FileEntitlement::toString, containsString("/test/path")))
-        );
+        assertThat(entitlements.fileEntitlements, contains(transformedMatch(FileEntitlement::toString, containsString("/test/path"))));
     }
 
     public void testGetEntitlementsResultIsCached() {
@@ -254,28 +248,24 @@ public class PolicyManagerTests extends ESTestCase {
         Path jar = home.resolve("mock-plugin.jar");
 
         Map<String, CharSequence> sources = Map.ofEntries(
-                entry("module-info", "module org.example.plugin { exports q; }"),
-                entry("q.B", "package q; public class B { }")
+            entry("module-info", "module org.example.plugin { exports q; }"),
+            entry("q.B", "package q; public class B { }")
         );
 
         var classToBytes = InMemoryJavaCompiler.compile(sources);
         JarUtils.createJarWithEntries(
-                jar,
-                Map.ofEntries(entry("module-info.class", classToBytes.get("module-info")), entry("q/B.class", classToBytes.get("q.B")))
+            jar,
+            Map.ofEntries(entry("module-info.class", classToBytes.get("module-info")), entry("q/B.class", classToBytes.get("q.B")))
         );
         return jar;
     }
 
     private static ModuleLayer createLayerForJar(Path jar, String moduleName) {
-        Configuration cf = ModuleLayer.boot().configuration().resolve(
-                ModuleFinder.of(jar),
-                ModuleFinder.of(),
-                Set.of(moduleName)
-        );
+        Configuration cf = ModuleLayer.boot().configuration().resolve(ModuleFinder.of(jar), ModuleFinder.of(), Set.of(moduleName));
         var moduleController = ModuleLayer.defineModulesWithOneLoader(
-                cf,
-                List.of(ModuleLayer.boot()),
-                ClassLoader.getPlatformClassLoader()
+            cf,
+            List.of(ModuleLayer.boot()),
+            ClassLoader.getPlatformClassLoader()
         );
         return moduleController.layer();
     }

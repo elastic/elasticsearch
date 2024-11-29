@@ -222,6 +222,9 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/117641
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/117745

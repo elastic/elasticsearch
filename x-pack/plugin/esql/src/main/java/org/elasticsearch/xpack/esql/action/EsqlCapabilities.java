@@ -524,7 +524,12 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
          */
-        FIX_STATS_BY_FOLDABLE_EXPRESSION_2;
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

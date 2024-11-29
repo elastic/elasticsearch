@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -26,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
@@ -39,6 +44,8 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+
+    private static final Logger logger = LogManager.getLogger(XPackSettings.class);
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -76,10 +83,21 @@ public class XPackSettings {
     /** Setting for enabling or disabling graph. Defaults to true. */
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling machine learning. Defaults to true. */
+    public static final Set<String> ML_NATIVE_CODE_PLATFORMS = Set.of("darwin-aarch64", "linux-aarch64", "linux-x86_64", "windows-x86_64");
+
+    /** Setting for enabling or disabling machine learning. Defaults to true on platforms that have the ML native code available. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
-        true,
+        ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME),
+        enabled -> {
+            if (enabled && ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME) == false) {
+                SettingsException e = new SettingsException("xpack.ml.enabled cannot be set to [true] on [{}]", Platforms.PLATFORM_NAME);
+                // The exception doesn't get logged nicely on the console because it's thrown during initial plugin loading,
+                // so log separately here to make absolutely clear what happened
+                logger.fatal(e.getMessage());
+                throw e;
+            }
+        },
         Setting.Property.NodeScope
     );
 

@@ -17,11 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -74,7 +72,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -245,7 +242,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             listener.onFailure(e);
             return;
         }
-
         indexShard.recoveryStats().incCurrentAsSource();
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
@@ -386,8 +382,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                 localCheckpoints,
                                 primaryContext.getRoutingTable()
                             ),
-                            retentionLeases,
-                            statelessCommitService.getSearchNodesPerCommit(indexShard.shardId())
+                            retentionLeases
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
@@ -460,7 +455,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 recoveryState.getIndex().setFileDetailsComplete();
                 recoveryState.setStage(RecoveryState.Stage.FINALIZE);
                 indexShard.activateWithPrimaryContext(request.primaryContext());
-                statelessCommitService.finalizeRecoveredBcc(indexShard.shardId(), request.searchNodesPerCommit());
 
                 threadDumpListener.onResponse(null);
                 return null;
@@ -504,20 +498,17 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         private final ShardId shardId;
         private final ReplicationTracker.PrimaryContext primaryContext;
         private final RetentionLeases retentionLeases;
-        private final Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit;
 
         PrimaryContextHandoffRequest(
             long recoveryId,
             ShardId shardId,
             ReplicationTracker.PrimaryContext primaryContext,
-            RetentionLeases retentionLeases,
-            Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit
+            RetentionLeases retentionLeases
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
             this.primaryContext = primaryContext;
             this.retentionLeases = retentionLeases;
-            this.searchNodesPerCommit = searchNodesPerCommit;
         }
 
         PrimaryContextHandoffRequest(StreamInput in) throws IOException {
@@ -526,11 +517,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             shardId = new ShardId(in);
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
-            if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.PRIMARY_RELOCATION_SEARCH_NODES)) {
-                searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
-            } else {
-                searchNodesPerCommit = Map.of();
-            }
         }
 
         @Override
@@ -540,13 +526,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             shardId.writeTo(out);
             primaryContext.writeTo(out);
             retentionLeases.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.PRIMARY_RELOCATION_SEARCH_NODES)) {
-                out.writeMap(
-                    searchNodesPerCommit,
-                    (out0, v) -> v.writeTo(out0),
-                    (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
-                );
-            }
         }
 
         public long recoveryId() {
@@ -563,10 +542,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         public RetentionLeases retentionLeases() {
             return retentionLeases;
-        }
-
-        public Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit() {
-            return searchNodesPerCommit;
         }
     }
 

@@ -328,11 +328,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.markBccRecovered(recoveredBcc, otherBlobs);
     }
 
-    public void finalizeRecoveredBcc(ShardId shardId, Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.finalizeRecoveredBcc(shardId, searchNodesPerCommit);
-    }
-
     /**
      * This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads) and wait
      * for that generation to be uploaded after which it will trigger the provided listener. Additionally, this method will then block
@@ -1113,38 +1108,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             primaryTermAndGenToBlobReference.values()
                 .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
 
+            // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                if (blobReference.getPrimaryTermAndGeneration().equals(recoveryBCCBlob.getPrimaryTermAndGeneration()) == false) {
+                    blobReference.removeAllLocalCommitsRefs();
+                    blobReference.removeAllGenerationalFilesRefs();
+                }
+                if (referencedBCCGenerationsByRecoveredCommit.contains(blobReference.getPrimaryTermAndGeneration()) == false) {
+                    blobReference.closedLocalReaders();
+                }
+            }
+
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
             recoveredGeneration = recoveredCommit.generation();
             assert assertRecoveredCommitFilesHaveBlobLocations(Map.copyOf(recoveredCommit.commitFiles()), Map.copyOf(blobLocations));
             handleUploadedBcc(recoveredBcc, false);
-        }
-
-        void finalizeRecoveredBcc(ShardId shardId, Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit) {
-            // Have to make sure to add old search nodes that were executing searches on the relocating shard
-            // to make sure that related blobs won't get deleted after the relocation.
-            var shardCommitState = getSafe(shardsCommitsStates, shardId);
-            for (BlobReference blobReference : shardCommitState.primaryTermAndGenToBlobReference.values()) {
-                Set<String> searchNodes = searchNodesPerCommit.get(blobReference.getPrimaryTermAndGeneration());
-                if (searchNodes != null && searchNodes.isEmpty() == false) {
-                    trackOutstandingUnpromotableShardCommitRef(searchNodes, blobReference);
-                }
-            }
-            var recoveredPrimaryTermGeneration = new PrimaryTermAndGeneration(
-                shardCommitState.recoveredPrimaryTerm,
-                shardCommitState.recoveredGeneration
-            );
-            var recoveredCommitReferencesInfo = shardCommitState.commitReferencesInfos.get(recoveredPrimaryTermGeneration);
-            assert recoveredCommitReferencesInfo != null : "Unable to find commit reference info for " + recoveredPrimaryTermGeneration;
-            // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
-            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
-                if (blobReference.getPrimaryTermAndGeneration().equals(recoveredPrimaryTermGeneration) == false) {
-                    blobReference.removeAllLocalCommitsRefs();
-                    blobReference.removeAllGenerationalFilesRefs();
-                }
-                if (recoveredCommitReferencesInfo.referencedBCCs.contains(blobReference.getPrimaryTermAndGeneration()) == false) {
-                    blobReference.closedLocalReaders();
-                }
-            }
         }
 
         public void ensureMaxGenerationToUploadForFlush(long generation) {
@@ -2416,8 +2394,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             /**
              * Set of search node-ids using the commit. The lifecycle of entries is like this:
              * 1. Initially created at instantiation on recovery or commit created - with an empty set.
-             * 2. Add to set of nodes before sending commit notification, when search shard registers during its initialization,
-             *    and when an indexing shard relocates. Only these actions add to the set of node ids.
+             * 2. Add to set of nodes before sending commit notification or when search shard registers during its initialization.
+             *    Only these two actions add to the set of node ids.
              * 3. Remove from set of nodes when receiving commit notification response.
              * 4. Remove from set of nodes when a new cluster state indicates a search shard is no longer allocated.
              * 5. When nodes is empty, using getAndUpdate to atomically set the reference to null.
@@ -2911,20 +2889,5 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + "] in recovered commit";
         }
         return true;
-    }
-
-    /**
-     * Returns the map of tracked search nodes per commit on the current indexing node.
-     *
-     * When the indexing shard gets relocated, the map get passed along to the target node via
-     * {@link StatelessCommitService#finalizeRecoveredBcc(ShardId, Map)}, to make sure that we boostrap
-     * the shard on the target node we don't delete blobs that are used for actively executing searches.
-     */
-    public Map<PrimaryTermAndGeneration, Set<String>> getSearchNodesPerCommit(ShardId shardId) {
-        var commitState = getSafe(shardsCommitsStates, shardId);
-        return commitState.primaryTermAndGenToBlobReference.entrySet()
-            .stream()
-            .filter(e -> e.getValue().searchNodesRef.get() != null && e.getValue().searchNodesRef.get().isEmpty() == false)
-            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().searchNodesRef.get()));
     }
 }

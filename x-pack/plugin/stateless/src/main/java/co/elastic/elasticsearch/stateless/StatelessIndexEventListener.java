@@ -58,7 +58,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -327,13 +326,8 @@ class StatelessIndexEventListener implements IndexEventListener {
             if (indexShard.routingEntry().isPromotableToPrimary()) {
                 Engine engineOrNull = indexShard.getEngineOrNull();
                 if (engineOrNull instanceof IndexEngine engine) {
-                    // Ensure to finalize recovered BCC in case the index is not new (where recoveredGeneration would be -1).
-                    long recoveredGeneration = statelessCommitService.getRecoveredGeneration(indexShard.shardId());
-                    if (recoveredGeneration >= 0) {
-                        statelessCommitService.finalizeRecoveredBcc(indexShard.shardId(), Map.of());
-                    }
                     long currentGeneration = engine.getCurrentGeneration();
-                    if (currentGeneration > recoveredGeneration) {
+                    if (currentGeneration > statelessCommitService.getRecoveredGeneration(indexShard.shardId())) {
                         ShardId shardId = indexShard.shardId();
                         statelessCommitService.addListenerForUploadedGeneration(shardId, engine.getCurrentGeneration(), l);
                     } else {

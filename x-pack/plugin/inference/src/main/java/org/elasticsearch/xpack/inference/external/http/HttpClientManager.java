@@ -40,6 +40,7 @@ public class HttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
     /**
      * The maximum number of total connections the connection pool can lease to all routes.
+     * The configuration applies to each instance of HTTPClientManager (max_total_connections=10 and instances=5 leads to 50 connections).
      * From googling around the connection pools maxTotal value should be close to the number of available threads.
      *
      * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
@@ -54,6 +55,7 @@ public class HttpClientManager implements Closeable {
 
     /**
      * The max number of connections a single route can lease.
+     * This configuration applies to each instance of HttpClientManager
      */
     public static final Setting<Integer> MAX_ROUTE_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_route_connections",

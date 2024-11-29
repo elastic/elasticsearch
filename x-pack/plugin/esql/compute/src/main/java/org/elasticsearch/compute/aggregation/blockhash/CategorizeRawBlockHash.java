@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
@@ -19,12 +18,13 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * BlockHash implementation for {@code Categorize} grouping function.
@@ -33,19 +33,23 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
  * </p>
  */
 public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
+    private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(
+        List.of()
+    );
+
     private final CategorizeEvaluator evaluator;
 
-    CategorizeRawBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
+    CategorizeRawBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial, AnalysisRegistry analysisRegistry) {
         super(blockFactory, channel, outputPartial);
-        CategorizationAnalyzer analyzer = new CategorizationAnalyzer(
-            // TODO: should be the same analyzer as used in Production
-            new CustomAnalyzer(
-                TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
-                new CharFilterFactory[0],
-                new TokenFilterFactory[0]
-            ),
-            true
-        );
+
+        CategorizationAnalyzer analyzer;
+        try {
+            analyzer = new CategorizationAnalyzer(analysisRegistry, ANALYZER_CONFIG);
+        } catch (IOException e) {
+            categorizer.close();
+            throw new RuntimeException(e);
+        }
+
         this.evaluator = new CategorizeEvaluator(analyzer, categorizer, blockFactory);
     }
 

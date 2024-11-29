@@ -56,6 +56,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
@@ -649,7 +650,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateConnectorIndexName() throws Exception {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+        Connector connector = ConnectorTestUtils.getRandomSelfManagedConnector();
         String connectorId = randomUUID();
 
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
@@ -670,7 +671,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateConnectorIndexName_WithTheSameIndexName() throws Exception {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+        Connector connector = ConnectorTestUtils.getRandomSelfManagedConnector();
         String connectorId = randomUUID();
 
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
@@ -683,6 +684,42 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         DocWriteResponse updateResponse = awaitUpdateConnectorIndexName(updateIndexNameRequest);
         assertThat(updateResponse.getResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testUpdateConnectorIndexName_ForManagedConnector_WithIllegalIndexName() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomElasticManagedConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
+            connectorId,
+            "wrong-prefix-" + randomAlphaOfLengthBetween(3, 10)
+        );
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorIndexName(updateIndexNameRequest));
+    }
+
+    public void testUpdateConnectorIndexName_ForManagedConnector_WithPrefixedIndexName() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomElasticManagedConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        String newIndexName = "xd" + MANAGED_CONNECTOR_INDEX_PREFIX + randomAlphaOfLengthBetween(3, 10);
+
+        UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
+            connectorId,
+            newIndexName
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorIndexName(updateIndexNameRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newIndexName, equalTo(indexedConnector.getIndexName()));
     }
 
     public void testUpdateConnectorServiceType() throws Exception {

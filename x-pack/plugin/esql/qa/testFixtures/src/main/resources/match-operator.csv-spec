@@ -449,6 +449,7 @@ required_capability: match_additional_types
 from employees 
 | where emp_no:10004.0
 | keep emp_no, first_name;
+ignoreOrder:true
 
 emp_no:integer | first_name:keyword
 10004          | Chirstian
@@ -461,6 +462,7 @@ required_capability: match_additional_types
 from employees
 | where height:2
 | keep emp_no, height;
+ignoreOrder:true
 
 emp_no:integer | height:double
 10037          | 2.0            

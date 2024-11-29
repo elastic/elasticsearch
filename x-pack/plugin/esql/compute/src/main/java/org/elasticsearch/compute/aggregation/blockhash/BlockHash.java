@@ -180,9 +180,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             throw new IllegalArgumentException("only a single CATEGORIZE group can used");
         }
 
-        return aggregatorMode.isInputPartial()
-            ? new CategorizedIntermediateBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial())
-            : new CategorizeRawBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial(), analysisRegistry);
+        return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
     }
 
     /**

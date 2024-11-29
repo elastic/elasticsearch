@@ -60,7 +60,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -177,19 +176,8 @@ public class SearchTransportService {
         );
     }
 
-    void sendExecuteQuery(
-        Transport.Connection connection,
-        SearchQueryThenFetchAsyncAction.NodeQueryRequest request,
-        SearchTask task,
-        ActionListener<SearchQueryThenFetchAsyncAction.NodeQueryResponse> listener
-    ) {
-        transportService.sendChildRequest(
-            connection,
-            "BULK_SEARCH_NAME",
-            request,
-            task,
-            new ConnectionCountingHandler<>(listener, SearchQueryThenFetchAsyncAction.NodeQueryResponse::new, connection)
-        );
+    public TransportService transportService() {
+        return transportService;
     }
 
     public void sendExecuteQuery(

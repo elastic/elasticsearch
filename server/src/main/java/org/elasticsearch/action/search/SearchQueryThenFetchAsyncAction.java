@@ -420,6 +420,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         return nextPhase(client, this, results, null);
     }
 
+    @Override
     public OriginalIndices getOriginalIndices(int shardIndex) {
         return shardIterators[shardIndex].getOriginalIndices();
     }
@@ -484,36 +485,33 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     }
 
     protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
-    }
-
-    private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
-        var shardListener = new SearchActionListener<>(shard, shardIndex) {
-            @Override
-            public void innerOnResponse(SearchPhaseResult result) {
-                try {
-                    releasable.close();
-                    onShardResult(result, shardIt);
-                } catch (Exception exc) {
-                    onShardFailure(shardIndex, shard, shardIt, exc);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                releasable.close();
-                onShardFailure(shardIndex, shard, shardIt, e);
-            }
-        };
         final Transport.Connection connection;
         try {
             connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
         } catch (Exception e) {
-            shardListener.onFailure(e);
+            onShardFailure(shardIndex, shard, shardIt, e);
             return;
         }
-        ShardSearchRequest request = rewriteShardSearchRequest(buildShardSearchRequest(shardIt, shardIndex));
-        searchTransportService.sendExecuteQuery(connection, request, task, shardListener);
+        searchTransportService.sendExecuteQuery(
+            connection,
+            rewriteShardSearchRequest(buildShardSearchRequest(shardIt, shardIndex)),
+            task,
+            new SearchActionListener<>(shard, shardIndex) {
+                @Override
+                public void innerOnResponse(SearchPhaseResult result) {
+                    try {
+                        onShardResult(result, shardIt);
+                    } catch (Exception exc) {
+                        onShardFailure(shardIndex, shard, shardIt, exc);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    onShardFailure(shardIndex, shard, shardIt, e);
+                }
+            }
+        );
     }
 
     @Override

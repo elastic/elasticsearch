@@ -36,8 +36,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 
 public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -116,7 +116,7 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
         assertThat(
             repositoryStats.requestCounts.keySet().stream().sorted().toList(),
-            contains(EXPECTED_MAIN_STORE_REQUEST_NAMES.toArray(new String[] {}))
+            hasItems(EXPECTED_MAIN_STORE_REQUEST_NAMES.toArray(new String[] {}))
         );
         repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
     }
@@ -125,7 +125,7 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
         assertThat(
             repositoryStats.requestCounts.keySet().stream().sorted().toList(),
-            contains(EXPECTED_OBS_REQUEST_NAMES.toArray(new String[] {}))
+            hasItems(EXPECTED_OBS_REQUEST_NAMES.toArray(new String[] {}))
         );
         repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
     }

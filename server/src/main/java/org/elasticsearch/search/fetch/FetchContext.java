@@ -89,10 +89,6 @@ public class FetchContext {
         return sfc;
     }
 
-    public ShardSearchRequest request() {
-        return searchContext.request();
-    }
-
     public BitsetFilterCache bitsetFilterCache() {
         return searchContext.bitsetFilterCache();
     }

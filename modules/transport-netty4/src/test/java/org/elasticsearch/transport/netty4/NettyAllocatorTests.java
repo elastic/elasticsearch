@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import static org.elasticsearch.transport.netty4.NettyAllocator.TrashingByteBuf;
 import static org.elasticsearch.transport.netty4.NettyAllocator.TrashingByteBufAllocator;
 
 public class NettyAllocatorTests extends ESTestCase {

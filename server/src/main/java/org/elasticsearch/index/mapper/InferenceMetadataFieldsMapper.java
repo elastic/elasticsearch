@@ -75,8 +75,12 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String fieldName = parser.currentName();
-            // TODO: Find the leaf field under objects
-            Mapper mapper = context.mappingLookup().getMapper(fieldName);
+            var parent = context.parent().findParentMapper(fieldName);
+            if (parent == null) {
+                throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
+            }
+            String suffix = context.parent() != parent ? fieldName.substring(parent.fullPath().length() + 1) : fieldName;
+            var mapper = parent.getMapper(suffix);
             if (mapper != null && mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
                 fieldMapper.parseCreateField(new DocumentParserContext.Wrapper(context.parent(), context) {
                     @Override

@@ -315,22 +315,30 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     public static class NodeQueryResponse extends TransportResponse {
         private final Map<Integer, Exception> failedShards;
         private final QueryPhaseResultConsumer.MergeResult mergeResult;
+        private final SearchPhaseController.TopDocsStats topDocsStats;
 
         NodeQueryResponse(StreamInput in) throws IOException {
             super(in);
             this.failedShards = in.readMap(StreamInput::readVInt, StreamInput::readException);
             this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
+            this.topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
         }
 
-        NodeQueryResponse(Map<Integer, Exception> failedShards, QueryPhaseResultConsumer.MergeResult mergeResult) {
+        NodeQueryResponse(
+            Map<Integer, Exception> failedShards,
+            QueryPhaseResultConsumer.MergeResult mergeResult,
+            SearchPhaseController.TopDocsStats topDocsStats
+        ) {
             this.failedShards = failedShards;
             this.mergeResult = mergeResult;
+            this.topDocsStats = topDocsStats;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(failedShards, StreamOutput::writeVInt, StreamOutput::writeException);
             mergeResult.writeTo(out);
+            topDocsStats.writeTo(out);
         }
     }
 
@@ -886,7 +894,11 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             NodeQueryRequest::new,
             (request, channel, task) -> {
                 new ChannelActionListener<>(channel).onResponse(
-                    new NodeQueryResponse(Map.of(), new QueryPhaseResultConsumer.MergeResult(List.of(), Lucene.EMPTY_TOP_DOCS, null, 0L))
+                    new NodeQueryResponse(
+                        Map.of(),
+                        new QueryPhaseResultConsumer.MergeResult(List.of(), Lucene.EMPTY_TOP_DOCS, null, 0L),
+                        new SearchPhaseController.TopDocsStats(0)
+                    )
                 );
             }
         );

@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpFixture;
+import fixture.azure.MockAzureBlobStore;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -47,7 +48,8 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
         AZURE_TEST_CLIENT_ID,
-        decideAuthHeaderPredicate()
+        decideAuthHeaderPredicate(),
+        MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
 
     private static Predicate<String> decideAuthHeaderPredicate() {

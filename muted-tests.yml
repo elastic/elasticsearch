@@ -405,3 +405,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117641
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/117784
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {scoring.QstrWithFieldAndScoringSortedEval}
+  issue: https://github.com/elastic/elasticsearch/issues/117751

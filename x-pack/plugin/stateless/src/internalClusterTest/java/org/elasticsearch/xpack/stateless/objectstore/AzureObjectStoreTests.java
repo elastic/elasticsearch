@@ -18,10 +18,10 @@
 package co.elastic.elasticsearch.stateless.objectstore;
 
 import fixture.azure.AzureHttpHandler;
+import fixture.azure.MockAzureBlobStore;
 
 import com.sun.net.httpserver.HttpHandler;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -31,30 +31,34 @@ import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-5680")
-// TODO: When the above AwaitsFix is removed, we will want to ensure the assertRepositoryStats method actually asserts correctly.
-// It was added while this test class is muted so that the assertions are never exercised. Specifically, the assertions state
-// that every type of object store requests is performed at least once. This may or may not be true for request types like
-// PutBlock and PutBlockList.
 public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     private static final String DEFAULT_ACCOUNT_NAME = "account";
-    private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of(
-        "GetBlob",
-        "ListBlobs",
-        "GetBlobProperties",
-        "PutBlob",
-        "PutBlock",
-        "PutBlockList"
-    );
+    private static final List<String> EXPECTED_MAIN_STORE_REQUEST_NAMES;
+    private static final List<String> EXPECTED_OBS_REQUEST_NAMES;
+    static {
+        final var mainStorePurposeNames = Set.of("ClusterState");
+        final var obsPurposeNames = Set.of("SnapshotMetadata");
+        final var operationNames = Set.of("GetBlobProperties", "GetBlob", "ListBlobs", "PutBlob", "BlobBatch");
+
+        EXPECTED_MAIN_STORE_REQUEST_NAMES = Stream.concat(
+            Stream.of("Indices_ListBlobs", "Translog_ListBlobs"),
+            mainStorePurposeNames.stream().flatMap(p -> operationNames.stream().map(o -> p + "_" + o))
+        ).distinct().sorted().toList();
+
+        EXPECTED_OBS_REQUEST_NAMES = Stream.concat(
+            Stream.of("SnapshotData_ListBlobs"),
+            obsPurposeNames.stream().flatMap(p -> operationNames.stream().map(o -> p + "_" + o))
+        ).distinct().sorted().toList();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -63,7 +67,10 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/" + DEFAULT_ACCOUNT_NAME, new AzureHttpHandler(DEFAULT_ACCOUNT_NAME, "container", null));
+        return Map.of(
+            "/" + DEFAULT_ACCOUNT_NAME,
+            new AzureHttpHandler(DEFAULT_ACCOUNT_NAME, "container", null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE)
+        );
     }
 
     @Override
@@ -99,7 +106,7 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
     protected Settings repositorySettings() {
         return Settings.builder()
             .put(super.repositorySettings())
-            .put("bucket", "container")
+            .put("container", "container")
             .put("base_path", "backup")
             .put("client", "test")
             .build();
@@ -107,13 +114,19 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
 
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        assertThat(
+            repositoryStats.requestCounts.keySet().stream().sorted().toList(),
+            hasItems(EXPECTED_MAIN_STORE_REQUEST_NAMES.toArray(new String[] {}))
+        );
         repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
     }
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        assertThat(
+            repositoryStats.requestCounts.keySet().stream().sorted().toList(),
+            hasItems(EXPECTED_OBS_REQUEST_NAMES.toArray(new String[] {}))
+        );
         repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
     }
 }

@@ -75,7 +75,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
-        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping), sourceToParse) {
+        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping, null), sourceToParse) {
             @Override
             public XContentParser parser() {
                 return parser;

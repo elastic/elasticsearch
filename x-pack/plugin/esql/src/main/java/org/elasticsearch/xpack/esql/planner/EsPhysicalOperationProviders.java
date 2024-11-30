@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -98,7 +99,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
 
-    public EsPhysicalOperationProviders(List<ShardContext> shardContexts) {
+    public EsPhysicalOperationProviders(List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+        super(analysisRegistry);
         this.shardContexts = shardContexts;
     }
 

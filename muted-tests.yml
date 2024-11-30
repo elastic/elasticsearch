@@ -216,14 +216,24 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testStopWorksInMiddleOfProcessing
   issue: https://github.com/elastic/elasticsearch/issues/117591
-- class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/117596
 - class: "org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
 - class: "org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/117745
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {scoring.QstrWithFieldAndScoringSortedEval}
+  issue: https://github.com/elastic/elasticsearch/issues/117751
+- class: org.elasticsearch.search.ccs.CrossClusterIT
+  method: testCancel
+  issue: https://github.com/elastic/elasticsearch/issues/108061
 
 # Examples:
 #

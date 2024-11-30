@@ -231,6 +231,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {scoring.QstrWithFieldAndScoringSortedEval}
   issue: https://github.com/elastic/elasticsearch/issues/117751
+- class: org.elasticsearch.search.ccs.CrossClusterIT
+  method: testCancel
+  issue: https://github.com/elastic/elasticsearch/issues/108061
 
 # Examples:
 #

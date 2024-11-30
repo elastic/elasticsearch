@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.test.ESTestCase;
@@ -52,15 +52,15 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     }
 
     public void testInstrumentationTargetLookup() throws IOException, ClassNotFoundException {
-        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestChecker.class.getName());
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethodsToInstrument(TestChecker.class.getName());
 
-        assertThat(methodsMap, aMapWithSize(3));
+        assertThat(checkMethods, aMapWithSize(3));
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"))),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "check$org_example_TestTargetClass$staticMethod",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;", "Ljava/lang/Object;")
@@ -69,7 +69,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             )
         );
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(
                     new MethodKey(
@@ -79,7 +79,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     )
                 ),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "check$$instanceMethodNoArgs",
                         List.of(
@@ -91,7 +91,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             )
         );
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(
                     new MethodKey(
@@ -101,7 +101,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     )
                 ),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "check$$instanceMethodWithArgs",
                         List.of(
@@ -117,15 +117,15 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     }
 
     public void testInstrumentationTargetLookupWithOverloads() throws IOException, ClassNotFoundException {
-        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestCheckerOverloads.class.getName());
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethodsToInstrument(TestCheckerOverloads.class.getName());
 
-        assertThat(methodsMap, aMapWithSize(2));
+        assertThat(checkMethods, aMapWithSize(2));
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "java/lang/String"))),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
                         "check$org_example_TestTargetClass$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;")
@@ -134,11 +134,11 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             )
         );
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "I"))),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
                         "check$org_example_TestTargetClass$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "I")
@@ -149,15 +149,15 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     }
 
     public void testInstrumentationTargetLookupWithCtors() throws IOException, ClassNotFoundException {
-        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestCheckerCtors.class.getName());
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethodsToInstrument(TestCheckerCtors.class.getName());
 
-        assertThat(methodsMap, aMapWithSize(2));
+        assertThat(checkMethods, aMapWithSize(2));
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of("I", "java/lang/String"))),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerCtors",
                         "check$org_example_TestTargetClass$",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;")
@@ -166,11 +166,11 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             )
         );
         assertThat(
-            methodsMap,
+            checkMethods,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of())),
                 equalTo(
-                    new CheckerMethod(
+                    new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerCtors",
                         "check$org_example_TestTargetClass$",
                         List.of("Ljava/lang/Class;")

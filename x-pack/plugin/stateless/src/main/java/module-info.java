@@ -24,6 +24,7 @@ module org.elasticsearch.stateless {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.xcontent;
 
+    requires org.elasticsearch.serverless.codec;
     requires org.elasticsearch.serverless.constants;
     requires org.elasticsearch.stateless.api;
 

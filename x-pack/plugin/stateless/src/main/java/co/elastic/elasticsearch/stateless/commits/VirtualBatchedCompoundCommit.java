@@ -42,6 +42,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
@@ -475,6 +476,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
     }
 
+    /**
+     * Generate an InputStream of the serialized VBCC suitable for upload to blob storage.
+     * <p>
+     * The InputStream is implemented as a {@link SlicedInputStream} that iterates over a set of InputStreams
+     * representing VBCC metadata and each of the Lucene files included in the VBCC commits.
+     * <p>
+     * As each Lucene file InputStream is consumed, it maintains a running checksum of the bytes read, which it compares
+     * to the checksum in the Lucene file footer when the file substream is closed. Each substream is closed before opening
+     * the next, according to the contract of {@link SlicedInputStream}.
+     * <p>
+     * If Lucene file corruption is detected when the file is closed, it will throw a CorruptIndexException that propagates
+     * up through the SlicedInputStream as it is read.
+     *
+     * @return an InputStream of the VBCC, which throws CorruptIndexException on Lucene checksum mismatch, in addition to
+     *   general IOExceptions on IO error.
+     */
     public InputStream getFrozenInputStreamForUpload() {
         assert isFrozen() : "Cannot stream before freeze";
         assert assertInternalConsistency();
@@ -489,7 +506,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             protected InputStream openSlice(int slice) throws IOException {
                 final var offset = offsets.get(slice);
                 final var reader = internalDataReadersByOffset.get(offset);
-                return reader.getInputStream(0L, Long.MAX_VALUE);
+                return reader.getInputStream();
             }
 
             @Override
@@ -785,6 +802,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          * @param length the max number of bytes to read. ineffective if larger than the remaining available size of the internal data.
          */
         InputStream getInputStream(long offset, long length) throws IOException;
+
+        /**
+         * Get the {@link InputStream} for reading the entire contents of the contained file.
+         * @return An input stream that will read the entire contents of the file.
+         * @throws IOException
+         */
+        default InputStream getInputStream() throws IOException {
+            return getInputStream(0L, Long.MAX_VALUE);
+        }
     }
 
     /**
@@ -821,6 +847,42 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 IOUtils.closeWhileHandlingException(input);
                 throw e;
             }
+        }
+
+        /**
+         * Produce an input stream for an index file that updates a running checksum as it is read, and validates it against the Lucene
+         * footer when it is closed. The file must have been read to the end for this to succeed.
+         * @return an input stream for this instance's filename
+         * @throws IOException on an IO error opening the file (and the stream may throw CorruptIndexException on close)
+         */
+        @Override
+        public InputStream getInputStream() throws IOException {
+            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(directory.openInput(filename, IOContext.READONCE));
+            logger.trace("opening validating input for {}", filename);
+
+            return new InputStreamIndexInput(input, input.length()) {
+                /** only validate when the stream is first closed, as {@link SlicedInputStream} advances to the next iterator */
+                boolean closed = false;
+
+                @Override
+                public void close() throws IOException {
+                    if (closed) {
+                        return;
+                    }
+
+                    closed = true;
+                    try {
+                        // only verify if we've read to the end of the stream. If we close early for another reason, e.g., an IO error
+                        // during read, we'd otherwise trigger a misleading CorruptIndexException here.
+                        // Note this does mean that we can't rely on checksum errors to detect truncation during upload.
+                        if (input.getFilePointer() == input.length()) {
+                            input.verify();
+                        }
+                    } finally {
+                        IOUtils.close(super::close, input);
+                    }
+                }
+            };
         }
     }
 

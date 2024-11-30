@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.serverless.codec.Elasticsearch900Lucene100CompletionPostingsFormat;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
@@ -516,6 +517,14 @@ public class Stateless extends Plugin
 
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
         components.add(refreshThrottlingService);
+
+        if (hasIndexRole) {
+            Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(false);
+        } else if (hasSearchRole) {
+            Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(
+                Elasticsearch900Lucene100CompletionPostingsFormat.COMPLETION_FST_ON_HEAP.get(settings)
+            );
+        }
 
         // autoscaling
         // memory

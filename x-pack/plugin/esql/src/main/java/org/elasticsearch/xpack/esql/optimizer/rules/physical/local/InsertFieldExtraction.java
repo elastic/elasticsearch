@@ -104,15 +104,15 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
         var missing = new LinkedHashSet<Attribute>();
         var inputSet = p.inputSet();
 
-        // FIXME: the extractors should work on the right side as well
+        // TODO: We need to extract whatever fields are missing from the left hand side.
         // skip the lookup join since the right side is always materialized and a projection
         if (p instanceof LookupJoinExec join) {
-            // collect fields used in the join condition
             return Collections.emptySet();
         }
 
         var input = inputSet;
         // collect field attributes used inside expressions
+        // TODO: Rather than going over all expressions manually, this should just call .references()
         p.forEachExpression(TypedAttribute.class, f -> {
             if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {
                 if (input.contains(f) == false) {

@@ -396,20 +396,28 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 List<ChunkedInferenceServiceResults> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
                 if (addMetadataField) {
                     List<String> inputs = responses.stream()
-                            .filter(r -> r.field().equals(fieldName))
-                            .map(r -> r.input)
-                            .collect(Collectors.toList());
+                        .filter(r -> r.field().equals(fieldName))
+                        .map(r -> r.input)
+                        .collect(Collectors.toList());
                     assert inputs.size() == 1;
                     var result = new SemanticTextField(
                         fieldName,
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        SemanticTextField.toSemanticTextFieldChunks(indexCreatedVersion, inputs.get(0), results, indexRequest.getContentType()),
+                        SemanticTextField.toSemanticTextFieldChunks(
+                            indexCreatedVersion,
+                            inputs.get(0),
+                            results,
+                            indexRequest.getContentType()
+                        ),
                         indexRequest.getContentType()
                     );
                     inferenceFieldsMap.put(fieldName, result);
                 } else {
-                    List<String> inputs = responses.stream().filter(r -> r.isOriginalFieldInput).map(r -> r.input).collect(Collectors.toList());
+                    List<String> inputs = responses.stream()
+                        .filter(r -> r.isOriginalFieldInput)
+                        .map(r -> r.input)
+                        .collect(Collectors.toList());
                     assert inputs.size() == 1;
                     var result = new LegacySemanticTextField(
                         fieldName,

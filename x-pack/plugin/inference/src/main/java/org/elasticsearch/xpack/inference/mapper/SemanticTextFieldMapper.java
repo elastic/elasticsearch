@@ -153,20 +153,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
-            Builder builder = new Builder(
-                mapper.leafName(),
-                mapper.fieldType().getChunksField().bitsetProducer(),
-                mapper.indexSettings
-            );
+            Builder builder = new Builder(mapper.leafName(), mapper.fieldType().getChunksField().bitsetProducer(), mapper.indexSettings);
             builder.init(mapper);
             return builder;
         }
 
-        public Builder(
-            String name,
-            Function<Query, BitSetProducer> bitSetProducer,
-            IndexSettings indexSettings
-        ) {
+        public Builder(String name, Function<Query, BitSetProducer> bitSetProducer, IndexSettings indexSettings) {
             super(name);
             this.indexSettings = indexSettings;
             this.inferenceFieldBuilder = c -> createInferenceField(
@@ -325,11 +317,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
-            Builder builder = (Builder) new Builder(
-                leafName(),
-                fieldType().getChunksField().bitsetProducer(),
-                indexSettings
-            ).init(this);
+            Builder builder = (Builder) new Builder(leafName(), fieldType().getChunksField().bitsetProducer(), indexSettings).init(this);
             try {
                 mapper = builder.setModelSettings(field.inference().modelSettings())
                     .setInferenceId(field.inference().inferenceId())
@@ -380,11 +368,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 builder.field("end", chunk.endOffset());
                 builder.endObject();
                 try (
-                        XContentParser subParser = XContentHelper.createParserNotCompressed(
-                                XContentParserConfiguration.EMPTY,
-                                BytesReference.bytes(builder),
-                                context.parser().contentType()
-                        )
+                    XContentParser subParser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        BytesReference.bytes(builder),
+                        context.parser().contentType()
+                    )
                 ) {
                     DocumentParserContext subContext = nestedContext.switchParser(subParser);
                     subParser.nextToken();
@@ -644,15 +632,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private static ObjectMapper createInferenceField(
-            MapperBuilderContext context,
-            IndexVersion indexVersionCreated,
-            @Nullable SemanticTextField.ModelSettings modelSettings,
-            Function<Query, BitSetProducer> bitSetProducer,
-            IndexSettings indexSettings
+        MapperBuilderContext context,
+        IndexVersion indexVersionCreated,
+        @Nullable SemanticTextField.ModelSettings modelSettings,
+        Function<Query, BitSetProducer> bitSetProducer,
+        IndexSettings indexSettings
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Optional.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
-                .add(createChunksField(indexVersionCreated, modelSettings, bitSetProducer, indexSettings))
-                .build(context);
+            .add(createChunksField(indexVersionCreated, modelSettings, bitSetProducer, indexSettings))
+            .build(context);
     }
 
     private static NestedObjectMapper.Builder createChunksField(

@@ -13,8 +13,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
@@ -277,7 +275,13 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
         CHUNKS_FIELD,
         true,
-        args -> new Chunk((String) args[0], args[1] != null ? (String) args[1] : null, args[2] != null ? (int) args[2] : -1, args[3] != null ? (int) args[3] : -1, (BytesReference) args[4])
+        args -> new Chunk(
+            (String) args[0],
+            args[1] != null ? (String) args[1] : null,
+            args[2] != null ? (int) args[2] : -1,
+            args[3] != null ? (int) args[3] : -1,
+            (BytesReference) args[4]
+        )
     );
 
     private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
@@ -337,7 +341,15 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
                 .hasNext();) {
                 var chunkAsByteReference = it.next();
                 int startOffset = input.indexOf(chunkAsByteReference.matchedText());
-                chunks.add(new Chunk(sourceFieldName, null, startOffset, startOffset + chunkAsByteReference.matchedText().length(), chunkAsByteReference.bytesReference()));
+                chunks.add(
+                    new Chunk(
+                        sourceFieldName,
+                        null,
+                        startOffset,
+                        startOffset + chunkAsByteReference.matchedText().length(),
+                        chunkAsByteReference.bytesReference()
+                    )
+                );
             }
         }
         return chunks;

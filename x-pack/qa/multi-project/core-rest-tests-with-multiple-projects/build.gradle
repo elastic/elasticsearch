@@ -68,6 +68,7 @@ tasks.named("yamlRestTest").configure {
     '^indices.simulate_template/*/*',
     '^indices.sort/10_basic/*',
     '^indices.split/*/*',
+    '^indices.stats/15_open_closed_state/*',
     '^indices.stats/20_translog/*',
     '^indices.stats/30_segments/*',
     '^indices.stats/60_field_usage/*',

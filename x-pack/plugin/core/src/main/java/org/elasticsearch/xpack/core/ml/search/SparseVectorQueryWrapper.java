@@ -17,11 +17,11 @@ import org.apache.lucene.search.Weight;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SparseVectorQuery extends Query {
+public class SparseVectorQueryWrapper extends Query {
     private final String fieldName;
     private final Query termsQuery;
 
-    public SparseVectorQuery(String fieldName, Query termsQuery) {
+    public SparseVectorQueryWrapper(String fieldName, Query termsQuery) {
         this.fieldName = fieldName;
         this.termsQuery = termsQuery;
     }
@@ -34,7 +34,7 @@ public class SparseVectorQuery extends Query {
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         var rewrite = termsQuery.rewrite(indexSearcher);
         if (rewrite != termsQuery) {
-            return new SparseVectorQuery(fieldName, rewrite);
+            return new SparseVectorQueryWrapper(fieldName, rewrite);
         }
         return this;
     }
@@ -61,7 +61,7 @@ public class SparseVectorQuery extends Query {
         if (sameClassAs(obj) == false) {
             return false;
         }
-        SparseVectorQuery that = (SparseVectorQuery) obj;
+        SparseVectorQueryWrapper that = (SparseVectorQueryWrapper) obj;
         return fieldName.equals(that.fieldName) && termsQuery.equals(that.termsQuery);
     }
 

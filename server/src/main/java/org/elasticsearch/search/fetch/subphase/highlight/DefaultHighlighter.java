@@ -235,7 +235,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    public static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+    protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         // loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));

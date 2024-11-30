@@ -350,21 +350,6 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Called by {@link InferenceMetadataFieldsMapper} to indicate whether the metadata field is present
-     * in _source.
-     */
-    public void markInferenceMetadataField() {
-        this.hasInferenceMetadata = true;
-    }
-
-    /**
-     * Returns whether the _source contains an inference metadata field.
-     */
-    public final boolean hasInferenceMetadataField() {
-        return hasInferenceMetadata;
-    }
-
-    /**
      * Wraps {@link XContentDataHelper#encodeToken}, disabling dot expansion from {@link DotExpandingXContentParser}.
      * This helps avoid producing duplicate names in the same scope, due to expanding dots to objects.
      * For instance: { "a.b": "b", "a.c": "c" } => { "a": { "b": "b" }, "a": { "c": "c" } }
@@ -677,6 +662,21 @@ public abstract class DocumentParserContext {
 
     public boolean isWithinInferenceMetadata() {
         return false;
+    }
+
+    /**
+     * Called by {@link InferenceMetadataFieldsMapper} to indicate whether the metadata field is present
+     * in _source.
+     */
+    public void markInferenceMetadataField() {
+        this.hasInferenceMetadata = true;
+    }
+
+    /**
+     * Returns whether the _source contains an inference metadata field.
+     */
+    public final boolean hasInferenceMetadataField() {
+        return hasInferenceMetadata;
     }
 
     boolean inArrayScope() {

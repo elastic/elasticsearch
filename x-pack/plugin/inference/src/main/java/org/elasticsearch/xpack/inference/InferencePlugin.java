@@ -77,9 +77,6 @@ import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceMetaFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
-import org.elasticsearch.xpack.core.ml.search.TextExpansionQueryBuilder;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -426,22 +423,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     public List<QuerySpec<?>> getQueries() {
-        return List.of(
-            new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent),
-            new QuerySpec<>(SparseVectorQueryBuilder.NAME, SparseVectorQueryBuilder::new, SparseVectorQueryBuilder::fromXContent),
-            new QuerySpec<QueryBuilder>(
-                TextExpansionQueryBuilder.NAME,
-                TextExpansionQueryBuilder::new,
-                TextExpansionQueryBuilder::fromXContent
-            ),
-            // TODO: The WeightedTokensBuilder is slated for removal after the SparseVectorQueryBuilder is available.
-            // The logic to create a Boolean query based on weighted tokens will remain and/or be moved to server.
-            new QuerySpec<QueryBuilder>(
-                WeightedTokensQueryBuilder.NAME,
-                WeightedTokensQueryBuilder::new,
-                WeightedTokensQueryBuilder::fromXContent
-            )
-        );
+        return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
     }
 
     @Override

@@ -151,7 +151,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Unkown field name [" + fieldName + "]");
                 }
             }
-            context.doc().addWithKey(fullPath(), new OffsetField(NAME, fullPath() + "." + sourceFieldName, startOffset, endOffset));
+            context.doc().addWithKey(fullPath(), new OffsetSourceField(NAME, fullPath() + "." + sourceFieldName, startOffset, endOffset));
         } finally {
             context.path().setWithinLeafObject(isWithinLeafObject);
         }

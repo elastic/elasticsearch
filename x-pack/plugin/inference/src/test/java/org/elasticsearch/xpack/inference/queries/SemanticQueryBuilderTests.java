@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQuery;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -190,8 +190,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private void assertSparseEmbeddingLuceneQuery(Query query) {
-        assertThat(query, instanceOf(SparseVectorQuery.class));
-        Query termsQuery = ((SparseVectorQuery) query).getTermsQuery();
+        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
+        Query termsQuery = ((SparseVectorQueryWrapper) query).getTermsQuery();
         Query innerQuery = assertOuterBooleanQuery(termsQuery);
         assertThat(innerQuery, instanceOf(BooleanQuery.class));
         BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;

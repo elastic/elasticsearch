@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceMetaFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQuery;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -217,7 +217,7 @@ public class SemanticTextHighlighter implements Highlighter {
 
             @Override
             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                if (parent instanceof SparseVectorQuery sparseVectorQuery) {
+                if (parent instanceof SparseVectorQueryWrapper sparseVectorQuery) {
                     queries.add(sparseVectorQuery.getTermsQuery());
                 }
                 return this;

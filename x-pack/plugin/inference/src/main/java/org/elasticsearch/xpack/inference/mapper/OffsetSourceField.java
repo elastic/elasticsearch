@@ -15,7 +15,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 
-public final class OffsetField extends Field {
+public final class OffsetSourceField extends Field {
 
     private static final FieldType FIELD_TYPE = new FieldType();
 
@@ -28,7 +28,7 @@ public final class OffsetField extends Field {
     private int startOffset;
     private int endOffset;
 
-    public OffsetField(String fieldName, String sourceFieldName, int startOffset, int endOffset) {
+    public OffsetSourceField(String fieldName, String sourceFieldName, int startOffset, int endOffset) {
         super(fieldName, sourceFieldName, FIELD_TYPE);
         this.startOffset = startOffset;
         this.endOffset = endOffset;

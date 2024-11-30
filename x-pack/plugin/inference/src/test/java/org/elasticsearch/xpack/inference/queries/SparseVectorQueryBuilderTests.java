@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQuery;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -239,7 +239,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             // It's possible that all documents were pruned for aggressive pruning configurations
             assertTrue(query instanceof BooleanQuery || query instanceof MatchNoDocsQuery);
         } else {
-            assertTrue(query instanceof SparseVectorQuery);
+            assertTrue(query instanceof SparseVectorQueryWrapper);
         }
     }
 

@@ -52,6 +52,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:mapper-extras')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
@@ -68,7 +69,6 @@ dependencies {
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
-  testImplementation project(path: ':modules:mapper-extras')
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2.5')
 

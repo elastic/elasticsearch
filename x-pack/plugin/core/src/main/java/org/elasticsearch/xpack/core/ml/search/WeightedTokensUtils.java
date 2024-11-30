@@ -35,7 +35,7 @@ public final class WeightedTokensUtils {
         for (var token : tokens) {
             qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
         }
-        return new SparseVectorQuery(fieldName, qb.setMinimumNumberShouldMatch(1).build());
+        return new SparseVectorQueryWrapper(fieldName, qb.setMinimumNumberShouldMatch(1).build());
     }
 
     public static Query queryBuilderWithPrunedTokens(
@@ -69,7 +69,7 @@ public final class WeightedTokensUtils {
             }
         }
 
-        return new SparseVectorQuery(fieldName, qb.setMinimumNumberShouldMatch(1).build());
+        return new SparseVectorQueryWrapper(fieldName, qb.setMinimumNumberShouldMatch(1).build());
     }
 
     /**

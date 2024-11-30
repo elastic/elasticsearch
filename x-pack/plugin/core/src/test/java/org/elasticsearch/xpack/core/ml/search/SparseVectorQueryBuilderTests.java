@@ -234,7 +234,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             // It's possible that all documents were pruned for aggressive pruning configurations
             assertTrue(query instanceof BooleanQuery || query instanceof MatchNoDocsQuery);
         } else {
-            assertTrue(query instanceof SparseVectorQuery);
+            assertTrue(query instanceof SparseVectorQueryWrapper);
         }
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,11 +30,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -44,8 +49,11 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -349,15 +357,20 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         }
     }
 
-    private record ShardToQuery(float boost, OriginalIndices originalIndices, int shardIndex, ShardSearchContextId contextId)
-        implements
-            Writeable {
+    private record ShardToQuery(
+        float boost,
+        OriginalIndices originalIndices,
+        int shardIndex,
+        ShardId shardId,
+        ShardSearchContextId contextId
+    ) implements Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
             return new ShardToQuery(
                 in.readFloat(),
                 OriginalIndices.readOriginalIndices(in),
                 in.readVInt(),
+                new ShardId(in),
                 in.readOptionalWriteable(ShardSearchContextId::new)
             );
         }
@@ -367,6 +380,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             out.writeFloat(boost);
             OriginalIndices.writeOriginalIndices(originalIndices, out);
             out.writeVInt(shardIndex);
+            shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
         }
     }
@@ -442,6 +456,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         return request;
     }
 
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.current();
+
     @Override
     public void run() throws IOException {
         for (final SearchShardIterator iterator : toSkipShardsIts) {
@@ -449,6 +465,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             skipShard(iterator);
         }
         if (shardsIts.size() > 0) {
+            final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
             doCheckNoMissingShards(getName(), request, shardsIts);
             for (int i = 0; i < shardsIts.size(); i++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(i);
@@ -459,9 +476,73 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 if (routing == null) {
                     failOnUnavailable(shardIndex, shardRoutings);
                 } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
+                    if (minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION)) {
+                        perNodeQueries.computeIfAbsent(
+                            routing.getNodeId(),
+                            ignored -> new NodeQueryRequest(new ArrayList<>(), request)
+                        ).shards.add(
+                            new ShardToQuery(
+                                concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
+                                getOriginalIndices(shardIndex),
+                                shardIndex,
+                                routing.getShardId(),
+                                shardsIts.get(shardIndex).getSearchContextId()
+                            )
+                        );
+                    } else {
+                        performPhaseOnShard(shardIndex, shardRoutings, routing);
+                    }
                 }
             }
+            perNodeQueries.forEach((nodeId, request) -> {
+                try {
+                    searchTransportService.transportService()
+                        .sendChildRequest(
+                            getConnection(null, nodeId),
+                            NODE_SEARCH_ACTION_NAME,
+                            request,
+                            task,
+                            new TransportResponseHandler<NodeQueryResponse>() {
+                                @Override
+                                public NodeQueryResponse read(StreamInput in) throws IOException {
+                                    return new NodeQueryResponse(in);
+                                }
+
+                                @Override
+                                public Executor executor() {
+                                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                                }
+
+                                @Override
+                                public void handleResponse(NodeQueryResponse response) {
+                                    response.failedShards.forEach(
+                                        (sIdx, e) -> onShardFailure(
+                                            sIdx,
+                                            new SearchShardTarget(nodeId, shardIterators[sIdx].shardId(), null),
+                                            e
+                                        )
+                                    );
+                                    if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+
+                                    } else {
+
+                                    }
+                                }
+
+                                @Override
+                                public void handleException(TransportException e) {
+                                    for (ShardToQuery shard : request.shards) {
+                                        onShardFailure(shard.shardIndex, new SearchShardTarget(nodeId, shard.shardId, null), e);
+                                    }
+                                }
+                            }
+                        );
+                } catch (Exception e) {
+                    for (ShardToQuery shard : request.shards) {
+                        onShardFailure(shard.shardIndex, new SearchShardTarget(nodeId, shard.shardId, null), e);
+                    }
+                }
+            });
         }
     }
 
@@ -794,5 +875,20 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         // increment all the "future" shards to update the total ops since we some may work and some may not...
         // and when that happens, we break on total ops, so we must maintain them
         successfulShardExecution(shardIt);
+    }
+
+    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+
+    public static void registerNodeSearchAction(TransportService transportService, SearchService searchService) {
+        transportService.registerRequestHandler(
+            NODE_SEARCH_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            NodeQueryRequest::new,
+            (request, channel, task) -> {
+                new ChannelActionListener<>(channel).onResponse(
+                    new NodeQueryResponse(Map.of(), new QueryPhaseResultConsumer.MergeResult(List.of(), Lucene.EMPTY_TOP_DOCS, null, 0L))
+                );
+            }
+        );
     }
 }

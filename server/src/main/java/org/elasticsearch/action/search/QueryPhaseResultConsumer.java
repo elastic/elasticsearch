@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -535,7 +536,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     public record MergeResult(
         List<SearchShard> processedShards,
         TopDocs reducedTopDocs,
-        InternalAggregations reducedAggs,
+        @Nullable InternalAggregations reducedAggs,
         long estimatedSize
     ) implements Writeable {
 

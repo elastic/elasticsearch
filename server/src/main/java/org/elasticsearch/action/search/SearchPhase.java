@@ -87,9 +87,6 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AsyncSearchContext context) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
-        if (searchPhaseResult == null) {
-            return;
-        }
         // phaseResult.getContextId() is the same for query & rank feature results
         SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
             ? searchPhaseResult.queryResult()

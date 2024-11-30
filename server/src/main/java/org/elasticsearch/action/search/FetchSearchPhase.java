@@ -45,6 +45,7 @@ final class FetchSearchPhase extends SearchPhase {
     @Nullable
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
+    private final int numShards;
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
@@ -74,6 +75,7 @@ final class FetchSearchPhase extends SearchPhase {
     ) {
         super("fetch");
         this.searchPhaseShardResults = resultConsumer.getAtomicArray();
+        this.numShards = resultConsumer.getNumShards();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
@@ -102,10 +104,9 @@ final class FetchSearchPhase extends SearchPhase {
         assert this.reducedQueryPhase == null ^ this.resultConsumer == null;
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
-        final int numShards = searchPhaseShardResults.length();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = searchPhaseShardResults.length() == 1
+        final boolean queryAndFetchOptimization = numShards == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
@@ -205,9 +206,9 @@ final class FetchSearchPhase extends SearchPhase {
     ) {
         final SearchShardTarget shardTarget = shardPhaseResult.getSearchShardTarget();
         final int shardIndex = shardPhaseResult.getShardIndex();
-        final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
-            ? shardPhaseResult.queryResult().getContextId()
-            : shardPhaseResult.rankFeatureResult().getContextId();
+        final ShardSearchContextId contextId = (shardPhaseResult.queryResult() != null
+            ? shardPhaseResult.queryResult()
+            : shardPhaseResult.rankFeatureResult()).getContextId();
         var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {

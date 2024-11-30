@@ -56,7 +56,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -685,7 +684,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         thread.join();
     }
 
-    public void testRefresh() throws Exception {
+    public void testRefreshAndGet() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
 
@@ -741,6 +740,65 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                     searchResponse.getHits().getTotalHits().value()
                 )
             );
+        }
+
+        // Preparation to test get and mget
+        var bulkRequest = client().prepareBulk();
+        int customDocs = randomIntBetween(5, 10);
+        for (int i = 0; i < customDocs; i++) {
+            var indexRequest = new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+            if (randomBoolean()) {
+                indexRequest.id(String.valueOf(i));
+            }
+            bulkRequest.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.startsWith(TransportGetFromTranslogAction.NAME)
+                    || action.startsWith(TransportShardMultiGetFomTranslogAction.NAME)) {
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
+                } else if (action.startsWith(TransportGetAction.TYPE.name()) || action.startsWith(TransportMultiGetAction.NAME)) {
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.SEARCH_ROLE));
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        // Test get
+        {
+            int i = randomInt(customDocs - 1);
+            String id = bulkResponse.getItems()[i].getId();
+            boolean realtime = randomBoolean();
+            final var get = client().prepareGet(indexName, id).setRealtime(realtime);
+            if (realtime) {
+                assertTrue(get.get().isExists());
+                assertThat(get.get().getVersion(), equalTo(bulkResponse.getItems()[i].getVersion()));
+            }
+            assertThat(get.get().getId(), equalTo(id));
+        }
+
+        // Test mget
+        {
+            boolean realtime = randomBoolean();
+            final var mget = client().prepareMultiGet().setRealtime(realtime);
+            int idStartInclusive = randomInt(customDocs - 1);
+            int idEndExclusive = randomIntBetween(idStartInclusive + 1, customDocs);
+            int[] ids = IntStream.range(idStartInclusive, idEndExclusive).toArray();
+            String[] stringIds = Arrays.stream(ids).mapToObj(i -> bulkResponse.getItems()[i].getId()).toArray(String[]::new);
+            mget.addIds(indexName, stringIds);
+            MultiGetResponse response = mget.get();
+            Arrays.stream(ids).forEach(i -> {
+                int id = i - idStartInclusive;
+                if (realtime) {
+                    assertTrue(response.getResponses()[id].getResponse().isExists());
+                    assertThat(response.getResponses()[id].getResponse().getVersion(), equalTo(bulkResponse.getItems()[id].getVersion()));
+                }
+                assertThat(response.getResponses()[id].getId(), equalTo(stringIds[id]));
+            });
         }
     }
 
@@ -1385,99 +1443,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             .setWaitForCheckpoints(Map.of(indexName, new long[] { seqNoStats.getGlobalCheckpoint() }))
             .execute();
         assertHitCount(searchFuture, docCount);
-    }
-
-    // TODO: Remove redundant test with ES-9563
-    public void testFastRefreshSearch() throws Exception {
-        startIndexNodes(numShards);
-        startSearchNodes(numReplicas);
-        final String indexName = SYSTEM_INDEX_NAME;
-        createSystemIndex(indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
-        ensureGreen(indexName);
-        int docsToIndex = randomIntBetween(1, 100);
-        indexDocsAndRefresh(indexName, docsToIndex);
-
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.contains(TransportSearchAction.NAME)) {
-                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.SEARCH_ROLE));
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-
-        assertNoFailuresAndResponse(
-            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value())
-        );
-    }
-
-    // TODO: Remove redundant test with ES-9563
-    public void testFastRefreshGetAndMGet() {
-        startIndexNodes(numShards);
-        startSearchNodes(numReplicas);
-        final String indexName = SYSTEM_INDEX_NAME;
-        createSystemIndex(indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
-        ensureGreen(indexName);
-
-        var bulkRequest = client().prepareBulk();
-        int customDocs = randomIntBetween(5, 10);
-        for (int i = 0; i < customDocs; i++) {
-            var indexRequest = new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25));
-            if (randomBoolean()) {
-                indexRequest.id(String.valueOf(i));
-            }
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequest.get();
-        assertNoFailures(bulkResponse);
-
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(TransportGetFromTranslogAction.NAME)
-                    || action.startsWith(TransportShardMultiGetFomTranslogAction.NAME)) {
-                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
-                } else if (action.startsWith(TransportGetAction.TYPE.name()) || action.startsWith(TransportMultiGetAction.NAME)) {
-                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.SEARCH_ROLE));
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-
-        // Test get
-        {
-            int i = randomInt(customDocs - 1);
-            String id = bulkResponse.getItems()[i].getId();
-            boolean realtime = randomBoolean();
-            final var get = client().prepareGet(indexName, id).setRealtime(realtime);
-            if (realtime) {
-                assertTrue(get.get().isExists());
-                assertThat(get.get().getVersion(), equalTo(bulkResponse.getItems()[i].getVersion()));
-            }
-            assertThat(get.get().getId(), equalTo(id));
-        }
-
-        // Test mget
-        {
-            boolean realtime = randomBoolean();
-            final var mget = client().prepareMultiGet().setRealtime(realtime);
-            int idStartInclusive = randomInt(customDocs - 1);
-            int idEndExclusive = randomIntBetween(idStartInclusive + 1, customDocs);
-            int[] ids = IntStream.range(idStartInclusive, idEndExclusive).toArray();
-            String[] stringIds = Arrays.stream(ids).mapToObj(i -> bulkResponse.getItems()[i].getId()).toArray(String[]::new);
-            mget.addIds(indexName, stringIds);
-            MultiGetResponse response = mget.get();
-            Arrays.stream(ids).forEach(i -> {
-                int id = i - idStartInclusive;
-                if (realtime) {
-                    assertTrue(response.getResponses()[id].getResponse().isExists());
-                    assertThat(response.getResponses()[id].getResponse().getVersion(), equalTo(bulkResponse.getItems()[id].getVersion()));
-                }
-                assertThat(response.getResponses()[id].getId(), equalTo(stringIds[id]));
-            });
-        }
     }
 
     public void testConcurrentIndexingAndSearches() throws Exception {

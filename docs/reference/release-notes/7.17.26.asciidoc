@@ -1,0 +1,15 @@
+[[release-notes-7.17.26]]
+== {es} version 7.17.26
+
+coming[7.17.26]
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[enhancement-7.17.26]]
+[float]
+=== Enhancements
+
+Snapshot/Restore::
+* Improve message about insecure S3 settings {es-pull}116915[#116915]
+
+

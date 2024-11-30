@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -46,6 +47,11 @@ import static java.util.Collections.emptyList;
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
+    private final AnalysisRegistry analysisRegistry;
+
+    AbstractPhysicalOperationProviders(AnalysisRegistry analysisRegistry) {
+        this.analysisRegistry = analysisRegistry;
+    }
 
     @Override
     public final PhysicalOperation groupingPhysicalOperation(
@@ -173,7 +179,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize())
+                    context.pageSize(aggregateExec.estimatedRowSize()),
+                    analysisRegistry
                 );
             }
         }

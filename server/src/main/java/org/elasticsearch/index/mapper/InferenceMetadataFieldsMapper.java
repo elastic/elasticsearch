@@ -71,10 +71,11 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        context.markInferenceMetadata();
+        context.markInferenceMetadataField();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String fieldName = parser.currentName();
+            // TODO: Find the leaf field under objects
             Mapper mapper = context.mappingLookup().getMapper(fieldName);
             if (mapper != null && mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
                 fieldMapper.parseCreateField(new DocumentParserContext.Wrapper(context.parent(), context) {

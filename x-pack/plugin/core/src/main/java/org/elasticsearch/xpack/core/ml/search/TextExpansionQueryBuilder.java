@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
@@ -39,7 +39,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.inference.queries.WeightedTokensQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
 
 /**
  * @deprecated Replaced by sparse_vector query

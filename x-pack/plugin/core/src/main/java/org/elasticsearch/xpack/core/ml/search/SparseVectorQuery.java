@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;

@@ -1166,8 +1166,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Object sampleValueForDocument = getSampleObjectForDocument();
             assertThat(sampleValueForDocument, instanceOf(Map.class));
             SourceToParse source = source(builder -> {
+                builder.startObject(InferenceMetadataFieldsMapper.NAME);
                 builder.field("field");
                 builder.value(sampleValueForDocument);
+                builder.endObject();
             });
             ParsedDocument doc = mapper.parse(source);
             assertNotNull(doc);

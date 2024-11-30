@@ -129,25 +129,32 @@ public class OffsetSourceFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        String fieldName = null;
-        String sourceFieldName = null;
-        int startOffset = -1;
-        int endOffset = -1;
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-            } else if (SOURCE_NAME_FIELD.equals(fieldName)) {
-                sourceFieldName = parser.text();
-            } else if (START_OFFSET_FIELD.equals(fieldName)) {
-                startOffset = parser.intValue();
-            } else if (END_OFFSET_FIELD.equals(fieldName)) {
-                endOffset = parser.intValue();
-            } else {
-                throw new IllegalArgumentException("Unkown field name [" + fieldName + "]");
+        boolean isWithinLeafObject = context.path().isWithinLeafObject();
+        // make sure that we don't expand dots in field names while parsing
+        context.path().setWithinLeafObject(true);
+        try {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            String fieldName = null;
+            String sourceFieldName = null;
+            int startOffset = -1;
+            int endOffset = -1;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    fieldName = parser.currentName();
+                } else if (SOURCE_NAME_FIELD.equals(fieldName)) {
+                    sourceFieldName = parser.text();
+                } else if (START_OFFSET_FIELD.equals(fieldName)) {
+                    startOffset = parser.intValue();
+                } else if (END_OFFSET_FIELD.equals(fieldName)) {
+                    endOffset = parser.intValue();
+                } else {
+                    throw new IllegalArgumentException("Unkown field name [" + fieldName + "]");
+                }
             }
+            context.doc().addWithKey(fullPath(), new OffsetField(NAME, fullPath() + "." + sourceFieldName, startOffset, endOffset));
+        } finally {
+            context.path().setWithinLeafObject(isWithinLeafObject);
         }
-        context.doc().addWithKey(fullPath(), new OffsetField(NAME, fullPath() + "." + sourceFieldName, startOffset, endOffset));
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
@@ -32,10 +31,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -57,9 +56,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -67,22 +65,22 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
@@ -95,21 +93,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return singletonList(new InferencePlugin(Settings.EMPTY));
-    }
-
-    @Override
-    protected Settings getIndexSettings() {
-        return Settings.builder()
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
-            )
-            .build();
-    }
-
-    @Override
-    protected IndexVersion getVersion() {
-        return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current());
     }
 
     @Override
@@ -164,7 +147,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, Map.of());
+        return new SemanticTextFieldMapper.SemanticTextFieldType(
+            "field",
+            "fake-inference-id",
+            null,
+            null,
+            null,
+            IndexVersion.current(),
+            Map.of()
+        );
     }
 
     @Override
@@ -475,6 +466,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             .get(getChunksFieldName(fieldName));
         assertThat(chunksMapper, equalTo(semanticFieldMapper.fieldType().getChunksField()));
         assertThat(chunksMapper.fullPath(), equalTo(getChunksFieldName(fieldName)));
+        Mapper textMapper = chunksMapper.getMapper(TEXT_FIELD);
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
+        KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
+        assertFalse(textFieldMapper.fieldType().isIndexed());
+        assertFalse(textFieldMapper.fieldType().hasDocValues());
         if (expectedModelSettings) {
             assertNotNull(semanticFieldMapper.fieldType().getModelSettings());
             Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD);
@@ -631,8 +628,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             () -> documentMapper.parse(
                 source(
                     b -> b.startObject("field")
+                        .startObject(INFERENCE_FIELD)
                         .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
                         .field(CHUNKS_FIELD, List.of())
+                        .endObject()
                         .endObject()
                 )
             )
@@ -645,7 +644,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(source(b -> b.startObject("field").field(INFERENCE_ID_FIELD, "my_id").endObject()))
+            () -> documentMapper.parse(
+                source(b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject())
+            )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [model_settings, chunks]"));
     }
@@ -657,7 +658,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> documentMapper.parse(
                 source(
-                    b -> b.startObject("field").field(INFERENCE_ID_FIELD, "my_id").startObject(MODEL_SETTINGS_FIELD).endObject().endObject()
+                    b -> b.startObject("field")
+                        .startObject(INFERENCE_FIELD)
+                        .field(INFERENCE_ID_FIELD, "my_id")
+                        .startObject(MODEL_SETTINGS_FIELD)
+                        .endObject()
+                        .endObject()
+                        .endObject()
                 )
             )
         );
@@ -726,7 +733,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             MapperService.MergeReason.MAPPING_UPDATE
         );
 
-        SemanticTextField semanticTextField = new SemanticTextField(fieldName, inferenceId, modelSettings, List.of(), XContentType.JSON);
+        SemanticTextField semanticTextField = new SemanticTextField(
+            fieldName,
+            List.of(),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, List.of()),
+            XContentType.JSON
+        );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         builder.field(semanticTextField.fieldName());
         builder.value(semanticTextField);
@@ -860,69 +872,5 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }
         }
         assertThat(count, equalTo(expectedCount));
-    }
-
-    private Map<String, Object> toSourceMap(String source) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            return parser.map();
-        }
-    }
-
-    private static Object getMapValue(Map<String, Object> map, String key) {
-        // Split the path on unescaped "." chars and then unescape the escaped "." chars
-        final String[] pathElements = Arrays.stream(key.split("(?<!\\\\)\\.")).map(k -> k.replace("\\.", ".")).toArray(String[]::new);
-
-        Object value = null;
-        Object nextLayer = map;
-        for (int i = 0; i < pathElements.length; i++) {
-            if (nextLayer instanceof Map<?, ?> nextMap) {
-                value = nextMap.get(pathElements[i]);
-            } else if (nextLayer instanceof List<?> nextList) {
-                final String pathElement = pathElements[i];
-                List<?> values = nextList.stream().flatMap(v -> {
-                    Stream.Builder<Object> streamBuilder = Stream.builder();
-                    if (v instanceof List<?> innerList) {
-                        traverseList(innerList, streamBuilder);
-                    } else {
-                        streamBuilder.add(v);
-                    }
-                    return streamBuilder.build();
-                }).filter(v -> v instanceof Map<?, ?>).map(v -> ((Map<?, ?>) v).get(pathElement)).filter(Objects::nonNull).toList();
-
-                if (values.isEmpty()) {
-                    return null;
-                } else if (values.size() > 1) {
-                    throw new AssertionError("List " + nextList + " contains multiple values for [" + pathElement + "]");
-                } else {
-                    value = values.getFirst();
-                }
-            } else if (nextLayer == null) {
-                break;
-            } else {
-                throw new AssertionError(
-                    "Path ["
-                        + String.join(".", Arrays.copyOfRange(pathElements, 0, i))
-                        + "] has value ["
-                        + value
-                        + "] of type ["
-                        + value.getClass().getSimpleName()
-                        + "], which cannot be traversed into further"
-                );
-            }
-
-            nextLayer = value;
-        }
-
-        return value;
-    }
-
-    private static void traverseList(List<?> list, Stream.Builder<Object> streamBuilder) {
-        for (Object value : list) {
-            if (value instanceof List<?> innerList) {
-                traverseList(innerList, streamBuilder);
-            } else {
-                streamBuilder.add(value);
-            }
-        }
     }
 }

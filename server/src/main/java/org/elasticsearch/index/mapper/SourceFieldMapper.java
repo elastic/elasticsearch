@@ -428,7 +428,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return null;
         }
         var modSourceFilter = sourceFilter;
-        if (context != null && context.hasInferenceMetadata()) {
+        if (context != null && context.hasInferenceMetadataField()) {
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {
                 System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);

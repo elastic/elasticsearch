@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.inference.mapper.AbstractSemanticTextFieldType;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -162,7 +162,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder();
-        } else if (fieldType instanceof AbstractSemanticTextFieldType semanticTextFieldType) {
+        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
             if (inferenceResults == null) {
                 // This should never happen, but throw on it in case it ever does
                 throw new IllegalStateException(

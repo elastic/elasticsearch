@@ -66,8 +66,8 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public void markInferenceMetadata() {
-            in.markInferenceMetadata();
+        public void markInferenceMetadataField() {
+            in.markInferenceMetadataField();
         }
 
         @Override
@@ -155,7 +155,7 @@ public abstract class DocumentParserContext {
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
 
-    private boolean inferenceMetadata;
+    private boolean hasInferenceMetadata;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -349,12 +349,19 @@ public abstract class DocumentParserContext {
         return this;
     }
 
-    public void markInferenceMetadata() {
-        this.inferenceMetadata = true;
+    /**
+     * Called by {@link InferenceMetadataFieldsMapper} to indicate whether the metadata field is present
+     * in _source.
+     */
+    public void markInferenceMetadataField() {
+        this.hasInferenceMetadata = true;
     }
 
-    public final boolean hasInferenceMetadata() {
-        return false;// TODO: inferenceMetadata;
+    /**
+     * Returns whether the _source contains an inference metadata field.
+     */
+    public final boolean hasInferenceMetadataField() {
+        return hasInferenceMetadata;
     }
 
     /**

@@ -42,10 +42,9 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.inference.mapper.LegacySemanticTextField;
-import org.elasticsearch.xpack.inference.mapper.LegacySemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
@@ -394,33 +393,35 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                List<String> inputs = responses.stream()
-                    .filter(r -> r.field().equals(fieldName))
-                    .map(r -> r.input)
-                    .collect(Collectors.toList());
-                assert inputs.size() == 1;
                 List<ChunkedInferenceServiceResults> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
                 if (addMetadataField) {
+                    List<String> inputs = responses.stream()
+                            .filter(r -> r.field().equals(fieldName))
+                            .map(r -> r.input)
+                            .collect(Collectors.toList());
+                    assert inputs.size() == 1;
                     var result = new SemanticTextField(
                         fieldName,
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        SemanticTextField.toSemanticTextFieldChunks(fieldName, inputs.get(0), results, indexRequest.getContentType()),
+                        SemanticTextField.toSemanticTextFieldChunks(indexCreatedVersion, inputs.get(0), results, indexRequest.getContentType()),
                         indexRequest.getContentType()
                     );
                     inferenceFieldsMap.put(fieldName, result);
                 } else {
+                    List<String> inputs = responses.stream().filter(r -> r.isOriginalFieldInput).map(r -> r.input).collect(Collectors.toList());
+                    assert inputs.size() == 1;
                     var result = new LegacySemanticTextField(
                         fieldName,
                         inputs,
                         new LegacySemanticTextField.InferenceResult(
                             model.getInferenceEntityId(),
-                            new LegacySemanticTextField.ModelSettings(model),
+                            new SemanticTextField.ModelSettings(model),
                             LegacySemanticTextField.toSemanticTextFieldChunks(results, indexRequest.getContentType())
                         ),
                         indexRequest.getContentType()
                     );
-                    LegacySemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
+                    SemanticTextUtils.insertValue(fieldName, newDocMap, result);
                 }
             }
             if (addMetadataField) {
@@ -500,7 +501,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         ensureResponseAccumulatorSlot(itemIndex);
                         final String value;
                         try {
-                            value = SemanticTextField.nodeStringValues(field, valueObj);
+                            value = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
                             addInferenceResponseFailure(item.id(), exc);
                             break;

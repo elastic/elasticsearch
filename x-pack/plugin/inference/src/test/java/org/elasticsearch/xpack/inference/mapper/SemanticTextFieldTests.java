@@ -48,20 +48,21 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     @Override
     protected void assertEqualInstances(SemanticTextField expectedInstance, SemanticTextField newInstance) {
         assertThat(newInstance.fieldName(), equalTo(expectedInstance.fieldName()));
-        assertThat(newInstance.modelSettings(), equalTo(expectedInstance.modelSettings()));
-        assertThat(newInstance.chunks().size(), equalTo(expectedInstance.chunks().size()));
-        SemanticTextField.ModelSettings modelSettings = newInstance.modelSettings();
-        for (int i = 0; i < newInstance.chunks().size(); i++) {
-            assertThat(newInstance.chunks().get(i).offset(), equalTo(expectedInstance.chunks().get(i).offset()));
+        assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
+        assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
+        assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
+        SemanticTextField.ModelSettings modelSettings = newInstance.inference().modelSettings();
+        for (int i = 0; i < newInstance.inference().chunks().size(); i++) {
+            assertThat(newInstance.inference().chunks().get(i).text(), equalTo(expectedInstance.inference().chunks().get(i).text()));
             switch (modelSettings.taskType()) {
                 case TEXT_EMBEDDING -> {
                     double[] expectedVector = parseDenseVector(
-                        expectedInstance.chunks().get(i).rawEmbeddings(),
+                        expectedInstance.inference().chunks().get(i).rawEmbeddings(),
                         modelSettings.dimensions(),
                         expectedInstance.contentType()
                     );
                     double[] newVector = parseDenseVector(
-                        newInstance.chunks().get(i).rawEmbeddings(),
+                        newInstance.inference().chunks().get(i).rawEmbeddings(),
                         modelSettings.dimensions(),
                         newInstance.contentType()
                     );
@@ -69,11 +70,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 }
                 case SPARSE_EMBEDDING -> {
                     List<WeightedToken> expectedTokens = parseWeightedTokens(
-                        expectedInstance.chunks().get(i).rawEmbeddings(),
+                        expectedInstance.inference().chunks().get(i).rawEmbeddings(),
                         expectedInstance.contentType()
                     );
                     List<WeightedToken> newTokens = parseWeightedTokens(
-                        newInstance.chunks().get(i).rawEmbeddings(),
+                        newInstance.inference().chunks().get(i).rawEmbeddings(),
                         newInstance.contentType()
                     );
                     assertThat(newTokens, equalTo(expectedTokens));
@@ -191,27 +192,25 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomSparseEmbeddings(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
-        return semanticTextFieldFromChunkedInferenceResults(
-            fieldName,
-            model,
-            SemanticTextField.nodeStringValues(fieldName, inputs),
-            results,
-            contentType
-        );
+        return semanticTextFieldFromChunkedInferenceResults(fieldName, model, inputs, results, contentType);
     }
 
     public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
         String fieldName,
         Model model,
-        String input,
+        List<String> inputs,
         ChunkedInferenceServiceResults results,
         XContentType contentType
     ) {
         return new SemanticTextField(
             fieldName,
-            model.getInferenceEntityId(),
-            new SemanticTextField.ModelSettings(model),
-            toSemanticTextFieldChunks(fieldName, input, List.of(results), contentType),
+            inputs,
+            new SemanticTextField.InferenceResult(
+                model.getInferenceEntityId(),
+                new SemanticTextField.ModelSettings(model),
+                // TODO
+                toSemanticTextFieldChunks(fieldName, inputs.get(0), List.of(results), contentType)
+            ),
             contentType
         );
     }
@@ -235,31 +234,33 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {
-        switch (field.modelSettings().taskType()) {
+        switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
                 List<MlChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
-                for (var chunk : field.chunks()) {
+                for (var chunk : field.inference().chunks()) {
                     var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                    // TODO
-                    chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(null, tokens));
+                    chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(chunk.text(), tokens));
                 }
                 return new InferenceChunkedSparseEmbeddingResults(chunks);
             }
             case TEXT_EMBEDDING -> {
                 List<InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk> chunks = new ArrayList<>();
-                for (var chunk : field.chunks()) {
-                    double[] values = parseDenseVector(chunk.rawEmbeddings(), field.modelSettings().dimensions(), field.contentType());
-                    // TODO
+                for (var chunk : field.inference().chunks()) {
+                    double[] values = parseDenseVector(
+                        chunk.rawEmbeddings(),
+                        field.inference().modelSettings().dimensions(),
+                        field.contentType()
+                    );
                     chunks.add(
                         new InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk(
-                            null,
+                            chunk.text(),
                             FloatConversionUtils.floatArrayOf(values)
                         )
                     );
                 }
                 return new InferenceChunkedTextEmbeddingFloatResults(chunks);
             }
-            default -> throw new AssertionError("Invalid task_type: " + field.modelSettings().taskType().name());
+            default -> throw new AssertionError("Invalid task_type: " + field.inference().modelSettings().taskType().name());
         }
     }
 

@@ -33,9 +33,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceMetaFieldMapper;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.queries.SparseVectorQuery;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,6 +96,9 @@ public class SemanticTextHighlighter implements Highlighter {
             fieldContext.hitContext.docId(),
             queries
         );
+        if (chunks.size() == 0) {
+            return null;
+        }
 
         Map<String, String> inputs = extractContentFields(fieldContext.hitContext, mappingLookup, inferenceMetadata.getSourceFields());
         chunks.sort(Comparator.comparingDouble(OffsetAndScore::score).reversed());
@@ -122,7 +125,7 @@ public class SemanticTextHighlighter implements Highlighter {
             }
             Object sourceValue = hitContext.source().extractValue(sourceFieldType.name(), null);
             if (sourceValue != null) {
-                inputs.put(sourceField, SemanticTextField.nodeStringValues(sourceFieldType.name(), sourceValue));
+                inputs.put(sourceField, SemanticTextUtils.nodeStringValues(sourceFieldType.name(), sourceValue));
             }
         }
         return inputs;
@@ -144,7 +147,7 @@ public class SemanticTextHighlighter implements Highlighter {
         Scorer scorer = weight.scorer(reader.getContext());
         var terms = reader.terms(OffsetSourceMetaFieldMapper.NAME);
         if (terms == null) {
-            // TODO: Empty terms
+            // The field is empty
             return List.of();
         }
         var offsetReader = new OffsetSourceFieldMapper.OffsetsReader(terms, fieldType.getOffsetsField().fullPath());

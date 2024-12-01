@@ -98,27 +98,22 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      * To correctly time the execution of a request, a {@link EsqlResponseListener} must be constructed immediately before execution begins.
      */
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
-        super(channel);
-
-        this.channel = channel;
-        this.restRequest = restRequest;
-        this.esqlQueryOrId = esqlRequest.query();
-        this.mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
-
-        checkDelimiter();
+        this(channel, restRequest, esqlRequest.query(), EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest));
     }
 
     /**
      * Async query get API does not have an EsqlQueryRequest, store the async ID as an alternative
      */
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest) {
-        super(channel);
+        this(channel, restRequest, restRequest.param("id"), EsqlMediaTypeParser.getResponseMediaType(restRequest));
+    }
 
+    private EsqlResponseListener(RestChannel channel, RestRequest restRequest, String esqlQueryOrId, MediaType mediaType) {
+        super(channel);
         this.channel = channel;
         this.restRequest = restRequest;
-        this.esqlQueryOrId = restRequest.param("id");
-        this.mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest);
-
+        this.esqlQueryOrId = esqlQueryOrId;
+        this.mediaType = mediaType;
         checkDelimiter();
     }
 

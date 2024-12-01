@@ -80,12 +80,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     }
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
-
-    /**
-     * HTTP header names
-     */
     private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
-
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;

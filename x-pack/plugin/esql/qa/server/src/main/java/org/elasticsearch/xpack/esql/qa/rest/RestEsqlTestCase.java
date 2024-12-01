@@ -101,15 +101,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     // larger than any (unsigned) long
     private static final String HUMONGOUS_DOUBLE = "1E300";
 
-    private static final Map<String, String> TEXT_FORMATS = Map.of(
-        "txt",
-        "text/plain",
-        "csv",
-        "text/csv",
-        "tsv",
-        "text/tab-separated-values"
-    );
-
     public static boolean shouldLog() {
         return false;
     }
@@ -1193,7 +1184,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (addParam) {
             request.addParameter("format", format);
         } else {
-            options.addHeader("Accept", TEXT_FORMATS.getOrDefault(format, mediaType));
+            switch (format) {
+                case "txt" -> options.addHeader("Accept", "text/plain");
+                case "csv" -> options.addHeader("Accept", "text/csv");
+                case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+            }
         }
         if (delimiter != null) {
             request.addParameter("delimiter", String.valueOf(delimiter));

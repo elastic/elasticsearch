@@ -355,7 +355,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             // embeddings were overwritten.
             if (model.hasResult(inputText)) {
                 ChunkedInferenceServiceResults results = model.getResults(inputText);
-                semanticTextField = semanticTextFieldFromChunkedInferenceResults(field, model, inputText, results, requestContentType);
+                semanticTextField = semanticTextFieldFromChunkedInferenceResults(
+                    field,
+                    model,
+                    List.of(inputText),
+                    results,
+                    requestContentType
+                );
             } else {
                 semanticTextField = randomSemanticText(field, model, List.of(inputText), requestContentType);
                 model.putResult(inputText, toChunkedResult(semanticTextField));

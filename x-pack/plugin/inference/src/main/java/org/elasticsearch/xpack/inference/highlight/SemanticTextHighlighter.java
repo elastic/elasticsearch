@@ -150,7 +150,7 @@ public class SemanticTextHighlighter implements Highlighter {
             // The field is empty
             return List.of();
         }
-        var offsetReader = new OffsetSourceFieldMapper.OffsetsReader(terms, fieldType.getOffsetsField().fullPath());
+        var offsetReader = new OffsetSourceFieldMapper.OffsetsLoader(fieldType.getOffsetsField().fullPath(), terms);
         if (previousParent != -1) {
             scorer.iterator().advance(previousParent);
         } else if (scorer.iterator().nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {

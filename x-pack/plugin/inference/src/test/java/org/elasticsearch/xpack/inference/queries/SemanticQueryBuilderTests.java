@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
@@ -344,10 +345,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SourceToParse sourceToParse = null;
         if (modelSettings != null) {
             SemanticTextField semanticTextField = new SemanticTextField(
+                IndexVersion.current(),
                 SEMANTIC_TEXT_FIELD,
-                INFERENCE_ID,
-                modelSettings,
-                List.of(),
+                null,
+                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, Map.of(SEMANTIC_TEXT_FIELD, List.of())),
                 XContentType.JSON
             );
 

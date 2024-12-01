@@ -732,9 +732,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
 
         SemanticTextField semanticTextField = new SemanticTextField(
+            mapperService.getIndexSettings().getIndexVersionCreated(),
             fieldName,
             List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, List.of()),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, Map.of()),
             XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();

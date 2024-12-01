@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -29,14 +28,10 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 public class OffsetSourceFieldMapper extends FieldMapper {
@@ -98,7 +93,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new OffsetSourceValueFetcher(name());
+            return ValueFetcher.EMPTY;
         }
 
         @Override
@@ -162,14 +157,14 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         return new Builder(leafName()).init(this);
     }
 
-    public static class OffsetsReader {
+    public static class OffsetsLoader {
         private final String fieldName;
         private final Map<String, PostingsEnum> postingsEnums = new LinkedHashMap<>();
         private String sourceFieldName;
         private int startOffset;
         private int endOffset;
 
-        public OffsetsReader(Terms terms, String fieldName) throws IOException {
+        public OffsetsLoader(String fieldName, Terms terms) throws IOException {
             this.fieldName = fieldName;
             Automaton prefixAutomaton = PrefixQuery.toAutomaton(new BytesRef(fieldName + "."));
             var termsEnum = terms.intersect(new CompiledAutomaton(prefixAutomaton, false, true, false), null);
@@ -214,38 +209,6 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         public int getEndOffset() {
             return endOffset;
-        }
-    }
-
-    private static class OffsetSourceValueFetcher implements ValueFetcher {
-        private final String fieldName;
-        private OffsetsReader reader;
-
-        OffsetSourceValueFetcher(String fieldName) {
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public void setNextReader(LeafReaderContext context) {
-            try {
-                var terms = context.reader().terms(OffsetSourceMetaFieldMapper.NAME);
-                reader = terms != null ? new OffsetsReader(terms, fieldName) : null;
-            } catch (IOException exc) {
-                throw new UncheckedIOException(exc);
-            }
-        }
-
-        @Override
-        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-            if (reader != null && reader.advanceTo(doc)) {
-                return List.of(Map.of("field", reader.sourceFieldName, "start", reader.startOffset, "end", reader.endOffset));
-            }
-            return null;
-        }
-
-        @Override
-        public StoredFieldsSpec storedFieldsSpec() {
-            return null;
         }
     }
 }

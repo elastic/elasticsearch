@@ -134,26 +134,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * A field inference request on a single input.
      * @param index The index of the request in the original bulk request.
      * @param field The target field.
+     * @param sourceField The source field.
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
-     * @param isOriginalFieldInput Whether the input is part of the original values of the field.
      */
-    private record FieldInferenceRequest(int index, String field, String input, int inputOrder, boolean isOriginalFieldInput) {}
+    private record FieldInferenceRequest(int index, String field, String sourceField, String input, int inputOrder) {}
 
     /**
      * The field inference response.
      * @param field The target field.
+     * @param sourceField The input that was used to run inference.
      * @param input The input that was used to run inference.
      * @param inputOrder The original order of the input.
-     * @param isOriginalFieldInput Whether the input is part of the original values of the field.
      * @param model The model used to run inference.
      * @param chunkedResults The actual results.
      */
     private record FieldInferenceResponse(
         String field,
+        String sourceField,
         String input,
         int inputOrder,
-        boolean isOriginalFieldInput,
         Model model,
         ChunkedInferenceServiceResults chunkedResults
     ) {}
@@ -311,9 +311,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 acc.addOrUpdateResponse(
                                     new FieldInferenceResponse(
                                         request.field(),
+                                        request.sourceField(),
                                         request.input(),
                                         request.inputOrder(),
-                                        request.isOriginalFieldInput(),
                                         inferenceProvider.model,
                                         result
                                     )
@@ -393,42 +393,36 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                List<ChunkedInferenceServiceResults> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
-                if (addMetadataField) {
-                    List<String> inputs = responses.stream()
-                        .filter(r -> r.field().equals(fieldName))
-                        .map(r -> r.input)
-                        .collect(Collectors.toList());
-                    assert inputs.size() == 1;
-                    var result = new SemanticTextField(
-                        fieldName,
+                Map<String, List<SemanticTextField.Chunk>> chunkMap = new HashMap<>();
+                for (var resp : responses) {
+                    var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
+                    lst.addAll(
+                        SemanticTextField.toSemanticTextFieldChunks(
+                            resp.input,
+                            List.of(resp.chunkedResults),
+                            indexRequest.getContentType(),
+                            addMetadataField
+                        )
+                    );
+                }
+                List<String> inputs = responses.stream()
+                    .filter(r -> r.sourceField().equals(fieldName))
+                    .map(r -> r.input)
+                    .collect(Collectors.toList());
+                var result = new SemanticTextField(
+                    indexCreatedVersion,
+                    fieldName,
+                    addMetadataField ? null : inputs,
+                    new SemanticTextField.InferenceResult(
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        SemanticTextField.toSemanticTextFieldChunks(
-                            indexCreatedVersion,
-                            inputs.get(0),
-                            results,
-                            indexRequest.getContentType()
-                        ),
-                        indexRequest.getContentType()
-                    );
+                        chunkMap
+                    ),
+                    indexRequest.getContentType()
+                );
+                if (addMetadataField) {
                     inferenceFieldsMap.put(fieldName, result);
                 } else {
-                    List<String> inputs = responses.stream()
-                        .filter(r -> r.isOriginalFieldInput)
-                        .map(r -> r.input)
-                        .collect(Collectors.toList());
-                    assert inputs.size() == 1;
-                    var result = new LegacySemanticTextField(
-                        fieldName,
-                        inputs,
-                        new LegacySemanticTextField.InferenceResult(
-                            model.getInferenceEntityId(),
-                            new SemanticTextField.ModelSettings(model),
-                            LegacySemanticTextField.toSemanticTextFieldChunks(results, indexRequest.getContentType())
-                        ),
-                        indexRequest.getContentType()
-                    );
                     SemanticTextUtils.insertValue(fieldName, newDocMap, result);
                 }
             }
@@ -489,7 +483,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
-                        boolean isOriginalFieldInput = sourceField.equals(field);
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
                             if (isUpdateRequest) {
@@ -515,7 +508,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             break;
                         }
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        fieldRequests.add(new FieldInferenceRequest(itemIndex, field, value, order++, isOriginalFieldInput));
+                        fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, value, order++));
                     }
                 }
             }

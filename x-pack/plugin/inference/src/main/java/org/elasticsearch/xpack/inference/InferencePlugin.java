@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -75,6 +74,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceMetaFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.XPackInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
@@ -399,8 +399,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(
-            InferenceMetadataFieldsMapper.NAME,
-            InferenceMetadataFieldsMapper.PARSER,
+            XPackInferenceMetadataFieldsMapper.NAME,
+            XPackInferenceMetadataFieldsMapper.PARSER,
             OffsetSourceMetaFieldMapper.NAME,
             OffsetSourceMetaFieldMapper.PARSER
         );

@@ -852,7 +852,7 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    ObjectMapper findParentMapper(String leafFieldPath) {
+    public ObjectMapper findParentMapper(String leafFieldPath) {
         var pathComponents = leafFieldPath.split("\\.");
         int startPathComponent = 0;
 

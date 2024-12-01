@@ -10,6 +10,7 @@
 package org.elasticsearch.index.get;
 
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -288,7 +291,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource
     ) throws IOException {
         assert get.exists() : "method should only be called if document could be retrieved";
-
         // check first if stored fields to be loaded don't contain an object field
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (storedFields != null) {
@@ -370,6 +372,26 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             if (fetchSourceContext.hasFilter()) {
                 source = source.filter(fetchSourceContext.filter());
+            }
+
+            InferenceMetadataFieldsMapper inferenceMetadata = (InferenceMetadataFieldsMapper) mappingLookup.getMapping()
+                .getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
+            if (inferenceMetadata != null && mapperService.mappingLookup().inferenceFields().isEmpty() == false) {
+                var inferenceLoader = inferenceMetadata.fieldType()
+                    .valueFetcher(
+                        mappingLookup,
+                        mapperService.getBitSetProducer(),
+                        new IndexSearcher(docIdAndVersion.reader),
+                        XContentType.JSON
+                    );
+                inferenceLoader.setNextReader(docIdAndVersion.reader.getContext());
+                List<Object> values = inferenceLoader.fetchValues(source, docIdAndVersion.docId, List.of());
+                if (values.size() > 0) {
+                    assert values.size() == 1;
+                    var sourceMap = source.source();
+                    sourceMap.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+                    source = Source.fromMap(sourceMap, source.sourceContentType());
+                }
             }
             sourceBytes = source.internalSourceRef();
         }

@@ -399,7 +399,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(DocumentParserContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
         final BytesReference adaptedSource = applyFilters(context, originalSource, contentType);

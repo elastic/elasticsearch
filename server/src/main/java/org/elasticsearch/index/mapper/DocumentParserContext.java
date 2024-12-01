@@ -42,10 +42,10 @@ public abstract class DocumentParserContext {
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
-    static class Wrapper extends DocumentParserContext {
+    private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
-        Wrapper(ObjectMapper parent, DocumentParserContext in) {
+        private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
         }
@@ -58,16 +58,6 @@ public abstract class DocumentParserContext {
         @Override
         public boolean isWithinCopyTo() {
             return in.isWithinCopyTo();
-        }
-
-        @Override
-        public boolean isWithinInferenceMetadata() {
-            return in.isWithinInferenceMetadata();
-        }
-
-        @Override
-        public void markInferenceMetadataField() {
-            in.markInferenceMetadataField();
         }
 
         @Override
@@ -154,8 +144,6 @@ public abstract class DocumentParserContext {
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
-
-    private boolean hasInferenceMetadata;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -658,25 +646,6 @@ public abstract class DocumentParserContext {
 
     public boolean isWithinCopyTo() {
         return false;
-    }
-
-    public boolean isWithinInferenceMetadata() {
-        return false;
-    }
-
-    /**
-     * Called by {@link InferenceMetadataFieldsMapper} to indicate whether the metadata field is present
-     * in _source.
-     */
-    public void markInferenceMetadataField() {
-        this.hasInferenceMetadata = true;
-    }
-
-    /**
-     * Returns whether the _source contains an inference metadata field.
-     */
-    public final boolean hasInferenceMetadataField() {
-        return hasInferenceMetadata;
     }
 
     boolean inArrayScope() {

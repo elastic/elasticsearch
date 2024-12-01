@@ -126,7 +126,6 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                 FetchContext fetchContext = mock(FetchContext.class);
                 Mockito.when(fetchContext.highlight()).thenReturn(new SearchHighlightContext(Collections.emptyList()));
                 Mockito.when(fetchContext.query()).thenReturn(luceneQuery);
-                Mockito.when(fetchContext.request()).thenReturn(request);
                 Mockito.when(fetchContext.getSearchExecutionContext()).thenReturn(execContext);
 
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
@@ -559,8 +558,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             0.08346125f,
             0.060288202f,
             0.0548457f };
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder("dense_field.chunks.embeddings", vector, 10, 10, null);
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("dense_field.chunks", knnQuery, ScoreMode.Max);
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder("dense_field.inference.chunks.embeddings", vector, 10, 10, null);
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("dense_field.inference.chunks", knnQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
         var sourceToParse = new SourceToParse(
             "0",

@@ -8,16 +8,23 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -39,6 +46,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -50,19 +58,24 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -279,26 +292,37 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        if (context.isWithinInferenceMetadata() == false) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
             // ignore original text value
             context.parser().skipChildren();
             return;
         }
+        XContentLocation xContentLocation = context.parser().getTokenLocation();
+        final SemanticTextField field = parseSemanticTextField(context);
+        if (field != null) {
+            parseCreateFieldFromContext(context, field, xContentLocation);
+        }
+    }
+
+    SemanticTextField parseSemanticTextField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return;
+            return null;
         }
-
-        XContentLocation xContentLocation = parser.getTokenLocation();
-        final SemanticTextField field;
         boolean isWithinLeaf = context.path().isWithinLeafObject();
         try {
             context.path().setWithinLeafObject(true);
-            field = SemanticTextField.parse(parser, new Tuple<>(fullPath(), context.parser().contentType()));
+            return SemanticTextField.parse(
+                context.parser(),
+                new SemanticTextField.ParserContext(indexSettings.getIndexVersionCreated(), fullPath(), context.parser().contentType())
+            );
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+    }
 
+    void parseCreateFieldFromContext(DocumentParserContext context, SemanticTextField field, XContentLocation xContentLocation)
+        throws IOException {
         final String fullFieldName = fieldType().name();
         if (field.inference().inferenceId().equals(fieldType().getInferenceId()) == false) {
             throw new DocumentParsingException(
@@ -348,35 +372,40 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         var chunksField = mapper.fieldType().getChunksField();
         var embeddingsField = mapper.fieldType().getEmbeddingsField();
         var offsetsField = mapper.fieldType().getOffsetsField();
-        for (var chunk : field.inference().chunks()) {
-            var nestedContext = context.createNestedContext(chunksField);
-            try (
-                XContentParser subParser = XContentHelper.createParserNotCompressed(
-                    XContentParserConfiguration.EMPTY,
-                    chunk.rawEmbeddings(),
-                    context.parser().contentType()
-                )
-            ) {
-                DocumentParserContext subContext = nestedContext.switchParser(subParser);
-                subParser.nextToken();
-                embeddingsField.parse(subContext);
-            }
-            try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
-                builder.startObject();
-                builder.field("field", chunk.sourceField());
-                builder.field("start", chunk.startOffset());
-                builder.field("end", chunk.endOffset());
-                builder.endObject();
+        for (var entry : field.inference().chunks().entrySet()) {
+            for (var chunk : entry.getValue()) {
+                var nestedContext = context.createNestedContext(chunksField);
                 try (
                     XContentParser subParser = XContentHelper.createParserNotCompressed(
                         XContentParserConfiguration.EMPTY,
-                        BytesReference.bytes(builder),
+                        chunk.rawEmbeddings(),
                         context.parser().contentType()
                     )
                 ) {
                     DocumentParserContext subContext = nestedContext.switchParser(subParser);
                     subParser.nextToken();
-                    offsetsField.parse(subContext);
+                    embeddingsField.parse(subContext);
+                }
+
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                    try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
+                        builder.startObject();
+                        builder.field("field", entry.getKey());
+                        builder.field("start", chunk.startOffset());
+                        builder.field("end", chunk.endOffset());
+                        builder.endObject();
+                        try (
+                            XContentParser subParser = XContentHelper.createParserNotCompressed(
+                                XContentParserConfiguration.EMPTY,
+                                BytesReference.bytes(builder),
+                                context.parser().contentType()
+                            )
+                        ) {
+                            DocumentParserContext subContext = nestedContext.switchParser(subParser);
+                            subParser.nextToken();
+                            offsetsField.parse(subContext);
+                        }
+                    }
                 }
             }
         }
@@ -499,10 +528,41 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
-                return SourceValueFetcher.toString(name(), context, format);
+                if (format != null) {
+                    String[] split = format.split("-");
+                    if (split.length != 2 || split[0].equalsIgnoreCase("inference") == false) {
+                        throw new IllegalArgumentException("Illegal format for field [" + name() + "], got " + format);
+                    }
+                    XContentType xContentType = XContentType.valueOf(split[1].toUpperCase());
+                    if (xContentType == null) {
+                        throw new IllegalArgumentException("Illegal format for field [" + name() + "], got " + format);
+                    }
+                    return valueFetcherBinary(context::bitsetFilter, context.searcher(), xContentType);
+                } else {
+                    return SourceValueFetcher.toString(name(), context, null);
+                }
             } else {
                 // Redirect the fetcher to load the original values of the field
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
+            }
+        }
+
+        ValueFetcher valueFetcherBinary(Function<Query, BitSetProducer> bitSetCache, IndexSearcher searcher, XContentType xContentType) {
+            var embeddingsField = getEmbeddingsField();
+            if (embeddingsField == null) {
+                return ValueFetcher.EMPTY;
+            }
+            try {
+                var embeddingsLoader = embeddingsField.syntheticFieldLoader();
+                var bitSetFilter = bitSetCache.apply(getChunksField().parentTypeFilter());
+                var childWeight = searcher.createWeight(
+                    getChunksField().nestedTypeFilter(),
+                    org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES,
+                    1
+                );
+                return new BinaryValueFetcher(bitSetFilter, childWeight, embeddingsLoader, xContentType);
+            } catch (IOException exc) {
+                throw new UncheckedIOException(exc);
             }
         }
 
@@ -626,8 +686,124 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name().concat(".text")));
+            String name = indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) ? name() : name().concat(".text");
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
+        }
+
+        private class BinaryValueFetcher implements ValueFetcher {
+            private final XContentType xContentType;
+            private final BitSetProducer parentBitSetProducer;
+            private final Weight childWeight;
+            private final SourceLoader.SyntheticFieldLoader fieldLoader;
+
+            private BitSet bitSet;
+            private Scorer childScorer;
+            private SourceLoader.SyntheticFieldLoader.DocValuesLoader dvLoader;
+            private OffsetSourceFieldMapper.OffsetsLoader offsetsLoader;
+
+            private BinaryValueFetcher(
+                BitSetProducer bitSetProducer,
+                Weight childWeight,
+                SourceLoader.SyntheticFieldLoader fieldLoader,
+                XContentType xContentType
+            ) {
+                this.parentBitSetProducer = bitSetProducer;
+                this.childWeight = childWeight;
+                this.fieldLoader = fieldLoader;
+                this.xContentType = xContentType;
+            }
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                try {
+                    bitSet = parentBitSetProducer.getBitSet(context);
+                    childScorer = childWeight.scorer(context);
+                    if (childScorer != null) {
+                        childScorer.iterator().nextDoc();
+                    }
+                    dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    var terms = context.reader().terms(OffsetSourceMetaFieldMapper.NAME);
+                    offsetsLoader = terms != null ? new OffsetSourceFieldMapper.OffsetsLoader(getOffsetsField().fullPath(), terms) : null;
+                } catch (IOException exc) {
+                    throw new UncheckedIOException(exc);
+                }
+            }
+
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                if (childScorer == null || offsetsLoader == null) {
+                    return List.of();
+                }
+                int previousParent = doc > 0 ? bitSet.prevSetBit(doc - 1) : -1;
+                var it = childScorer.iterator();
+                if (it.docID() < previousParent) {
+                    it.advance(previousParent);
+                }
+                Map<String, List<SemanticTextField.Chunk>> chunkMap = new HashMap<>();
+                while (it.docID() < doc) {
+                    System.out.println(doc + " " + it.docID());
+                    if (dvLoader.advanceToDoc(it.docID()) == false) {
+                        throw new IllegalStateException("Missing embeddings");
+                    }
+                    if (offsetsLoader.advanceTo(it.docID()) == false) {
+                        throw new IllegalStateException("Missing offsets");
+                    }
+                    var chunks = chunkMap.computeIfAbsent(offsetsLoader.getSourceFieldName(), k -> new ArrayList<>());
+                    chunks.add(
+                        new SemanticTextField.Chunk(
+                            null,
+                            offsetsLoader.getStartOffset(),
+                            offsetsLoader.getEndOffset(),
+                            rawEmbeddings(fieldLoader::write, xContentType)
+                        )
+                    );
+                    if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                }
+                if (chunkMap.isEmpty()) {
+                    return List.of();
+                }
+                return List.of(
+                    new SemanticTextField(
+                        indexVersionCreated,
+                        name(),
+                        null,
+                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkMap),
+                        xContentType
+                    )
+                );
+            }
+
+            private BytesReference rawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
+                throws IOException {
+                try (var result = XContentFactory.contentBuilder(xContentType)) {
+                    try (var builder = XContentFactory.contentBuilder(xContentType)) {
+                        builder.startObject();
+                        writer.accept(builder);
+                        builder.endObject();
+                        try (
+                            XContentParser parser = XContentHelper.createParserNotCompressed(
+                                XContentParserConfiguration.EMPTY,
+                                BytesReference.bytes(builder),
+                                xContentType
+                            )
+                        ) {
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                            parser.nextToken();
+                            result.copyCurrentStructure(parser);
+                        }
+                        return BytesReference.bytes(result);
+                    }
+                }
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
         }
     }
 

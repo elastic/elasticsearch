@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -374,7 +375,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexMetadata indexMetadata,
         MappingLookup mappingLookup
     ) {
-        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
+        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED
+            || indexMetadata.getCreationVersion().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
             return result;
         }
 
@@ -403,7 +405,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             String inferenceFieldName = entry.getKey();
             Mapper mapper = mappingLookup.getMapper(inferenceFieldName);
 
-            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+            if (mapper instanceof InferenceFieldMapper) {
                 String[] sourceFields = entry.getValue().getSourceFields();
                 for (String sourceField : sourceFields) {
                     if (sourceField.equals(inferenceFieldName) == false

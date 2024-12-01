@@ -9,52 +9,20 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xcontent.XContentParser;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
-public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
+public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
     public static final String NAME = "_inference_fields";
     public static final String CONTENT_TYPE = "_inference_fields";
 
-    private static final InferenceMetadataFieldsMapper INSTANCE = new InferenceMetadataFieldsMapper();
-
-    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
-
-    public static final class InferenceFieldType extends MappedFieldType {
-        private static InferenceFieldType INSTANCE = new InferenceFieldType();
-
-        public InferenceFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // TODO: return the map from the individual semantic text fields?
-            return null;
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new QueryShardException(
-                context,
-                "[" + name() + "] field which is of type [" + typeName() + "], does not support term queries"
-            );
-        }
-    }
-
-    private InferenceMetadataFieldsMapper() {
-        super(InferenceFieldType.INSTANCE);
+    protected InferenceMetadataFieldsMapper(MappedFieldType inferenceFieldType) {
+        super(inferenceFieldType);
     }
 
     @Override
@@ -63,34 +31,20 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean supportsParsingObject() {
-        return true;
+    public InferenceMetadataFieldType fieldType() {
+        return (InferenceMetadataFieldType) super.fieldType();
     }
 
-    @Override
-    protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        context.markInferenceMetadataField();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            String fieldName = parser.currentName();
-            var parent = context.parent().findParentMapper(fieldName);
-            if (parent == null) {
-                throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
-            }
-            String suffix = context.parent() != parent ? fieldName.substring(parent.fullPath().length() + 1) : fieldName;
-            var mapper = parent.getMapper(suffix);
-            if (mapper != null && mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
-                fieldMapper.parseCreateField(new DocumentParserContext.Wrapper(context.parent(), context) {
-                    @Override
-                    public boolean isWithinInferenceMetadata() {
-                        return true;
-                    }
-                });
-            } else {
-                throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
-            }
+    public abstract static class InferenceMetadataFieldType extends MappedFieldType {
+        public InferenceMetadataFieldType() {
+            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
         }
+
+        public abstract ValueFetcher valueFetcher(
+            MappingLookup mappingLookup,
+            Function<Query, BitSetProducer> bitSetCache,
+            IndexSearcher searcher,
+            XContentType xContentType
+        );
     }
 }

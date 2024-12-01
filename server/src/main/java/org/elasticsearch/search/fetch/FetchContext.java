@@ -26,7 +26,6 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;

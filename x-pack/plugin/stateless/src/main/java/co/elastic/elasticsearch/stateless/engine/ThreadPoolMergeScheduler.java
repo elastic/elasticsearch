@@ -36,6 +36,7 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -203,10 +204,25 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
                     if (success) {
-                        long newSegmentSize = currentMerge.getMergeInfo().sizeInBytes();
+                        long newSegmentSize = getNewSegmentSize(currentMerge);
                         mergeMetrics.markMergeMetrics(currentMerge, newSegmentSize, tookMS);
                     }
                     mergeTracking.mergeFinished(currentMerge, onGoingMerge, tookMS);
+                }
+            }
+
+            private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) throws IOException {
+                try {
+                    return currentMerge.getMergeInfo().sizeInBytes();
+                } catch (FileNotFoundException e) {
+                    // It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to reaching this point.
+                    // Once the IW creates the new segment, it could be exposed to be included in a new merge. That merge can be executed
+                    // concurrently if more than 1 merge threads are configured. That new merge allows this IW to delete segment created by
+                    // this merge. Although the files may still be available in the object store for executing searches, the IndexDirectory
+                    // will no longer have references to the underlying segment files and will throw file not found if we try to read them.
+                    // In this case, we will ignore that exception (which would otherwise fail the shard) and use the originally estimated
+                    // merge size for metrics.
+                    return currentMerge.estimatedMergeBytes;
                 }
             }
 

@@ -495,7 +495,7 @@ public class ComputeService {
                 context.exchangeSink(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(contexts)
+                new EsPhysicalOperationProviders(contexts, searchService.getIndicesService().getAnalysis())
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);

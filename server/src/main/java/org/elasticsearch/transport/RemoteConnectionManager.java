@@ -312,6 +312,10 @@ public class RemoteConnectionManager implements ConnectionManager {
         public void onRemoved() {}
     }
 
+    public static boolean isProxyConnection(Transport.Connection connection) {
+        return connection instanceof ProxyConnection;
+    }
+
     private static final class InternalRemoteConnection implements Transport.Connection {
 
         private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);

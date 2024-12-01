@@ -43,7 +43,6 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -469,9 +468,8 @@ public class ExchangeServiceTests extends ESTestCase {
                 sourceCompletionFuture
             );
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
-            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(
-                exchange0.newRemoteSink(task, exchangeId, node0, connection),
+                exchange0.newRemoteSink(task, exchangeId, node0, () -> node0.getConnection(node1.getLocalNode())),
                 randomBoolean(),
                 randomIntBetween(1, 5),
                 ActionListener.noop()
@@ -544,9 +542,8 @@ public class ExchangeServiceTests extends ESTestCase {
                 sourceCompletionFuture
             );
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(
-                exchange0.newRemoteSink(task, exchangeId, node0, connection),
+                exchange0.newRemoteSink(task, exchangeId, node0, () -> node0.getConnection(node1.getLocalNode())),
                 true,
                 randomIntBetween(1, 5),
                 ActionListener.noop()

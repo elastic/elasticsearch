@@ -51,6 +51,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -84,6 +85,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
@@ -309,8 +311,20 @@ public class ComputeService {
                 throw new IllegalStateException("can't find original indices for cluster " + clusterAlias);
             }
             if (concreteIndices.indices().length > 0) {
-                Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
-                remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                final Transport.Connection fallbackConnection = remoteClusterService.getConnection(clusterAlias);
+                final Supplier<Transport.Connection> connectionSupplier = () -> {
+                    try {
+                        final Transport.Connection conn = remoteClusterService.getConnection(fallbackConnection.getNode(), clusterAlias);
+                        // We don't register proxy actions for ES|QL actions in old versions
+                        if (RemoteConnectionManager.isProxyConnection(conn)) {
+                            return fallbackConnection;
+                        }
+                        return conn;
+                    } catch (Exception unused) {
+                        return fallbackConnection;
+                    }
+                };
+                remoteClusters.add(new RemoteCluster(clusterAlias, connectionSupplier, concreteIndices.indices(), originalIndices));
             }
         }
         return remoteClusters;
@@ -349,7 +363,7 @@ public class ComputeService {
                     var childSessionId = newChildSession(sessionId);
                     ExchangeService.openExchange(
                         transportService,
-                        node.connection,
+                        node.connection.get(),
                         childSessionId,
                         queryPragmas.exchangeBufferSize(),
                         esqlExecutor,
@@ -359,7 +373,7 @@ public class ComputeService {
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
-                                node.connection,
+                                node.connection.get(),
                                 DATA_ACTION_NAME,
                                 new DataNodeRequest(
                                     childSessionId,
@@ -398,7 +412,7 @@ public class ComputeService {
                 final var childSessionId = newChildSession(sessionId);
                 ExchangeService.openExchange(
                     transportService,
-                    cluster.connection,
+                    cluster.connection.get(),
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
@@ -412,7 +426,7 @@ public class ComputeService {
                             () -> l.onResponse(null)
                         );
                         transportService.sendChildRequest(
-                            cluster.connection,
+                            cluster.connection.get(),
                             CLUSTER_ACTION_NAME,
                             clusterRequest,
                             rootTask,
@@ -557,7 +571,7 @@ public class ComputeService {
         }
     }
 
-    record DataNode(Transport.Connection connection, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
+    record DataNode(Supplier<Transport.Connection> connection, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
 
     }
 
@@ -570,7 +584,12 @@ public class ComputeService {
      */
     record DataNodeResult(List<DataNode> dataNodes, int totalShards, int skippedShards) {}
 
-    record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] concreteIndices, OriginalIndices originalIndices) {
+    record RemoteCluster(
+        String clusterAlias,
+        Supplier<Transport.Connection> connection,
+        String[] concreteIndices,
+        OriginalIndices originalIndices
+    ) {
 
     }
 
@@ -621,7 +640,15 @@ public class ComputeService {
             for (Map.Entry<String, List<ShardId>> e : nodeToShards.entrySet()) {
                 DiscoveryNode node = nodes.get(e.getKey());
                 Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
-                dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
+                final Transport.Connection fallbackConnection = transportService.getConnection(node);
+                final Supplier<Transport.Connection> connectionSupplier = () -> {
+                    try {
+                        return transportService.getConnection(node);
+                    } catch (Exception unused) {
+                        return fallbackConnection;
+                    }
+                };
+                dataNodes.add(new DataNode(connectionSupplier, e.getValue(), aliasFilters));
             }
             return new DataNodeResult(dataNodes, totalShards, skippedShards);
         });

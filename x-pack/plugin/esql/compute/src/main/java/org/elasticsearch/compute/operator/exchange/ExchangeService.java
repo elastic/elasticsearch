@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
@@ -280,14 +281,19 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param transportService the transport service
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Supplier<Transport.Connection> conn
+    ) {
         return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
     }
 
     static final class TransportRemoteSink implements RemoteSink {
         final TransportService transportService;
         final BlockFactory blockFactory;
-        final Transport.Connection connection;
+        final Supplier<Transport.Connection> connection;
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
@@ -298,7 +304,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         TransportRemoteSink(
             TransportService transportService,
             BlockFactory blockFactory,
-            Transport.Connection connection,
+            Supplier<Transport.Connection> connection,
             Task parentTask,
             String exchangeId,
             Executor responseExecutor
@@ -339,6 +345,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
 
         private void doFetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
+            final Transport.Connection conn;
+            try {
+                conn = connection.get();
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
             final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
@@ -346,7 +359,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
             }
             transportService.sendChildRequest(
-                connection,
+                conn,
                 EXCHANGE_ACTION_NAME,
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,

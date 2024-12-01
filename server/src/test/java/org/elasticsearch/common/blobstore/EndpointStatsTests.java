@@ -36,7 +36,7 @@ public class EndpointStatsTests extends ESTestCase {
 
     public void testAddOverflow() {
         final EndpointStats lhs = new EndpointStats(randomLongBetween(50, 1 << 30), randomLongBetween(50, 1 << 30));
-        final int fieldToOverflow = randomIntBetween(0, 2);
+        final int fieldToOverflow = randomIntBetween(0, 1);
         final EndpointStats rhs = new EndpointStats(
             fieldToOverflow == 0 ? (Long.MAX_VALUE - lhs.operations()) + 1 : 1,
             fieldToOverflow == 1 ? (Long.MAX_VALUE - lhs.requests()) + 1 : 1

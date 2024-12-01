@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
 
@@ -69,7 +70,6 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
-import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -100,6 +100,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     // larger than any (unsigned) long
     private static final String HUMONGOUS_DOUBLE = "1E300";
+
+    private static final Map<String, String> TEXT_FORMATS = Map.of(
+        "txt",
+        "text/plain",
+        "csv",
+        "text/csv",
+        "tsv",
+        "text/tab-separated-values"
+    );
 
     public static boolean shouldLog() {
         return false;
@@ -351,10 +360,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(
-            expectedTextBody("txt", count, null),
-            runEsql(builder, new AssertWarnings.NoWarnings(), mode, "txt", null).get("result")
-        );
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null, mode));
 
     }
 
@@ -362,20 +368,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(
-            expectedTextBody("csv", count, '|'),
-            runEsql(builder, new AssertWarnings.NoWarnings(), mode, "csv", '|').get("result")
-        );
+        assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|', mode));
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(
-            expectedTextBody("tsv", count, null),
-            runEsql(builder, new AssertWarnings.NoWarnings(), mode, "tsv", null).get("result")
-        );
+        assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null, mode));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
@@ -1018,33 +1018,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
-        return runEsql(requestObject, assertWarnings, mode, null, null);
-    }
-
-    static Map<String, Object> runEsql(
-        RequestObjectBuilder requestObject,
-        AssertWarnings assertWarnings,
-        Mode mode,
-        @Nullable String format,
-        @Nullable Character delimiter
-    ) throws IOException {
         if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, assertWarnings, format, delimiter);
+            return runEsqlAsync(requestObject, assertWarnings);
         } else {
-            return runEsqlSync(requestObject, assertWarnings, format, delimiter);
+            return runEsqlSync(requestObject, assertWarnings);
         }
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        return runEsqlSync(requestObject, assertWarnings, null, null);
-    }
-
-    public static Map<String, Object> runEsqlSync(
-        RequestObjectBuilder requestObject,
-        AssertWarnings assertWarnings,
-        @Nullable String format,
-        @Nullable Character delimiter
-    ) throws IOException {
         requestObject.build();
         Request request = prepareRequest(SYNC);
         String mediaType = attachBody(requestObject, request);
@@ -1052,43 +1033,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-        boolean isTextFormat = format != null;
+
         if (randomBoolean()) {
-            if (isTextFormat) {
-                switch (format) {
-                    case "txt" -> options.addHeader("Accept", "text/plain");
-                    case "csv" -> options.addHeader("Accept", "text/csv");
-                    case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
-                }
-            } else {
-                options.addHeader("Accept", mediaType);
-            }
+            options.addHeader("Accept", mediaType);
         } else {
-            request.addParameter("format", isTextFormat ? format : requestObject.contentType().queryParameter());
-        }
-        if (delimiter != null) {
-            request.addParameter("delimiter", String.valueOf(delimiter));
+            request.addParameter("format", requestObject.contentType().queryParameter());
         }
         request.setOptions(options);
 
         HttpEntity entity = performRequest(request, assertWarnings);
-        if (isTextFormat) {
-            return Map.of("result", Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
-        } else {
-            return entityToMap(entity, requestObject.contentType());
-        }
+        return entityToMap(entity, requestObject.contentType());
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        return runEsqlAsync(requestObject, assertWarnings, null, null);
-    }
-
-    public static Map<String, Object> runEsqlAsync(
-        RequestObjectBuilder requestObject,
-        AssertWarnings assertWarnings,
-        @Nullable String format,
-        @Nullable Character delimiter
-    ) throws IOException {
         addAsyncParameters(requestObject);
         requestObject.build();
         Request request = prepareRequest(ASYNC);
@@ -1098,23 +1055,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
 
-        boolean isTextFormat = format != null;
-        boolean addParam = randomBoolean();
-        if (addParam == false) {
-            if (isTextFormat) {
-                switch (format) {
-                    case "txt" -> options.addHeader("Accept", "text/plain");
-                    case "csv" -> options.addHeader("Accept", "text/csv");
-                    case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
-                }
-            } else {
-                options.addHeader("Accept", mediaType);
-            }
+        if (randomBoolean()) {
+            options.addHeader("Accept", mediaType);
         } else {
-            request.addParameter("format", isTextFormat ? format : requestObject.contentType().queryParameter());
-        }
-        if (delimiter != null) {
-            request.addParameter("delimiter", String.valueOf(delimiter));
+            request.addParameter("format", requestObject.contentType().queryParameter());
         }
         request.setOptions(options);
 
@@ -1125,72 +1069,40 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Response response = performRequest(request);
         HttpEntity entity = response.getEntity();
 
-        Map<String, Object> json = null;    // used for XContentType
         Object initialColumns = null;
         Object initialValues = null;
-        if (isTextFormat) {
-            // get the content, it could be empty because the request might have not completed
-            initialValues = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
-        } else {
-            json = entityToMap(entity, requestObject.contentType());
-        }
-
-        // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
-        String id = isTextFormat ? response.getHeader("X-Elasticsearch-Async-Id") : (String) json.get("id");
-        if (requestObject.keepOnCompletion()) {
-            assertThat(id, not(emptyOrNullString()));
-        }
+        var json = entityToMap(entity, requestObject.contentType());
+        checkKeepOnCompletion(requestObject, json);
+        String id = (String) json.get("id");
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
-        boolean isRunning = isTextFormat
-            ? "?1".equals(response.getHeader("X-Elasticsearch-Async-Is-Running"))
-            : (boolean) json.get("is_running");
+
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
             assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
-            assertThat(isRunning, is(false));
+            assertThat((boolean) json.get("is_running"), is(false));
             if (supportsAsyncHeaders) {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
                 assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
             }
             assertWarnings(response, assertWarnings);
-            if (isTextFormat) {
-                return Map.of("result", initialValues);
-            } else {
-                json.remove("is_running"); // remove this to not mess up later map assertions
-                return Collections.unmodifiableMap(json);
-            }
+            json.remove("is_running"); // remove this to not mess up later map assertions
+            return Collections.unmodifiableMap(json);
         } else {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
+            boolean isRunning = (boolean) json.get("is_running");
             if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
                 assertWarnings(response, assertWarnings);
                 // we already have the results, but let's remember them so that we can compare to async get
-                if (isTextFormat == false) {
-                    initialColumns = json.get("columns");
-                    initialValues = json.get("values");
-                }
+                initialColumns = json.get("columns");
+                initialValues = json.get("values");
             } else {
                 // did not return results immediately, so we will need an async get
-                if (isTextFormat) {
-                    // different format modes return different results.
-                    switch (format) {
-                        case "txt" -> assertThat((String) initialValues, emptyString());
-                        case "csv" -> {
-                            assertEquals(initialValues, "\r\n");
-                            initialValues = null;
-                        }
-                        case "tsv" -> {
-                            assertEquals(initialValues, "\n");
-                            initialValues = null;
-                        }
-                    }
-                } else {
-                    assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
-                    assertThat(json.get("pages"), nullValue());
-                }
+                assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
+                assertThat(json.get("pages"), nullValue());
             }
 
             if (supportsAsyncHeaders) {
@@ -1200,38 +1112,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
-            if (delimiter != null) {
-                getRequest.addParameter("delimiter", String.valueOf(delimiter));
-            }
-            // If the `format` parameter is not added, the GET request will return a response
-            // with the `Content-Type` type due to the lack of an `Accept` header.
-            if (addParam && isTextFormat) {
-                getRequest.addParameter("format", format);
-            }
             getRequest.setOptions(options);
             response = performRequest(getRequest);
             entity = response.getEntity();
         }
 
+        var result = entityToMap(entity, requestObject.contentType());
+
+        // assert initial contents, if any, are the same as async get contents
+        if (initialColumns != null) {
+            assertEquals(initialColumns, result.get("columns"));
+            assertEquals(initialValues, result.get("values"));
+        }
+
         assertWarnings(response, assertWarnings);
         assertDeletable(id);
-
-        if (isTextFormat) {
-            var result = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
-            // assert initial contents, if any, are the same as async get contents
-            if (initialValues != null && ((String) initialValues).isEmpty() == false) {
-                assertEquals(initialValues, result);
-            }
-            return Map.of("result", result);
-        } else {
-            var result = entityToMap(entity, requestObject.contentType());
-            // assert initial contents, if any, are the same as async get contents
-            if (initialColumns != null) {
-                assertEquals(initialColumns, result.get("columns"));
-                assertEquals(initialValues, result.get("values"));
-            }
-            return removeAsyncProperties(result);
-        }
+        return removeAsyncProperties(result);
     }
 
     // Removes async properties, otherwise consuming assertions would need to handle sync and async differences
@@ -1261,6 +1157,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
     }
 
+    // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
+    static void checkKeepOnCompletion(RequestObjectBuilder requestObject, Map<String, Object> json) {
+        if (requestObject.keepOnCompletion()) {
+            assertThat((String) json.get("id"), not(emptyOrNullString()));
+        }
+    }
+
     static void assertDeletable(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);
@@ -1273,6 +1176,95 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     static void deleteNonExistent(Request request) throws IOException {
         Response response = client().performRequest(request);
         assertEquals(404, response.getStatusLine().getStatusCode());
+    }
+
+    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
+        throws IOException {
+        Request request = prepareRequest(mode);
+        if (mode == ASYNC) {
+            addAsyncParameters(builder);
+        }
+        String mediaType = attachBody(builder.build(), request);
+
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+
+        boolean addParam = randomBoolean();
+        if (addParam) {
+            request.addParameter("format", format);
+        } else {
+            options.addHeader("Accept", TEXT_FORMATS.getOrDefault(format, mediaType));
+        }
+        if (delimiter != null) {
+            request.addParameter("delimiter", String.valueOf(delimiter));
+        }
+        request.setOptions(options);
+
+        Response response = performRequest(request);
+        HttpEntity entity = assertWarnings(response, new AssertWarnings.NoWarnings());
+
+        // get the content, it could be empty because the request might have not completed
+        String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        String id = response.getHeader("X-Elasticsearch-Async-Id");
+
+        if (mode == SYNC) {
+            assertThat(id, is(emptyOrNullString()));
+            return initialValue;
+        }
+
+        if (id == null) {
+            // no id returned from an async call, must have completed immediately and without keep_on_completion
+            assertThat(builder.keepOnCompletion(), either(nullValue()).or(is(false)));
+            assertNull(response.getHeader("is_running"));
+            // the content cant be empty
+            assertThat(initialValue, not(emptyOrNullString()));
+            return initialValue;
+        } else {
+            // async may not return results immediately, so may need an async get
+            assertThat(id, is(not(emptyOrNullString())));
+            String isRunning = response.getHeader("X-Elasticsearch-Async-Is-Running");
+            if (Objects.equals(isRunning, "?0")) {
+                // must have completed immediately so keep_on_completion must be true
+                assertThat(builder.keepOnCompletion(), is(true));
+            } else {
+                // did not return results immediately, so we will need an async get
+                // Also, different format modes return different results.
+                switch (format) {
+                    case "txt" -> assertThat(initialValue, emptyOrNullString());
+                    case "csv" -> {
+                        assertEquals(initialValue, "\r\n");
+                        initialValue = "";
+                    }
+                    case "tsv" -> {
+                        assertEquals(initialValue, "\n");
+                        initialValue = "";
+                    }
+                }
+            }
+            // issue a second request to "async get" the results
+            Request getRequest = prepareAsyncGetRequest(id);
+            if (delimiter != null) {
+                getRequest.addParameter("delimiter", String.valueOf(delimiter));
+            }
+            // If the `format` parameter is not added, the GET request will return a response
+            // with the `Content-Type` type due to the lack of an `Accept` header.
+            if (addParam) {
+                getRequest.addParameter("format", format);
+            }
+            // if `addParam` is false, `options` will already have an `Accept` header
+            getRequest.setOptions(options);
+            response = performRequest(getRequest);
+            entity = assertWarnings(response, new AssertWarnings.NoWarnings());
+        }
+        String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+
+        // assert initial contents, if any, are the same as async get contents
+        if (initialValue != null && initialValue.isEmpty() == false) {
+            assertEquals(initialValue, newValue);
+        }
+
+        assertDeletable(id);
+        return newValue;
     }
 
     private static Request prepareRequest(Mode mode) {

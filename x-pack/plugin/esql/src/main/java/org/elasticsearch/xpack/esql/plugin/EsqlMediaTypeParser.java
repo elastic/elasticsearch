@@ -49,10 +49,11 @@ public class EsqlMediaTypeParser {
     }
 
     /*
-     *  Get mediaType of a request without validating columnar
+     * Retrieve the mediaType of a request without validating the EsqlQueryRequest.
      */
     public static MediaType getResponseMediaType(RestRequest request) {
-        return request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        return checkNonNullMediaType(mediaType, request);
     }
 
     private static MediaType mediaTypeFromHeaders(RestRequest request) {

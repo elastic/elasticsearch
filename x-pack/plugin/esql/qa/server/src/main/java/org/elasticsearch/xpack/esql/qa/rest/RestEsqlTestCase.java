@@ -62,8 +62,6 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.action.EsqlResponseListener.HEADER_NAME_ASYNC_ID;
-import static org.elasticsearch.xpack.esql.action.EsqlResponseListener.HEADER_NAME_ASYNC_RUNNING;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -1138,14 +1136,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
-        String id = isTextFormat ? response.getHeader(HEADER_NAME_ASYNC_ID) : (String) json.get("id");
+        String id = isTextFormat ? response.getHeader("X-Elasticsearch-Async-Id") : (String) json.get("id");
         if (requestObject.keepOnCompletion()) {
             assertThat(id, not(emptyOrNullString()));
         }
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
         boolean isRunning = isTextFormat
-            ? Boolean.parseBoolean(response.getHeader(HEADER_NAME_ASYNC_RUNNING))
+            ? "?1".equals(response.getHeader("X-Elasticsearch-Async-Is-Running"))
             : (boolean) json.get("is_running");
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion

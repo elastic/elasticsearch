@@ -43,14 +43,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -326,7 +329,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
-                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
+                var gFields = getStoredFieldsSpec(context.getPrimary());
+                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier, gFields);
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -399,6 +403,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         onComplete(result, context, updateResult);
         return true;
+    }
+
+    private static String[] getStoredFieldsSpec(IndexShard indexShard) {
+        if (indexShard.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (indexShard.mapperService().mappingLookup().inferenceFields().size() > 0) {
+                return new String[] { RoutingFieldMapper.NAME, InferenceMetadataFieldsMapper.NAME };
+            }
+        }
+        return new String[] { RoutingFieldMapper.NAME };
     }
 
     private static boolean handleMappingUpdateRequired(

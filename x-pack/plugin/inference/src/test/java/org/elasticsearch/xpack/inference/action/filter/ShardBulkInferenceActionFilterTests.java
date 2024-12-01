@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceService;
@@ -144,7 +146,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         BulkItemRequest[] items = new BulkItemRequest[10];
         for (int i = 0; i < items.length; i++) {
-            items[i] = randomBulkItemRequest(Map.of(), inferenceFieldMap)[0];
+            items[i] = randomBulkItemRequest(IndexVersions.ADD_ROLE_MAPPING_CLEANUP_MIGRATION, Map.of(), inferenceFieldMap)[0];
         }
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
@@ -227,7 +229,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         BulkItemRequest[] originalRequests = new BulkItemRequest[numRequests];
         BulkItemRequest[] modifiedRequests = new BulkItemRequest[numRequests];
         for (int id = 0; id < numRequests; id++) {
-            BulkItemRequest[] res = randomBulkItemRequest(inferenceModelMap, inferenceFieldMap);
+            BulkItemRequest[] res = randomBulkItemRequest(
+                IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW,
+                inferenceModelMap,
+                inferenceFieldMap
+            );
             originalRequests[id] = res[0];
             modifiedRequests[id] = res[1];
         }
@@ -331,6 +337,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static BulkItemRequest[] randomBulkItemRequest(
+        IndexVersion indexVersion,
         Map<String, StaticModel> modelMap,
         Map<String, InferenceFieldMetadata> fieldInferenceMap
     ) throws IOException {
@@ -356,6 +363,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             if (model.hasResult(inputText)) {
                 ChunkedInferenceServiceResults results = model.getResults(inputText);
                 semanticTextField = semanticTextFieldFromChunkedInferenceResults(
+                    indexVersion,
                     field,
                     model,
                     List.of(inputText),
@@ -363,10 +371,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     requestContentType
                 );
             } else {
-                semanticTextField = randomSemanticText(field, model, List.of(inputText), requestContentType);
+                semanticTextField = randomSemanticText(indexVersion, field, model, List.of(inputText), requestContentType);
                 model.putResult(inputText, toChunkedResult(semanticTextField));
             }
-
             expectedDocMap.put(field, semanticTextField);
         }
 

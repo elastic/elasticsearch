@@ -21,6 +21,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
+import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceMetaFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -47,12 +49,12 @@ import java.util.Map;
 public class SemanticTextHighlighter implements Highlighter {
     public static final String NAME = "semantic";
 
-    private record OffsetAndScore(String sourceField, int startOffset, int endOffset, float score) {}
+    private record OffsetAndScore(OffsetSourceFieldMapper.OffsetSource offset, float score) {}
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
-        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType) {
-            return true;
+        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            return semanticTextFieldType.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
         }
         return false;
     }
@@ -84,10 +86,10 @@ public class SemanticTextHighlighter implements Highlighter {
         }
 
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments() == 0
-            ? 1
+            ? 1 // we return the best fragment by default
             : fieldContext.field.fieldOptions().numberOfFragments();
+
         var mappingLookup = fieldContext.context.getSearchExecutionContext().getMappingLookup();
-        var inferenceMetadata = mappingLookup.inferenceFields().get(fieldContext.fieldName);
 
         List<OffsetAndScore> chunks = extractOffsetAndScores(
             fieldContext.context.getSearchExecutionContext(),
@@ -100,46 +102,54 @@ public class SemanticTextHighlighter implements Highlighter {
             return null;
         }
 
-        Map<String, String> inputs = extractContentFields(fieldContext.hitContext, mappingLookup, inferenceMetadata.getSourceFields());
         chunks.sort(Comparator.comparingDouble(OffsetAndScore::score).reversed());
         int size = Math.min(chunks.size(), numberOfFragments);
+        if (fieldContext.field.fieldOptions().scoreOrdered() == false) {
+            chunks.subList(0, size).sort(Comparator.comparingDouble(c -> c.offset.start()));
+        }
+        Map<String, String> inputs = new HashMap<>();
         Text[] snippets = new Text[size];
         for (int i = 0; i < size; i++) {
             var chunk = chunks.get(i);
-            var content = inputs.get(chunk.sourceField);
-            snippets[i] = new Text(content.substring(chunk.startOffset, chunk.endOffset));
+            var content = inputs.computeIfAbsent(chunk.offset.field(), k -> extractFieldContent(fieldContext.hitContext, mappingLookup, k));
+            if (content == null) {
+                throw new IllegalStateException("Missing content for field [" + chunk.offset.field() + "]");
+            }
+            if (chunk.offset().start() == -1
+                || chunk.offset.end() == -1
+                || chunk.offset().start() > content.length()
+                || chunk.offset().end() > content.length()) {
+                throw new IllegalStateException(
+                    "Offset ["
+                        + chunk.offset()
+                        + "] computed for the field ["
+                        + fieldType.name()
+                        + "] do not match the actual content of the field."
+                );
+            }
+            snippets[i] = new Text(content.substring(chunk.offset().start(), chunk.offset().end()));
         }
         return new HighlightField(fieldContext.fieldName, snippets);
     }
 
-    private Map<String, String> extractContentFields(
-        FetchSubPhase.HitContext hitContext,
-        MappingLookup mappingLookup,
-        String[] sourceFields
-    ) throws IOException {
-        Map<String, String> inputs = new HashMap<>();
-        for (String sourceField : sourceFields) {
-            var sourceFieldType = mappingLookup.getFieldType(sourceField);
-            if (sourceFieldType == null) {
-                continue;
-            }
-            Object sourceValue = hitContext.source().extractValue(sourceFieldType.name(), null);
-            if (sourceValue != null) {
-                inputs.put(sourceField, SemanticTextUtils.nodeStringValues(sourceFieldType.name(), sourceValue));
-            }
+    private String extractFieldContent(FetchSubPhase.HitContext hitContext, MappingLookup mappingLookup, String sourceField) {
+        var sourceFieldType = mappingLookup.getFieldType(sourceField);
+        if (sourceFieldType == null) {
+            return null;
         }
-        return inputs;
+        Object sourceValue = hitContext.source().extractValue(sourceFieldType.name(), null);
+        return sourceValue != null ? SemanticTextUtils.nodeStringValues(sourceFieldType.name(), sourceValue) : null;
     }
 
     private List<OffsetAndScore> extractOffsetAndScores(
         SearchExecutionContext context,
         LeafReader reader,
         SemanticTextFieldMapper.SemanticTextFieldType fieldType,
-        int docID,
+        int docId,
         List<Query> leafQueries
     ) throws IOException {
         var bitSet = context.bitsetFilter(fieldType.getChunksField().parentTypeFilter()).getBitSet(reader.getContext());
-        int previousParent = docID > 0 ? bitSet.prevSetBit(docID - 1) : -1;
+        int previousParent = docId > 0 ? bitSet.prevSetBit(docId - 1) : -1;
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         leafQueries.stream().forEach(q -> bq.add(q, BooleanClause.Occur.SHOULD));
@@ -150,25 +160,23 @@ public class SemanticTextHighlighter implements Highlighter {
             // The field is empty
             return List.of();
         }
-        var offsetReader = new OffsetSourceFieldMapper.OffsetsLoader(fieldType.getOffsetsField().fullPath(), terms);
+        var offsetReader = OffsetSourceField.loader(terms, fieldType.getOffsetsField().fullPath());
         if (previousParent != -1) {
-            scorer.iterator().advance(previousParent);
+            if (scorer.iterator().advance(previousParent) == DocIdSetIterator.NO_MORE_DOCS) {
+                return List.of();
+            }
         } else if (scorer.iterator().nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return List.of();
         }
         List<OffsetAndScore> results = new ArrayList<>();
-        while (scorer.docID() < docID) {
-            if (offsetReader.advanceTo(scorer.docID()) == false) {
-                throw new IllegalStateException("Offsets not indexed?");
+        while (scorer.docID() < docId) {
+            var offset = offsetReader.advanceTo(scorer.docID());
+            if (offset == null) {
+                throw new IllegalStateException(
+                    "Cannot highlight field [" + fieldType.name() + "], missing embeddings for doc [" + docId + "]"
+                );
             }
-            results.add(
-                new OffsetAndScore(
-                    offsetReader.getSourceFieldName(),
-                    offsetReader.getStartOffset(),
-                    offsetReader.getEndOffset(),
-                    scorer.score()
-                )
-            );
+            results.add(new OffsetAndScore(offset, scorer.score()));
             if (scorer.iterator().nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 break;
             }
@@ -176,7 +184,7 @@ public class SemanticTextHighlighter implements Highlighter {
         return results;
     }
 
-    private List<Query> extractDenseVectorQueries(DenseVectorFieldType fieldType, Query querySection) throws IOException {
+    private List<Query> extractDenseVectorQueries(DenseVectorFieldType fieldType, Query querySection) {
         // TODO: Handle knn section when semantic text field can be used.
         List<Query> queries = new ArrayList<>();
         querySection.visit(new QueryVisitor() {
@@ -202,7 +210,7 @@ public class SemanticTextHighlighter implements Highlighter {
         return queries;
     }
 
-    private List<Query> extractSparseVectorQueries(SparseVectorFieldType fieldType, Query querySection) throws IOException {
+    private List<Query> extractSparseVectorQueries(SparseVectorFieldType fieldType, Query querySection) {
         List<Query> queries = new ArrayList<>();
         querySection.visit(new QueryVisitor() {
             @Override

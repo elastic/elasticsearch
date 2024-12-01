@@ -8,17 +8,10 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -28,19 +21,55 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
+import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
+/**
+ * A {@link FieldMapper} that maps a field name to its start and end offsets.
+ * Each document can store at most one value for this field.
+ */
 public class OffsetSourceFieldMapper extends FieldMapper {
-    public static final String CONTENT_TYPE = "offset_source";
     public static final String NAME = "_offset_source";
+    public static final String CONTENT_TYPE = "offset_source";
 
     private static final String SOURCE_NAME_FIELD = "field";
     private static final String START_OFFSET_FIELD = "start";
     private static final String END_OFFSET_FIELD = "end";
+
+    public record OffsetSource(String field, int start, int end) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(SOURCE_NAME_FIELD, field);
+            builder.field(START_OFFSET_FIELD, start);
+            builder.field(END_OFFSET_FIELD, end);
+            return builder.endObject();
+        }
+    }
+
+    private static final ConstructingObjectParser<OffsetSource, Void> OFFSET_SOURCE_PARSER = new ConstructingObjectParser<>(
+        CONTENT_TYPE,
+        true,
+        args -> new OffsetSource((String) args[0], (int) args[1], (int) args[2])
+    );
+
+    static {
+        OFFSET_SOURCE_PARSER.declareString(constructorArg(), new ParseField(SOURCE_NAME_FIELD));
+        OFFSET_SOURCE_PARSER.declareInt(constructorArg(), new ParseField(START_OFFSET_FIELD));
+        OFFSET_SOURCE_PARSER.declareInt(constructorArg(), new ParseField(END_OFFSET_FIELD));
+    }
 
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -78,7 +107,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new TermQuery(new Term(NAME, name()));
+            return new PrefixQuery(new Term(NAME, name()));
         }
 
         @Override
@@ -88,17 +117,45 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            throw new IllegalArgumentException("[rank_feature] fields do not support sorting, scripting or aggregating");
+            throw new IllegalArgumentException("[offset_source] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return ValueFetcher.EMPTY;
+            return new ValueFetcher() {
+                OffsetSourceField.OffsetSourceLoader offsetLoader;
+
+                @Override
+                public void setNextReader(LeafReaderContext context) {
+                    try {
+                        var terms = context.reader().terms(OffsetSourceFieldMapper.NAME);
+                        offsetLoader = terms != null ? OffsetSourceField.loader(terms, name()) : null;
+                    } catch (IOException exc) {
+                        throw new UncheckedIOException(exc);
+                    }
+                }
+
+                @Override
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                    var offsetSource = offsetLoader != null ? offsetLoader.advanceTo(doc) : null;
+                    return offsetSource != null ? List.of(offsetSource) : null;
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return null;
+                }
+            };
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Queries on [offset] fields are not supported");
+            throw new IllegalArgumentException("Queries on [offset_source] fields are not supported");
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
     }
 
@@ -123,30 +180,30 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
+        var parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            // skip
+            return;
+        }
+
+        if (context.doc().getByKey(fullPath()) != null) {
+            throw new IllegalArgumentException(
+                "[offset_source] fields do not support indexing multiple values for the same field ["
+                    + fullPath()
+                    + "] in the same document"
+            );
+        }
+
         boolean isWithinLeafObject = context.path().isWithinLeafObject();
         // make sure that we don't expand dots in field names while parsing
         context.path().setWithinLeafObject(true);
         try {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-            String fieldName = null;
-            String sourceFieldName = null;
-            int startOffset = -1;
-            int endOffset = -1;
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                } else if (SOURCE_NAME_FIELD.equals(fieldName)) {
-                    sourceFieldName = parser.text();
-                } else if (START_OFFSET_FIELD.equals(fieldName)) {
-                    startOffset = parser.intValue();
-                } else if (END_OFFSET_FIELD.equals(fieldName)) {
-                    endOffset = parser.intValue();
-                } else {
-                    throw new IllegalArgumentException("Unkown field name [" + fieldName + "]");
-                }
-            }
-            context.doc().addWithKey(fullPath(), new OffsetSourceField(NAME, fullPath() + "." + sourceFieldName, startOffset, endOffset));
+            var offsetSource = OFFSET_SOURCE_PARSER.parse(parser, null);
+            context.doc()
+                .addWithKey(
+                    fullPath(),
+                    new OffsetSourceField(NAME, fullPath() + "." + offsetSource.field, offsetSource.start, offsetSource.end)
+                );
         } finally {
             context.path().setWithinLeafObject(isWithinLeafObject);
         }
@@ -155,60 +212,5 @@ public class OffsetSourceFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName()).init(this);
-    }
-
-    public static class OffsetsLoader {
-        private final String fieldName;
-        private final Map<String, PostingsEnum> postingsEnums = new LinkedHashMap<>();
-        private String sourceFieldName;
-        private int startOffset;
-        private int endOffset;
-
-        public OffsetsLoader(String fieldName, Terms terms) throws IOException {
-            this.fieldName = fieldName;
-            Automaton prefixAutomaton = PrefixQuery.toAutomaton(new BytesRef(fieldName + "."));
-            var termsEnum = terms.intersect(new CompiledAutomaton(prefixAutomaton, false, true, false), null);
-            while (termsEnum.next() != null) {
-                var postings = termsEnum.postings(null, PostingsEnum.OFFSETS);
-                if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    String sourceFieldName = termsEnum.term().utf8ToString().substring(fieldName.length() + 1);
-                    postingsEnums.put(sourceFieldName, postings);
-                }
-            }
-        }
-
-        public boolean advanceTo(int doc) throws IOException {
-            for (var it = postingsEnums.entrySet().iterator(); it.hasNext();) {
-                var entry = it.next();
-                var postings = entry.getValue();
-                if (postings.docID() < doc) {
-                    if (postings.advance(doc) == DocIdSetIterator.NO_MORE_DOCS) {
-                        it.remove();
-                        continue;
-                    }
-                }
-                if (postings.docID() == doc) {
-                    assert postings.freq() == 1;
-                    postings.nextPosition();
-                    sourceFieldName = entry.getKey();
-                    startOffset = postings.startOffset();
-                    endOffset = postings.endOffset();
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public String getSourceFieldName() {
-            return sourceFieldName;
-        }
-
-        public int getStartOffset() {
-            return startOffset;
-        }
-
-        public int getEndOffset() {
-            return endOffset;
-        }
     }
 }

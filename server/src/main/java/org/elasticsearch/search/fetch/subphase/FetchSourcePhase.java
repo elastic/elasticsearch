@@ -10,6 +10,8 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -78,7 +80,27 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
                 }
+                if (fetchContext.getSearchExecutionContext()
+                    .getIndexSettings()
+                    .getIndexVersionCreated()
+                    .onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                    /**
+                     * Transfers the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
+                     * to the original _source if it has been requested.
+                     */
+                    source = replaceInferenceMetadataFields(hitContext.hit(), source);
+                }
                 hitContext.hit().sourceRef(source.internalSourceRef());
+            }
+
+            private Source replaceInferenceMetadataFields(SearchHit hit, Source source) {
+                var field = hit.getFields().remove(InferenceMetadataFieldsMapper.NAME);
+                if (field == null) {
+                    return source;
+                }
+                var newSource = hit.getSourceAsMap();
+                newSource.put(InferenceMetadataFieldsMapper.NAME, field);
+                return Source.fromMap(newSource, source.sourceContentType());
             }
 
             @Override

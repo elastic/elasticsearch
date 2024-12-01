@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -43,8 +42,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
         public abstract ValueFetcher valueFetcher(
             MappingLookup mappingLookup,
             Function<Query, BitSetProducer> bitSetCache,
-            IndexSearcher searcher,
-            XContentType xContentType
+            IndexSearcher searcher
         );
     }
 }

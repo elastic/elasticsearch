@@ -14,9 +14,23 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 
+import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * A {@link Field} for storing a {@link Term} along with its start and end offsets.
+ */
 public final class OffsetSourceField extends Field {
-
     private static final FieldType FIELD_TYPE = new FieldType();
 
     static {
@@ -34,7 +48,8 @@ public final class OffsetSourceField extends Field {
         this.endOffset = endOffset;
     }
 
-    public void setOffsets(int startOffset, int endOffset) {
+    public void setValues(String fieldName, int startOffset, int endOffset) {
+        this.fieldsData = fieldName;
         this.startOffset = startOffset;
         this.endOffset = endOffset;
     }
@@ -50,6 +65,10 @@ public final class OffsetSourceField extends Field {
 
         stream.setValues((String) fieldsData, startOffset, endOffset);
         return stream;
+    }
+
+    public static OffsetSourceLoader loader(Terms terms, String fieldName) throws IOException {
+        return new OffsetSourceLoader(terms, fieldName);
     }
 
     private static final class OffsetTokenStream extends TokenStream {
@@ -89,6 +108,41 @@ public final class OffsetSourceField extends Field {
         @Override
         public void close() {
             value = null;
+        }
+    }
+
+    public static class OffsetSourceLoader {
+        private final Map<String, PostingsEnum> postingsEnums = new LinkedHashMap<>();
+
+        private OffsetSourceLoader(Terms terms, String fieldName) throws IOException {
+            Automaton prefixAutomaton = PrefixQuery.toAutomaton(new BytesRef(fieldName + "."));
+            var termsEnum = terms.intersect(new CompiledAutomaton(prefixAutomaton, false, true, false), null);
+            while (termsEnum.next() != null) {
+                var postings = termsEnum.postings(null, PostingsEnum.OFFSETS);
+                if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    String sourceFieldName = termsEnum.term().utf8ToString().substring(fieldName.length() + 1);
+                    postingsEnums.put(sourceFieldName, postings);
+                }
+            }
+        }
+
+        public OffsetSourceFieldMapper.OffsetSource advanceTo(int doc) throws IOException {
+            for (var it = postingsEnums.entrySet().iterator(); it.hasNext();) {
+                var entry = it.next();
+                var postings = entry.getValue();
+                if (postings.docID() < doc) {
+                    if (postings.advance(doc) == DocIdSetIterator.NO_MORE_DOCS) {
+                        it.remove();
+                        continue;
+                    }
+                }
+                if (postings.docID() == doc) {
+                    assert postings.freq() == 1;
+                    postings.nextPosition();
+                    return new OffsetSourceFieldMapper.OffsetSource(entry.getKey(), postings.startOffset(), postings.endOffset());
+                }
+            }
+            return null;
         }
     }
 }

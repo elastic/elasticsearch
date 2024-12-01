@@ -59,6 +59,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
@@ -71,7 +72,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
@@ -90,7 +90,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return singletonList(new InferencePlugin(Settings.EMPTY));
+        return List.of(new InferencePlugin(Settings.EMPTY), new XPackClientPlugin());
     }
 
     @Override
@@ -503,6 +503,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSuccessfulParse() throws IOException {
+        IndexVersion version = IndexVersion.current();
         for (int depth = 1; depth < 4; depth++) {
             final String fieldName1 = randomFieldName(depth);
             final String fieldName2 = randomFieldName(depth + 1);
@@ -538,8 +539,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     b -> addSemanticTextInferenceResults(
                         b,
                         List.of(
-                            randomSemanticText(fieldName1, model1, List.of("a b", "c"), XContentType.JSON),
-                            randomSemanticText(fieldName2, model2, List.of("d e f"), XContentType.JSON)
+                            randomSemanticText(version, fieldName1, model1, List.of("a b", "c"), XContentType.JSON),
+                            randomSemanticText(version, fieldName2, model2, List.of("d e f"), XContentType.JSON)
                         )
                     )
                 )

@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -46,6 +45,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -95,6 +95,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private Integer queryTokenCount;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(InferencePlugin.class, XPackPlugin.class, FakeMlPlugin.class);
+    }
+
     @BeforeClass
     public static void setInferenceResultType() {
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
@@ -112,11 +117,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     public void setUp() throws Exception {
         super.setUp();
         queryTokenCount = null;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, MapperExtrasPlugin.class, FakeMlPlugin.class);
     }
 
     @Override

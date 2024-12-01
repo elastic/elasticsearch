@@ -483,9 +483,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
+                        // TODO: Detect when the field is provided with an explicit null value
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
-                            if (isUpdateRequest) {
+                            if (isUpdateRequest && indexCreatedVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
                                 addInferenceResponseFailure(
                                     item.id(),
                                     new ElasticsearchStatusException(

@@ -26,7 +26,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,8 +33,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class XPackInferenceMetadataFieldsMapper extends InferenceMetadataFieldsMapper {
-    private static final XPackInferenceMetadataFieldsMapper INSTANCE = new XPackInferenceMetadataFieldsMapper();
+/**
+ * An {@link InferenceMetadataFieldsMapper} that delegates parsing of underlying fields
+ * to the corresponding {@link SemanticTextFieldMapper}.
+ */
+public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFieldsMapper {
+    private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
@@ -51,27 +54,18 @@ public class XPackInferenceMetadataFieldsMapper extends InferenceMetadataFieldsM
             if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
                 return ValueFetcher.EMPTY;
             }
-            XContentType xContentType = format == null ? XContentType.JSON : XContentType.valueOf(format.toUpperCase());
-            if (xContentType == null) {
-                throw new IllegalArgumentException("Illegal format for field [" + name() + "], got " + format);
-            }
-            return valueFetcher(context.getMappingLookup(), context::bitsetFilter, context.searcher(), xContentType);
+            return valueFetcher(context.getMappingLookup(), context::bitsetFilter, context.searcher());
         }
 
         @Override
-        public ValueFetcher valueFetcher(
-            MappingLookup mappingLookup,
-            Function<Query, BitSetProducer> bitSetCache,
-            IndexSearcher searcher,
-            XContentType xContentType
-        ) {
+        public ValueFetcher valueFetcher(MappingLookup mappingLookup, Function<Query, BitSetProducer> bitSetCache, IndexSearcher searcher) {
             Map<String, ValueFetcher> fieldFetchers = new HashMap<>();
             for (var inferenceField : mappingLookup.inferenceFields().keySet()) {
                 MappedFieldType ft = mappingLookup.getFieldType(inferenceField);
                 if (ft instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-                    fieldFetchers.put(inferenceField, semanticTextFieldType.valueFetcherBinary(bitSetCache, searcher, xContentType));
+                    fieldFetchers.put(inferenceField, semanticTextFieldType.valueFetcherWithInferenceResults(bitSetCache, searcher));
                 } else {
-                    throw new IllegalArgumentException("Illegal format for field [" + fullPath() + "], got " + ft.typeName());
+                    throw new IllegalArgumentException("Illegal format for field [" + name() + "], got " + ft.typeName());
                 }
             }
             if (fieldFetchers.isEmpty()) {
@@ -117,7 +111,7 @@ public class XPackInferenceMetadataFieldsMapper extends InferenceMetadataFieldsM
         }
     }
 
-    private XPackInferenceMetadataFieldsMapper() {
+    private SemanticInferenceMetadataFieldsMapper() {
         super(FieldType.INSTANCE);
     }
 

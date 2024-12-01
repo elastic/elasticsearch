@@ -234,9 +234,6 @@ tests:
 - class: org.elasticsearch.search.ccs.CrossClusterIT
   method: testCancel
   issue: https://github.com/elastic/elasticsearch/issues/108061
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/117568
 
 # Examples:
 #

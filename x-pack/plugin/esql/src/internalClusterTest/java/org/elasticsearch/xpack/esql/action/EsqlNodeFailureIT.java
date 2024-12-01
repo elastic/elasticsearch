@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -38,7 +39,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), FailingFieldPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(FailingFieldPlugin.class);
+        plugins.add(InternalExchangePlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
     }
 
     /**
@@ -58,14 +70,13 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
         mapping.endObject();
         client().admin().indices().prepareCreate("fail").setSettings(indexSettings(1, 0)).setMapping(mapping.endObject()).get();
 
-        int docCount = 100;
+        int docCount = between(20, 50);
         List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
         for (int d = 0; d < docCount; d++) {
             docs.add(client().prepareIndex("ok").setSource("foo", d));
+            docs.add(client().prepareIndex("fail").setSource("foo", d));
         }
-        docs.add(client().prepareIndex("fail").setSource("foo", 0));
         indexRandom(true, docs);
-
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> run("FROM fail,ok | LIMIT 100").close());
         assertThat(e.getMessage(), equalTo("test failure"));
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -56,6 +57,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -72,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
@@ -161,6 +164,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType, instanceOf(SemanticTextFieldMapper.SemanticTextFieldType.class));
         assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected IndexVersion getVersion() {
+        return randomFrom(
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS),
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
+        );
     }
 
     public void testDefaults() throws Exception {
@@ -447,6 +458,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     private static void assertSemanticTextField(MapperService mapperService, String fieldName, boolean expectedModelSettings) {
+        final boolean useInferenceMetadataFieldsFormat = mapperService.getIndexSettings()
+            .getIndexVersionCreated()
+            .onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
         assertThat(mapper, instanceOf(SemanticTextFieldMapper.class));
@@ -464,12 +480,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             .get(getChunksFieldName(fieldName));
         assertThat(chunksMapper, equalTo(semanticFieldMapper.fieldType().getChunksField()));
         assertThat(chunksMapper.fullPath(), equalTo(getChunksFieldName(fieldName)));
+
         Mapper textMapper = chunksMapper.getMapper(TEXT_FIELD);
-        assertNotNull(textMapper);
-        assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
-        KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
-        assertFalse(textFieldMapper.fieldType().isIndexed());
-        assertFalse(textFieldMapper.fieldType().hasDocValues());
+        if (useInferenceMetadataFieldsFormat) {
+            // TODO: Check for offsets mapper here
+            assertNull(textMapper);
+        } else {
+            assertNotNull(textMapper);
+            assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
+            KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
+            assertFalse(textFieldMapper.fieldType().isIndexed());
+            assertFalse(textFieldMapper.fieldType().hasDocValues());
+        }
+
         if (expectedModelSettings) {
             assertNotNull(semanticFieldMapper.fieldType().getModelSettings());
             Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD);

@@ -708,7 +708,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
-        String newIndexName = "xd" + MANAGED_CONNECTOR_INDEX_PREFIX + randomAlphaOfLengthBetween(3, 10);
+        String newIndexName = MANAGED_CONNECTOR_INDEX_PREFIX + randomAlphaOfLengthBetween(3, 10);
 
         UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
             connectorId,
@@ -793,7 +793,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateConnectorNative() throws Exception {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+        Connector connector = ConnectorTestUtils.getRandomConnectorWithDetachedIndex();
         String connectorId = randomUUID();
 
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
@@ -803,6 +803,39 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
 
+        DocWriteResponse updateResponse = awaitUpdateConnectorNative(updateNativeRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(isNative, equalTo(indexedConnector.isNative()));
+    }
+
+    public void testUpdateConnectorNativeTrue_WhenIllegalIndexPrefix() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnectorWithAttachedIndex("wrong-prefix-" + randomAlphaOfLength(10));
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        boolean isNative = true;
+
+        UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorNative(updateNativeRequest));
+    }
+
+    public void testUpdateConnectorNativeTrue_WithCorrectIndexPrefix() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnectorWithAttachedIndex(
+            MANAGED_CONNECTOR_INDEX_PREFIX + randomAlphaOfLength(10)
+        );
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        boolean isNative = true;
+
+        UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
         DocWriteResponse updateResponse = awaitUpdateConnectorNative(updateNativeRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 

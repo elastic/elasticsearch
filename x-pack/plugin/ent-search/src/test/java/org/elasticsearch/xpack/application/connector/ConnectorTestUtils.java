@@ -343,6 +343,10 @@ public final class ConnectorTestUtils {
         return getRandomConnectorBuilder().setIndexName(null).build();
     }
 
+    public static Connector getRandomConnectorWithAttachedIndex(String indexName) {
+        return getRandomConnectorBuilder().setIndexName(indexName).build();
+    }
+
     public static Connector getRandomSelfManagedConnector() {
         return getRandomConnectorBuilder().setIsNative(false).build();
     }

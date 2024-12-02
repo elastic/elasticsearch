@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
 
@@ -27,7 +28,7 @@ public class InferenceQueryBuilderServiceBuilder {
     public InferenceQueryBuilderService build() {
         Objects.requireNonNull(pluginsService);
 
-        List<BiFunction<String, String, AbstractQueryBuilder<?>>> definedInferenceQueryBuilders = new ArrayList<>();
+        List<TriFunction<String, String, Boolean, AbstractQueryBuilder<?>>> definedInferenceQueryBuilders = new ArrayList<>();
 
         List<SearchPlugin> searchPlugins = pluginsService.filterPlugins(SearchPlugin.class).toList();
         for (SearchPlugin searchPlugin : searchPlugins) {

@@ -8,16 +8,16 @@
 
 package org.elasticsearch.index.query;
 
-import java.util.function.BiFunction;
+import org.elasticsearch.common.TriFunction;
 
 public class InferenceQueryBuilderService {
-    private final BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder;
+    private final TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder;
 
-    InferenceQueryBuilderService(BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
+    InferenceQueryBuilderService(TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
         this.defaultInferenceQueryBuilder = defaultInferenceQueryBuilder;
     }
 
-    public AbstractQueryBuilder<?> getDefaultInferenceQueryBuilder(String fieldName, String query) {
-        return defaultInferenceQueryBuilder.apply(fieldName, query);
+    public AbstractQueryBuilder<?> getDefaultInferenceQueryBuilder(String fieldName, String query, boolean throwOnUnsupportedQueries) {
+        return defaultInferenceQueryBuilder.apply(fieldName, query, throwOnUnsupportedQueries);
     }
 }

@@ -88,10 +88,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
+    private final boolean inferenceFieldsIdentified;
+
     /**
      * Constructs a new match query.
      */
-    public MatchQueryBuilder(String fieldName, Object value) {
+    public MatchQueryBuilder(String fieldName, Object value, boolean inferenceFieldsIdentified) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires fieldName");
         }
@@ -100,6 +102,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         }
         this.fieldName = fieldName;
         this.value = value;
+        this.inferenceFieldsIdentified = inferenceFieldsIdentified;
+    }
+
+    public MatchQueryBuilder(String fieldName, Object value) {
+        this(fieldName, value, false);
     }
 
     /**
@@ -125,6 +132,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        inferenceFieldsIdentified = false;
     }
 
     @Override
@@ -375,7 +383,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = super.doRewrite(queryRewriteContext);
 
-        if (rewritten == this && queryRewriteContext.getClass() == QueryRewriteContext.class) {
+        if (rewritten == this && inferenceFieldsIdentified == false && queryRewriteContext.getClass() == QueryRewriteContext.class) {
             ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
             if (resolvedIndices != null) {
                 Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
@@ -395,14 +403,13 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                     BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                     for (String inferenceIndexName : inferenceIndices) {
                         // Add a separate clause for each inference query, because they may be using different inference endpoints
-                        boolQueryBuilder.should(
-                            createInferenceSubQuery(queryRewriteContext.getQueryBuilderService(), inferenceIndexName, fieldName, value)
-                        );
+                        boolQueryBuilder.should(createInferenceSubQuery(queryRewriteContext.getQueryBuilderService(), inferenceIndexName));
                     }
-                    boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndices, rewritten));
+                    boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndices));
                     rewritten = boolQueryBuilder;
                 } else if (inferenceIndices.isEmpty() == false) {
-                    rewritten = queryRewriteContext.getQueryBuilderService().getDefaultInferenceQueryBuilder(fieldName, value.toString());
+                    rewritten = queryRewriteContext.getQueryBuilderService()
+                        .getDefaultInferenceQueryBuilder(fieldName, value.toString(), true);
                 }
             }
         }
@@ -410,21 +417,16 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return rewritten;
     }
 
-    private QueryBuilder createInferenceSubQuery(
-        InferenceQueryBuilderService inferenceQueryBuilderService,
-        String indexName,
-        String fieldName,
-        Object value
-    ) {
+    private QueryBuilder createInferenceSubQuery(InferenceQueryBuilderService inferenceQueryBuilderService, String indexName) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(inferenceQueryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString()));
+        boolQueryBuilder.must(inferenceQueryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString(), false));
         boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }
 
-    private QueryBuilder createNonInferenceSubQuery(List<String> indices, QueryBuilder rewritten) {
+    private QueryBuilder createNonInferenceSubQuery(List<String> indices) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(rewritten);
+        boolQueryBuilder.must(new MatchQueryBuilder(fieldName, value, true));
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }

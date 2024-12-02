@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -109,7 +110,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -407,7 +407,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
-    public BiFunction<String, String, AbstractQueryBuilder<?>> getDefaultInferenceQueryBuilder() {
+    public TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> getDefaultInferenceQueryBuilder() {
         return SemanticQueryBuilder::new;
     }
 

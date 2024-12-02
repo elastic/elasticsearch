@@ -11,6 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -129,7 +130,7 @@ public interface SearchPlugin {
         return emptyList();
     }
 
-    default BiFunction<String, String, AbstractQueryBuilder<?>> getDefaultInferenceQueryBuilder() {
+    default TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> getDefaultInferenceQueryBuilder() {
         return null;
     }
 

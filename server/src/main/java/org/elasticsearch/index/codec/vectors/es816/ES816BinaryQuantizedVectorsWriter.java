@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -48,6 +48,8 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -61,14 +63,14 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
-import static org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat.BINARIZED_VECTOR_COMPONENT;
-import static org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat.BINARIZED_VECTOR_COMPONENT;
+import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
+class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ES816BinaryQuantizedVectorsWriter.class);
 
     private final SegmentWriteState segmentWriteState;

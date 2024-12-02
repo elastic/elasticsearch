@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -29,6 +29,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -37,7 +38,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.constSqrt;
 
 /** Binarized vector values loaded from off-heap */
-public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues implements RandomAccessBinarizedByteVectorValues {
+abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues implements RandomAccessBinarizedByteVectorValues {
 
     protected final int dimension;
     protected final int size;
@@ -251,10 +252,10 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
     }
 
     /** Dense off-heap binarized vector values */
-    public static class DenseOffHeapVectorValues extends OffHeapBinarizedVectorValues {
+    static class DenseOffHeapVectorValues extends OffHeapBinarizedVectorValues {
         private int doc = -1;
 
-        public DenseOffHeapVectorValues(
+        DenseOffHeapVectorValues(
             int dimension,
             int size,
             float[] centroid,

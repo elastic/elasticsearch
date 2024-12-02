@@ -408,6 +408,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static String[] getStoredFieldsSpec(IndexShard indexShard) {
         if (indexShard.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
             if (indexShard.mapperService().mappingLookup().inferenceFields().size() > 0) {
+                // Retrieves the inference metadata field containing the inference results for all semantic fields defined in the mapping.
                 return new String[] { RoutingFieldMapper.NAME, InferenceMetadataFieldsMapper.NAME };
             }
         }

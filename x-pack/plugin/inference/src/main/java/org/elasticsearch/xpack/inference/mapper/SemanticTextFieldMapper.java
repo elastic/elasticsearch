@@ -738,7 +738,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 }
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new HashMap<>();
                 while (it.docID() < doc) {
-                    if (dvLoader.advanceToDoc(it.docID()) == false) {
+                    if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
                         throw new IllegalStateException(
                             "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
                         );

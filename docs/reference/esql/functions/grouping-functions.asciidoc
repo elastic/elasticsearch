@@ -9,7 +9,7 @@ The <<esql-stats-by>> command supports these grouping functions:
 
 // tag::group_list[]
 * <<esql-bucket>>
-* <<esql-categorize>>
+* experimental:[] <<esql-categorize>>
 // end::group_list[]
 
 include::layout/bucket.asciidoc[]

@@ -686,10 +686,10 @@ FROM sample_data
 | SORT category
 ;
 
-// tag::docsCategorize[]
+// tag::docsCategorize-result[]
 count:long | category:keyword
          3 | .*?Connected.+?to.*?
          3 | .*?Connection.+?error.*?
          1 | .*?Disconnected.*?
-// end::docsCategorize[]
+// end::docsCategorize-result[]
 ;

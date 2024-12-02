@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.hamcrest.Matchers.containsString;
@@ -228,22 +229,17 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         ChunkedInferenceServiceResults results,
         XContentType contentType
     ) {
+        final boolean useInferenceMetadataFields = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+
         return new SemanticTextField(
             indexVersion,
             fieldName,
-            indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) ? null : inputs,
+            useInferenceMetadataFields ? null : inputs,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),
-                Map.of(
-                    fieldName,
-                    toSemanticTextFieldChunks(
-                        inputs.get(0),
-                        List.of(results),
-                        contentType,
-                        indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                    )
-                )
+                Map.of(fieldName, toSemanticTextFieldChunks(inputs.get(0), List.of(results), contentType, useInferenceMetadataFields))
             ),
             contentType
         );

@@ -51,7 +51,8 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.INFERENCE_METADATA_FIELDS)
+                || INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() == false) {
                 return ValueFetcher.EMPTY;
             }
             return valueFetcher(context.getMappingLookup(), context::bitsetFilter, context.searcher());

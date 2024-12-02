@@ -56,6 +56,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
+
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
  * as {@link SemanticTextFieldMapper} in the index mapping. For each semantic text field referencing fields in
@@ -386,7 +388,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             var newDocMap = indexRequest.sourceAsMap();
             Map<String, Object> inferenceFieldsMap = new HashMap<>();
-            final boolean addMetadataField = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
+            final boolean addMetadataField = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
@@ -486,7 +489,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         // TODO: Detect when the field is provided with an explicit null value
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
-                            if (isUpdateRequest && indexCreatedVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                            if (isUpdateRequest
+                                && (indexCreatedVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+                                    || INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() == false)) {
                                 addInferenceResponseFailure(
                                     item.id(),
                                     new ElasticsearchStatusException(

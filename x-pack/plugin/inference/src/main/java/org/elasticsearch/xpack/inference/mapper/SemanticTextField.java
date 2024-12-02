@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -226,25 +227,28 @@ public record SemanticTextField(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final boolean useInferenceMetadataFieldsFormat = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+
         builder.startObject();
-        if (indexCreatedVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS) && originalValues.isEmpty() == false) {
+        if (useInferenceMetadataFieldsFormat == false && originalValues.isEmpty() == false) {
             builder.field(TEXT_FIELD, originalValues.size() == 1 ? originalValues.get(0) : originalValues);
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
-        if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+        if (useInferenceMetadataFieldsFormat) {
             builder.startObject(CHUNKS_FIELD);
         } else {
             builder.startArray(CHUNKS_FIELD);
         }
         for (var entry : inference.chunks.entrySet()) {
-            if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (useInferenceMetadataFieldsFormat) {
                 builder.startArray(entry.getKey());
             }
             for (var chunk : entry.getValue()) {
                 builder.startObject();
-                if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (useInferenceMetadataFieldsFormat) {
                     builder.field(CHUNKED_START_OFFSET_FIELD, chunk.startOffset);
                     builder.field(CHUNKED_END_OFFSET_FIELD, chunk.endOffset);
                 } else {
@@ -258,11 +262,11 @@ public record SemanticTextField(
                 builder.field(CHUNKED_EMBEDDINGS_FIELD).copyCurrentStructure(parser);
                 builder.endObject();
             }
-            if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (useInferenceMetadataFieldsFormat) {
                 builder.endArray();
             }
         }
-        if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+        if (useInferenceMetadataFieldsFormat) {
             builder.endObject();
         } else {
             builder.endArray();
@@ -276,7 +280,8 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
-            if (context.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (context.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
                 }
@@ -338,7 +343,8 @@ public record SemanticTextField(
             new ParseField(MODEL_SETTINGS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
-            if (c.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (c.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
                 return parseChunksMap(p);
             } else {
                 return Map.of(c.fieldName, parseChunksArrayLegacy(p));

@@ -84,6 +84,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
@@ -292,7 +293,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
             // ignore original text value
             context.parser().skipChildren();
             return;
@@ -387,7 +389,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     embeddingsField.parse(subContext);
                 }
 
-                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                    && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
                     try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
                         builder.startObject();
                         builder.field("field", entry.getKey());
@@ -527,7 +530,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
                 return SourceValueFetcher.toString(name(), context, null);
             } else {
                 // Redirect the fetcher to load the original values of the field
@@ -674,7 +678,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            String name = indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) ? name() : name().concat(".text");
+            String name = indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? name() : name().concat(".text");
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
@@ -828,7 +833,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (modelSettings != null) {
             chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings));
         }
-        if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+        if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
             chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
         } else {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);

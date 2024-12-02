@@ -48,6 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
+
 /**
  * A {@link Highlighter} designed for the {@link SemanticTextFieldMapper}.
  * It extracts semantic queries and compares them against each chunk in the document.
@@ -62,7 +64,8 @@ public class SemanticTextHighlighter implements Highlighter {
     public boolean canHighlight(MappedFieldType fieldType) {
         if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
             // TODO: Handle semantic text field prior to the inference metadata fields version.
-            return semanticTextFieldType.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
+            return semanticTextFieldType.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
         }
         return false;
     }
@@ -119,7 +122,10 @@ public class SemanticTextHighlighter implements Highlighter {
         Text[] snippets = new Text[size];
         for (int i = 0; i < size; i++) {
             var chunk = chunks.get(i);
-            var content = inputs.computeIfAbsent(chunk.offset.field(), k -> extractFieldContent(fieldContext.context.getSearchExecutionContext(), fieldContext.hitContext, mappingLookup, k));
+            var content = inputs.computeIfAbsent(
+                chunk.offset.field(),
+                k -> extractFieldContent(fieldContext.context.getSearchExecutionContext(), fieldContext.hitContext, mappingLookup, k)
+            );
             if (content == null) {
                 throw new IllegalStateException("Missing content for field [" + chunk.offset.field() + "]");
             }
@@ -140,7 +146,12 @@ public class SemanticTextHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, snippets);
     }
 
-    private String extractFieldContent(SearchExecutionContext searchContext, FetchSubPhase.HitContext hitContext, MappingLookup mappingLookup, String sourceField) {
+    private String extractFieldContent(
+        SearchExecutionContext searchContext,
+        FetchSubPhase.HitContext hitContext,
+        MappingLookup mappingLookup,
+        String sourceField
+    ) {
         var sourceFieldType = mappingLookup.getFieldType(sourceField);
         if (sourceFieldType == null) {
             return null;

@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -302,7 +303,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean hasInferenceMetadataFields = false;
         if (storedFields != null) {
             for (String field : storedFields) {
-                if (field.equals(InferenceMetadataFieldsMapper.NAME) && indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (field.equals(InferenceMetadataFieldsMapper.NAME)
+                    && indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                    && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
                     hasInferenceMetadataFields = true;
                     continue;
                 }

@@ -12,10 +12,9 @@ RUN chmod 0444 /opt/fips/*
 FROM ${base_image}
 USER root
 
-COPY --from=builder --chown=0:0 /opt/fips/jdk /opt/jdk
+# COPY --from=builder --chown=0:0 /opt/fips/jdk /opt/jdk
 COPY --from=builder --chown=0:0 /opt/fips/libs/*.jar /usr/share/elasticsearch/lib
-COPY --from=builder --chown=0:0 /opt/fips/resources/fips_java_oracle.security /opt/jdk/conf/security/java.security
-COPY --from=builder --chown=0:0 /opt/fips/resources/fips_java.policy /opt/jdk/conf/security/java.policy
+COPY --from=builder --chown=0:0 /opt/fips/resources/fips_java_oracle.security /usr/share/elasticsearch/jdk/conf/security/java.security
+COPY --from=builder --chown=0:0 /opt/fips/resources/fips_java.policy /usr/share/elasticsearch/jdk/conf/security/java.policy
 
 USER 1000:0
-ENV ES_JAVA_HOME /opt/jdk

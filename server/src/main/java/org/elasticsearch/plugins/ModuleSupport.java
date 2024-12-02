@@ -10,6 +10,8 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -42,6 +44,10 @@ import java.util.zip.ZipFile;
  */
 public class ModuleSupport {
 
+    private static final Logger logger = LogManager.getLogger(ModuleSupport.class);
+
+    private static final Set<String> FORBIDDEN_PACKAGE_NAMES = Set.of("org.apache.commons.lang.enum");
+
     private ModuleSupport() {
         throw new AssertionError("Utility class, should not be instantiated");
     }
@@ -65,8 +71,6 @@ public class ModuleSupport {
         }
     }
 
-    private static final Set<String> FORBIDDEN_PACKAGE_NAMES = Set.of("org.apache.commons.lang.enum");
-
     @SuppressForbidden(reason = "need access to the jar file")
     static ModuleDescriptor createModuleDescriptor(
         String name,
@@ -84,6 +88,7 @@ public class ModuleSupport {
         Map<String, List<String>> allBundledProviders = new HashMap<>();
         Set<String> servicesUsedInBundle = new HashSet<>();
         for (Path path : jarPaths) {
+            logger.info("Scanning JAR " + path + " for services");
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
                 // if we have a module declaration, trust its uses/provides
@@ -92,9 +97,12 @@ public class ModuleSupport {
                     var descriptor = getDescriptorForModularJar(path);
                     pkgs.addAll(descriptor.packages().stream().filter(Predicate.not(FORBIDDEN_PACKAGE_NAMES::contains)).toList());
                     servicesUsedInBundle.addAll(descriptor.uses());
+                    logger.info("Adding modular uses " + String.join(";", descriptor.uses()));
+
                     for (ModuleDescriptor.Provides p : descriptor.provides()) {
                         String serviceName = p.service();
                         List<String> providersInModule = p.providers();
+                        logger.info("Adding modular providers " + String.join(";", providersInModule));
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInModule));
                         servicesUsedInBundle.add(serviceName);
@@ -108,7 +116,11 @@ public class ModuleSupport {
                         String serviceName = getServiceName(serviceFileName);
                         List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 
-                        allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
+                        if (providersInJar.isEmpty() == false) {
+                            logger.info("Adding non-modular providers " + String.join(";", providersInJar));
+                            allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
+                        }
+                        logger.info("Adding non-modular uses " + serviceName);
                         servicesUsedInBundle.add(serviceName);
                     }
                 }

@@ -6,6 +6,13 @@
 
 beta[]
 
+[WARNING]
+.Deprecated in 8.16
+====
+The elser service is deprecated and will be removed in a future release. 
+Use the <<infer-service-elasticsearch>> instead, with model_id included in the service_settings.
+====
+
 This tutorial shows you how to use the semantic text feature to perform semantic search on your data.
 
 Semantic text simplifies the {infer} workflow by providing {infer} at ingestion time and sensible default values automatically.

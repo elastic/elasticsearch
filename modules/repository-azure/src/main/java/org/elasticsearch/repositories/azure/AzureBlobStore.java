@@ -749,9 +749,7 @@ public class AzureBlobStore implements BlobStore {
         }
 
         BlobStoreActionStats addTo(BlobStoreActionStats other) {
-            final long ops = Math.addExact(operations.sum(), other.operations());
-            final long reqs = Math.addExact(requests.sum(), +other.requests());
-            return new BlobStoreActionStats(ops, reqs);
+            return new BlobStoreActionStats(operations.sum(), requests.sum()).add(other);
         }
     }
 

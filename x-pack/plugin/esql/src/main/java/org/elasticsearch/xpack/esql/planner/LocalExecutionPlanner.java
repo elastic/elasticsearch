@@ -583,8 +583,8 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.matchFields().size());
-        for (Attribute m : join.matchFields()) {
+        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
+        for (Attribute m : join.leftFields()) {
             Layout.ChannelAndType t = source.layout.get(m.id());
             if (t == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
@@ -604,7 +604,7 @@ public class LocalExecutionPlanner {
                 lookupFromIndexService,
                 matchFields.get(0).type(),
                 localSourceExec.index().name(),
-                join.matchFields().get(0).name(),
+                join.leftFields().get(0).name(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),

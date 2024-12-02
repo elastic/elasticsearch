@@ -190,8 +190,8 @@ public class LogsdbRestIT extends ESRestTestCase {
         var forceMergeResponse = client().performRequest(forceMergeRequest);
         assertOK(forceMergeResponse);
 
-        String query = "FROM test-foo | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length)" +
-            " ,sum(message_length), avg(message_length), min(log.offset), max(log.offset) | LIMIT 1";
+        String query = "FROM test-foo | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length)"
+            + " ,sum(message_length), avg(message_length), min(log.offset), max(log.offset) | LIMIT 1";
         final Request esqlRequest = new Request("POST", "/_query");
         esqlRequest.setJsonEntity("""
             {

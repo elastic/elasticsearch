@@ -115,32 +115,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 groupAttributeLayout.nameIds()
                     .add(group instanceof Alias as && as.child() instanceof Categorize ? groupAttribute.id() : sourceGroupAttribute.id());
 
-                /*
-                 * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
-                 *  - before stats (keep x = a | stats by x) which requires the partial input to use a's channel
-                 *  - after  stats (stats by a | keep x = a) which causes the output layout to refer to the follow-up alias
-                 */
-                for (NamedExpression agg : aggregates) {
-                    if (agg instanceof Alias a) {
-                        if (a.child() instanceof Attribute attr) {
-                            if (groupAttribute.id().equals(attr.id())) {
-                                groupAttributeLayout.nameIds().add(a.id());
-                                // TODO: investigate whether a break could be used since it shouldn't be possible to have multiple
-                                // attributes pointing to the same attribute
-                            }
-                            // partial mode only
-                            // check if there's any alias used in grouping - no need for the final reduction since the intermediate data
-                            // is in the output form
-                            // if the group points to an alias declared in the aggregate, use the alias child as source
-                            else if (aggregatorMode.isOutputPartial()) {
-                                if (groupAttribute.semanticEquals(a.toAttribute())) {
-                                    groupAttribute = attr;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
                 groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));

@@ -202,3 +202,12 @@ monitoring, and administrative features that are integrated into Elasticsearch e
 control center for managing a cluster.
 
 <<monitor-elasticsearch-cluster,Learn about monitoring your cluster>>.
+
+https://www.elastic.co/guide/en/cloud-enterprise/current/ece-monitoring-ece.html[Monitor Elastic Cloud Enterprise]
+https://www.elastic.co/guide/en/cloud-enterprise/current/ece-enable-logging-and-monitoring.html[Enable logging and monitoring in Elastic Cloud Enterprise]
+
+
+https://www.elastic.co/guide/en/cloud/current/ec-monitoring.html[Monitor Elastic Cloud Hosted]
+
+
+https://www.elastic.co/guide/en/cloud-on-k8s/master/k8s-stack-monitoring.html[Monitor Elastic Cloud on Kubernetes]

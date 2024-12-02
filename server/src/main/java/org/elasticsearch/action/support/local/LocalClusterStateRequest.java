@@ -33,7 +33,7 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
     }
 

@@ -1,5 +1,5 @@
 pr: 117230
-summary: Make `TransportLocalClusterStateAction` wait for cluster to unblock
+summary: Make various alias retrieval APIs wait for cluster to unblock
 area: Distributed
 type: enhancement
 issues: []

@@ -49,9 +49,10 @@ public class RestAliasAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
-        final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
-            ? new GetAliasesRequest(masterNodeTimeout, Strings.commaDelimitedListToStringArray(request.param("alias")))
-            : new GetAliasesRequest(masterNodeTimeout);
+        final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(
+            masterNodeTimeout,
+            Strings.commaDelimitedListToStringArray(request.param("alias"))
+        );
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()

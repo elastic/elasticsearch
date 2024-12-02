@@ -40,14 +40,10 @@ public class GetAliasesRequest extends LocalClusterStateRequest implements Alias
         this(Strings.EMPTY_ARRAY);
     }
 
-    public GetAliasesRequest(TimeValue clusterUpdateTimeout, String... aliases) {
-        super(clusterUpdateTimeout);
+    public GetAliasesRequest(TimeValue masterTimeout, String... aliases) {
+        super(masterTimeout);
         this.aliases = aliases;
         this.originalAliases = aliases;
-    }
-
-    public GetAliasesRequest(TimeValue clusterUpdateTimeout) {
-        this(clusterUpdateTimeout, Strings.EMPTY_ARRAY);
     }
 
     @Override

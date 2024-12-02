@@ -155,7 +155,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 computationsExecuted.inc();
 
                 final DesiredBalance currentDesiredBalance = currentDesiredBalanceRef.get();
-                if (currentDesiredBalance == DesiredBalance.NOT_MASTER || currentDesiredBalance == DesiredBalance.INITIAL) {
+                if (currentDesiredBalance == DesiredBalance.NOT_MASTER || currentDesiredBalance == DesiredBalance.BECOME_MASTER_INITIAL) {
                     logger.debug(
                         () -> Strings.format(
                             "Desired balance computation for [%s] is discarded since master has concurrently changed. "
@@ -237,7 +237,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         logger.debug("Executing allocate for [{}]", index);
         queue.add(index, listener);
         // This can only run on master, so unset not-master if exists
-        if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.INITIAL)) {
+        if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.BECOME_MASTER_INITIAL)) {
             logger.debug("initialized desired balance for becoming master");
         }
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));

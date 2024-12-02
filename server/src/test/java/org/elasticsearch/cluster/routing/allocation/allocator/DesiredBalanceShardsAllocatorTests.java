@@ -754,7 +754,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         try {
             // initial computation is based on DesiredBalance.INITIAL
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(DesiredBalance.INITIAL));
+            assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(DesiredBalance.BECOME_MASTER_INITIAL));
 
             // any next computation is based on current desired balance
             var current = desiredBalanceShardsAllocator.getDesiredBalance();
@@ -807,7 +807,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.INITIAL)));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.BECOME_MASTER_INITIAL)));
 
             clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.getNodes()).localNodeId(node1.getId()).masterNodeId(node2.getId()))
@@ -863,7 +863,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.INITIAL)));
+            assertThat(desiredBalanceAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.BECOME_MASTER_INITIAL)));
 
             final var shutdownType = randomFrom(Type.SIGTERM, Type.REMOVE, Type.REPLACE);
             final var singleShutdownMetadataBuilder = SingleNodeShutdownMetadata.builder()
@@ -939,7 +939,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
                     Predicate<DesiredBalanceInput> isFresh
                 ) {
-                    assertThat(previousDesiredBalance, sameInstance(DesiredBalance.INITIAL));
+                    assertThat(previousDesiredBalance, sameInstance(DesiredBalance.BECOME_MASTER_INITIAL));
                     return new DesiredBalance(desiredBalanceInput.index(), Map.of());
                 }
             },

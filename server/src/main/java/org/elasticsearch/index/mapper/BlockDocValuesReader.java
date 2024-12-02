@@ -101,7 +101,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NO_REQUIREMENTS;
+            return StoredFieldsSpec.NEEDS_SOURCE;
         }
     }
 

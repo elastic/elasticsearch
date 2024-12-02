@@ -951,7 +951,7 @@ c:l
 49
 ;
 
-countFieldWithGrouping
+countFieldWithGrouping#[skip:-8.13.99,reason:muted, see https://github.com/elastic/elasticsearch/issues/117784]
 from employees | rename languages as l | where emp_no < 10050 | stats c = count(emp_no) by l | sort l;
 
 c:l | l:i 
@@ -963,7 +963,7 @@ c:l | l:i
 10 | null
 ;
 
-countFieldWithAliasWithGrouping
+countFieldWithAliasWithGrouping#[skip:-8.13.99,reason:muted, see https://github.com/elastic/elasticsearch/issues/117784]
 from employees | rename languages as l | eval e = emp_no | where emp_no < 10050 | stats c = count(e) by l | sort l;
 
 c:l | l:i 

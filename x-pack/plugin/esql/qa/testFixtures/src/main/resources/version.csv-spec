@@ -159,7 +159,7 @@ id:i           |name:s         |version:v      |o:v
 13             |lllll          |null           |null 
 ;
 
-countVersion
+countVersion#[skip:-8.13.99,reason:muted, see https://github.com/elastic/elasticsearch/issues/117784]
 FROM apps | RENAME name AS k | STATS v = COUNT(version) BY k | SORT k;
 
 v:l     | k:s

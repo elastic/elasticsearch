@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,6 +44,8 @@ import java.util.Objects;
  * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
+
+    public static final NodeFeature MATCH_QUERY_SEMANTIC_TEXT_SUPPORTED = new NodeFeature("search.match_query_semantic_text_supported");
 
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");

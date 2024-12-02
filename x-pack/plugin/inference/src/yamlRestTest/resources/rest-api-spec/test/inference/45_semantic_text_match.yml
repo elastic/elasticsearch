@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.18.0"
-      reason: semantic_text match support introduced in 8.18.0 (TODO change to feature)
+      cluster_features: "search.match_query_semantic_text_supported"
+      reason: semantic_text match support introduced in 8.18.0
 
   - do:
       inference.put:

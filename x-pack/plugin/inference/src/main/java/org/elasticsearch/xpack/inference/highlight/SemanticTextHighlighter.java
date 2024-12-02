@@ -24,7 +24,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SparseVectorFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -122,10 +120,7 @@ public class SemanticTextHighlighter implements Highlighter {
         Text[] snippets = new Text[size];
         for (int i = 0; i < size; i++) {
             var chunk = chunks.get(i);
-            var content = inputs.computeIfAbsent(
-                chunk.offset.field(),
-                k -> extractFieldContent(fieldContext.context.getSearchExecutionContext(), fieldContext.hitContext, mappingLookup, k)
-            );
+            var content = inputs.computeIfAbsent(chunk.offset.field(), k -> extractFieldContent(fieldContext.hitContext, mappingLookup, k));
             if (content == null) {
                 throw new IllegalStateException("Missing content for field [" + chunk.offset.field() + "]");
             }
@@ -146,25 +141,15 @@ public class SemanticTextHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, snippets);
     }
 
-    private String extractFieldContent(
-        SearchExecutionContext searchContext,
-        FetchSubPhase.HitContext hitContext,
-        MappingLookup mappingLookup,
-        String sourceField
-    ) {
+    private String extractFieldContent(FetchSubPhase.HitContext hitContext, MappingLookup mappingLookup, String sourceField) {
         var sourceFieldType = mappingLookup.getFieldType(sourceField);
         if (sourceFieldType == null) {
             return null;
         }
-        ValueFetcher fetcher = sourceFieldType.valueFetcher(searchContext, null);
-        fetcher.setNextReader(hitContext.readerContext());
-        List<Object> result = null;
-        try {
-            result = fetcher.fetchValues(hitContext.source(), hitContext.docId(), new ArrayList<>());
-        } catch (IOException exc) {
-            throw new UncheckedIOException(exc);
-        }
-        return result.size() > 0 ? SemanticTextUtils.nodeStringValues(sourceFieldType.name(), result) : null;
+        // TODO: Consider using a value fetcher here, as it will work if the field is stored, but ensure it excludes values derived from
+        // copy_to fields.
+        Object sourceValue = hitContext.source().extractValue(sourceFieldType.name(), null);
+        return sourceValue != null ? SemanticTextUtils.nodeStringValues(sourceFieldType.name(), sourceValue) : null;
     }
 
     private List<OffsetAndScore> extractOffsetAndScores(

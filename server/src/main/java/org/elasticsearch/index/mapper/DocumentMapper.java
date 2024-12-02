@@ -18,9 +18,17 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DocumentMapper {
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+    static final long ERROR_THROTTLING_INTERVAL_SECONDS = 60;
+
+    private static final AtomicBoolean lastErrorLogLock = new AtomicBoolean(false);
+    private static volatile long lastErrorLogEpochSecond = 0;
+
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
@@ -28,8 +36,6 @@ public class DocumentMapper {
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
     private final Logger logger;
-
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -72,9 +78,28 @@ public class DocumentMapper {
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
-    private void maybeLogDebug(Exception ex) {
+    private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document: " + ex.getMessage(), ex);
+        } else {
+            final long now = Instant.now().getEpochSecond();
+            // Check without locking first, to reduce lock contention.
+            if (now - lastErrorLogEpochSecond > ERROR_THROTTLING_INTERVAL_SECONDS) {
+                boolean shouldLog = false;
+                // Acquire spinlock.
+                while (lastErrorLogLock.compareAndSet(false, true)) {
+                }
+                // Repeat check under lock, so that only one message gets written per interval.
+                if (now - lastErrorLogEpochSecond > ERROR_THROTTLING_INTERVAL_SECONDS) {
+                    shouldLog = true;
+                    lastErrorLogEpochSecond = now;
+                }
+                // Release spinlock before logging.
+                lastErrorLogLock.set(false);
+                if (shouldLog) {
+                    logger.error("Error while parsing document: " + ex.getMessage(), ex);
+                }
+            }
         }
     }
 
@@ -125,7 +150,7 @@ public class DocumentMapper {
         try {
             return documentParser.parseDocument(source, mappingLookup);
         } catch (Exception e) {
-            maybeLogDebug(e);
+            maybeLog(e);
             throw e;
         }
     }

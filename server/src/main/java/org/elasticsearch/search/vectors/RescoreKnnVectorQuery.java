@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Wraps a kNN vector query to rescore the results using the non-quantized vectors
+ * Wraps an internal query to rescore the results using a similarity function over the original, non-quantized vectors of a vector field
  */
 public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
     private final String fieldName;
@@ -86,6 +86,7 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
             return query;
         }
 
+        // Retrieve top k documents from the rescored query
         TopDocs topDocs = searcher.search(query, k);
         ScoreDoc[] scoreDocs = topDocs.scoreDocs;
         int[] docIds = new int[scoreDocs.length];

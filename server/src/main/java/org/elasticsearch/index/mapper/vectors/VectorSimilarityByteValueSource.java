@@ -23,6 +23,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * DoubleValuesSource that is used to calculate scores according to a similarity function for a KnnByteVectorField, using the
+ * original vector values stored in the index
+ */
 public class VectorSimilarityByteValueSource extends DoubleValuesSource {
 
     private final String field;

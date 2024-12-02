@@ -43,8 +43,8 @@ public class KnnScoreDocQuery extends Query {
     // If a segment has no matching documents, it should be assigned the index of the next segment that does.
     // There should be a final entry that is always docs.length-1.
     private final int[] segmentStarts;
-    // an object identifying the reader context that was used to build this query
 
+    // an object identifying the reader context that was used to build this query
     private final Object contextIdentity;
 
     /**

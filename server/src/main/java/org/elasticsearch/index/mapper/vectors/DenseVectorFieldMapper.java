@@ -122,10 +122,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
     public static int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
-    public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
-
     public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
+    public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -2038,15 +2037,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter
                 );
-                case BIT -> createKnnBitQuery(
-                    queryVector.asByteVector(),
-                    k,
-                    numCands,
-                    rescoreOversample,
-                    filter,
-                    similarityThreshold,
-                    parentFilter
-                );
+                case BIT -> createKnnBitQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
             };
         }
 
@@ -2058,16 +2049,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             byte[] queryVector,
             Integer k,
             int numCands,
-            Float rescoreOversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
         ) {
             elementType.checkDimensions(dims, queryVector.length);
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
-            }
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter);

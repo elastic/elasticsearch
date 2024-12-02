@@ -98,6 +98,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
     }
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {

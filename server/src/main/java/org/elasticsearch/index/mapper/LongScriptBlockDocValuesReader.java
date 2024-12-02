@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
@@ -54,10 +53,6 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
             return new LongScriptBlockDocValuesReader(factory.newInstance(context));
         }
 
-        @Override
-        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
-        }
     }
 
     private final LongFieldScript script;

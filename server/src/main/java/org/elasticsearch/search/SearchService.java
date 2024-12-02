@@ -46,7 +46,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -147,6 +146,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -546,14 +546,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
-            final ReaderContext readerContext = request.readerId() == null ? null : findReaderContext(orig.readerId(), orig);
             IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             // check if we can shortcut the query phase entirely.
             if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
-                CanMatchShardResponse canMatchResp;
                 ShardSearchRequest clone = new ShardSearchRequest(orig);
-                try (CanMatchContext canMatchContext = new CanMatchContext(clone, indexService, readerContext, getKeepAlive(request))) {
+                CanMatchContext canMatchContext = new CanMatchContext(
+                    clone,
+                    indexService,
+                    this::findReaderContext,
+                    defaultKeepAlive,
+                    maxKeepAlive
+                );
+                CanMatchShardResponse canMatchResp;
+                try {
                     canMatchResp = canMatch(canMatchContext, false);
                 } catch (Exception exc) {
                     // if can_match throws for some reason, we go ahead with the query phase
@@ -1193,10 +1199,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private long getKeepAlive(ShardSearchRequest request) {
+        return getKeepAlive(request, defaultKeepAlive, maxKeepAlive);
+    }
+
+    private static long getKeepAlive(ShardSearchRequest request, long defaultKeepAlive, long maxKeepAlive) {
         if (request.scroll() != null) {
-            return getScrollKeepAlive(request.scroll());
+            return getScrollKeepAlive(request.scroll(), defaultKeepAlive, maxKeepAlive);
         } else if (request.keepAlive() != null) {
-            checkKeepAliveLimit(request.keepAlive().millis());
+            checkKeepAliveLimit(request.keepAlive().millis(), maxKeepAlive);
             return request.keepAlive().getMillis();
         } else {
             return request.readerId() == null ? defaultKeepAlive : -1;
@@ -1204,14 +1214,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private long getScrollKeepAlive(Scroll scroll) {
+        return getScrollKeepAlive(scroll, defaultKeepAlive, maxKeepAlive);
+    }
+
+    private static long getScrollKeepAlive(Scroll scroll, long defaultKeepAlive, long maxKeepAlive) {
         if (scroll != null && scroll.keepAlive() != null) {
-            checkKeepAliveLimit(scroll.keepAlive().millis());
+            checkKeepAliveLimit(scroll.keepAlive().millis(), maxKeepAlive);
             return scroll.keepAlive().getMillis();
         }
         return defaultKeepAlive;
     }
 
     private void checkKeepAliveLimit(long keepAlive) {
+        checkKeepAliveLimit(keepAlive, maxKeepAlive);
+    }
+
+    private static void checkKeepAliveLimit(long keepAlive, long maxKeepAlive) {
         if (keepAlive > maxKeepAlive) {
             throw new IllegalArgumentException(
                 "Keep alive for request ("
@@ -1636,38 +1654,44 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * won't match any documents on the current shard.
      */
     public CanMatchShardResponse canMatch(ShardSearchRequest request) throws IOException {
-        ReaderContext readerContext = findReaderContext(request.readerId(), request);
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        try (CanMatchContext canMatchContext = new CanMatchContext(request, indexService, readerContext, getKeepAlive(request))) {
-            return canMatch(canMatchContext, true);
-        }
+        CanMatchContext canMatchContext = new CanMatchContext(
+            request,
+            indexService,
+            this::findReaderContext,
+            defaultKeepAlive,
+            maxKeepAlive
+        );
+        return canMatch(canMatchContext, true);
     }
 
-    static class CanMatchContext implements Releasable {
+    static class CanMatchContext {
         private final ShardSearchRequest request;
-        private final ReaderContext readerContext;
         private final IndexService indexService;
-        private final IndexService readerContextIndexService;
-        private final Releasable releasable;
+        private final BiFunction<ShardSearchContextId, TransportRequest, ReaderContext> findReaderContext;
+        private final long defaultKeepAlive;
+        private final long maxKeepAlive;
 
         CanMatchContext(
             ShardSearchRequest request,
             IndexService indexService,
-            @Nullable ReaderContext readerContext,
-            long requestKeepAlive
+            BiFunction<ShardSearchContextId, TransportRequest, ReaderContext> findReaderContext,
+            long defaultKeepAlive,
+            long maxKeepAlive
         ) {
             this.request = request;
-            this.readerContext = readerContext;
             this.indexService = indexService;
-            if (request.readerId() == null) {
-                assert readerContext == null;
-                this.releasable = null;
-                this.readerContextIndexService = null;
-            } else {
-                assert readerContext != null;
-                releasable = readerContext.markAsUsed(requestKeepAlive);
-                this.readerContextIndexService = readerContext.indexService();
-            }
+            this.findReaderContext = findReaderContext;
+            this.defaultKeepAlive = defaultKeepAlive;
+            this.maxKeepAlive = maxKeepAlive;
+        }
+
+        long getKeepAlive() {
+            return SearchService.getKeepAlive(request, defaultKeepAlive, maxKeepAlive);
+        }
+
+        ReaderContext findReaderContext() {
+            return findReaderContext.apply(request.readerId(), request);
         }
 
         QueryRewriteContext getQueryRewriteContext(IndexService indexService) {
@@ -1688,11 +1712,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard getShard() {
             return indexService.getShard(request.shardId().getId());
         }
-
-        @Override
-        public void close() {
-            Releasables.close(releasable);
-        }
     }
 
     static CanMatchShardResponse canMatch(CanMatchContext canMatchContext, boolean checkRefreshPending) throws IOException {
@@ -1700,20 +1719,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             : "unexpected search type: " + canMatchContext.request.searchType();
         Releasable releasable = null;
         try {
+            IndexService indexService;
             final boolean hasRefreshPending;
             final Engine.Searcher canMatchSearcher;
-            if (canMatchContext.readerContext != null) {
-                assert canMatchContext.request.readerId() != null;
+            if (canMatchContext.request.readerId() != null) {
                 hasRefreshPending = false;
+                ReaderContext readerContext;
                 Engine.Searcher searcher;
                 try {
-                    if (queryStillMatchesAfterRewrite(
-                        canMatchContext.request,
-                        canMatchContext.getQueryRewriteContext(canMatchContext.readerContextIndexService)
-                    ) == false) {
+                    readerContext = canMatchContext.findReaderContext();
+                    releasable = readerContext.markAsUsed(canMatchContext.getKeepAlive());
+                    indexService = readerContext.indexService();
+                    QueryRewriteContext queryRewriteContext = canMatchContext.getQueryRewriteContext(indexService);
+                    if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
-                    searcher = canMatchContext.readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                    searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 } catch (SearchContextMissingException e) {
                     final String searcherId = canMatchContext.request.readerId().getSearcherId();
                     if (searcherId == null) {

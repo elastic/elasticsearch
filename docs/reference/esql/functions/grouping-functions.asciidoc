@@ -13,3 +13,4 @@ The <<esql-stats-by>> command supports these grouping functions:
 // end::group_list[]
 
 include::layout/bucket.asciidoc[]
+include::layout/categorize.asciidoc[]

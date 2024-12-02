@@ -33,13 +33,11 @@ public record UnifiedCompletionRequest(
     List<Message> messages,
     @Nullable String model,
     @Nullable Long maxCompletionTokens,
-    @Nullable Integer n,
     @Nullable Stop stop,
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
-    @Nullable Float topP,
-    @Nullable String user
+    @Nullable Float topP
 ) implements Writeable {
 
     public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
@@ -51,13 +49,11 @@ public record UnifiedCompletionRequest(
             (List<Message>) args[0],
             (String) args[1],
             (Long) args[2],
-            (Integer) args[3],
-            (Stop) args[4],
-            (Float) args[5],
-            (ToolChoice) args[6],
-            (List<Tool>) args[7],
-            (Float) args[8],
-            (String) args[9]
+            (Stop) args[3],
+            (Float) args[4],
+            (ToolChoice) args[5],
+            (List<Tool>) args[6],
+            (Float) args[7]
         )
     );
 
@@ -65,7 +61,6 @@ public record UnifiedCompletionRequest(
         PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField("n"));
         PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"), ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
         PARSER.declareField(
@@ -76,7 +71,6 @@ public record UnifiedCompletionRequest(
         );
         PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tools"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("top_p"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("user"));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -90,18 +84,20 @@ public record UnifiedCompletionRequest(
         );
     }
 
+    public static UnifiedCompletionRequest of(List<Message> messages) {
+        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+    }
+
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
         this(
             in.readCollectionAsImmutableList(Message::new),
             in.readOptionalString(),
             in.readOptionalVLong(),
-            in.readOptionalVInt(),
             in.readOptionalNamedWriteable(Stop.class),
             in.readOptionalFloat(),
             in.readOptionalNamedWriteable(ToolChoice.class),
-            in.readCollectionAsImmutableList(Tool::new),
-            in.readOptionalFloat(),
-            in.readOptionalString()
+            in.readOptionalCollectionAsList(Tool::new),
+            in.readOptionalFloat()
         );
     }
 
@@ -110,13 +106,11 @@ public record UnifiedCompletionRequest(
         out.writeCollection(messages);
         out.writeOptionalString(model);
         out.writeOptionalVLong(maxCompletionTokens);
-        out.writeOptionalVInt(n);
         out.writeOptionalNamedWriteable(stop);
         out.writeOptionalFloat(temperature);
         out.writeOptionalNamedWriteable(toolChoice);
         out.writeOptionalCollection(tools);
         out.writeOptionalFloat(topP);
-        out.writeOptionalString(user);
     }
 
     public record Message(Content content, String role, @Nullable String name, @Nullable String toolCallId, List<ToolCall> toolCalls)
@@ -155,7 +149,7 @@ public record UnifiedCompletionRequest(
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
-                in.readCollectionAsImmutableList(ToolCall::new)
+                in.readOptionalCollectionAsList(ToolCall::new)
             );
         }
 
@@ -165,7 +159,7 @@ public record UnifiedCompletionRequest(
             out.writeString(role);
             out.writeOptionalString(name);
             out.writeOptionalString(toolCallId);
-            out.writeCollection(toolCalls);
+            out.writeOptionalCollection(toolCalls);
         }
     }
 

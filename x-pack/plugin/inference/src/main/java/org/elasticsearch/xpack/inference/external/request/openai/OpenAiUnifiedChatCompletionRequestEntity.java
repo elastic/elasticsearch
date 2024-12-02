@@ -111,9 +111,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         if (unifiedRequest.maxCompletionTokens() != null) {
             builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
         }
-        if (unifiedRequest.n() != null) {
-            builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, unifiedRequest.n());
-        }
+
+        builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);
+
         if (unifiedRequest.stop() != null) {
             switch (unifiedRequest.stop()) {
                 case UnifiedCompletionRequest.StopString stopString -> builder.field(STOP_FIELD, stopString.value());

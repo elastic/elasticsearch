@@ -254,11 +254,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected static final List<String> JAVA_TIMEZONE_IDS;
     protected static final List<String> JAVA_ZONE_IDS;
-
     private static final AtomicInteger portGenerator = new AtomicInteger();
-
     private static final Collection<String> loggedLeaks = new ArrayList<>();
-
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -268,13 +265,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // Allows distinguishing between parallel test processes
     public static final String TEST_WORKER_VM_ID;
-
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
-
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
-
     public static final String FIPS_SYSPROP = "tests.fips.enabled";
-
     private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
     static {
@@ -443,7 +436,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
     // -----------------------------------------------------------------
-
     @Rule
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
         @Override
@@ -482,7 +474,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected void afterIfFailed(List<Throwable> errors) {}
 
-    /** called after a test is finished, but only if successful */
+    /**
+     * called after a test is finished, but only if successful
+     */
     protected void afterIfSuccessful() throws Exception {}
 
     /**
@@ -492,6 +486,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Target({ ElementType.TYPE })
     @Inherited
     public @interface WithoutSecurityManager {
+
     }
 
     private static Closeable securityManagerRestorer;
@@ -668,6 +663,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
@@ -688,6 +684,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at WARNING level.
+     *
      * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
@@ -702,6 +699,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at CRITICAL level.
+     *
      * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertCriticalWarnings(String... expectedWarnings) {
@@ -769,20 +767,19 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
+
     static {
         // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
         StatusLogger.getLogger().setLevel(Level.WARN);
         // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
         // assert that no such messages were written out as these would indicate a problem with our logging configuration
         StatusLogger.getLogger().registerListener(new StatusConsoleListener(Level.WARN) {
-
             @Override
             public void log(StatusData data) {
                 synchronized (statusData) {
                     statusData.add(data);
                 }
             }
-
         });
     }
 
@@ -843,8 +840,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // mockdirectorywrappers currently set this boolean if checkindex fails
     // TODO: can we do this cleaner???
-
-    /** MockFSDirectoryService sets this: */
+    /**
+     * MockFSDirectoryService sets this:
+     */
     public static final List<Exception> checkIndexFailures = new CopyOnWriteArrayList<>();
 
     @Before
@@ -1139,37 +1137,48 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
      * Modify this random generator if a wider range for BigIntegers is necessary.
+     *
      * @return a random bigInteger in the range [0 ; 2^64 - 1]
      */
     public static BigInteger randomBigInteger() {
         return new BigInteger(64, random());
     }
 
-    /** A random integer from 0..max (inclusive). */
+    /**
+     * A random integer from 0..max (inclusive).
+     */
     public static int randomInt(int max) {
         return RandomizedTest.randomInt(max);
     }
 
-    /** A random byte size value. */
+    /**
+     * A random byte size value.
+     */
     public static ByteSizeValue randomByteSizeValue() {
         return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
     }
 
-    /** Pick a random object from the given array. The array must not be empty. */
+    /**
+     * Pick a random object from the given array. The array must not be empty.
+     */
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> T randomFrom(T... array) {
         return randomFrom(random(), array);
     }
 
-    /** Pick a random object from the given array. The array must not be empty. */
+    /**
+     * Pick a random object from the given array. The array must not be empty.
+     */
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> T randomFrom(Random random, T... array) {
         return RandomPicks.randomFrom(random, array);
     }
 
-    /** Pick a random object from the given array of suppliers. The array must not be empty. */
+    /**
+     * Pick a random object from the given array of suppliers. The array must not be empty.
+     */
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> T randomFrom(Random random, Supplier<T>... array) {
@@ -1177,17 +1186,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         return supplier.get();
     }
 
-    /** Pick a random object from the given list. */
+    /**
+     * Pick a random object from the given list.
+     */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
     }
 
-    /** Pick a random object from the given collection. */
+    /**
+     * Pick a random object from the given collection.
+     */
     public static <T> T randomFrom(Collection<T> collection) {
         return randomFrom(random(), collection);
     }
 
-    /** Pick a random object from the given collection. */
+    /**
+     * Pick a random object from the given collection.
+     */
     public static <T> T randomFrom(Random random, Collection<T> collection) {
         return RandomPicks.randomFrom(random, collection);
     }
@@ -1205,27 +1220,27 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new SecureString(randomAlpha.toCharArray());
     }
 
-    public static String randomNullOrAlphaOfLength(int codeUnits) {
+    public static String randomAlphaOfLengthOrNull(int codeUnits) {
         return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
     }
 
-    public static Long randomNullOrLong() {
+    public static Long randomLongOrNull() {
         return randomBoolean() ? null : randomLong();
     }
 
-    public static Long randomNullOrPositiveLong() {
-        return randomBoolean() ? null : randomLongBetween(0L, Long.MAX_VALUE);
+    public static Long randomPositiveLongOrNull() {
+        return randomBoolean() ? null : randomNonNegativeLong();
     }
 
-    public static Integer randomNullOrInt() {
+    public static Integer randomIntOrNull() {
         return randomBoolean() ? null : randomInt();
     }
 
-    public static Integer randomNullOrPositiveInt() {
-        return randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE);
+    public static Integer randomPositiveIntOrNull() {
+        return randomBoolean() ? null : randomNonNegativeInt();
     }
 
-    public static Float randomNullOrFloat() {
+    public static Float randomFloatOrNull() {
         return randomBoolean() ? null : randomFloat();
     }
 
@@ -1274,9 +1289,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * @param maxArraySize The maximum number of elements in the random array
-     * @param stringSize The length of each String in the array
-     * @param allowNull Whether the returned array may be null
-     * @param allowEmpty Whether the returned array may be empty (have zero elements)
+     * @param stringSize   The length of each String in the array
+     * @param allowNull    Whether the returned array may be null
+     * @param allowEmpty   Whether the returned array may be empty (have zero elements)
      */
     public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull, boolean allowEmpty) {
         if (allowNull && random().nextBoolean()) {
@@ -1481,8 +1496,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
      *
      * @param breakSupplier determines whether to return immediately or continue waiting.
-     * @param maxWaitTime the maximum amount of time to wait
-     * @param unit the unit of tie for <code>maxWaitTime</code>
+     * @param maxWaitTime   the maximum amount of time to wait
+     * @param unit          the unit of tie for <code>maxWaitTime</code>
      * @return the last value returned by <code>breakSupplier</code>
      */
     public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
@@ -1553,7 +1568,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /** Returns a random number of temporary paths. */
+    /**
+     * Returns a random number of temporary paths.
+     */
     public String[] tmpPaths() {
         final int numPaths = TestUtil.nextInt(random(), 1, 3);
         final String[] absPaths = new String[numPaths];
@@ -1590,18 +1607,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
-    /** Return consistent index settings for the provided index version. */
+    /**
+     * Return consistent index settings for the provided index version.
+     */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
-    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    /**
+     * Return consistent index settings for the provided index version, shard- and replica-count.
+     */
     public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
-    /** Return consistent index settings for the provided shard- and replica-count. */
+    /**
+     * Return consistent index settings for the provided shard- and replica-count.
+     */
     public static Settings.Builder indexSettings(int shards, int replicas) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
@@ -1705,6 +1728,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {
+
         private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
 
         public GeohashGenerator() {
@@ -1863,6 +1887,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
+     *
      * @return
      */
     @SuppressWarnings("unchecked")
@@ -1989,12 +2014,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new Script(ScriptType.INLINE, MockScriptEngine.NAME, id, emptyMap());
     }
 
-    /** Returns the suite failure marker: internal use only! */
+    /**
+     * Returns the suite failure marker: internal use only!
+     */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;
     }
 
-    /** Compares two stack traces, ignoring module (which is not yet serialized) */
+    /**
+     * Compares two stack traces, ignoring module (which is not yet serialized)
+     */
     public static void assertArrayEquals(StackTraceElement expected[], StackTraceElement actual[]) {
         assertEquals(expected.length, actual.length);
         for (int i = 0; i < expected.length; i++) {
@@ -2002,7 +2031,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /** Compares two stack trace elements, ignoring module (which is not yet serialized) */
+    /**
+     * Compares two stack trace elements, ignoring module (which is not yet serialized)
+     */
     public static void assertEquals(StackTraceElement expected, StackTraceElement actual) {
         assertEquals(expected.getClassName(), actual.getClassName());
         assertEquals(expected.getMethodName(), actual.getMethodName());
@@ -2123,23 +2154,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * worker, avoiding any unexpected interactions, although if we spawn enough test workers then we will wrap around to the beginning
      * again.
      */
-
     /**
      * Defines the size of the port range assigned to each worker, which must be large enough to supply enough ports to run the tests, but
      * not so large that we run out of ports. See also [NOTE: Port ranges for tests].
      */
     private static final int PORTS_PER_WORKER = 30;
-
     /**
      * Defines the minimum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
     protected static final int MIN_PRIVATE_PORT = 13301;
-
     /**
      * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
     private static final int MAX_PRIVATE_PORT = 32767;
-
     /**
      * Wrap around after reaching this worker ID.
      */
@@ -2197,6 +2224,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static final class DeprecationWarning {
+
         private final Level level; // Intentionally ignoring level for the sake of equality for now
         private final String message;
 
@@ -2227,8 +2255,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Call method at the beginning of a test to disable its execution
      * until a given Lucene version is released and integrated into Elasticsearch
+     *
      * @param luceneVersionWithFix the lucene release to wait for
-     * @param message an additional message or link with information on the fix
+     * @param message              an additional message or link with information on the fix
      */
     protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
         final boolean currentVersionHasFix = IndexVersion.current().luceneVersion().onOrAfter(luceneVersionWithFix);
@@ -2239,9 +2268,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
      * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by deterministic LuceneTestCase.random().
+     *
      * @return SecureRandom SHA1PRNG instance.
      * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
-     * @throws NoSuchProviderException BCFIPS algorithm not found.
+     * @throws NoSuchProviderException  BCFIPS algorithm not found.
      */
     public static SecureRandom secureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
         return secureRandom(randomByteArrayOfLength(32));
@@ -2250,10 +2280,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by the input value.
      * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by the input value.
+     *
      * @param seed Byte array to use for seeding the SecureRandom instance.
      * @return SecureRandom SHA1PRNG or DEFAULT/BCFIPS instance, depending on FIPS mode.
      * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
-     * @throws NoSuchProviderException BCFIPS algorithm not found.
+     * @throws NoSuchProviderException  BCFIPS algorithm not found.
      */
     public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException, NoSuchProviderException {
         return inFipsJvm() ? secureRandomFips(seed) : secureRandomNonFips(seed);
@@ -2261,6 +2292,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     *
      * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
      * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
      */
@@ -2270,6 +2302,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     *
      * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
      * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
      */
@@ -2279,6 +2312,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     *
      * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
      * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
      */
@@ -2290,6 +2324,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     *
      * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
      * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
      */
@@ -2315,7 +2350,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      * in these requests. This constant can be used as a slightly more meaningful way to refer to the 30s default value in tests.
      */
     public static final TimeValue TEST_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
-
     /**
      * The timeout used for the various "safe" wait methods such as {@link #safeAwait} and {@link #safeAcquire}. In tests we generally want
      * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
@@ -2487,7 +2521,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      * AssertionError} to trigger a test failure.
      *
      * @param responseType Class of listener response type, to aid type inference but otherwise ignored.
-     *
      * @return The exception with which the {@code listener} was completed exceptionally.
      */
     public static <T> Exception safeAwaitFailure(@SuppressWarnings("unused") Class<T> responseType, Consumer<ActionListener<T>> consumer) {
@@ -2501,7 +2534,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
      * @param exceptionType Expected exception type. This method throws an {@link AssertionError} if a different type of exception is seen.
-     *
      * @return The exception with which the {@code listener} was completed exceptionally.
      */
     public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitFailure(
@@ -2521,7 +2553,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
      * @param exceptionType Expected unwrapped exception type. This method throws an {@link AssertionError} if a different type of exception
      *                      is seen.
-     *
      * @return The unwrapped exception with which the {@code listener} was completed exceptionally.
      */
     public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitAndUnwrapFailure(
@@ -2643,8 +2674,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
+     *
      * @param numberOfTasks number of tasks to run in parallel
-     * @param taskFactory task factory
+     * @param taskFactory   task factory
      */
     public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) {
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);

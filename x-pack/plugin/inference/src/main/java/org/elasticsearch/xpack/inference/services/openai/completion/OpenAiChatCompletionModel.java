@@ -41,7 +41,6 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
     }
 
     public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
-        var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromUnifiedRequest(request);
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new OpenAiChatCompletionServiceSettings(
             Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
@@ -51,13 +50,12 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             originalModelServiceSettings.rateLimitSettings()
         );
 
-        var overriddenTaskSettings = OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
         return new OpenAiChatCompletionModel(
             model.getInferenceEntityId(),
             model.getTaskType(),
             model.getConfigurations().getService(),
             overriddenServiceSettings,
-            overriddenTaskSettings,
+            model.getTaskSettings(),
             model.getSecretSettings()
         );
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 
+import java.util.List;
 import java.util.Objects;
 
 public class UnifiedChatInput extends InferenceInputs {
@@ -18,6 +19,22 @@ public class UnifiedChatInput extends InferenceInputs {
     public UnifiedChatInput(UnifiedCompletionRequest request, boolean stream) {
         this.request = Objects.requireNonNull(request);
         this.stream = stream;
+    }
+
+    public UnifiedChatInput(ChatCompletionInput completionInput, String roleValue) {
+        this(
+            completionInput.getInputs(), roleValue, completionInput.stream()
+        );
+    }
+
+    public UnifiedChatInput(List<String> inputs, String roleValue, boolean stream) {
+        this(UnifiedCompletionRequest.of(convertToMessages(inputs, roleValue)), stream);
+    }
+
+    private static List<UnifiedCompletionRequest.Message> convertToMessages(List<String> inputs, String roleValue) {
+        return inputs.stream()
+            .map(value -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(value), roleValue, null, null, null))
+            .toList();
     }
 
     public UnifiedCompletionRequest getRequest() {

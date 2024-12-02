@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.cluster.metadata.DataStream;
+
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -491,6 +493,7 @@ public class Constants {
         "indices:admin/block/add[s]",
         "indices:admin/cache/clear",
         "indices:admin/data_stream/lazy_rollover",
+        "indices:admin/data_stream/reindex",
         "indices:internal/admin/ccr/restore/file_chunk/get",
         "indices:internal/admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/put",
@@ -507,9 +510,9 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
-        "indices:admin/data_stream/options/delete",
-        "indices:admin/data_stream/options/get",
-        "indices:admin/data_stream/options/put",
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/delete" : null,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/get" : null,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/put" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",

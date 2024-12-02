@@ -394,7 +394,8 @@ public class OperatorTests extends MapperServiceTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            limit
+            limit,
+            false // no scoring
         );
     }
 }

@@ -11,10 +11,12 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -28,11 +30,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
-    private String id;
-    private String context;
-    private BytesReference content;
-    private XContentType xContentType;
-    private StoredScriptSource source;
+    @Nullable
+    private final String id;
+
+    @Nullable
+    private final String context;
+
+    private final BytesReference content;
+    private final XContentType xContentType;
+    private final StoredScriptSource source;
 
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
@@ -43,15 +49,11 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         source = new StoredScriptSource(in);
     }
 
-    public PutStoredScriptRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-        super(masterNodeTimeout, ackTimeout);
-    }
-
     public PutStoredScriptRequest(
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        String id,
-        String context,
+        @Nullable String id,
+        @Nullable String context,
         BytesReference content,
         XContentType xContentType,
         StoredScriptSource source
@@ -59,9 +61,9 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super(masterNodeTimeout, ackTimeout);
         this.id = id;
         this.context = context;
-        this.content = content;
+        this.content = Objects.requireNonNull(content);
         this.xContentType = Objects.requireNonNull(xContentType);
-        this.source = source;
+        this.source = Objects.requireNonNull(source);
     }
 
     @Override
@@ -74,10 +76,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
             validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
 
-        if (content == null) {
-            validationException = addValidationError("must specify code for stored script", validationException);
-        }
-
         return validationException;
     }
 
@@ -85,18 +83,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return id;
     }
 
-    public PutStoredScriptRequest id(String id) {
-        this.id = id;
-        return this;
-    }
-
     public String context() {
         return context;
-    }
-
-    public PutStoredScriptRequest context(String context) {
-        this.context = context;
-        return this;
     }
 
     public BytesReference content() {
@@ -111,16 +99,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return source;
     }
 
-    /**
-     * Set the script source and the content type of the bytes.
-     */
-    public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
-        this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
-        this.source = StoredScriptSource.parse(content, xContentType);
-        return this;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -133,28 +111,16 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     @Override
     public String toString() {
-        String source = "_na_";
-
-        try {
-            source = XContentHelper.convertToJson(content, false, xContentType);
-        } catch (Exception e) {
-            // ignore
-        }
-
-        return "put stored script {id ["
-            + id
-            + "]"
-            + (context != null ? ", context [" + context + "]" : "")
-            + ", content ["
-            + source
-            + "]}";
+        return Strings.format(
+            "put stored script {id [%s]%s, content [%s]}",
+            id,
+            context != null ? ", context [" + context + "]" : "",
+            source
+        );
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("script");
-        source.toXContent(builder, params);
-
-        return builder;
+        return builder.field("script", source, params);
     }
 }

@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,7 +35,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -254,19 +252,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,
-                    SearchShardTarget shard,
+                    Transport.Connection connection,
                     SearchActionListener<SearchPhaseResult> phaseListener
                 ) {
-                    final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(
-                        shardIt.shardId(),
-                        shardIt.getOriginalIndices(),
-                        pitRequest.keepAlive()
-                    );
-                    Transport.Connection connection = connectionLookup.apply(shardIt.getClusterAlias(), shard.getNodeId());
                     transportService.sendChildRequest(
                         connection,
                         OPEN_SHARD_READER_CONTEXT_NAME,
-                        shardRequest,
+                        new ShardOpenReaderRequest(shardIt.shardId(), shardIt.getOriginalIndices(), pitRequest.keepAlive()),
                         task,
                         new ActionListenerResponseHandler<>(
                             phaseListener,
@@ -277,31 +269,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 }
 
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase(getName()) {
-
-                        private void onExecuteFailure(Exception e) {
-                            onPhaseFailure(this, "sending response failed", e);
-                        }
-
                         @Override
                         public void run() {
-                            execute(new AbstractRunnable() {
-                                @Override
-                                public void onFailure(Exception e) {
-                                    onExecuteFailure(e);
-                                }
-
-                                @Override
-                                protected void doRun() {
-                                    sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
-                                }
-
-                                @Override
-                                public boolean isForceExecution() {
-                                    return true; // we already created the PIT, no sense in rejecting the task that sends the response.
-                                }
-                            });
+                            sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                         }
                     };
                 }

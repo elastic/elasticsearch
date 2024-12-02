@@ -74,7 +74,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     @Override
     public void apply(Project project) {
-
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");

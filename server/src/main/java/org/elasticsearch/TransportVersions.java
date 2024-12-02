@@ -204,7 +204,14 @@ public class TransportVersions {
     public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_00_0);
     public static final TransportVersion ESQL_ENRICH_RUNTIME_WARNINGS = def(8_796_00_0);
     public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17 = def(8_797_00_1);
+    public static final TransportVersion SOURCE_MODE_TELEMETRY_FIX_8_17 = def(8_797_00_2);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_00_0);
+    public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_00_0);
+    public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE = def(8_801_00_0);
+    public static final TransportVersion SOURCE_MODE_TELEMETRY = def(8_802_00_0);
+    public static final TransportVersion NEW_REFRESH_CLUSTER_BLOCK = def(8_803_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -269,7 +276,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_2;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

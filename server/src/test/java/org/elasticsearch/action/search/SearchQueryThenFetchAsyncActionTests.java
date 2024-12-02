@@ -219,7 +219,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -536,7 +536,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -700,7 +700,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -732,18 +732,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(phase.totalHits().value, equalTo(2L));
             assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
-            SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
-            SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
-                @Override
-                public void onFailure(Exception e) {}
-
-                @Override
-                protected void innerOnResponse(SearchPhaseResult response) {}
-            };
-            Exception e = expectThrows(
-                VersionMismatchException.class,
-                () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener)
-            );
+            Exception e = expectThrows(VersionMismatchException.class, () -> action.getConnection(null, "node3"));
             assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
         }
     }

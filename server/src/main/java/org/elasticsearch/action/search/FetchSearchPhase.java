@@ -21,6 +21,7 @@ import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
+import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,7 +36,7 @@ import java.util.function.BiFunction;
 final class FetchSearchPhase extends SearchPhase {
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     private final Logger logger;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
@@ -46,7 +47,7 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
+        AbstractSearchAsyncAction<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         this(
@@ -65,7 +66,7 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
+        AbstractSearchAsyncAction<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
@@ -214,9 +215,41 @@ final class FetchSearchPhase extends SearchPhase {
         final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
+        var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
+            @Override
+            public void innerOnResponse(FetchSearchResult result) {
+                try {
+                    progressListener.notifyFetchResult(shardIndex);
+                    counter.onResult(result);
+                } catch (Exception e) {
+                    context.onPhaseFailure(FetchSearchPhase.this, "", e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    logger.debug(() -> "[" + contextId + "] Failed to execute fetch phase", e);
+                    progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
+                    counter.onFailure(shardIndex, shardTarget, e);
+                } finally {
+                    // the search context might not be cleared on the node where the fetch was executed for example
+                    // because the action was rejected by the thread pool. in this case we need to send a dedicated
+                    // request to clear the search context.
+                    releaseIrrelevantSearchContext(shardPhaseResult, context);
+                }
+            }
+        };
+        final Transport.Connection connection;
+        try {
+            connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         context.getSearchTransport()
             .sendExecuteFetch(
-                context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId()),
+                connection,
                 new ShardFetchSearchRequest(
                     context.getOriginalIndices(shardPhaseResult.getShardIndex()),
                     contextId,
@@ -228,31 +261,7 @@ final class FetchSearchPhase extends SearchPhase {
                     aggregatedDfs
                 ),
                 context.getTask(),
-                new SearchActionListener<>(shardTarget, shardIndex) {
-                    @Override
-                    public void innerOnResponse(FetchSearchResult result) {
-                        try {
-                            progressListener.notifyFetchResult(shardIndex);
-                            counter.onResult(result);
-                        } catch (Exception e) {
-                            context.onPhaseFailure(FetchSearchPhase.this, "", e);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            logger.debug(() -> "[" + contextId + "] Failed to execute fetch phase", e);
-                            progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
-                            counter.onFailure(shardIndex, shardTarget, e);
-                        } finally {
-                            // the search context might not be cleared on the node where the fetch was executed for example
-                            // because the action was rejected by the thread pool. in this case we need to send a dedicated
-                            // request to clear the search context.
-                            releaseIrrelevantSearchContext(shardPhaseResult, context);
-                        }
-                    }
-                }
+                listener
             );
     }
 

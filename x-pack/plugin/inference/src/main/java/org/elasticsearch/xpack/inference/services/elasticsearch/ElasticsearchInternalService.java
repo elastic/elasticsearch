@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceResults;
@@ -676,11 +675,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+        chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
     }
 
     @Override
@@ -690,7 +688,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
@@ -861,6 +858,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
+    @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
@@ -891,7 +889,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
             ElserMlNodeTaskSettings.DEFAULT,
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultE5 = new MultilingualE5SmallModel(
             DEFAULT_E5_ID,
@@ -903,7 +901,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5);
     }

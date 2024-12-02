@@ -425,9 +425,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
                 assert newGeneration != null;
                 assert newGeneration.equals(snapshotStatus.generation());
-                if (logger.isDebugEnabled()) {
+                if (logger.isTraceEnabled()) {
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                    logger.debug(
+                    logger.trace(
                         "[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
                         shardId,
                         snapshot,

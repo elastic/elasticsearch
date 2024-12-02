@@ -33,7 +33,7 @@ import java.util.Objects;
 public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
     implements
         AdjacencyMatrix {
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucketWritable implements AdjacencyMatrix.Bucket {
 
         private final String key;
         private final long docCount;

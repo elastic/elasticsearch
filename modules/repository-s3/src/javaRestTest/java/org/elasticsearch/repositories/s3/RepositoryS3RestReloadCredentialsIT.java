@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpFixture;
+import io.netty.handler.codec.http.HttpMethod;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -35,7 +36,14 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
     private static final String BUCKET = "RepositoryS3RestReloadCredentialsIT-bucket-" + HASHED_SEED;
     private static final String BASE_PATH = "RepositoryS3RestReloadCredentialsIT-base-path-" + HASHED_SEED;
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, "ignored");
+    private static volatile String repositoryAccessKey;
+
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        S3HttpFixture.mutableAccessKey(() -> repositoryAccessKey)
+    );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 
@@ -54,8 +62,6 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
     }
 
     public void testReloadCredentialsFromKeystore() throws IOException {
-        assumeFalse("doesn't work in a FIPS JVM, but that's ok", inFipsJvm());
-
         // Register repository (?verify=false because we don't have access to the blob store yet)
         final var repositoryName = randomIdentifier();
         registerRepository(
@@ -68,34 +74,42 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
         // Set up initial credentials
         final var accessKey1 = randomIdentifier();
-        s3Fixture.setAccessKey(accessKey1);
+        repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
-        keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using initial credentials
         assertOK(client().performRequest(verifyRequest));
 
         // Rotate credentials in blob store
-        final var accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
-        s3Fixture.setAccessKey(accessKey2);
+        final var accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomSecretKey);
+        repositoryAccessKey = accessKey2;
 
         // Ensure that initial credentials now invalid
         final var accessDeniedException2 = expectThrows(ResponseException.class, () -> client().performRequest(verifyRequest));
         assertThat(accessDeniedException2.getResponse().getStatusLine().getStatusCode(), equalTo(500));
         assertThat(
             accessDeniedException2.getMessage(),
-            allOf(containsString("Bad access key"), containsString("Status Code: 403"), containsString("Error Code: AccessDenied"))
+            allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("Error Code: AccessDenied"))
         );
 
         // Set up refreshed credentials
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using refreshed credentials
         assertOK(client().performRequest(verifyRequest));
     }
 
+    private Request createReloadSecureSettingsRequest() throws IOException {
+        return newXContentRequest(
+            HttpMethod.POST,
+            "/_nodes/reload_secure_settings",
+            (b, p) -> inFipsJvm() ? b.field("secure_settings_password", "keystore-password") : b
+        );
+    }
 }

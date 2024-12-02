@@ -82,6 +82,24 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    public abstract static class RowStrideOnlyDocValuesBlockLoader implements BlockLoader {
+
+        @Override
+        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return false;
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     public static class LongsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 

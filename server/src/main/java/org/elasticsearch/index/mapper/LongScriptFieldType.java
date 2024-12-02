@@ -108,7 +108,12 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        boolean isSyntheticSource = SourceFieldMapper.isSynthetic(blContext.indexSettings());
+        if (isSyntheticSource) {
+            return new LongScriptBlockDocValuesReader.RowStrideLongScriptBlockLoader(leafFactory(blContext.lookup()));
+        } else {
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
     }
 
     @Override

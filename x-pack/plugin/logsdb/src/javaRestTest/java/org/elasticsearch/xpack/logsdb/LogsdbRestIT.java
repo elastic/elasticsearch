@@ -10,13 +10,18 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -106,6 +111,113 @@ public class LogsdbRestIT extends ESRestTestCase {
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertNull(settings.get("index.mapping.source.mode"));
+    }
+
+    public void testEsqlRuntimeFields() throws IOException {
+        String indexName = "test-foo";
+        String mappings = """
+            {
+                "runtime": {
+                    "message_length": {
+                        "type": "long"
+                    }
+                },
+                "dynamic": false,
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "log" : {
+                        "properties": {
+                            "level": {
+                                "type": "keyword"
+                            },
+                            "offset": {
+                                "type": "long"
+                            },
+                            "file": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
+
+        int numDocs = 1000;
+        var sb = new StringBuilder();
+        var now = Instant.now();
+
+        var expectedMinTimestamp = now;
+        for (int i = 0; i < numDocs; i++) {
+            String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
+            String msg = randomAlphaOfLength(20);
+            String path = randomAlphaOfLength(8);
+            String messageLength = Integer.toString(msg.length());
+            String offset = Integer.toString(randomNonNegativeInt());
+            sb.append("{ \"create\": {} }").append('\n');
+            if (randomBoolean()) {
+                sb.append(
+                    """
+                        {"@timestamp":"$now","message":"$msg","message_length":$l,"file":{"level":"$level","offset":5,"file":"$path"}}
+                        """.replace("$now", formatInstant(now))
+                        .replace("$level", level)
+                        .replace("$msg", msg)
+                        .replace("$path", path)
+                        .replace("$l", messageLength)
+                        .replace("$o", offset)
+                );
+            } else {
+                sb.append("""
+                    {"@timestamp": "$now", "message": "$msg", "message_length": $l}
+                    """.replace("$now", formatInstant(now)).replace("$msg", msg).replace("$l", messageLength));
+            }
+            sb.append('\n');
+            if (i != numDocs - 1) {
+                now = now.plusSeconds(1);
+            }
+        }
+        var expectedMaxTimestamp = now;
+
+        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        bulkRequest.setJsonEntity(sb.toString());
+        bulkRequest.addParameter("refresh", "true");
+        var bulkResponse = client().performRequest(bulkRequest);
+        var bulkResponseBody = responseAsMap(bulkResponse);
+        assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
+
+        String query =
+            "FROM test-foo | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length) | LIMIT 1";
+        final Request esqlRequest = new Request("POST", "/_query");
+        esqlRequest.setJsonEntity("""
+            {
+                "query": "$query"
+            }
+            """.replace("$query", query));
+        var response = client().performRequest(esqlRequest);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        final Map<String, Object> responseBody = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            response.getEntity().getContent(),
+            false
+        );
+        List<?> values = (List<?>) responseBody.get("values");
+        assertThat(values, Matchers.not(Matchers.empty()));
+        var count = ((List<?>) values.getFirst()).get(0);
+        assertThat(count, equalTo(numDocs));
+        var minTimestamp = ((List<?>) values.getFirst()).get(1);
+        var maxTimestamp = ((List<?>) values.getFirst()).get(2);
+        var minLength = ((List<?>) values.getFirst()).get(3);
+        var maxLength = ((List<?>) values.getFirst()).get(4);
+        assertThat(minTimestamp, equalTo(formatInstant(expectedMinTimestamp)));
+        assertThat(minLength, equalTo(20));
+        assertThat(maxTimestamp, equalTo(formatInstant(expectedMaxTimestamp)));
+        assertThat(maxLength, equalTo(20));
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
 }

@@ -1,5 +1,5 @@
 pr: 117451
 summary: ST_EXTENT aggregation
-area: "ES|QL, Geo"
+area: "ES|QL"
 type: feature
 issues: []

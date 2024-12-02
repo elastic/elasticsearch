@@ -157,7 +157,7 @@ public class HttpClientManager implements Closeable {
             .register("https", sslStrategy)
             .build();
 
-        return new PoolingNHttpClientConnectionManager(ioReactor, null, registry);
+        return new PoolingNHttpClientConnectionManager(ioReactor, registry);
     }
 
     private static PoolingNHttpClientConnectionManager createConnectionManager() {

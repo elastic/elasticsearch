@@ -47,7 +47,7 @@ public class MutableResource implements Resource {
      *
      * @param listener action to be called on update
      */
-    public void addUpdateListener(Consumer<? super Resource> listener) {
+    public synchronized void addUpdateListener(Consumer<? super Resource> listener) {
         listeners.add(listener);
     }
 }

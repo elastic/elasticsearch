@@ -41,8 +41,6 @@ public class Term extends FullTextFunction implements Validatable {
 
     private final Expression field;
 
-    private transient Boolean isOperator;
-
     @FunctionInfo(
         returnType = "boolean",
         preview = true,

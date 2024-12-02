@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucketWritable implements Filters.Bucket {
 
         private final String key;
         private long docCount;

@@ -115,9 +115,9 @@ public class BwcSetupExtension {
 
             if (OS.current() == OS.WINDOWS) {
                 loggedExec.getExecutable().set("cmd");
-                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.args("/C", "call", "gradlew");
             } else {
-                loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.getExecutable().set("./gradlew");
             }
 
             if (useUniqueUserHome) {
@@ -177,7 +177,7 @@ public class BwcSetupExtension {
         }
     }
 
-    public static abstract class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
+    public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
 
         private String minimumCompilerVersionPath(Version bwcVersion) {
             return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))

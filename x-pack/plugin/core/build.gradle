@@ -1,7 +1,12 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.Version
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -65,7 +70,7 @@ dependencies {
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests
-  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.4')
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.5')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false

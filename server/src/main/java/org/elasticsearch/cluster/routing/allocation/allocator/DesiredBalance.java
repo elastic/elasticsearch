@@ -21,7 +21,7 @@ import java.util.Objects;
  *
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  * @param weightsPerNode The node weights calculated based on
- * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WeightFunction#nodeWeight}
+ * {@link org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction#nodeWeight}
  */
 public record DesiredBalance(
     long lastConvergedIndex,

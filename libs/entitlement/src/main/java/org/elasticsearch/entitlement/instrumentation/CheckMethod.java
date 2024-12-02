@@ -12,7 +12,7 @@ package org.elasticsearch.entitlement.instrumentation;
 import java.util.List;
 
 /**
- * A structure to use as a representation of the checker method the instrumentation will inject.
+ * A structure to use as a representation of the checkXxx method the instrumentation will inject.
  *
  * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
  * @param methodName the checker method name
@@ -20,4 +20,4 @@ import java.util.List;
  *                             <a href="https://docs.oracle.com/javase/specs/jvms/se23/html/jvms-4.html#jvms-4.3">type descriptors</a>)
  *                             for methodName parameters.
  */
-public record CheckerMethod(String className, String methodName, List<String> parameterDescriptors) {}
+public record CheckMethod(String className, String methodName, List<String> parameterDescriptors) {}

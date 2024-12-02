@@ -109,7 +109,10 @@ public class ModuleSupport {
                     }
                 } else {
                     var scan = scan(jf);
-                    scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+                    scan.classFiles().stream().map(cf -> toPackageName(cf, "/"))
+                        .flatMap(Optional::stream)
+                        .filter(Predicate.not(FORBIDDEN_PACKAGE_NAMES::contains))
+                        .forEach(pkgs::add);
 
                     // read providers from the list of service files
                     for (String serviceFileName : scan.serviceFiles()) {

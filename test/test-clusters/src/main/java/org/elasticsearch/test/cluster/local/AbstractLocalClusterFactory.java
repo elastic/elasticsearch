@@ -441,6 +441,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void copyExtraConfigFiles() {
             spec.getExtraConfigFiles().forEach((fileName, resource) -> {
+                if (fileName.equals("roles.yml")) {
+                    throw new IllegalArgumentException("Security roles should be configured via 'rolesFile()' method.");
+                }
+
                 final Path target = configDir.resolve(fileName);
                 final Path directory = target.getParent();
                 if (Files.exists(directory) == false) {

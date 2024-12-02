@@ -418,9 +418,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     private QueryBuilder createInferenceSubQuery(InferenceQueryBuilderService inferenceQueryBuilderService, String indexName) {
+        QueryBuilder inferenceClause = inferenceQueryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString(), false);
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(inferenceQueryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString(), false));
-        boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
+        if (inferenceClause != null) {
+            boolQueryBuilder.must(inferenceClause);
+            boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
+        }
         return boolQueryBuilder;
     }
 

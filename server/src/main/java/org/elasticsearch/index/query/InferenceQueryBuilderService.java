@@ -18,6 +18,8 @@ public class InferenceQueryBuilderService {
     }
 
     public AbstractQueryBuilder<?> getDefaultInferenceQueryBuilder(String fieldName, String query, boolean throwOnUnsupportedQueries) {
-        return defaultInferenceQueryBuilder.apply(fieldName, query, throwOnUnsupportedQueries);
+        return defaultInferenceQueryBuilder != null
+            ? defaultInferenceQueryBuilder.apply(fieldName, query, throwOnUnsupportedQueries)
+            : null;
     }
 }

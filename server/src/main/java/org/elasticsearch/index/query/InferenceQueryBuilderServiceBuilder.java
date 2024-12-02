@@ -37,9 +37,14 @@ public class InferenceQueryBuilderServiceBuilder {
             }
         }
 
+        if (definedInferenceQueryBuilders.isEmpty()) {
+            // Backwards compatibility
+            return new InferenceQueryBuilderService(null);
+        }
+
         if (definedInferenceQueryBuilders.size() != 1) {
             throw new IllegalStateException(
-                "Expected exactly one default inference query builder, but found " + definedInferenceQueryBuilders.size()
+                "Expected a single default inference query builder, but found " + definedInferenceQueryBuilders.size()
             );
         }
 

@@ -13,19 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 
 public class BlobStoreActionStatsTests extends ESTestCase {
 
-    public void testEquals() {
-        BlobStoreActionStats expected = randomEndpointStats();
-        assertEquals(expected, new BlobStoreActionStats(expected.operations(), expected.requests()));
-        assertNotEquals(
-            expected,
-            new BlobStoreActionStats(randomValueOtherThan(expected.operations(), ESTestCase::randomNonNegativeLong), expected.requests())
-        );
-        assertNotEquals(
-            expected,
-            new BlobStoreActionStats(expected.operations(), randomValueOtherThan(expected.requests(), ESTestCase::randomNonNegativeLong))
-        );
-    }
-
     public void testAdd() {
         final BlobStoreActionStats lhs = randomEndpointStats(1 << 30);
         final BlobStoreActionStats rhs = randomEndpointStats(1 << 30);

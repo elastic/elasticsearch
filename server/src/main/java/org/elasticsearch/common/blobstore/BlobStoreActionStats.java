@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * The statistics for a specific blob-store action
@@ -48,19 +47,6 @@ public record BlobStoreActionStats(long operations, long requests) implements Wr
 
     public boolean isZero() {
         return operations == 0 && requests == 0;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o instanceof BlobStoreActionStats other) {
-            return requests == other.requests && operations == other.operations;
-        }
-        return false;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(operations, requests);
     }
 
     @Override

@@ -57,19 +57,38 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 public class SearchServiceTests extends IndexShardTestCase {
-    public void testCanMatchKeywordMatchNoneSortedQuery() throws IOException {
+
+    public void testCanMatchMatchAll() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        doTestCanMatch(searchRequest, null, true, null, false);
+    }
+
+    public void testCanMatchMatchNone() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
+        doTestCanMatch(searchRequest, null, false, null, false);
+    }
+
+    public void testCanMatchMatchNoneWithException() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
+        doTestCanMatch(searchRequest, null, true, null, true);
+    }
+
+    public void testCanMatchKeywordSortedQueryMatchNone() throws IOException {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
             .source(new SearchSourceBuilder().sort("field").query(new MatchNoneQueryBuilder()));
         SortField sortField = new SortField("field", SortField.Type.STRING);
-        doTestCanMatch(searchRequest, sortField, false, null);
+        doTestCanMatch(searchRequest, sortField, false, null, false);
     }
 
-    public void testCanMatchKeywordMatchAllSortedQuery() throws IOException {
+    public void testCanMatchKeywordSortedQueryMatchAll() throws IOException {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
             .source(new SearchSourceBuilder().sort("field").query(new MatchAllQueryBuilder()));
         SortField sortField = new SortField("field", SortField.Type.STRING);
         MinAndMax<BytesRef> expectedMinAndMax = new MinAndMax<>(new BytesRef("value"), new BytesRef("value"));
-        doTestCanMatch(searchRequest, sortField, true, expectedMinAndMax);
+        doTestCanMatch(searchRequest, sortField, true, expectedMinAndMax, false);
     }
 
     public void testCanMatchKeywordSortedQueryMatchNoneWithException() throws IOException {
@@ -82,7 +101,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                 throw new UnsupportedOperationException();
             }
         };
-        doTestCanMatch(searchRequest, sortField, false, null);
+        doTestCanMatch(searchRequest, sortField, false, null, false);
     }
 
     public void testCanMatchKeywordSortedQueryMatchAllWithException() throws IOException {
@@ -95,11 +114,16 @@ public class SearchServiceTests extends IndexShardTestCase {
                 throw new UnsupportedOperationException();
             }
         };
-        doTestCanMatch(searchRequest, sortField, true, null);
+        doTestCanMatch(searchRequest, sortField, true, null, false);
     }
 
-    private void doTestCanMatch(SearchRequest searchRequest, SortField sortField, boolean expectedCanMatch, MinAndMax<?> expectedMinAndMax)
-        throws IOException {
+    private void doTestCanMatch(
+        SearchRequest searchRequest,
+        SortField sortField,
+        boolean expectedCanMatch,
+        MinAndMax<?> expectedMinAndMax,
+        boolean throwException
+    ) throws IOException {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -126,7 +150,8 @@ public class SearchServiceTests extends IndexShardTestCase {
                     shardRequest,
                     indexShard,
                     searchExecutionContext,
-                    parserConfig()
+                    parserConfig(),
+                    throwException
                 );
                 CanMatchShardResponse canMatchShardResponse = SearchService.canMatch(canMatchContext, false);
                 assertEquals(expectedCanMatch, canMatchShardResponse.canMatch());
@@ -246,7 +271,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         ShardSearchRequest shardRequest,
         IndexShard indexShard,
         SearchExecutionContext searchExecutionContext,
-        XContentParserConfiguration parserConfig
+        XContentParserConfiguration parserConfig,
+        boolean throwException
     ) {
         return new SearchService.CanMatchContext(shardRequest, null, null, -1, -1) {
             @Override
@@ -256,6 +282,9 @@ public class SearchServiceTests extends IndexShardTestCase {
 
             @Override
             QueryRewriteContext getQueryRewriteContext(IndexService indexService) {
+                if (throwException) {
+                    throw new IllegalArgumentException();
+                }
                 return new QueryRewriteContext(parserConfig, null, System::currentTimeMillis);
             }
 

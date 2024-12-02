@@ -558,13 +558,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     defaultKeepAlive,
                     maxKeepAlive
                 );
-                CanMatchShardResponse canMatchResp;
-                try {
-                    canMatchResp = canMatch(canMatchContext, false);
-                } catch (Exception exc) {
-                    // if can_match throws for some reason, we go ahead with the query phase
-                    canMatchResp = new CanMatchShardResponse(true, null);
-                }
+                CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
                 if (canMatchResp.canMatch() == false) {
                     listener.onResponse(QuerySearchResult.nullInstance());
                     return;
@@ -1640,6 +1634,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
         for (var shardLevelRequest : shardLevelRequests) {
             try {
+                // TODO remove the exception handling as it's now in canMatch itself
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatch(request.createShardSearchRequest(shardLevelRequest))));
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
@@ -1651,9 +1646,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * This method uses a lightweight searcher without wrapping (i.e., not open a full reader on frozen indices) to rewrite the query
      * to check if the query can match any documents. This method can have false positives while if it returns {@code false} the query
-     * won't match any documents on the current shard.
+     * won't match any documents on the current shard. Exceptions are handled within the method, and never re-thrown.
      */
-    public CanMatchShardResponse canMatch(ShardSearchRequest request) throws IOException {
+    public CanMatchShardResponse canMatch(ShardSearchRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         CanMatchContext canMatchContext = new CanMatchContext(
             request,
@@ -1714,7 +1709,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    static CanMatchShardResponse canMatch(CanMatchContext canMatchContext, boolean checkRefreshPending) throws IOException {
+    static CanMatchShardResponse canMatch(CanMatchContext canMatchContext, boolean checkRefreshPending) {
         assert canMatchContext.request.searchType() == SearchType.QUERY_THEN_FETCH
             : "unexpected search type: " + canMatchContext.request.searchType();
         Releasable releasable = null;
@@ -1774,16 +1769,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchExecutionContext context = canMatchContext.getSearchExecutionContext(canMatchSearcher);
                 final boolean canMatch = queryStillMatchesAfterRewrite(canMatchContext.request, context);
                 if (canMatch || hasRefreshPending) {
-                    try {
-                        FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
-                        final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                        return new CanMatchShardResponse(true, minMax);
-                    } catch (Exception e) {
-                        return new CanMatchShardResponse(true, null);
-                    }
+                    FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
+                    final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                    return new CanMatchShardResponse(true, minMax);
                 }
                 return new CanMatchShardResponse(false, null);
             }
+        } catch (Exception e) {
+            return new CanMatchShardResponse(true, null);
         } finally {
             Releasables.close(releasable);
         }

@@ -503,9 +503,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 logger.info(searchResponse);
                 assertEquals(0, searchResponse.getHits().getTotalHits().value());
                 assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
-                // TODO the following is a failure tracked in https://github.com/elastic/elasticsearch/issues/115631
-                // commenting out here to reduce the noise
-                // assertEquals(numberOfShards, searchResponse.getSkippedShards());
+                int expectedSkips = numberOfShards == 1 ? 0 : numberOfShards;
+                assertEquals(expectedSkips, searchResponse.getSkippedShards());
             } finally {
                 searchResponse.decRef();
             }

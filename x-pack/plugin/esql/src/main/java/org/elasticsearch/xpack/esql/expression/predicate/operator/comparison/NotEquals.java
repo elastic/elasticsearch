@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
+import java.util.Date;
 import java.util.Map;
 
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
@@ -136,12 +138,12 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
 
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
-        return false;
+        return DateUtils.compareNanosToMillis(rhs, lhs) != 0;
     }
 
     @Evaluator(extraName = "NanosMillis")
     static boolean processNanosMillis(long lhs, long rhs) {
-        return false;
+        return DateUtils.compareNanosToMillis(lhs, rhs) != 0;
     }
 
     @Evaluator(extraName = "Doubles")

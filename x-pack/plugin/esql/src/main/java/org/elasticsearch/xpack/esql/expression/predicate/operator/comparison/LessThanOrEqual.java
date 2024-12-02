@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -120,12 +121,13 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
 
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
-        return false;
+        // Note, parameters are reversed, so we need to invert the check.
+        return DateUtils.compareNanosToMillis(rhs, lhs) > 0;
     }
 
     @Evaluator(extraName = "NanosMillis")
     static boolean processNanosMillis(long lhs, long rhs) {
-        return false;
+        return DateUtils.compareNanosToMillis(lhs, rhs) <= 0;
     }
 
     @Evaluator(extraName = "Doubles")

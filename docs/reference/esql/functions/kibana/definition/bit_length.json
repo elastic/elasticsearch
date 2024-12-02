@@ -31,7 +31,7 @@
     }
   ],
   "examples" : [
-    "FROM airports\n| WHERE country == \"India\"\n| KEEP city\n| EVAL fn_length=LENGTH(city), fn_bit_length = BIT_LENGTH(city)"
+    "FROM airports\n| WHERE country == \"India\"\n| KEEP city\n| EVAL fn_length = LENGTH(city), fn_bit_length = BIT_LENGTH(city)"
   ],
   "preview" : false,
   "snapshot_only" : false

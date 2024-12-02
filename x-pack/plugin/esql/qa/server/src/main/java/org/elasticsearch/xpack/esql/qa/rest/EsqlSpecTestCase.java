@@ -51,7 +51,6 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -173,7 +172,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")
+            || testCase.requiredCapabilities.contains("semantic_text_aggregations")) {
             assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -207,10 +207,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
 
-        var features = Stream.concat(
-            new EsqlFeatures().getFeatures().stream(),
-            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
-        ).map(NodeFeature::id).collect(Collectors.toSet());
+        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
 
         for (String feature : testCase.requiredCapabilities) {
             var esqlFeature = "esql." + feature;

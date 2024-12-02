@@ -9,9 +9,9 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -21,12 +21,21 @@ import org.objectweb.asm.Type;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.stream.Collectors;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLStreamHandlerFactory;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
-import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.callStaticMethod;
+import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.getCheckMethod;
+import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.methodKeyForConstructor;
+import static org.elasticsearch.entitlement.instrumentation.impl.TestMethodUtils.methodKeyForTarget;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
 /**
@@ -36,7 +45,6 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
  */
 @ESTestCase.WithoutSecurityManager
 public class InstrumenterTests extends ESTestCase {
-    final InstrumentationService instrumentationService = new InstrumentationServiceImpl();
 
     static volatile TestEntitlementChecker testChecker;
 
@@ -64,16 +72,28 @@ public class InstrumenterTests extends ESTestCase {
      * They must not throw {@link TestException}.
      */
     public static class ClassToInstrument implements Testable {
-        public static void systemExit(int status) {
-            assertEquals(123, status);
-        }
 
-        public static void anotherSystemExit(int status) {
+        public ClassToInstrument() {}
+
+        // URLClassLoader ctor
+        public ClassToInstrument(URL[] urls) {}
+
+        public static void systemExit(int status) {
             assertEquals(123, status);
         }
     }
 
-    static final class TestException extends RuntimeException {}
+    private static final String SAMPLE_NAME = "TEST";
+
+    private static final URL SAMPLE_URL = createSampleUrl();
+
+    private static URL createSampleUrl() {
+        try {
+            return URI.create("file:/test/example").toURL();
+        } catch (MalformedURLException e) {
+            return null;
+        }
+    }
 
     /**
      * We're not testing the permission checking logic here;
@@ -90,12 +110,65 @@ public class InstrumenterTests extends ESTestCase {
         volatile boolean isActive;
 
         int checkSystemExitCallCount = 0;
+        int checkURLClassLoaderCallCount = 0;
 
         @Override
-        public void checkSystemExit(Class<?> callerClass, int status) {
+        public void check$java_lang_System$exit(Class<?> callerClass, int status) {
             checkSystemExitCallCount++;
-            assertSame(InstrumenterTests.class, callerClass);
+            assertSame(TestMethodUtils.class, callerClass);
             assertEquals(123, status);
+            throwIfActive();
+        }
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
+            checkURLClassLoaderCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertThat(urls, arrayContaining(SAMPLE_URL));
+            throwIfActive();
+        }
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {
+            checkURLClassLoaderCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertThat(urls, arrayContaining(SAMPLE_URL));
+            assertThat(parent, equalTo(ClassLoader.getSystemClassLoader()));
+            throwIfActive();
+        }
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {
+            checkURLClassLoaderCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertThat(urls, arrayContaining(SAMPLE_URL));
+            assertThat(parent, equalTo(ClassLoader.getSystemClassLoader()));
+            throwIfActive();
+        }
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {
+            checkURLClassLoaderCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertThat(name, equalTo(SAMPLE_NAME));
+            assertThat(urls, arrayContaining(SAMPLE_URL));
+            assertThat(parent, equalTo(ClassLoader.getSystemClassLoader()));
+            throwIfActive();
+        }
+
+        @Override
+        public void check$java_net_URLClassLoader$(
+            Class<?> callerClass,
+            String name,
+            URL[] urls,
+            ClassLoader parent,
+            URLStreamHandlerFactory factory
+        ) {
+            checkURLClassLoaderCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertThat(name, equalTo(SAMPLE_NAME));
+            assertThat(urls, arrayContaining(SAMPLE_URL));
+            assertThat(parent, equalTo(ClassLoader.getSystemClassLoader()));
             throwIfActive();
         }
 
@@ -106,9 +179,15 @@ public class InstrumenterTests extends ESTestCase {
         }
     }
 
-    public void testClassIsInstrumented() throws Exception {
+    public void testSystemExitIsInstrumented() throws Exception {
         var classToInstrument = ClassToInstrument.class;
-        var instrumenter = createInstrumenter(classToInstrument, "systemExit");
+
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
+            methodKeyForTarget(classToInstrument.getMethod("systemExit", int.class)),
+            getCheckMethod(EntitlementChecker.class, "check$java_lang_System$exit", Class.class, int.class)
+        );
+
+        var instrumenter = createInstrumenter(checkMethods);
 
         byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
@@ -117,7 +196,7 @@ public class InstrumenterTests extends ESTestCase {
         }
 
         Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
-            ClassToInstrument.class.getName() + "_NEW",
+            classToInstrument.getName() + "_NEW",
             newBytecode
         );
 
@@ -132,77 +211,52 @@ public class InstrumenterTests extends ESTestCase {
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
     }
 
-    public void testClassIsNotInstrumentedTwice() throws Exception {
+    public void testURLClassLoaderIsInstrumented() throws Exception {
         var classToInstrument = ClassToInstrument.class;
-        var instrumenter = createInstrumenter(classToInstrument, "systemExit");
 
-        InstrumenterImpl.ClassFileInfo initial = getClassFileInfo(classToInstrument);
-        var internalClassName = Type.getInternalName(classToInstrument);
-
-        byte[] instrumentedBytecode = instrumenter.instrumentClass(internalClassName, initial.bytecodes());
-        byte[] instrumentedTwiceBytecode = instrumenter.instrumentClass(internalClassName, instrumentedBytecode);
-
-        logger.trace(() -> Strings.format("Bytecode after 1st instrumentation:\n%s", bytecode2text(instrumentedBytecode)));
-        logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
-
-        Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
-            ClassToInstrument.class.getName() + "_NEW_NEW",
-            instrumentedTwiceBytecode
+        Map<MethodKey, CheckMethod> checkMethods = Map.of(
+            methodKeyForConstructor(classToInstrument, List.of(Type.getInternalName(URL[].class))),
+            getCheckMethod(EntitlementChecker.class, "check$java_net_URLClassLoader$", Class.class, URL[].class)
         );
 
-        getTestEntitlementChecker().isActive = true;
-        getTestEntitlementChecker().checkSystemExitCallCount = 0;
+        var instrumenter = createInstrumenter(checkMethods);
 
-        assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(1));
-    }
+        byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
 
-    public void testClassAllMethodsAreInstrumentedFirstPass() throws Exception {
-        var classToInstrument = ClassToInstrument.class;
-        var instrumenter = createInstrumenter(classToInstrument, "systemExit", "anotherSystemExit");
-
-        InstrumenterImpl.ClassFileInfo initial = getClassFileInfo(classToInstrument);
-        var internalClassName = Type.getInternalName(classToInstrument);
-
-        byte[] instrumentedBytecode = instrumenter.instrumentClass(internalClassName, initial.bytecodes());
-        byte[] instrumentedTwiceBytecode = instrumenter.instrumentClass(internalClassName, instrumentedBytecode);
-
-        logger.trace(() -> Strings.format("Bytecode after 1st instrumentation:\n%s", bytecode2text(instrumentedBytecode)));
-        logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
+        if (logger.isTraceEnabled()) {
+            logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));
+        }
 
         Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
-            ClassToInstrument.class.getName() + "_NEW_NEW",
-            instrumentedTwiceBytecode
+            classToInstrument.getName() + "_NEW",
+            newBytecode
         );
 
+        getTestEntitlementChecker().isActive = false;
+
+        // Before checking is active, nothing should throw
+        newClass.getConstructor(URL[].class).newInstance((Object) new URL[] { SAMPLE_URL });
+
         getTestEntitlementChecker().isActive = true;
-        getTestEntitlementChecker().checkSystemExitCallCount = 0;
 
-        assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(1));
-
-        assertThrows(TestException.class, () -> callStaticMethod(newClass, "anotherSystemExit", 123));
-        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(2));
+        // After checking is activated, everything should throw
+        var exception = assertThrows(
+            InvocationTargetException.class,
+            () -> newClass.getConstructor(URL[].class).newInstance((Object) new URL[] { SAMPLE_URL })
+        );
+        assertThat(exception.getCause(), instanceOf(TestException.class));
     }
 
-    /** This test doesn't replace ClassToInstrument in-place but instead loads a separate
-     * class ClassToInstrument_NEW that contains the instrumentation. Because of this,
-     * we need to configure the Transformer to use a MethodKey and instrumentationMethod
-     * with slightly different signatures (using the common interface Testable) which
-     * is not what would happen when it's run by the agent.
+    /** This test doesn't replace classToInstrument in-place but instead loads a separate
+     * class with the same class name plus a "_NEW" suffix (classToInstrument.class.getName() + "_NEW")
+     * that contains the instrumentation. Because of this, we need to configure the Transformer to use a
+     * MethodKey and instrumentationMethod with slightly different signatures (using the common interface
+     * Testable) which is not what would happen when it's run by the agent.
      */
-    private InstrumenterImpl createInstrumenter(Class<?> classToInstrument, String... methodNames) throws NoSuchMethodException {
-        Method v1 = EntitlementChecker.class.getMethod("checkSystemExit", Class.class, int.class);
-        var methods = Arrays.stream(methodNames).map(name -> {
-            try {
-                return instrumentationService.methodKeyForTarget(classToInstrument.getMethod(name, int.class));
-            } catch (NoSuchMethodException e) {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toUnmodifiableMap(name -> name, name -> v1));
-
+    private InstrumenterImpl createInstrumenter(Map<MethodKey, CheckMethod> checkMethods) throws NoSuchMethodException {
         Method getter = InstrumenterTests.class.getMethod("getTestEntitlementChecker");
-        return new InstrumenterImpl("_NEW", methods) {
+
+        return new InstrumenterImpl(null, null, "_NEW", checkMethods) {
             /**
              * We're not testing the bridge library here.
              * Just call our own getter instead.
@@ -218,34 +272,6 @@ public class InstrumenterTests extends ESTestCase {
                 );
             }
         };
-    }
-
-    /**
-     * Calling a static method of a dynamically loaded class is significantly more cumbersome
-     * than calling a virtual method.
-     */
-    private static void callStaticMethod(Class<?> c, String methodName, int status) throws NoSuchMethodException, IllegalAccessException {
-        try {
-            c.getMethod(methodName, int.class).invoke(null, status);
-        } catch (InvocationTargetException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof TestException n) {
-                // Sometimes we're expecting this one!
-                throw n;
-            } else {
-                throw new AssertionError(cause);
-            }
-        }
-    }
-
-    static class TestLoader extends ClassLoader {
-        TestLoader(ClassLoader parent) {
-            super(parent);
-        }
-
-        public Class<?> defineClassFromBytes(String name, byte[] bytes) {
-            return defineClass(name, bytes, 0, bytes.length);
-        }
     }
 
     private static final Logger logger = LogManager.getLogger(InstrumenterTests.class);

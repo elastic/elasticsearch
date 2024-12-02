@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -29,9 +28,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
 public abstract class FullTextFunction extends Function {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(QueryString.ENTRY, Match.ENTRY);
-    }
 
     private final Expression query;
 

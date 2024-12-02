@@ -44,18 +44,18 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
+        int numModels = 11;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        int numSparseModels = DefaultElserFeatureFlag.isEnabled() ? 6 : 5;
+        int numSparseModels = 6;
         assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        int numDenseModels = 5;
         assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
@@ -134,7 +134,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
             assertThat(services.size(), equalTo(18));
         } else {
             assertThat(services.size(), equalTo(17));
@@ -169,7 +170,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "watsonxai"
             )
         );
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
             providerList.add(6, "elastic");
         }
         assertArrayEquals(providers, providerList.toArray());
@@ -257,7 +259,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
 
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
             assertThat(services.size(), equalTo(5));
         } else {
             assertThat(services.size(), equalTo(4));
@@ -272,7 +275,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         Arrays.sort(providers);
 
         var providerList = new ArrayList<>(Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "test_service"));
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
             providerList.add(1, "elastic");
         }
         assertArrayEquals(providers, providerList.toArray());
@@ -432,7 +436,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()));
             assertThat(events.size(), equalTo(2));
             events.forEach(event -> {
                 switch (event.name()) {
@@ -457,7 +461,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphaOfLength(10)).toList();
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomUUID()).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 

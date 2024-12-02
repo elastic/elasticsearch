@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -195,13 +197,13 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.LOOKUP_V4.isEnabled()) {
             // LOOKUP with unsupported type
             assertEquals(
-                "1:41: column type mismatch, table column was [integer] and original column was [unsupported]",
-                error("from test* | lookup int_number_names on int", analyzer)
+                "1:43: column type mismatch, table column was [integer] and original column was [unsupported]",
+                error("from test* | lookup_🐔 int_number_names on int", analyzer)
             );
             // LOOKUP with multi-typed field
             assertEquals(
-                "1:44: column type mismatch, table column was [double] and original column was [unsupported]",
-                error("from test* | lookup double_number_names on double", analyzer)
+                "1:46: column type mismatch, table column was [double] and original column was [unsupported]",
+                error("from test* | lookup_🐔 double_number_names on double", analyzer)
             );
         }
 
@@ -404,6 +406,11 @@ public class VerifierTests extends ESTestCase {
         query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
 
         // but fails if it's different
+        assertEquals(
+            "1:32: can only use grouping function [bucket(a, 3)] part of the BY clause",
+            error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
+        );
+
         assertEquals(
             "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
             error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
@@ -771,40 +778,40 @@ public class VerifierTests extends ESTestCase {
 
     public void testPeriodAndDurationInRowAssignment() {
         for (var unit : TIME_DURATIONS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
                 error("row a = 1 " + unit + "::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::date_period] directly in a row assignment",
                 error("row a = 1 " + unit + "::date_period")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_dateperiod(\"1 " + unit + "\")")
             );
         }
@@ -1159,8 +1166,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFilter() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         assertEquals(
             "1:19: first argument of [salary:\"100\"] must be [string], found value [salary] type [integer]",
             error("from test | where salary:\"100\"")
@@ -1183,10 +1188,13 @@ public class VerifierTests extends ESTestCase {
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
+        assertEquals(
+            "1:47: [MATCH] function cannot be used after STATS",
+            error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
+        );
     }
 
     public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
@@ -1257,9 +1265,72 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        // Source commands
+        assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
+        assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
+
+        // Processing commands
+        assertEquals(
+            "1:43: [KQL] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where kql(\"Connection\")")
+        );
+        assertEquals("1:27: [KQL] function cannot be used after DROP", error("from test | drop emp_no | where kql(\"Anna\")"));
+        assertEquals(
+            "1:71: [KQL] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where kql(\"Anna\")")
+        );
+        assertEquals("1:26: [KQL] function cannot be used after EVAL", error("from test | eval z = 2 | where kql(\"Anna\")"));
+        assertEquals(
+            "1:44: [KQL] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where kql(\"Anna\")")
+        );
+        assertEquals("1:27: [KQL] function cannot be used after KEEP", error("from test | keep emp_no | where kql(\"Anna\")"));
+        assertEquals("1:24: [KQL] function cannot be used after LIMIT", error("from test | limit 10 | where kql(\"Anna\")"));
+        assertEquals("1:35: [KQL] function cannot be used after MV_EXPAND", error("from test | mv_expand last_name | where kql(\"Anna\")"));
+        assertEquals(
+            "1:45: [KQL] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [KQL] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where kql(\"Anna\")")
+        );
+
+        // Some combination of processing commands
+        assertEquals("1:38: [KQL] function cannot be used after LIMIT", error("from test | keep emp_no | limit 10 | where kql(\"Anna\")"));
+        assertEquals(
+            "1:46: [KQL] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [KQL] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:77: [KQL] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:54: [KQL] function cannot be used after DROP",
+            error("from test | rename last_name as name | drop emp_no | where kql(\"Anna\")")
+        );
+    }
+
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
         assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
+    }
+
+    public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
+        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
@@ -1267,7 +1338,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
     }
 
@@ -1304,8 +1374,27 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in QueryStringFunctionTests
     }
 
+    public void testKqlFunctionArgNotNullOrConstant() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
+            error("from test | where kql(first_name)")
+        );
+        assertEquals("1:19: argument of [kql(null)] cannot be null, received [null]", error("from test | where kql(null)"));
+        // Other value types are tested in KqlFunctionTests
+    }
+
     public void testQueryStringWithDisjunctions() {
         checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
+    }
+
+    public void testKqlFunctionWithDisjunctions() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
     public void testMatchFunctionWithDisjunctions() {
@@ -1313,8 +1402,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOperatorWithDisjunctions() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
     }
 
@@ -1365,12 +1452,18 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
     }
 
+    public void testKqlFunctionWithNonBooleanFunctions() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
+    }
+
     public void testMatchFunctionWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
     public void testMatchOperatorWithNonBooleanFunctions() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         checkFullTextFunctionsWithNonBooleanFunctions(":", "first_name:\"Anna\"", "operator");
     }
 
@@ -1448,8 +1541,6 @@ public class VerifierTests extends ESTestCase {
             "1:68: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
         );
-
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals(
             "1:62: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
@@ -1469,8 +1560,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
-
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
     }
 
@@ -1665,6 +1754,170 @@ public class VerifierTests extends ESTestCase {
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
             error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
+    }
+
+    public void testNonMetadataScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        assertEquals("1:12: `_score` is a reserved METADATA attribute", error("from foo | eval _score = 10"));
+
+        assertEquals(
+            "1:48: `_score` is a reserved METADATA attribute",
+            error("from foo metadata _score | where qstr(\"bar\") | eval _score = _score + 1")
+        );
+    }
+
+    public void testScoreRenaming() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        assertEquals("1:33: `_score` is a reserved METADATA attribute", error("from foo METADATA _id, _score | rename _id as _score"));
+
+        assertTrue(passes("from foo metadata _score | rename _score as foo").stream().anyMatch(a -> a.name().equals("foo")));
+    }
+
+    private List<Attribute> passes(String query) {
+        LogicalPlan logicalPlan = defaultAnalyzer.analyze(parser.createStatement(query));
+        assertTrue(logicalPlan.resolved());
+        return logicalPlan.output();
+    }
+
+    public void testIntervalAsString() {
+        // DateTrunc
+        for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
+            assertThat(
+                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                containsString("1:35: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+            assertThat(
+                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                containsString("1:67: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+        }
+        for (String interval : List.of("1", "0.5", "invalid")) {
+            assertThat(
+                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                containsString(
+                    "1:24: first argument of [date_trunc(\""
+                        + interval
+                        + "\", \"1991-06-26T00:00:00.000Z\")] must be [dateperiod or timeduration], found value [\""
+                        + interval
+                        + "\"] type [keyword]"
+                )
+            );
+            assertThat(
+                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                containsString(
+                    "1:56: first argument of [date_trunc(\""
+                        + interval
+                        + "\", x::datetime)] "
+                        + "must be [dateperiod or timeduration], found value [\""
+                        + interval
+                        + "\"] type [keyword]"
+                )
+            );
+        }
+
+        // Bucket
+        assertEquals(
+            "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'yar']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
+        );
+        assertEquals(
+            "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'hur']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
+        );
+        assertEquals(
+            "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'mu']",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
+        );
+        assertEquals(
+            "1:34: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1\")")
+        );
+        assertEquals(
+            "1:40: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1\") | sort max ")
+        );
+        assertEquals(
+            "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
+        );
+    }
+
+    public void testCategorizeSingleGrouping() {
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
+
+        query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
+        query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("from test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no")
+        );
+        assertEquals(
+            "1:39: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:35: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings\n"
+                + "line 1:55: cannot use CATEGORIZE grouping function [CATEGORIZE(last_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+        );
+    }
+
+    public void testCategorizeNestedGrouping() {
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
+
+        query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
+
+        assertEquals(
+            "1:40: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
+        );
+        assertEquals(
+            "1:31: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
+        );
+    }
+
+    public void testCategorizeWithinAggregations() {
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
+
+        query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within the aggregations",
+            error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
+        );
+
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:30: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within the aggregations",
+            error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
+        );
+    }
+
+    public void testSortByAggregate() {
+        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
+        assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
+        assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
     }
 
     private void query(String query) {

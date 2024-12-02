@@ -46,8 +46,25 @@ notQuery:
    ;
 
 nestedQuery
-    : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
+    : fieldName COLON LEFT_CURLY_BRACKET nestedSubQuery RIGHT_CURLY_BRACKET
     ;
+
+nestedSubQuery
+    : <assoc=right> nestedSubQuery operator=(AND|OR) nestedSubQuery #booleanNestedQuery
+    | nestedSimpleSubQuery                                          #defaultNestedQuery
+    ;
+
+nestedSimpleSubQuery
+    : notQuery
+    | nestedQuery
+    | matchAllQuery
+    | nestedParenthesizedQuery
+    | existsQuery
+    | rangeQuery
+    | fieldQuery;
+
+nestedParenthesizedQuery
+    : LEFT_PARENTHESIS nestedSubQuery RIGHT_PARENTHESIS;
 
 matchAllQuery
     : (WILDCARD COLON)? WILDCARD

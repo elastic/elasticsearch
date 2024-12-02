@@ -91,9 +91,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/115631
 - class: org.elasticsearch.action.update.UpdateResponseTests
   method: testToAndFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/115689

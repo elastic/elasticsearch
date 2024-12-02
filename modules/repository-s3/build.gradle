@@ -1,7 +1,3 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -10,6 +6,9 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -44,17 +43,24 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
-  yamlRestTestImplementation project(":test:framework")
-  yamlRestTestImplementation project(':test:fixtures:s3-fixture')
-  yamlRestTestImplementation project(':test:fixtures:minio-fixture')
+
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
-
-  javaRestTestImplementation project(":test:framework")
-  javaRestTestImplementation project(':test:fixtures:s3-fixture')
-  javaRestTestImplementation project(':modules:repository-s3')
-
-  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+
+  yamlRestTestImplementation project(':modules:repository-s3')
+  yamlRestTestImplementation project(':test:fixtures:s3-fixture')
+  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  yamlRestTestImplementation project(':test:framework')
+  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+
+  javaRestTestImplementation project(':modules:repository-s3')
+  javaRestTestImplementation project(':test:fixtures:aws-sts-fixture')
+  javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+  javaRestTestImplementation project(':test:fixtures:minio-fixture')
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  javaRestTestImplementation project(':test:framework')
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 restResources {
@@ -81,90 +87,25 @@ def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   testClassesDirs = sourceSets.test.output.classesDirs
 }
 
-tasks.named('check').configure {
-  dependsOn(testRepositoryCreds)
-}
-
 tasks.named('test').configure {
   // this is tested explicitly in separate test tasks
   exclude '**/RepositoryCredentialsTests.class'
 }
 
 boolean useFixture = false
-
-// We test against two repositories, one which uses the usual two-part "permanent" credentials and
-// the other which uses three-part "temporary" or "session" credentials.
-
 String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
 String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
 String s3PermanentBucket = System.getenv("amazon_s3_bucket")
 String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
 
-String s3TemporaryAccessKey = System.getenv("amazon_s3_access_key_temporary")
-String s3TemporarySecretKey = System.getenv("amazon_s3_secret_key_temporary")
-String s3TemporarySessionToken = System.getenv("amazon_s3_session_token_temporary")
-String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
-String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
-
-String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
-String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
-
-String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
-String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
-
-String s3STSBucket = System.getenv("amazon_s3_bucket_sts")
-String s3STSBasePath = System.getenv("amazon_s3_base_path_sts")
-
-boolean s3DisableChunkedEncoding = buildParams.random.nextBoolean()
-
-// If all these variables are missing then we are testing against the internal fixture instead, which has the following
-// credentials hard-coded in.
+// If all these variables are missing then we are testing against the internal fixture instead, which has the following credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+  useFixture = true
   s3PermanentAccessKey = 's3_test_access_key'
   s3PermanentSecretKey = 's3_test_secret_key'
   s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'base_path'
-  useFixture = true
-}
-if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
-  s3TemporaryAccessKey = 'session_token_access_key'
-  s3TemporarySecretKey = 'session_token_secret_key'
-  s3TemporaryBucket = 'session_token_bucket'
-  s3TemporaryBasePath = 'session_token_base_path'
-}
-
-if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
-  s3EC2Bucket = 'ec2_bucket'
-  s3EC2BasePath = 'ec2_base_path'
-  s3ECSBucket = 'ecs_bucket'
-  s3ECSBasePath = 'ecs_base_path'
-}
-
-if (!s3STSBucket && !s3STSBasePath) {
-  s3STSBucket = 'sts_bucket'
-  s3STSBasePath = 'sts_base_path'
-}
-
-tasks.named("processYamlRestTestResources").configure {
-  from("src/test/resources") {
-    include "aws-web-identity-token-file"
-  }
-  Map<String, Object> expansions = [
-    'permanent_bucket'        : s3PermanentBucket,
-    'permanent_base_path'     : s3PermanentBasePath + "_integration_tests",
-    'temporary_bucket'        : s3TemporaryBucket,
-    'temporary_base_path'     : s3TemporaryBasePath + "_integration_tests",
-    'ec2_bucket'              : s3EC2Bucket,
-    'ec2_base_path'           : s3EC2BasePath,
-    'ecs_bucket'              : s3ECSBucket,
-    'ecs_base_path'           : s3ECSBasePath,
-    'sts_bucket'              : s3STSBucket,
-    'sts_base_path'           : s3STSBasePath,
-    'disable_chunked_encoding': s3DisableChunkedEncoding
-  ]
-  inputs.properties(expansions)
-  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {
@@ -174,22 +115,7 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
-tasks.named("yamlRestTest").configure {
-  systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
-  systemProperty("s3PermanentSecretKey", s3PermanentSecretKey)
-  systemProperty("s3TemporaryAccessKey", s3TemporaryAccessKey)
-  systemProperty("s3TemporarySecretKey", s3TemporarySecretKey)
-  systemProperty("s3EC2AccessKey", s3PermanentAccessKey)
-
-  // ideally we could resolve an env path in cluster config as resource similar to configuring a config file
-  // not sure how common this is, but it would be nice to support
-  File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
-  // The web identity token can be read only from the plugin config directory because of security restrictions
-  // Ideally we would create a symlink, but extraConfigFile doesn't support it
-  nonInputProperties.systemProperty("awsWebIdentityTokenExternalLocation", awsWebIdentityTokenExternalLocation.getAbsolutePath())
-}
-
-// 3rd Party Tests
+// 3rd Party Tests, i.e. testing against a real S3 repository
 tasks.register("s3ThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
@@ -197,13 +123,13 @@ tasks.register("s3ThirdPartyTest", Test) {
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/S3RepositoryThirdPartyTests.class'
   systemProperty("tests.use.fixture", Boolean.toString(useFixture))
-
-  // test container accesses ~/.testcontainers.properties read
-  systemProperty "tests.security.manager", "false"
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
+
+  // test container accesses ~/.testcontainers.properties read
+  systemProperty "tests.security.manager", "false"
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -240,5 +166,6 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("check").configure {
   dependsOn(tasks.withType(Test))
+  dependsOn(testRepositoryCreds)
 }
 

@@ -25,7 +25,3 @@ testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:lang-mustache'
 }
-
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTest("rank_eval/30_failures/Response format", "warning does not exist for compatibility")
-})

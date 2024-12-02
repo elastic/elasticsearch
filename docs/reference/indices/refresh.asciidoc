@@ -37,13 +37,13 @@ stream, index, or alias.
 [[refresh-api-desc]]
 ==== {api-description-title}
 
-Use the refresh API to explicitly make all operations performed on one or more
+Use the refresh API to explicitly make all write operations performed on one or more
 indices since the last refresh available for search.
 If the request targets a data stream, it refreshes the stream's backing indices.
 
 // tag::refresh-interval-default[]
 By default, Elasticsearch periodically refreshes indices every second, but only on
-indices that have received one search request or more in the last 30 seconds.
+indices that have NOT received one search request or more in the last 30 seconds.
 // end::refresh-interval-default[]
 You can change this default interval
 using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.

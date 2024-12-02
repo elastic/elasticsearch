@@ -140,7 +140,7 @@ public record UnifiedCompletionRequest(
                 return ContentString.of(parser);
             }
 
-            throw new XContentParseException("Unsupported token [" + token + "]");
+            throw new XContentParseException("Expected an array start token or a value string token but found token [" + token + "]");
         }
 
         public Message(StreamInput in) throws IOException {

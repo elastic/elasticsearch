@@ -78,7 +78,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is(OpenAiChatCompletionRequest.buildDefaultUri().toString()));
+        assertThat(httpPost.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
@@ -105,7 +105,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
     public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
         var truncatedRequest = request.truncate();
-        assertThat(request.getURI().toString(), is(OpenAiChatCompletionRequest.buildDefaultUri().toString()));
+        assertThat(request.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
 
         var httpRequest = truncatedRequest.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));

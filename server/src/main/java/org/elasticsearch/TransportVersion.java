@@ -12,11 +12,8 @@ package org.elasticsearch;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.internal.VersionExtension;
-import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
-import java.util.ServiceLoader;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
@@ -95,7 +92,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * This should be the transport version with the highest id.
      */
     public static TransportVersion current() {
-        return CurrentHolder.CURRENT;
+        return TransportVersions.LATEST_DEFINED;
     }
 
     public static TransportVersion fromString(String str) {
@@ -137,18 +134,5 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     @Override
     public String toString() {
         return Integer.toString(id);
-    }
-
-    private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent();
-
-        // finds the pluggable current version
-        private static TransportVersion findCurrent() {
-            var version = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
-                .map(e -> e.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED))
-                .orElse(TransportVersions.LATEST_DEFINED);
-            assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
-            return version;
-        }
     }
 }

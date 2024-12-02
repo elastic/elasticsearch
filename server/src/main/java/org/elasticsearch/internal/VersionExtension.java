@@ -13,26 +13,15 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexVersion;
 
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * Allows plugging in current version elements.
  */
 public interface VersionExtension {
     /**
-     * Returns the {@link TransportVersion} that Elasticsearch should use.
-     * <p>
-     * This must be at least as high as the given fallback.
-     * @param fallback The latest transport version from server
-     */
-    TransportVersion getCurrentTransportVersion(TransportVersion fallback);
-
-    /**
      * Returns collection of {@link TransportVersion} defined by extension
      */
-    default Collection<TransportVersion> getTransportVersions() {
-        return Collections.emptyList();
-    }
+    Collection<TransportVersion> getTransportVersions();
 
     /**
      * Returns the {@link IndexVersion} that Elasticsearch should use.

@@ -284,7 +284,7 @@ public class TransportVersions {
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds();
 
-    // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
+    // the highest transport version constant defined
     static final TransportVersion LATEST_DEFINED;
     static {
         LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
@@ -309,7 +309,7 @@ public class TransportVersions {
 
     public static NavigableMap<Integer, TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
-        NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
+        NavigableMap<Integer, TransportVersion> definedTransportVersions = new TreeMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
 
@@ -326,7 +326,7 @@ public class TransportVersions {
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 }
-                builder.put(version.id(), version);
+                definedTransportVersions.put(version.id(), version);
 
                 if (Assertions.ENABLED) {
                     // check the version number is unique
@@ -343,7 +343,7 @@ public class TransportVersions {
             }
         }
 
-        return builder;
+        return definedTransportVersions;
     }
 
     static Collection<TransportVersion> getAllVersions() {

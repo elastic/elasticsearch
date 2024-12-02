@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
+import fixture.azure.MockAzureBlobStore;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
@@ -184,7 +185,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an Azure endpoint")
     private static class AzureBlobStoreHttpHandler extends AzureHttpHandler implements BlobStoreHttpHandler {
         AzureBlobStoreHttpHandler(final String account, final String container) {
-            super(account, container, null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */);
+            super(
+                account,
+                container,
+                null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */,
+                MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
+            );
         }
     }
 
@@ -402,7 +408,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 )
             );
             metrics.forEach(metric -> {
-                assertThat(metric.attributes(), allOf(hasEntry("repo_type", AzureRepository.TYPE), hasKey("operation"), hasKey("purpose")));
+                assertThat(
+                    metric.attributes(),
+                    allOf(hasEntry("repo_type", AzureRepository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
+                );
                 final AzureBlobStore.Operation operation = AzureBlobStore.Operation.fromKey((String) metric.attributes().get("operation"));
                 final AzureBlobStore.StatsKey statsKey = new AzureBlobStore.StatsKey(
                     operation,

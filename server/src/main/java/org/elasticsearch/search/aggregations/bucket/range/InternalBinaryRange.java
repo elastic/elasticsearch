@@ -36,26 +36,16 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     implements
         Range {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable implements Range.Bucket {
 
         private final transient DocValueFormat format;
-        private final transient boolean keyed;
         private final String key;
         private final BytesRef from, to;
         private final long docCount;
         private final InternalAggregations aggregations;
 
-        public Bucket(
-            DocValueFormat format,
-            boolean keyed,
-            String key,
-            BytesRef from,
-            BytesRef to,
-            long docCount,
-            InternalAggregations aggregations
-        ) {
+        public Bucket(DocValueFormat format, String key, BytesRef from, BytesRef to, long docCount, InternalAggregations aggregations) {
             this.format = format;
-            this.keyed = keyed;
             this.key = key;
             this.from = from;
             this.to = to;
@@ -67,7 +57,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             return (from == null ? "*" : format.format(from)) + "-" + (to == null ? "*" : format.format(to));
         }
 
-        private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
+        private static Bucket createFromStream(StreamInput in, DocValueFormat format) throws IOException {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
             String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
@@ -78,7 +68,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             long docCount = in.readLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);
 
-            return new Bucket(format, keyed, key, from, to, docCount, aggregations);
+            return new Bucket(format, key, from, to, docCount, aggregations);
         }
 
         @Override
@@ -116,8 +106,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             return aggregations;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params, boolean keyed) throws IOException {
             final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
@@ -134,7 +123,6 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -180,7 +168,6 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 format,
-                keyed,
                 key,
                 from,
                 to,
@@ -208,7 +195,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readCollectionAsList(stream -> Bucket.createFromStream(stream, format, keyed));
+        buckets = in.readCollectionAsList(stream -> Bucket.createFromStream(stream, format));
     }
 
     @Override
@@ -235,7 +222,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(format, keyed, prototype.key, prototype.from, prototype.to, prototype.docCount, aggregations);
+        return new Bucket(format, prototype.key, prototype.from, prototype.to, prototype.docCount, aggregations);
     }
 
     @Override
@@ -251,7 +238,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
                 @Override
                 protected Bucket createBucket(Bucket proto, long docCount, InternalAggregations aggregations) {
-                    return new Bucket(proto.format, proto.keyed, proto.key, proto.from, proto.to, docCount, aggregations);
+                    return new Bucket(proto.format, proto.key, proto.from, proto.to, docCount, aggregations);
                 }
             };
 
@@ -299,7 +286,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (Bucket range : buckets) {
-            range.toXContent(builder, params);
+            range.bucketToXContent(builder, params, keyed);
         }
         if (keyed) {
             builder.endObject();

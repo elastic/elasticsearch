@@ -404,67 +404,115 @@ public class ComputeService {
                 final String clusterAlias = cluster.clusterAlias();
                 final boolean suppressRemoteFailure = computeListener.shouldIgnoreRemoteErrors(clusterAlias);
                 final var childSessionId = newChildSession(sessionId);
+                var openExchangeListener = refs.acquire();
                 ExchangeService.openExchange(
                     transportService,
                     cluster.connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
-                    refs.acquire().delegateFailureAndWrap((l, unused) -> {
+                    ActionListener.wrap(unused -> {
+                        // Exchange opening is successful
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
-                        // Create group task for this cluster. This group task ensures that two branches of the computation:
-                        // the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
-                        // runAfter listeners below ensure that the group is finalized when both branches are done.
-                        // The group task is the child of the root task, so if the root task is cancelled, the group task is cancelled too.
-                        CancellableTask groupTask = createGroupTask(rootTask, clusterRequest.getDescription());
-                        CountDown countDown = new CountDown(2);
-                        // The group is done when both the sink and the cluster request are done
-                        Runnable finishGroup = () -> {
-                            if (countDown.countDown()) {
-                                taskManager.unregister(groupTask);
-                                l.onResponse(null);
-                            }
-                        };
-                        // Cancel the group on sink failure
-                        ActionListener<Void> exchangeListener = computeListener.acquireAvoid().delegateResponse((inner, e) -> {
-                            taskManager.cancelTaskAndDescendants(groupTask, "exchange sink failure", true, ActionListener.noop());
-                            if (suppressRemoteFailure) {
-                                computeListener.markAsPartial(clusterAlias, e);
-                                inner.onResponse(null);
-                            } else {
-                                inner.onFailure(e);
-                            }
-                        });
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                        var listenerGroup = new RemoteListenerGroup(rootTask, computeListener, clusterAlias, openExchangeListener);
+                        var remoteSink = exchangeService.newRemoteSink(
+                            listenerGroup.getGroupTask(),
+                            childSessionId,
+                            transportService,
+                            cluster.connection
+                        );
                         exchangeSource.addRemoteSink(
                             remoteSink,
                             // This applies to all the subrequests for this cluster, and all the failures.
                             // If we need to change it depending on the kind of failure, we'll have to replace this with a predicate.
                             suppressRemoteFailure == false,
                             queryPragmas.concurrentExchangeClients(),
-                            ActionListener.runAfter(exchangeListener, finishGroup)
+                            listenerGroup.getExchangeRequestListener()
                         );
-                        // Cancel the group on cluster request failure
-                        var clusterRequestListener = computeListener.acquireCompute(clusterAlias).delegateResponse((inner, e) -> {
-                            taskManager.cancelTaskAndDescendants(groupTask, "exchange cluster action failure", true, ActionListener.noop());
-                            inner.onFailure(e);
-                        });
                         transportService.sendChildRequest(
                             cluster.connection,
                             CLUSTER_ACTION_NAME,
                             clusterRequest,
-                            groupTask,
+                            listenerGroup.getGroupTask(),
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                ActionListener.runAfter(clusterRequestListener, finishGroup),
+                                listenerGroup.getClusterRequestListener(),
                                 ComputeResponse::new,
                                 esqlExecutor
                             )
                         );
+                    }, e -> {
+                        // Exchange opening failed
+                        if (suppressRemoteFailure) {
+                            computeListener.markAsPartial(clusterAlias, e);
+                            openExchangeListener.onResponse(null);
+                        } else {
+                            openExchangeListener.onFailure(e);
+                        }
                     })
                 );
             }
+        }
+    }
+
+    // Create group task for this cluster. This group task ensures that two branches of the computation:
+    // the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
+    // runAfter listeners below ensure that the group is finalized when both branches are done.
+    // The group task is the child of the root task, so if the root task is cancelled, the group task is cancelled too.
+    private class RemoteListenerGroup {
+        private final CancellableTask groupTask;
+        private final ActionListener<Void> exchangeRequestListener;
+        private final ActionListener<ComputeResponse> clusterRequestListener;
+
+        public CancellableTask getGroupTask() {
+            return groupTask;
+        }
+
+        public ActionListener<Void> getExchangeRequestListener() {
+            return exchangeRequestListener;
+        }
+
+        public ActionListener<ComputeResponse> getClusterRequestListener() {
+            return clusterRequestListener;
+        }
+
+        RemoteListenerGroup(Task rootTask, ComputeListener computeListener, String clusterAlias, ActionListener<Void> delegate) {
+            final boolean suppressRemoteFailure = computeListener.shouldIgnoreRemoteErrors(clusterAlias);
+            groupTask = createGroupTask(rootTask, rootTask.getDescription() + "[" + clusterAlias + "]");
+            CountDown countDown = new CountDown(2);
+            // The group is done when both the sink and the cluster request are done
+            Runnable finishGroup = () -> {
+                if (countDown.countDown()) {
+                    taskManager.unregister(groupTask);
+                    delegate.onResponse(null);
+                }
+            };
+            // Cancel the group on sink failure
+            ActionListener<Void> exchangeListener = computeListener.acquireAvoid().delegateResponse((inner, e) -> {
+                taskManager.cancelTaskAndDescendants(groupTask, "exchange sink failure", true, ActionListener.noop());
+                if (suppressRemoteFailure) {
+                    computeListener.markAsPartial(clusterAlias, e);
+                    inner.onResponse(null);
+                } else {
+                    inner.onFailure(e);
+                }
+            });
+            exchangeRequestListener = ActionListener.runAfter(exchangeListener, finishGroup);
+            // Cancel the group on cluster request failure
+            var clusterListener = computeListener.acquireCompute(clusterAlias).delegateResponse((inner, e) -> {
+                taskManager.cancelTaskAndDescendants(groupTask, "exchange cluster action failure", true, ActionListener.noop());
+                inner.onFailure(e);
+            });
+            clusterRequestListener = ActionListener.runAfter(clusterListener, finishGroup);
+        }
+
+        private CancellableTask createGroupTask(Task parentTask, String description) {
+            return (CancellableTask) taskManager.register(
+                "transport",
+                "esql_compute_group",
+                new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
+            );
         }
     }
 
@@ -984,14 +1032,6 @@ public class ComputeService {
 
     private String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
-    }
-
-    private CancellableTask createGroupTask(Task parentTask, String description) {
-        return (CancellableTask) taskManager.register(
-            "transport",
-            "esql_compute_group",
-            new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
-        );
     }
 
     private static class ComputeGroupTaskRequest extends TransportRequest {

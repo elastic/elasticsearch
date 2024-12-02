@@ -109,7 +109,9 @@ public class ModuleSupport {
                     }
                 } else {
                     var scan = scan(jf);
-                    scan.classFiles().stream().map(cf -> toPackageName(cf, "/"))
+                    scan.classFiles()
+                        .stream()
+                        .map(cf -> toPackageName(cf, "/"))
                         .flatMap(Optional::stream)
                         .filter(Predicate.not(FORBIDDEN_PACKAGE_NAMES::contains))
                         .forEach(pkgs::add);

@@ -35,8 +35,9 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
 /**
  * This enum represents data types the ES|QL query processing layer is able to
  * interact with in some way. This includes fully representable types (e.g.
- * {@link DataType#LONG}, numeric types which we promote early in the
- * processing pipeline (e.g. {@link DataType#SHORT}),  types for internal use
+ * {@link DataType#LONG}, numeric types which we promote (e.g. {@link DataType#SHORT})
+ * or fold into other types (e.g. {@link DataType#DATE_PERIOD}) early in the
+ * processing pipeline, types for internal use
  * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
  * doesn't support, but require special handling anyway (e.g.
  * {@link DataType#OBJECT})

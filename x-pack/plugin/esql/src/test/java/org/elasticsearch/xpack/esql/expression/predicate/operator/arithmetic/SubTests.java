@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Period;
@@ -117,9 +118,9 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
-                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
@@ -130,12 +131,12 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.DATE_PERIOD,
                 equalTo(lhs.minus(rhs))
-            );
+            ).withoutEvaluator();
         }));
         suppliers.add(new TestCaseSupplier("Datetime - Duration", List.of(DataType.DATETIME, DataType.TIME_DURATION), () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();
@@ -143,9 +144,9 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
-                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
@@ -157,12 +158,12 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
-            );
+            ).withoutEvaluator();
         }));
         // exact math arithmetic exceptions
         suppliers.add(
@@ -210,7 +211,12 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
             }
             return original.expectedType();
-        }, (nullPosition, nullData, original) -> original);
+        }, (nullPosition, nullData, original) -> {
+            if (DataType.isTemporalAmount(nullData.type())) {
+                return equalTo("LiteralsEvaluator[lit=null]");
+            }
+            return original;
+        });
 
         suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             // Ensure we don't have an overflow

@@ -223,7 +223,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Integer"),
+            evaluatorName.apply("Int"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
             DataType.LONG,
             l -> ((Integer) l).longValue(),

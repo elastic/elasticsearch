@@ -14,34 +14,37 @@ import org.elasticsearch.test.ESTestCase;
 public class BlobStoreActionStatsTests extends ESTestCase {
 
     public void testAdd() {
-        final BlobStoreActionStats lhs = randomEndpointStats(1 << 30);
-        final BlobStoreActionStats rhs = randomEndpointStats(1 << 30);
+        final BlobStoreActionStats lhs = randomBlobStoreActionStats(1 << 30);
+        final BlobStoreActionStats rhs = randomBlobStoreActionStats(1 << 30);
         final BlobStoreActionStats result = lhs.add(rhs);
         assertEquals(lhs.operations() + rhs.operations(), result.operations());
         assertEquals(lhs.requests() + rhs.requests(), result.requests());
     }
 
     public void testAddOverflow() {
-        final BlobStoreActionStats lhs = new BlobStoreActionStats(randomLongBetween(50, 1 << 30), randomLongBetween(50, 1 << 30));
-        final int fieldToOverflow = randomIntBetween(0, 1);
-        final BlobStoreActionStats rhs = new BlobStoreActionStats(
-            fieldToOverflow == 0 ? (Long.MAX_VALUE - lhs.operations()) + 1 : 1,
-            fieldToOverflow == 1 ? (Long.MAX_VALUE - lhs.requests()) + 1 : 1
-        );
+        final BlobStoreActionStats lhs = randomBlobStoreActionStats(50, 1 << 30);
+        // We can only overflow requests, or both values (we can't just overflow operations because requests >= operations
+        final boolean overflowRequestsOnly = randomBoolean();
+        final long valueToCauseOverflow = (Long.MAX_VALUE - lhs.operations()) + 1;
+        final long operationsValue = overflowRequestsOnly ? 1 : valueToCauseOverflow;
+        final BlobStoreActionStats rhs = new BlobStoreActionStats(operationsValue, valueToCauseOverflow);
         assertThrows(ArithmeticException.class, () -> lhs.add(rhs));
     }
 
     public void testIsZero() {
         assertTrue(new BlobStoreActionStats(0, 0).isZero());
-        assertFalse(new BlobStoreActionStats(randomLongBetween(1, Long.MAX_VALUE), 0).isZero());
         assertFalse(new BlobStoreActionStats(0, randomLongBetween(1, Long.MAX_VALUE)).isZero());
+        assertFalse(randomBlobStoreActionStats(1, Long.MAX_VALUE).isZero());
     }
 
-    private BlobStoreActionStats randomEndpointStats() {
-        return randomEndpointStats(Long.MAX_VALUE);
+    private BlobStoreActionStats randomBlobStoreActionStats(long upperBound) {
+        return randomBlobStoreActionStats(0, upperBound);
     }
 
-    private BlobStoreActionStats randomEndpointStats(long upperBound) {
-        return new BlobStoreActionStats(randomLongBetween(0, upperBound), randomLongBetween(0, upperBound));
+    private BlobStoreActionStats randomBlobStoreActionStats(long lowerBound, long upperBound) {
+        assert upperBound >= lowerBound;
+        long operations = randomLongBetween(lowerBound, upperBound);
+        long requests = randomLongBetween(operations, upperBound);
+        return new BlobStoreActionStats(operations, requests);
     }
 }

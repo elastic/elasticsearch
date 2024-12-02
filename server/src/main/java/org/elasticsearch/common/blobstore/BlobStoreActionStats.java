@@ -33,6 +33,7 @@ public record BlobStoreActionStats(long operations, long requests) implements Wr
 
     public BlobStoreActionStats {
         assert operations >= 0 && requests >= 0;
+        assert requests >= operations;
     }
 
     @Override

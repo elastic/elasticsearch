@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -27,85 +29,12 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
-/**
- * Parses the OpenAI chat completion streaming responses.
- * For a request like:
- *
- * <pre>
- *     <code>
- *         {
- *             "inputs": ["Please summarize this text: some text", "Answer the following question: Question"]
- *         }
- *     </code>
- * </pre>
- *
- * The response would look like:
- *
- * <pre>
- *     <code>
- *         {
- *              "id": "chatcmpl-123",
- *              "object": "chat.completion",
- *              "created": 1677652288,
- *              "model": "gpt-3.5-turbo-0613",
- *              "system_fingerprint": "fp_44709d6fcb",
- *              "choices": [
- *                  {
- *                      "index": 0,
- *                      "delta": {
- *                          "content": "\n\nHello there, how ",
- *                      },
- *                      "finish_reason": ""
- *                  }
- *              ]
- *          }
- *
- *         {
- *              "id": "chatcmpl-123",
- *              "object": "chat.completion",
- *              "created": 1677652288,
- *              "model": "gpt-3.5-turbo-0613",
- *              "system_fingerprint": "fp_44709d6fcb",
- *              "choices": [
- *                  {
- *                      "index": 1,
- *                      "delta": {
- *                          "content": "may I assist you today?",
- *                      },
- *                      "finish_reason": ""
- *                  }
- *              ]
- *          }
- *
- *         {
- *              "id": "chatcmpl-123",
- *              "object": "chat.completion",
- *              "created": 1677652288,
- *              "model": "gpt-3.5-turbo-0613",
- *              "system_fingerprint": "fp_44709d6fcb",
- *              "choices": [
- *                  {
- *                      "index": 2,
- *                      "delta": {},
- *                      "finish_reason": "stop"
- *                  }
- *              ]
- *          }
- *
- *          [DONE]
- *     </code>
- * </pre>
- */
 public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, ChunkedToXContent> {
-    private static final Logger log = LogManager.getLogger(OpenAiUnifiedStreamingProcessor.class);
+    private static final Logger logger = LogManager.getLogger(OpenAiUnifiedStreamingProcessor.class);
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI chat completions response";
 
     private static final String CHOICES_FIELD = "choices";
@@ -114,6 +43,9 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     private static final String DONE_MESSAGE = "[done]";
     private static final String REFUSAL_FIELD = "refusal";
     private static final String TOOL_CALLS_FIELD = "tool_calls";
+    public static final String ROLE_FIELD = "role";
+    public static final String FINISH_REASON_FIELD = "finish_reason";
+    public static final String INDEX_FIELD = "index";
 
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
@@ -126,7 +58,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
                     var delta = parse(parserConfig, event);
                     delta.forEachRemaining(results::offer);
                 } catch (Exception e) {
-                    log.warn("Failed to parse event from inference provider: {}", event);
+                    logger.warn("Failed to parse event from inference provider: {}", event);
                     throw e;
                 }
             }
@@ -145,118 +77,236 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
             return Collections.emptyIterator();
         }
 
-        System.out.println(event.value());
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, CHOICES_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = ChatCompletionChunkParser.parse(jsonParser);
 
-            return parseList(jsonParser, parser -> {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            List<StreamingUnifiedChatCompletionResults.Result> results = new ArrayList<>();
+            for (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice : chunk.getChoices()) {
+                String content = choice.getDelta().getContent();
+                String refusal = choice.getDelta().getRefusal();
+                List<StreamingUnifiedChatCompletionResults.ToolCall> toolCalls = parseToolCalls(choice.getDelta().getToolCalls());
+                results.add(
+                    new StreamingUnifiedChatCompletionResults.Result(
+                        content,
+                        refusal,
+                        toolCalls,
+                        choice.getFinishReason(),
+                        chunk.getModel(),
+                        chunk.getObject(),
+                        chunk.getUsage()
+                    )
+                );
+            }
 
-                positionParserAtTokenAfterField(parser, DELTA_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
-
-                var currentToken = parser.currentToken();
-
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
-
-                String content = null;
-                String refusal = null;
-                List<StreamingUnifiedChatCompletionResults.ToolCall> toolCalls = new ArrayList<>();
-
-                currentToken = parser.nextToken();
-
-                // continue until the end of delta
-                while (currentToken != null && currentToken != XContentParser.Token.END_OBJECT) {
-                    if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
-                        parser.skipChildren();
-                    }
-
-                    if (currentToken == XContentParser.Token.FIELD_NAME) {
-                        switch (parser.currentName()) {
-                            case CONTENT_FIELD:
-                                parser.nextToken();
-                                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                    content = parser.text();
-                                }
-                                // ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                                break;
-                            case REFUSAL_FIELD:
-                                parser.nextToken();
-                                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                    refusal = parser.text();
-                                }
-                                // ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                                break;
-                            case TOOL_CALLS_FIELD:
-                                parser.nextToken();
-                                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-                                toolCalls = parseToolCalls(parser);
-                                break;
-                        }
-                    }
-
-                    currentToken = parser.nextToken();
-                }
-
-                // consumeUntilObjectEnd(parser); // end delta
-                consumeUntilObjectEnd(parser); // end choices
-
-                return new StreamingUnifiedChatCompletionResults.Result(content, refusal, toolCalls);
-            }).stream().filter(Objects::nonNull).iterator();
+            return results.iterator();
         }
     }
 
-    private List<StreamingUnifiedChatCompletionResults.ToolCall> parseToolCalls(XContentParser parser) throws IOException {
-        List<StreamingUnifiedChatCompletionResults.ToolCall> toolCalls = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-            int index = -1;
-            String id = null;
-            String functionName = null;
-            String functionArguments = null;
+    private List<StreamingUnifiedChatCompletionResults.ToolCall> parseToolCalls(
+        List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls
+    ) {
+        List<StreamingUnifiedChatCompletionResults.ToolCall> parsedToolCalls = new ArrayList<>();
 
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                    switch (parser.currentName()) {
-                        case "index":
-                            parser.nextToken();
-                            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
-                            index = parser.intValue();
-                            break;
-                        case "id":
-                            parser.nextToken();
-                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                            id = parser.text();
-                            break;
-                        case "function":
-                            parser.nextToken();
-                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                                    switch (parser.currentName()) {
-                                        case "name":
-                                            parser.nextToken();
-                                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                                            functionName = parser.text();
-                                            break;
-                                        case "arguments":
-                                            parser.nextToken();
-                                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                                            functionArguments = parser.text();
-                                            break;
-                                    }
-                                }
-                            }
-                            break;
-                    }
-                }
-            }
-            toolCalls.add(new StreamingUnifiedChatCompletionResults.ToolCall(index, id, functionName, functionArguments));
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return null;
         }
-        return toolCalls;
+
+        for (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall : toolCalls) {
+            int index = toolCall.getIndex();
+            String id = toolCall.getId();
+            String functionName = toolCall.getFunction() != null ? toolCall.getFunction().getName() : null;
+            String functionArguments = toolCall.getFunction() != null ? toolCall.getFunction().getArguments() : null;
+            parsedToolCalls.add(new StreamingUnifiedChatCompletionResults.ToolCall(index, id, functionName, functionArguments));
+        }
+        return parsedToolCalls;
+    }
+
+    public static class ChatCompletionChunkParser {
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "chat_completion_chunk",
+                true,
+                args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+                    (String) args[0],
+                    (List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice>) args[1],
+                    (String) args[2],
+                    (String) args[3],
+                    (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage) args[4]
+                )
+
+                /**
+                 * TODO
+                 * Caused by: java.lang.ClassCastException: class java.lang.String cannot be cast to class
+                 * [Lorg.elasticsearch.xpack.inference.external.openai.OpenAiStreamingProcessor$ChatCompletionChunk$Choice;
+                 * (java.lang.String is in module java.base of loader 'bootstrap'; [Lorg.elasticsearch.xpack.inference.external.openai.
+                 * OpenAiStreamingProcessor$ChatCompletionChunk$Choice; is in module org.elasticsearch.inference@9.0.0-SNAPSHOT of loader
+                 * jdk.internal.loader.Loader @611c3eae)
+                 *         at org.elasticsearch.inference@9.0.0-SNAPSHOT/org.elasticsearch.xpack.inference.external.openai.
+                 *         OpenAiStreamingProcessor$ChatCompletionChunkParser.lambda$static$0(OpenAiStreamingProcessor.java:354)
+                 *         at org.elasticsearch.xcontent@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.ConstructingObjectParser.
+                 *         lambda$new$2(ConstructingObjectParser.java:130)
+                 *         at org.elasticsearch.xcontent@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.ConstructingObjectParser$Target.
+                 *         buildTarget(ConstructingObjectParser.java:555)
+                 */
+            );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("id"));
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> ChatCompletionChunkParser.ChoiceParser.parse(p),
+                new ParseField(CHOICES_FIELD)
+            );
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("model"));
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("object"));
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ChatCompletionChunkParser.UsageParser.parse(p),
+                new ParseField("usage")
+            );
+        }
+
+        public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk parse(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        private static class ChoiceParser {
+            private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice, Void> PARSER =
+                new ConstructingObjectParser<>(
+                    "choice",
+                    true,
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+                        (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta) args[0],
+                        (String) args[1],
+                        (int) args[2]
+                    )
+                );
+
+            static {
+                PARSER.declareObject(
+                    ConstructingObjectParser.constructorArg(),
+                    (p, c) -> ChatCompletionChunkParser.DeltaParser.parse(p),
+                    new ParseField(DELTA_FIELD)
+                );
+                PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(FINISH_REASON_FIELD));
+                PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(INDEX_FIELD));
+            }
+
+            public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice parse(XContentParser parser) {
+                return PARSER.apply(parser, null);
+            }
+        }
+
+        private static class DeltaParser {
+            @SuppressWarnings("unchecked")
+            private static final ConstructingObjectParser<
+                StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta,
+                Void> PARSER = new ConstructingObjectParser<>(
+                    DELTA_FIELD,
+                    true,
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                        (String) args[0],
+                        (String) args[1],
+                        (String) args[2],
+                        (List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall>) args[3]
+                    )
+                );
+
+            static {
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONTENT_FIELD));
+                PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(REFUSAL_FIELD));
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ROLE_FIELD));
+                PARSER.declareObjectArray(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    (p, c) -> ChatCompletionChunkParser.ToolCallParser.parse(p),
+                    new ParseField(TOOL_CALLS_FIELD)
+                );
+            }
+
+            public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta parse(XContentParser parser)
+                throws IOException {
+                return PARSER.parse(parser, null);
+            }
+        }
+
+        private static class ToolCallParser {
+            private static final ConstructingObjectParser<
+                StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall,
+                Void> PARSER = new ConstructingObjectParser<>(
+                    "tool_call",
+                    true,
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                        (int) args[0],
+                        (String) args[1],
+                        (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function) args[2],
+                        (String) args[3]
+                    )
+                );
+
+            static {
+                PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(INDEX_FIELD));
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
+                PARSER.declareObject(
+                    (toolCall, function) -> toolCall.function = function,
+                    (p, c) -> ChatCompletionChunkParser.FunctionParser.parse(p),
+                    new ParseField("function")
+                );
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("type"));
+            }
+
+            public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall parse(XContentParser parser)
+                throws IOException {
+                return PARSER.parse(parser, null);
+            }
+        }
+
+        private static class FunctionParser {
+            private static final ConstructingObjectParser<
+                StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function,
+                Void> PARSER = new ConstructingObjectParser<>(
+                    "function",
+                    true,
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
+                        (String) args[0],
+                        (String) args[1]
+                    )
+                );
+
+            static {
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("arguments"));
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
+            }
+
+            public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function parse(
+                XContentParser parser
+            ) throws IOException {
+                return PARSER.parse(parser, null);
+            }
+        }
+
+        private static class UsageParser {
+            private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage, Void> PARSER =
+                new ConstructingObjectParser<>(
+                    "usage",
+                    true,
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage((int) args[0], (int) args[1], (int) args[2])
+                );
+
+            static {
+                PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField("completion_tokens"));
+                PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField("prompt_tokens"));
+                PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField("total_tokens"));
+            }
+
+            public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage parse(XContentParser parser) throws IOException {
+                return PARSER.parse(parser, null);
+            }
+        }
     }
 }

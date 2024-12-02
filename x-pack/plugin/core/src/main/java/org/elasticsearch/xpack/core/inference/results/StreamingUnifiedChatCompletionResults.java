@@ -16,6 +16,8 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -24,6 +26,7 @@ import java.util.Objects;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
+import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.Result.RESULT;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
@@ -31,6 +34,10 @@ import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResul
 public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends ChunkedToXContent> publisher)
     implements
         InferenceServiceResults {
+
+    public static final String MODEL_FIELD = "model";
+    public static final String OBJECT_FIELD = "object";
+    public static final String USAGE_FIELD = "usage";
 
     @Override
     public boolean isStreaming() {
@@ -80,25 +87,51 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
         }
     }
 
-    public record Result(String delta, String refusal, List<ToolCall> toolCalls) implements ChunkedToXContent {
+    private static final String REFUSAL_FIELD = "refusal";
+    private static final String TOOL_CALLS_FIELD = "tool_calls";
+    public static final String FINISH_REASON_FIELD = "finish_reason";
 
-        private static final String RESULT = "delta";
-        private static final String REFUSAL = "refusal";
-        private static final String TOOL_CALLS = "tool_calls";
-
-        public Result(String delta) {
-            this(delta, "", List.of());
-        }
+    public record Result(
+        String delta,
+        String refusal,
+        List<ToolCall> toolCalls,
+        String finishReason,
+        String model,
+        String object,
+        ChatCompletionChunk.Usage usage
+    ) implements ChunkedToXContent {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            Iterator<? extends ToXContent> toolCallsIterator = Collections.emptyIterator();
+            if (toolCalls != null && toolCalls.isEmpty() == false) {
+                toolCallsIterator = Iterators.concat(
+                    ChunkedToXContentHelper.startArray(TOOL_CALLS_FIELD),
+                    Iterators.flatMap(toolCalls.iterator(), d -> d.toXContentChunked(params)),
+                    ChunkedToXContentHelper.endArray()
+                );
+            }
+
+            Iterator<? extends ToXContent> usageIterator = Collections.emptyIterator();
+            if (usage != null) {
+                usageIterator = Iterators.concat(
+                    ChunkedToXContentHelper.startObject(USAGE_FIELD),
+                    ChunkedToXContentHelper.field("completion_tokens", usage.completionTokens()),
+                    ChunkedToXContentHelper.field("prompt_tokens", usage.promptTokens()),
+                    ChunkedToXContentHelper.field("total_tokens", usage.totalTokens()),
+                    ChunkedToXContentHelper.endObject()
+                );
+            }
+
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
                 ChunkedToXContentHelper.field(RESULT, delta),
-                ChunkedToXContentHelper.field(REFUSAL, refusal),
-                ChunkedToXContentHelper.startArray(TOOL_CALLS),
-                Iterators.flatMap(toolCalls.iterator(), t -> t.toXContentChunked(params)),
-                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.field(REFUSAL_FIELD, refusal),
+                toolCallsIterator,
+                ChunkedToXContentHelper.field(FINISH_REASON_FIELD, finishReason),
+                ChunkedToXContentHelper.field(MODEL_FIELD, model),
+                ChunkedToXContentHelper.field(OBJECT_FIELD, object),
+                usageIterator,
                 ChunkedToXContentHelper.endObject()
             );
         }
@@ -177,5 +210,159 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                 + '\''
                 + '}';
         }
+    }
+
+    public static class ChatCompletionChunk {
+        private final String id;
+        private List<Choice> choices;
+        private final String model;
+        private final String object;
+        private ChatCompletionChunk.Usage usage;
+
+        public ChatCompletionChunk(String id, List<Choice> choices, String model, String object, ChatCompletionChunk.Usage usage) {
+            this.id = id;
+            this.choices = choices;
+            this.model = model;
+            this.object = object;
+            this.usage = usage;
+        }
+
+        public ChatCompletionChunk(
+            String id,
+            ChatCompletionChunk.Choice[] choices,
+            String model,
+            String object,
+            ChatCompletionChunk.Usage usage
+        ) {
+            this.id = id;
+            this.choices = Arrays.stream(choices).toList();
+            this.model = model;
+            this.object = object;
+            this.usage = usage;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public List<Choice> getChoices() {
+            return choices;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public String getObject() {
+            return object;
+        }
+
+        public ChatCompletionChunk.Usage getUsage() {
+            return usage;
+        }
+
+        public static class Choice {
+            private final ChatCompletionChunk.Choice.Delta delta;
+            private final String finishReason;
+            private final int index;
+
+            public Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index) {
+                this.delta = delta;
+                this.finishReason = finishReason;
+                this.index = index;
+            }
+
+            public ChatCompletionChunk.Choice.Delta getDelta() {
+                return delta;
+            }
+
+            public String getFinishReason() {
+                return finishReason;
+            }
+
+            public int getIndex() {
+                return index;
+            }
+
+            public static class Delta {
+                private final String content;
+                private final String refusal;
+                private final String role;
+                private List<ToolCall> toolCalls;
+
+                public Delta(String content, String refusal, String role, List<ToolCall> toolCalls) {
+                    this.content = content;
+                    this.refusal = refusal;
+                    this.role = role;
+                    this.toolCalls = toolCalls;
+                }
+
+                public String getContent() {
+                    return content;
+                }
+
+                public String getRefusal() {
+                    return refusal;
+                }
+
+                public String getRole() {
+                    return role;
+                }
+
+                public List<ToolCall> getToolCalls() {
+                    return toolCalls;
+                }
+
+                public static class ToolCall {
+                    private final int index;
+                    private final String id;
+                    public ChatCompletionChunk.Choice.Delta.ToolCall.Function function;
+                    private final String type;
+
+                    public ToolCall(int index, String id, ChatCompletionChunk.Choice.Delta.ToolCall.Function function, String type) {
+                        this.index = index;
+                        this.id = id;
+                        this.function = function;
+                        this.type = type;
+                    }
+
+                    public int getIndex() {
+                        return index;
+                    }
+
+                    public String getId() {
+                        return id;
+                    }
+
+                    public ChatCompletionChunk.Choice.Delta.ToolCall.Function getFunction() {
+                        return function;
+                    }
+
+                    public String getType() {
+                        return type;
+                    }
+
+                    public static class Function {
+                        private final String arguments;
+                        private final String name;
+
+                        public Function(String arguments, String name) {
+                            this.arguments = arguments;
+                            this.name = name;
+                        }
+
+                        public String getArguments() {
+                            return arguments;
+                        }
+
+                        public String getName() {
+                            return name;
+                        }
+                    }
+                }
+            }
+        }
+
+        public record Usage(int completionTokens, int promptTokens, int totalTokens) {}
     }
 }

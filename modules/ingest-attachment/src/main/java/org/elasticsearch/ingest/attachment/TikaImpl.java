@@ -21,6 +21,7 @@ import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugins.UberModuleClassLoader;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -140,14 +141,17 @@ final class TikaImpl {
             // classpath
             addReadPermissions(perms, JarHell.parseClassPath());
             // plugin jars
-            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader urlClassLoader) {
-                URL[] urls = urlClassLoader.getURLs();
-                Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
-                if (set.size() != urls.length) {
-                    throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
-                }
-                addReadPermissions(perms, set);
+            final URL[] urls = switch (TikaImpl.class.getClassLoader()) {
+                case URLClassLoader urlClassLoader -> urlClassLoader.getURLs();
+                case UberModuleClassLoader uberClassLoader -> uberClassLoader.getInternalLoader().getURLs();
+                default -> throw new IllegalStateException("Unexpected value: " + TikaImpl.class.getClassLoader());
+            };
+            Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
+            if (set.size() != urls.length) {
+                throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
             }
+            addReadPermissions(perms, set);
+
             // jvm's java.io.tmpdir (needs read/write)
             FilePermissionUtils.addDirectoryPath(
                 perms,

@@ -263,14 +263,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
         ).actionGet();
 
-        logger.info("--> checking single filtering alias search / wildcard search");
         assertResponses(
             searchResponse -> assertHits(searchResponse.getHits(), "1"),
             prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()),
             prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery())
         );
 
-        logger.info("--> checking single filtering alias search with sort");
         assertResponses(
             searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3"),
             prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()),
@@ -315,10 +313,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
             searchResponse -> assertHits(searchResponse.getHits(), "1", "2")
         );
 
-        logger.info("--> checking single non-filtering alias search");
-        logger.info("--> checking non-filtering alias and filtering alias search");
-        logger.info("--> checking index and filtering alias search");
-        logger.info("--> checking index and alias wildcard search");
         assertResponses(
             searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3", "4"),
             prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()),

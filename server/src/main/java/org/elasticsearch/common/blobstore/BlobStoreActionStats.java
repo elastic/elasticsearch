@@ -19,20 +19,20 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The number of calls to an endpoint
+ * The statistics for a specific blob-store action
  *
  * @param operations The number of calls
  * @param requests The number of calls (including retries)
  */
-public record EndpointStats(long operations, long requests) implements Writeable, ToXContentObject {
+public record BlobStoreActionStats(long operations, long requests) implements Writeable, ToXContentObject {
 
-    public static EndpointStats ZERO = new EndpointStats(0, 0);
+    public static BlobStoreActionStats ZERO = new BlobStoreActionStats(0, 0);
 
-    public EndpointStats(StreamInput in) throws IOException {
+    public BlobStoreActionStats(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong());
     }
 
-    public EndpointStats {
+    public BlobStoreActionStats {
         assert operations >= 0 && requests >= 0;
     }
 
@@ -42,8 +42,8 @@ public record EndpointStats(long operations, long requests) implements Writeable
         out.writeLong(requests);
     }
 
-    public EndpointStats add(EndpointStats other) {
-        return new EndpointStats(Math.addExact(operations, other.operations), Math.addExact(requests, other.requests));
+    public BlobStoreActionStats add(BlobStoreActionStats other) {
+        return new BlobStoreActionStats(Math.addExact(operations, other.operations), Math.addExact(requests, other.requests));
     }
 
     public boolean isZero() {
@@ -52,7 +52,7 @@ public record EndpointStats(long operations, long requests) implements Writeable
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof EndpointStats other) {
+        if (o instanceof BlobStoreActionStats other) {
             return requests == other.requests && operations == other.operations;
         }
         return false;

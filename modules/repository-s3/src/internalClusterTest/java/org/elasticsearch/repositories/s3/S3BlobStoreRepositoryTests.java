@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.EndpointStats;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -343,7 +343,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
             equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA))
         );
-        final Map<String, EndpointStats> initialStats = blobStore.stats();
+        final Map<String, BlobStoreActionStats> initialStats = blobStore.stats();
         assertThat(initialStats.keySet(), equalTo(allOperations));
 
         // Collect more stats with an operation purpose other than the default
@@ -363,12 +363,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA, purpose))
         );
         // The stats report aggregates over different purposes
-        final Map<String, EndpointStats> newStats = blobStore.stats();
+        final Map<String, BlobStoreActionStats> newStats = blobStore.stats();
         assertThat(newStats.keySet(), equalTo(allOperations));
         assertThat(newStats, not(equalTo(initialStats)));
 
         // Exercise stats report that keep find grained information
-        final Map<String, EndpointStats> fineStats = statsCollectors.statsMap(true);
+        final Map<String, BlobStoreActionStats> fineStats = statsCollectors.statsMap(true);
         assertThat(
             fineStats.keySet(),
             equalTo(
@@ -382,7 +382,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .collect(
                     Collectors.groupingBy(
                         entry -> entry.getKey().split("_", 2)[1],
-                        Collectors.reducing(EndpointStats.ZERO, Map.Entry::getValue, EndpointStats::add)
+                        Collectors.reducing(BlobStoreActionStats.ZERO, Map.Entry::getValue, BlobStoreActionStats::add)
                     )
                 ),
             equalTo(

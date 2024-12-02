@@ -52,8 +52,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -696,7 +696,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, EndpointStats> stats() {
+    public Map<String, BlobStoreActionStats> stats() {
         return requestMetricsRecorder.statsMap(service.isStateless());
     }
 
@@ -744,14 +744,14 @@ public class AzureBlobStore implements BlobStore {
             this(new LongAdder(), new LongAdder());
         }
 
-        EndpointStats getEndpointStats() {
-            return new EndpointStats(operations.sum(), requests.sum());
+        BlobStoreActionStats getEndpointStats() {
+            return new BlobStoreActionStats(operations.sum(), requests.sum());
         }
 
-        EndpointStats addTo(EndpointStats other) {
+        BlobStoreActionStats addTo(BlobStoreActionStats other) {
             long ops = operations.sum() + other.operations();
             long reqs = requests.sum() + other.requests();
-            return new EndpointStats(ops, reqs);
+            return new BlobStoreActionStats(ops, reqs);
         }
     }
 
@@ -765,14 +765,14 @@ public class AzureBlobStore implements BlobStore {
             this.repositoriesMetrics = repositoriesMetrics;
         }
 
-        Map<String, EndpointStats> statsMap(boolean stateless) {
+        Map<String, BlobStoreActionStats> statsMap(boolean stateless) {
             if (stateless) {
                 return statsCounters.entrySet()
                     .stream()
                     .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().getEndpointStats()));
             } else {
-                Map<String, EndpointStats> normalisedStats = Arrays.stream(Operation.values())
-                    .collect(Collectors.toMap(Operation::getKey, o -> EndpointStats.ZERO));
+                Map<String, BlobStoreActionStats> normalisedStats = Arrays.stream(Operation.values())
+                    .collect(Collectors.toMap(Operation::getKey, o -> BlobStoreActionStats.ZERO));
                 statsCounters.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),

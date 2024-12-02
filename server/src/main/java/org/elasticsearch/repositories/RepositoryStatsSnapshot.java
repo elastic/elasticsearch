@@ -10,7 +10,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.EndpointStats;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -72,8 +72,8 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
         builder.startObject();
         repositoryInfo.toXContent(builder, params);
         builder.startObject("request_counts");
-        for (Map.Entry<String, EndpointStats> entry : repositoryStats.requestCounts.entrySet()) {
-            final EndpointStats stats = entry.getValue();
+        for (Map.Entry<String, BlobStoreActionStats> entry : repositoryStats.requestCounts.entrySet()) {
+            final BlobStoreActionStats stats = entry.getValue();
             builder.field(entry.getKey(), stats.operations());
         }
         builder.endObject();

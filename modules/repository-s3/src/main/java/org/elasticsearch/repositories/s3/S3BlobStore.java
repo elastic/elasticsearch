@@ -31,8 +31,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -157,8 +157,8 @@ class S3BlobStore implements BlobStore {
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
         }
 
-        EndpointStats getEndpointStats() {
-            return new EndpointStats(operations.sum(), requests.sum());
+        BlobStoreActionStats getEndpointStats() {
+            return new BlobStoreActionStats(operations.sum(), requests.sum());
         }
 
         @Override
@@ -461,7 +461,7 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, EndpointStats> stats() {
+    public Map<String, BlobStoreActionStats> stats() {
         return statsCollectors.statsMap(service.isStateless);
     }
 
@@ -565,7 +565,7 @@ class S3BlobStore implements BlobStore {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
-        Map<String, EndpointStats> statsMap(boolean isStateless) {
+        Map<String, BlobStoreActionStats> statsMap(boolean isStateless) {
             if (isStateless) {
                 return collectors.entrySet()
                     .stream()
@@ -573,8 +573,8 @@ class S3BlobStore implements BlobStore {
                         Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().getEndpointStats())
                     );
             } else {
-                final Map<String, EndpointStats> m = Arrays.stream(Operation.values())
-                    .collect(Collectors.toMap(Operation::getKey, e -> EndpointStats.ZERO));
+                final Map<String, BlobStoreActionStats> m = Arrays.stream(Operation.values())
+                    .collect(Collectors.toMap(Operation::getKey, e -> BlobStoreActionStats.ZERO));
                 collectors.forEach(
                     (sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c).add(v.getEndpointStats()))
                 );

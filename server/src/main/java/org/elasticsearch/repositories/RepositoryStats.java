@@ -10,7 +10,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.blobstore.EndpointStats;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,28 +25,28 @@ public class RepositoryStats implements Writeable {
 
     public static final RepositoryStats EMPTY_STATS = new RepositoryStats(Collections.emptyMap());
 
-    public final Map<String, EndpointStats> requestCounts;
+    public final Map<String, BlobStoreActionStats> requestCounts;
 
-    public RepositoryStats(Map<String, EndpointStats> requestCounts) {
+    public RepositoryStats(Map<String, BlobStoreActionStats> requestCounts) {
         this.requestCounts = Collections.unmodifiableMap(requestCounts);
     }
 
     public RepositoryStats(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
-            this.requestCounts = in.readMap(EndpointStats::new);
+            this.requestCounts = in.readMap(BlobStoreActionStats::new);
         } else {
             this.requestCounts = in.readMap(si -> {
                 long legacyValue = in.readLong();
-                return new EndpointStats(legacyValue, legacyValue);
+                return new BlobStoreActionStats(legacyValue, legacyValue);
             });
         }
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
-        final Map<String, EndpointStats> result = new HashMap<>();
+        final Map<String, BlobStoreActionStats> result = new HashMap<>();
         result.putAll(requestCounts);
-        for (Map.Entry<String, EndpointStats> entry : otherStats.requestCounts.entrySet()) {
-            result.merge(entry.getKey(), entry.getValue(), EndpointStats::add);
+        for (Map.Entry<String, BlobStoreActionStats> entry : otherStats.requestCounts.entrySet()) {
+            result.merge(entry.getKey(), entry.getValue(), BlobStoreActionStats::add);
         }
         return new RepositoryStats(result);
     }

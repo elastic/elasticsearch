@@ -13,7 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.blobstore.EndpointStats;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.repositories.RepositoryInfo;
@@ -79,7 +79,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
             assertThat(repoStatsBeforeRestore.size(), equalTo(1));
 
             RepositoryStatsSnapshot repositoryStatsBeforeRestore = repoStatsBeforeRestore.get(0);
-            Map<String, EndpointStats> requestCountsBeforeRestore = repositoryStatsBeforeRestore.getRepositoryStats().requestCounts;
+            Map<String, BlobStoreActionStats> requestCountsBeforeRestore = repositoryStatsBeforeRestore.getRepositoryStats().requestCounts;
             assertRepositoryStatsBelongToRepository(repositoryStatsBeforeRestore, repository);
             assertRequestCountersAccountedForReads(repositoryStatsBeforeRestore);
             assertRequestCountersAccountedForWrites(repositoryStatsBeforeRestore);
@@ -91,7 +91,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
             List<RepositoryStatsSnapshot> updatedRepoStats = getRepositoriesStats();
             assertThat(updatedRepoStats.size(), equalTo(1));
             RepositoryStatsSnapshot repoStatsAfterRestore = updatedRepoStats.get(0);
-            Map<String, EndpointStats> requestCountsAfterRestore = repoStatsAfterRestore.getRepositoryStats().requestCounts;
+            Map<String, BlobStoreActionStats> requestCountsAfterRestore = repoStatsAfterRestore.getRepositoryStats().requestCounts;
 
             for (String readCounterKey : readCounterKeys()) {
                 assertThat(
@@ -257,7 +257,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
 
     private void assertRequestCountersAccountedForReads(RepositoryStatsSnapshot statsSnapshot) {
         RepositoryStats repositoryStats = statsSnapshot.getRepositoryStats();
-        Map<String, EndpointStats> requestCounts = repositoryStats.requestCounts;
+        Map<String, BlobStoreActionStats> requestCounts = repositoryStats.requestCounts;
         for (String readCounterKey : readCounterKeys()) {
             assertThat(requestCounts.get(readCounterKey), is(notNullValue()));
             assertThat(requestCounts.get(readCounterKey).operations(), is(greaterThan(0L)));
@@ -267,7 +267,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
 
     private void assertRequestCountersAccountedForWrites(RepositoryStatsSnapshot statsSnapshot) {
         RepositoryStats repositoryStats = statsSnapshot.getRepositoryStats();
-        Map<String, EndpointStats> requestCounts = repositoryStats.requestCounts;
+        Map<String, BlobStoreActionStats> requestCounts = repositoryStats.requestCounts;
         for (String writeCounterKey : writeCounterKeys()) {
             assertThat(requestCounts.get(writeCounterKey), is(notNullValue()));
             assertThat(requestCounts.get(writeCounterKey).operations(), is(greaterThan(0L)));
@@ -297,7 +297,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
 
     private void assertAllRequestCountsAreZero(RepositoryStatsSnapshot statsSnapshot) {
         RepositoryStats stats = statsSnapshot.getRepositoryStats();
-        for (EndpointStats requestCount : stats.requestCounts.values()) {
+        for (BlobStoreActionStats requestCount : stats.requestCounts.values()) {
             assertThat(requestCount.requests(), equalTo(0));
         }
     }
@@ -323,12 +323,12 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
                 if (archived) {
                     clusterVersion = extractValue(nodeStatSnapshot, "cluster_version");
                 }
-                Map<String, EndpointStats> requestCounters = intRequestCounters.entrySet()
+                Map<String, BlobStoreActionStats> requestCounters = intRequestCounters.entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> {
                         long operationCount = e.getValue().longValue();
                         // The API is lossy, we don't get back operations/requests, so we'll assume they're all the same
-                        return new EndpointStats(operationCount, operationCount);
+                        return new BlobStoreActionStats(operationCount, operationCount);
                     }));
                 RepositoryStats repositoryStats = new RepositoryStats(requestCounters);
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(

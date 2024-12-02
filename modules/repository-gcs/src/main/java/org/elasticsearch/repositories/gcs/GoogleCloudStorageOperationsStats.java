@@ -9,7 +9,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import org.elasticsearch.common.blobstore.EndpointStats;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,14 +48,14 @@ final class GoogleCloudStorageOperationsStats {
         return bucketName;
     }
 
-    Map<String, EndpointStats> toMap() {
-        final Map<String, EndpointStats> results = new HashMap<>();
+    Map<String, BlobStoreActionStats> toMap() {
+        final Map<String, BlobStoreActionStats> results = new HashMap<>();
         final long getOperations = getCount.get();
-        results.put("GetObject", new EndpointStats(getOperations, getOperations));
+        results.put("GetObject", new BlobStoreActionStats(getOperations, getOperations));
         final long listOperations = listCount.get();
-        results.put("ListObjects", new EndpointStats(listOperations, listOperations));
+        results.put("ListObjects", new BlobStoreActionStats(listOperations, listOperations));
         final long insertOperations = postCount.get() + putCount.get();
-        results.put("InsertObject", new EndpointStats(insertOperations, insertOperations));
+        results.put("InsertObject", new BlobStoreActionStats(insertOperations, insertOperations));
         return results;
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
@@ -56,8 +55,7 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                docId = doc;
-                return iterator.advance(docId) != DocIdSetIterator.NO_MORE_DOCS;
+                return iterator.advance(doc) == doc;
             }
         };
     }

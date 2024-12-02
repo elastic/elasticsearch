@@ -3,26 +3,26 @@
 // Reuses the sample dataset and commands from enrich.csv-spec
 //
 
-basicOnTheDataNode
-required_capability: join_lookup
+//TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
+basicOnTheDataNode-Ignore
+required_capability: join_lookup_v3
 
-//TODO: this returns different results in CI then locally
-// sometimes null, sometimes spanish (likely related to the execution order)
 FROM employees
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
-| WHERE emp_no < 500
-| KEEP emp_no, language_name
+| WHERE emp_no >= 10091 AND emp_no < 10094
 | SORT emp_no
-| LIMIT 1
+| KEEP emp_no, language_code, language_name
 ;
 
-emp_no:integer | language_name:keyword
-//10091          | Spanish
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
 ;
 
 basicRow-Ignore
-required_capability: join_lookup
+required_capability: join_lookup_v3
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -33,16 +33,55 @@ language_code:keyword  | language_name:keyword
 ;
 
 basicOnTheCoordinator
-required_capability: join_lookup
+required_capability: join_lookup_v3
 
 FROM employees
 | SORT emp_no
-| LIMIT 1
+| LIMIT 3
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
-| KEEP emp_no, language_name
+| KEEP emp_no, language_code, language_name
 ;
 
-emp_no:integer | language_name:keyword
-10001          | French
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
+;
+
+//TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
+subsequentEvalOnTheDataNode-Ignore
+required_capability: join_lookup_v3
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
+10091          | 3                     | spanish               |                        6
+10092          | 1                     | english               |                        2
+10093          | 3                     | spanish               |                        6
+;
+
+subsequentEvalOnTheCoordinator
+required_capability: join_lookup_v3
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
+10001          | 2                     | french                |                        4
+10002          | 5                     | null                  |                       10
+10003          | 4                     | german                |                        8
 ;

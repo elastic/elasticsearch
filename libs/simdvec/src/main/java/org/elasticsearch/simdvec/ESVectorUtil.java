@@ -51,6 +51,8 @@ public class ESVectorUtil {
     /**
      * Compute the inner product of two vectors, where the query vector is a byte vector and the document vector is a bit vector.
      * This will return the sum of the query vector values using the document vector as a mask.
+     * When comparing the bits with the bytes, they are done in "big endian" order. For example, if the byte vector
+     * is [1, 2, 3, 4, 5, 6, 7, 8] and the bit vector is [0b10000000], the inner product will be 1.0.
      * @param q the query vector
      * @param d the document vector
      * @return the inner product of the two vectors
@@ -65,6 +67,8 @@ public class ESVectorUtil {
     /**
      * Compute the inner product of two vectors, where the query vector is a float vector and the document vector is a bit vector.
      * This will return the sum of the query vector values using the document vector as a mask.
+     * When comparing the bits with the floats, they are done in "big endian" order. For example, if the float vector
+     * is [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] and the bit vector is [0b10000000], the inner product will be 1.0.
      * @param q the query vector
      * @param d the document vector
      * @return the inner product of the two vectors

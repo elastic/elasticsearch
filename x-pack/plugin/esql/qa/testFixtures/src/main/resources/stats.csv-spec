@@ -522,7 +522,7 @@ h:d  | languages:i
 1.41 | null
 ;
 
-groupByAlias
+groupByAlias#[skip:-8.13.99,reason:muted, see https://github.com/elastic/elasticsearch/issues/117770]
 from employees | rename languages as l | keep l, height | stats m = min(height) by l | sort l;
 
 m:d  | l:i
@@ -982,7 +982,7 @@ c:l
 49  
 ;         
 
-countEvalExpWithGrouping
+countEvalExpWithGrouping#[skip:-8.13.99,reason:muted, see https://github.com/elastic/elasticsearch/issues/117784]
 from employees | rename languages as l | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e) by l | sort l;
 
 c:l | l:i 

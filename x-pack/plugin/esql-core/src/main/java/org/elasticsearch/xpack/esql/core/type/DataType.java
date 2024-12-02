@@ -63,7 +63,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *     <li>In the new CSV test file, start adding basic functionality tests.
  *     These should include reading and returning values, both from indexed data
  *     and from the ROW command.  It should also include functions that support
- *     "every" type, such as MvFirst.</li>
+ *     "every" type, such as Case or MvFirst.</li>
  *     <li>Add the new type to the CsvTestUtils#Type enum, if it isn't already
  *     there. You may also need to modify CsvAssert to support reading values
  *     of the new type.</li>

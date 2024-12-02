@@ -1,0 +1,30 @@
+{
+  "_doc": {
+    "properties": {
+      "field": {
+        "type": "text",
+        "copy_to": [
+          "sparse_field",
+          "dense_field"
+        ]
+      },
+      "sparse_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elasticsearch",
+        "model_settings": {
+          "task_type": "sparse_embedding"
+        }
+      },
+      "dense_field": {
+        "type": "semantic_text",
+        "inference_id": ".multilingual-e5-small-elasticsearch",
+        "model_settings": {
+          "task_type": "text_embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        }
+      }
+    }
+  }
+}

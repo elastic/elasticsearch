@@ -12,10 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * An abstract {@link MetadataFieldMapper} used as a placeholder for implementation
+ * in the inference module. It is required by {@link SourceFieldMapper} to identify
+ * the field name for removal from _source.
+ */
 public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
     public static final String NAME = "_inference_fields";
     public static final String CONTENT_TYPE = "_inference_fields";
@@ -39,6 +45,9 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
             super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
         }
 
+        /**
+         * Returns a {@link ValueFetcher} without requiring the construction of a full {@link SearchExecutionContext}.
+         */
         public abstract ValueFetcher valueFetcher(
             MappingLookup mappingLookup,
             Function<Query, BitSetProducer> bitSetCache,

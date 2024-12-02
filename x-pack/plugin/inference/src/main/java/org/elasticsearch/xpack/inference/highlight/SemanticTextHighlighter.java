@@ -46,6 +46,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A {@link Highlighter} designed for the {@link SemanticTextFieldMapper}.
+ * It extracts semantic queries and compares them against each chunk in the document.
+ * The top-scoring chunks are returned as snippets, sorted by their scores.
+ */
 public class SemanticTextHighlighter implements Highlighter {
     public static final String NAME = "semantic";
 
@@ -54,6 +59,7 @@ public class SemanticTextHighlighter implements Highlighter {
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
         if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            // TODO: Handle semantic text field prior to the inference metadata fields version.
             return semanticTextFieldType.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
         }
         return false;

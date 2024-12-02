@@ -497,7 +497,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
         );
     }
 
-    private void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
+    static void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
         assertQuery(client(), body, total, roleVerifier);
     }
 

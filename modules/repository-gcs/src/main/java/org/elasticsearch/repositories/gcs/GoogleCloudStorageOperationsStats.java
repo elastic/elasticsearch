@@ -48,6 +48,7 @@ final class GoogleCloudStorageOperationsStats {
         return bucketName;
     }
 
+    // TODO: actually track requests and operations separately (see https://elasticco.atlassian.net/browse/ES-10213)
     Map<String, BlobStoreActionStats> toMap() {
         final Map<String, BlobStoreActionStats> results = new HashMap<>();
         final long getOperations = getCount.get();

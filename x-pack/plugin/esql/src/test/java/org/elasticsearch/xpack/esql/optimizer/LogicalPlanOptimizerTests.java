@@ -4879,6 +4879,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     // https://github.com/elastic/elasticsearch/issues/104995
     public void testNoWrongIsNotNullPruning() {
+        /*
         var plan = optimizedPlan("""
               ROW a = 5, b = [ 1, 2 ]
               | EVAL sum = a + b
@@ -4888,10 +4889,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
-        assertWarnings(
-            "Line 2:16: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 2:16: java.lang.IllegalArgumentException: single-value function encountered multi-value"
-        );
+         */
+
+        VerificationException ve = expectThrows(VerificationException.class, () -> plan("""
+                  ROW a = 5, b = [ 1, 2 ]
+                  | EVAL sum = a + b
+                  | LIMIT 1
+                  | WHERE sum IS NOT NULL
+            """));
+        assertEquals("Line 2:20: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
     }
 
     /**
@@ -6427,5 +6433,289 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ve.getMessage(),
             containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/112672
+    public void testConstantFoldingErrors() {
+        // https://github.com/elastic/elasticsearch/issues/108519
+        VerificationException ve = expectThrows(VerificationException.class, () -> plan("row x=1 | where 1 < 2147483647 + 1"));
+        assertEquals("Line 1:17: java.lang.ArithmeticException: integer overflow", ve.getMessage());
+
+        ve = expectThrows(VerificationException.class, () -> plan("row x=1 | where x < 9223372036854775807 + 1"));
+        assertEquals("Line 1:17: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // https://github.com/elastic/elasticsearch/issues/99758
+        ve = expectThrows(VerificationException.class, () -> plan("row x=1 | eval x = 2147483647 + 1"));
+        assertEquals("Line 1:20: java.lang.ArithmeticException: integer overflow", ve.getMessage());
+
+        ve = expectThrows(VerificationException.class, () -> plan("row n = now() | eval n + (2147483647 year + 1 year)"));
+        assertEquals("Line 1:22: arithmetic exception in expression [2147483647 year + 1 year]: [integer overflow]", ve.getMessage());
+
+        // math.addLongUnderflow
+        ve = expectThrows(VerificationException.class, () -> plan("row max = 9223372036854775807 | eval sum = max + 1 | keep sum"));
+        assertEquals("Line 1:44: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // math.subLongUnderflow
+        ve = expectThrows(VerificationException.class, () -> plan("row l = -9223372036854775807 | eval sub = l - 2 | keep sub"));
+        assertEquals("Line 1:43: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // math.mulLongUnderflow
+        ve = expectThrows(VerificationException.class, () -> plan("row max = 9223372036854775807 | eval mul = max * 2 | keep mul"));
+        assertEquals("Line 1:44: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // math.divLongByZero
+        ve = expectThrows(VerificationException.class, () -> plan("row max = 9223372036854775807 | eval div = max / 0 | keep div"));
+        assertEquals("Line 1:44: java.lang.ArithmeticException: / by zero", ve.getMessage());
+
+        // math.modLongByZero
+        ve = expectThrows(VerificationException.class, () -> plan("row max = 9223372036854775807 | eval mod = max % 0 | keep mod"));
+        assertEquals("Line 1:44: java.lang.ArithmeticException: / by zero", ve.getMessage());
+
+        // math.negateIntOverflow
+        ve = expectThrows(VerificationException.class, () -> plan("row x=-2147483648 | eval a = -x"));
+        assertEquals("Line 1:30: java.lang.ArithmeticException: integer overflow", ve.getMessage());
+
+        // math.negateLongOverflow
+        ve = expectThrows(VerificationException.class, () -> plan("row x=-9223372036854775808 | eval a = -x"));
+        assertEquals("Line 1:39: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // math.logofNegativeValue
+        ve = expectThrows(VerificationException.class, () -> plan("row base = 2.0, value = -2 | EVAL s = LOG(base, value)"));
+        assertEquals("Line 1:39: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.logofNegativeBase
+        ve = expectThrows(VerificationException.class, () -> plan("row base = -2, value = 2.0 | EVAL s = LOG(base, value)"));
+        assertEquals("Line 1:39: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.logofBaseOne
+        ve = expectThrows(VerificationException.class, () -> plan("row base = 1, value = 2 | EVAL s = LOG(base, value)"));
+        assertEquals("Line 1:36: java.lang.ArithmeticException: Log of base 1", ve.getMessage());
+
+        // math.logofZero
+        ve = expectThrows(VerificationException.class, () -> plan("row base = 2.0, value = 0.0 | EVAL s = LOG(base, value)"));
+        assertEquals("Line 1:40: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.logofNegativeZero
+        ve = expectThrows(VerificationException.class, () -> plan("row base = 2.0, value = -0.0 | EVAL s = LOG(base, value)"));
+        assertEquals("Line 1:41: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.logofNegativeUnary
+        ve = expectThrows(VerificationException.class, () -> plan("row value = -1 | EVAL s = LOG(value)"));
+        assertEquals("Line 1:27: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.logofZeroUnary
+        ve = expectThrows(VerificationException.class, () -> plan("row value = 0 | EVAL s = LOG(value)"));
+        assertEquals("Line 1:26: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.log10ofNegative
+        ve = expectThrows(VerificationException.class, () -> plan("row d = -1.0 | eval s = log10(d)"));
+        assertEquals("Line 1:25: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.log10ofZero
+        ve = expectThrows(VerificationException.class, () -> plan("row d = 0.0 | eval s = log10(d)"));
+        assertEquals("Line 1:24: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.log10ofNegativeZero
+        ve = expectThrows(VerificationException.class, () -> plan("row d = -0.0 | eval s = log10(d)"));
+        assertEquals("Line 1:25: java.lang.ArithmeticException: Log of non-positive number", ve.getMessage());
+
+        // math.powSqrtNeg
+        ve = expectThrows(VerificationException.class, () -> plan("ROW base = -4, exponent = 0.5 | EVAL s = POW(base, exponent)"));
+        assertEquals("Line 1:42: java.lang.ArithmeticException: not a finite double number: NaN", ve.getMessage());
+
+        // math.powIntULOverrun
+        ve = expectThrows(VerificationException.class, () -> plan("row x = pow(2, 9223372036854775808)"));
+        assertEquals("Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity", ve.getMessage());
+
+        // math.mvSumIntsOverflow
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plan("ROW ints = [0, 1, 2147483647] | EVAL mvsum = mv_sum(ints) | KEEP mvsum")
+        );
+        assertEquals("Line 1:46: java.lang.ArithmeticException: integer overflow", ve.getMessage());
+
+        // math.mvSumLongsOverflow
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plan("ROW longs = [0, 1, 9223372036854775807] | EVAL mvsum = mv_sum(longs) | KEEP mvsum")
+        );
+        assertEquals("Line 1:56: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // math.mvSumUnsignedLongsOverflow
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plan("ROW ulongs = [0, 1, 18446744073709551615] | EVAL mvsum = mv_sum(ulongs) | KEEP mvsum")
+        );
+        assertEquals("Line 1:58: java.lang.ArithmeticException: unsigned_long overflow", ve.getMessage());
+
+        // math.ulAdditionOverflow
+        ve = expectThrows(VerificationException.class, () -> plan("row x = 18446744073709551615, y = to_ul(1) | eval x = x + y | keep x"));
+        assertEquals("Line 1:55: java.lang.ArithmeticException: unsigned_long overflow", ve.getMessage());
+
+        // math.ulSubtractionUnderflow
+        ve = expectThrows(VerificationException.class, () -> plan("row x = to_ul(0), y = to_ul(1) | eval x = x - y | keep x"));
+        assertEquals("Line 1:43: java.lang.ArithmeticException: unsigned_long overflow", ve.getMessage());
+
+        // math.ulMultiplicationOverflow
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plan("row x = 9223372036854775808, two = to_ul(2) | eval times2 = x * two | keep times2")
+        );
+        assertEquals("Line 1:61: java.lang.ArithmeticException: unsigned_long overflow", ve.getMessage());
+
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plan("row x = 9223372036854775808, y = 9223372036854775809 | eval x = x * y | keep x")
+        );
+        assertEquals("Line 1:65: java.lang.ArithmeticException: unsigned_long overflow", ve.getMessage());
+
+        // math.ulModuloByZero
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plan("row halfplus = 9223372036854775808, zero = to_ul(0) | eval div = halfplus / zero | keep div")
+        );
+        assertEquals("Line 1:66: java.lang.ArithmeticException: / by zero", ve.getMessage());
+
+        // math.sqrtOfNegative
+        ve = expectThrows(VerificationException.class, () -> plan("row d = -1.0 | eval s = sqrt(d)"));
+        assertEquals("Line 1:25: java.lang.ArithmeticException: Square root of negative", ve.getMessage());
+
+        // ints.CombineBinaryComparisonsMv
+        ve = expectThrows(VerificationException.class, () -> plan("row x = [1,2,3] | where 12 * (-x - 5) >= -120 OR x < 5"));
+        assertEquals("Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // floats.acosNull
+        ve = expectThrows(VerificationException.class, () -> plan("ROW a=12.0 | EVAL acos=ACOS(a)"));
+        assertEquals("Line 1:24: java.lang.ArithmeticException: Acos input out of range", ve.getMessage());
+
+        // floats.asinNull
+        ve = expectThrows(VerificationException.class, () -> plan("ROW a=12.0 | EVAL asin=ASIN(a)"));
+        assertEquals("Line 1:24: java.lang.ArithmeticException: Asin input out of range", ve.getMessage());
+
+        // date.evalDateParseWrongDate
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row a = "2023-02-01 foo" | eval b = date_parse("yyyy-MM-dd", a) | keep b
+            """));
+        assertEquals(
+            "Line 1:37: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01 foo] with format [yyyy-MM-dd]",
+            ve.getMessage()
+        );
+
+        // date.evalDateParseNotMatching
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row a = "2023-02-01" | eval b = date_parse("yyyy-MM", a) | keep b
+            """));
+        assertEquals(
+            "Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM]",
+            ve.getMessage()
+        );
+
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd HH:mm:ss", a) | keep b
+            """));
+        assertEquals(
+            "Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]",
+            ve.getMessage()
+        );
+
+        // date.dateMathArithmeticOverflow
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row dt = to_dt(9223372036854775807) | eval plus = dt + 1 day | keep plus
+            """));
+        assertEquals("Line 1:51: java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        // date.dateMathDateException
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row dt = to_dt(0) | eval plus = dt + 2147483647 years | keep plus
+            """));
+        assertEquals(
+            "Line 1:33: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617",
+            ve.getMessage()
+        );
+
+        // date.evalDateDiffErrorOutOfIntegerRange
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23T11:00:00.000Z")
+            | EVAL dd_oo=date_diff("nanoseconds", date1, date2)
+            | keep dd_oo
+            """));
+        assertEquals(
+            "Line 2:14: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [1814400000000000] out of [integer] range",
+            ve.getMessage()
+        );
+
+        // bucket.zeroBucketsRow
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 1 | STATS max = max(a) BY b = BUCKET(a, 0, 0, 0)
+            """));
+        assertEquals("Line 1:39: java.lang.ArithmeticException: / by zero", ve.getMessage());
+
+        // bucket.minusOneBucketsRow
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 1 | STATS max = max(a) BY b = BUCKET(a, -1, 0, 0)
+            """));
+        assertEquals("Line 1:39: java.lang.ArithmeticException: / by zero", ve.getMessage());
+
+        // bucket.tooManyBucketsRow
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 1 | STATS max = max(a) BY b = BUCKET(a, 100000000000, 0, 0)
+            """));
+        assertEquals("Line 1:39: java.lang.ArithmeticException: / by zero", ve.getMessage());
+
+        // stats.weightedAvgBothConstantsMvWarning
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row v = [1, 2, 3], w = [1, 2, 3] | stats w_avg = weighted_avg(v, w)
+            """));
+        assertEquals("Line 1:50: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // conditional.nullOnMultivaluesMathOperation
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NULL
+            """));
+        assertEquals("Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // conditional.notNullOnMultivaluesMathOperation
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NOT NULL
+            """));
+        assertEquals("Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // conditional.nullOnMultivaluesComparisonOperation
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NULL
+            """));
+        assertEquals("Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // conditional.notNullOnMultivaluesComparisonOperation
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL
+            """));
+        assertEquals("Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // conditional.notNullOnMultivaluesComparisonOperationWithPartialMatch
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            ROW a = 5, b = [ 5, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL
+            """));
+        assertEquals("Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // eval.roundArrays
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row a = [1.2], b = [2.4, 7.9]
+            | eval c = round(a), d = round(b), e = round([1.2]), f = round([1.2, 4.6]), g = round([1.14], 1), h = round([1.14], [1, 2])
+            """));
+        assertEquals("Line 2:26: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // string.spaceMV
+        ve = expectThrows(VerificationException.class, () -> plan("ROW mv = [1,2,3] | EVAL x = space(mv) | KEEP x"));
+        assertEquals("Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value", ve.getMessage());
+
+        // ip.ipPrefixWithWrongLengths
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row ip4 = to_ip("1.2.3.4")
+            | eval a = ip_prefix(ip4, -1, 128), b = ip_prefix(ip4, 32, -1), c = ip_prefix(ip4, 33, 0), d = ip_prefix(ip4, 32, 129)
+            """));
+        assertEquals("Line 2:12: java.lang.IllegalArgumentException: Prefix length v4 must be in range [0, 32], found -1", ve.getMessage());
+
+        // TODO case, conversion functions
     }
 }

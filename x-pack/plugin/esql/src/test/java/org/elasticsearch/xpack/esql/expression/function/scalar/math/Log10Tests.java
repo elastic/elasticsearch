@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -85,7 +86,9 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Log of non-positive number"
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
@@ -97,7 +100,9 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Log of non-positive number"
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
@@ -109,7 +114,9 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Log of non-positive number"
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -121,7 +128,9 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Log of non-positive number"
         );
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -40,7 +41,9 @@ public class AcosTests extends AbstractScalarFunctionTestCase {
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.ArithmeticException: Acos input out of range"
-                )
+                ),
+                VerificationException.class,
+                "java.lang.ArithmeticException: Acos input out of range"
             )
         );
         suppliers.addAll(
@@ -53,7 +56,9 @@ public class AcosTests extends AbstractScalarFunctionTestCase {
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.ArithmeticException: Acos input out of range"
-                )
+                ),
+                VerificationException.class,
+                "java.lang.ArithmeticException: Acos input out of range"
             )
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));

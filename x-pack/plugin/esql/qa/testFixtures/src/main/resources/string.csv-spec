@@ -1828,18 +1828,6 @@ x:integer | y:null | z:integer | xsc:keyword | xn:keyword | xzc:keyword | lxz:in
 6 | null |  11 | <      > | null | <           > | 11 | 6 | 0
 ;
 
-spaceMV
-required_capability: space
-ROW mv = [1,2,3] | EVAL x = space(mv) | KEEP x;
-
-warning:Line 1:29: evaluation of [space(mv)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-x:keyword
-null
-;
-
-
 likeEscapingSingleQuotes
 // tag::likeEscapingSingleQuotes[]
 ROW message = "foo * bar"

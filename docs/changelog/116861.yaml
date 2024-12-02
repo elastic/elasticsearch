@@ -1,0 +1,14 @@
+pr: 116861
+summary: "[ES|QL] Make `EvaluatorMapper.fold()` throw `VerificationException` for\
+  \ folding time errors"
+area: ES|QL
+type: enhancement
+issues: []
+breaking:
+  title: "[ES|QL] Make `EvaluatorMapper.fold()` throw `VerificationException` for\
+    \ folding time errors"
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

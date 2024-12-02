@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -125,6 +126,10 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                         .withWarning(
                             "Line -1:-1: java.lang.IllegalArgumentException: "
                                 + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
+                        )
+                        .withFoldingException(
+                            VerificationException.class,
+                            "java.lang.IllegalArgumentException: failed to parse date field [not a date] with format [yyyy-MM-dd]"
                         )
                 )
             ),

@@ -41,6 +41,7 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
+import static org.elasticsearch.compute.gen.Types.EXCEPTION;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
@@ -119,6 +120,7 @@ public class EvaluatorImplementer {
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         builder.addMethod(warnings());
+        builder.addMethod(registerException());
         return builder.build();
     }
 
@@ -252,7 +254,7 @@ public class EvaluatorImplementer {
                         + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
                         + " e)";
                     builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
-                    builder.addStatement("warnings().registerException(e)");
+                    builder.addStatement("registerException(e)");
                     builder.addStatement("result.appendNull()");
                     builder.endControlFlow();
                 }
@@ -278,7 +280,7 @@ public class EvaluatorImplementer {
             {
                 builder.addStatement(
                     // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
-                    "warnings().registerException(new $T(\"single-value function encountered multi-value\"))",
+                    "registerException(new $T(\"single-value function encountered multi-value\"))",
                     IllegalArgumentException.class
                 );
             }
@@ -323,14 +325,20 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
         builder.addStatement("""
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
+            this.warnings = driverContext.createWarnings(
                 source.source().getLineNumber(),
                 source.source().getColumnNumber(),
                 source.text()
             )""");
         builder.endControlFlow();
         builder.addStatement("return warnings");
+        return builder.build();
+    }
+
+    static MethodSpec registerException() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("registerException");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(EXCEPTION, "exception");
+        builder.addStatement("driverContext.registerException(warnings(), exception)");
         return builder.build();
     }
 

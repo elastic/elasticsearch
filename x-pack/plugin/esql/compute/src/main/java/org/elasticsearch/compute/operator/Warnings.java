@@ -53,7 +53,7 @@ public class Warnings {
         return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "treating result as false");
     }
 
-    private static Warnings createWarnings(
+    public static Warnings createWarnings(
         DriverContext.WarningsMode warningsMode,
         int lineNumber,
         int columnNumber,
@@ -61,7 +61,7 @@ public class Warnings {
         String first
     ) {
         switch (warningsMode) {
-            case COLLECT -> {
+            case COLLECT, LOCAL -> {
                 return new Warnings(lineNumber, columnNumber, sourceText, first);
             }
             case IGNORE -> {

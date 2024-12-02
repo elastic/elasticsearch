@@ -158,6 +158,7 @@ public class MvEvaluatorImplementer {
         builder.addType(factory());
         if (warnExceptions.isEmpty() == false) {
             builder.addMethod(EvaluatorImplementer.warnings());
+            builder.addMethod(EvaluatorImplementer.registerException());
         }
         return builder.build();
     }
@@ -244,7 +245,7 @@ public class MvEvaluatorImplementer {
                 body.accept(builder);
                 String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
                 builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
-                builder.addStatement("warnings().registerException(e)");
+                builder.addStatement("registerException(e)");
                 builder.addStatement("builder.appendNull()");
                 builder.endControlFlow();
             } else {

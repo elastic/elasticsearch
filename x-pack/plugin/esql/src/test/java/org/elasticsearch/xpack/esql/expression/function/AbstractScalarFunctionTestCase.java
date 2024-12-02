@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -446,6 +447,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+                .withFoldingException(VerificationException.class, "java.lang.ArithmeticException: " + typeNameOverflow)
         );
     }
 }

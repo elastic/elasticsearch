@@ -295,17 +295,6 @@ a:double | acos:double
 // end::acos-result[]
 ;
 
-acosNull
-ROW a=12.0
-| EVAL acos=ACOS(a)
-;
-warning:Line 2:13: evaluation of [ACOS(a)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Acos input out of range
-
-a:double | acos:double
-      12 | null
-;
-
 sin
 // tag::sin[]
 ROW a=1.8 
@@ -343,17 +332,6 @@ ROW a=.9
 a:double | asin:double
       .9 | 1.1197695149986342
 // end::asin-result[]
-;
-
-asinNull
-ROW a=12.0
-| EVAL asin=ASIN(a)
-;
-warning:Line 2:13: evaluation of [ASIN(a)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Asin input out of range
-
-a:double | asin:double
-      12 | null
 ;
 
 tan

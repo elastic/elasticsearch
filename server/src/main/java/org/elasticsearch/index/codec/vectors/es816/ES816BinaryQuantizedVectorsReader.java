@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
@@ -42,6 +42,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVe
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
+class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES816BinaryQuantizedVectorsReader.class);
 
@@ -63,7 +64,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     private final FlatVectorsReader rawVectorsReader;
     private final ES816BinaryFlatVectorsScorer vectorScorer;
 
-    public ES816BinaryQuantizedVectorsReader(
+    ES816BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
         ES816BinaryFlatVectorsScorer vectorsScorer

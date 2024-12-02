@@ -428,9 +428,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * Exception thrown whenever a search timeout occurs. May be thrown by {@link ContextIndexSearcher} or {@link ExitableDirectoryReader}.
      */
-    static final class TimeExceededException extends InternalTimeoutException {
+    public static final class TimeExceededException extends RuntimeException {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
 
+        /**
+         * Created via {@link #throwTimeExceededException()}
+         */
         private TimeExceededException() {}
     }
 

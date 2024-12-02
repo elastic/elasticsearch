@@ -34,7 +34,6 @@ import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.InternalTimeoutException;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankSearchContext;
@@ -218,7 +217,7 @@ public class QueryPhase {
             queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                InternalTimeoutException.handleTimeout(
+                SearchTimeoutException.handleTimeout(
                     searchContext.request().allowPartialSearchResults(),
                     searchContext.shardTarget(),
                     searchContext.queryResult()

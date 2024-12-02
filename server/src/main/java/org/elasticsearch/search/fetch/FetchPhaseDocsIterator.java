@@ -15,7 +15,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalTimeoutException;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
@@ -70,8 +70,8 @@ abstract class FetchPhaseDocsIterator {
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
             try {
                 setNextReader(ctx, docsInLeaf);
-            } catch (InternalTimeoutException e) {
-                InternalTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+            } catch (ContextIndexSearcher.TimeExceededException e) {
+                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                 assert allowPartialResults;
                 return SearchHits.EMPTY;
             }
@@ -87,11 +87,11 @@ abstract class FetchPhaseDocsIterator {
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
                     searchHits[docs[i].index] = nextDoc(docs[i].docId);
-                } catch (InternalTimeoutException e) {
+                } catch (ContextIndexSearcher.TimeExceededException e) {
                     if (allowPartialResults == false) {
                         purgeSearchHits(searchHits);
                     }
-                    InternalTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                     assert allowPartialResults;
                     SearchHit[] partialSearchHits = new SearchHit[i];
                     System.arraycopy(searchHits, 0, partialSearchHits, 0, i);

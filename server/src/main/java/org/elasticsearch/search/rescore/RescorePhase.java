@@ -18,9 +18,10 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.internal.InternalTimeoutException;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,8 +72,8 @@ public class RescorePhase {
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
-        } catch (InternalTimeoutException e) {
-            InternalTimeoutException.handleTimeout(
+        } catch (ContextIndexSearcher.TimeExceededException e) {
+            SearchTimeoutException.handleTimeout(
                 context.request().allowPartialSearchResults(),
                 context.shardTarget(),
                 context.queryResult()

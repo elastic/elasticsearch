@@ -546,10 +546,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
-            IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             // check if we can shortcut the query phase entirely.
             if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
+                IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 ShardSearchRequest clone = new ShardSearchRequest(orig);
                 CanMatchContext canMatchContext = new CanMatchContext(
                     clone,

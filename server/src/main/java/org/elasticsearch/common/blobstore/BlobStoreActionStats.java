@@ -28,7 +28,7 @@ public record BlobStoreActionStats(long operations, long requests) implements Wr
     public static final BlobStoreActionStats ZERO = new BlobStoreActionStats(0, 0);
 
     public BlobStoreActionStats(StreamInput in) throws IOException {
-        this(in.readLong(), in.readLong());
+        this(in.readVLong(), in.readVLong());
     }
 
     public BlobStoreActionStats {
@@ -38,8 +38,8 @@ public record BlobStoreActionStats(long operations, long requests) implements Wr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(operations);
-        out.writeLong(requests);
+        out.writeVLong(operations);
+        out.writeVLong(requests);
     }
 
     public BlobStoreActionStats add(BlobStoreActionStats other) {

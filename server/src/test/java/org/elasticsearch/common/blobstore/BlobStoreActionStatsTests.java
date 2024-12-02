@@ -11,6 +11,8 @@ package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 public class BlobStoreActionStatsTests extends ESTestCase {
 
     public void testAdd() {
@@ -35,6 +37,13 @@ public class BlobStoreActionStatsTests extends ESTestCase {
         assertTrue(new BlobStoreActionStats(0, 0).isZero());
         assertFalse(new BlobStoreActionStats(0, randomLongBetween(1, Long.MAX_VALUE)).isZero());
         assertFalse(randomBlobStoreActionStats(1, Long.MAX_VALUE).isZero());
+    }
+
+    public void testSerialization() throws IOException {
+        final BlobStoreActionStats original = randomBlobStoreActionStats(Long.MAX_VALUE);
+        BlobStoreActionStats deserializedModel = copyWriteable(original, null, BlobStoreActionStats::new);
+        assertEquals(original, deserializedModel);
+        assertNotSame(original, deserializedModel);
     }
 
     private BlobStoreActionStats randomBlobStoreActionStats(long upperBound) {

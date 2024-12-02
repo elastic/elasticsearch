@@ -1,5 +1,5 @@
 pr: 117451
-summary: "DRAFT: ST_EXTENT aggregation"
+summary: "ST_EXTENT aggregation"
 area: "ES|QL, Geo"
 type: feature
-issues: []
+issues: [104659]

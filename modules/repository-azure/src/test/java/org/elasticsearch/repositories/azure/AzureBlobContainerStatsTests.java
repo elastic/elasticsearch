@@ -16,19 +16,78 @@ import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.BLOB_BATCH;
+import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.LIST_BLOBS;
+import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.PUT_BLOB;
 
 public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
+
+    private final Queue<ResponseInjectingAzureHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
 
     @SuppressForbidden(reason = "use a http server")
     @Before
     public void configureAzureHandler() {
-        httpServer.createContext("/", new AzureHttpHandler(ACCOUNT, CONTAINER, null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE));
+        httpServer.createContext(
+            "/",
+            new ResponseInjectingAzureHttpHandler(
+                requestHandlers,
+                new AzureHttpHandler(ACCOUNT, CONTAINER, null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE)
+            )
+        );
+    }
+
+    public void testRetriesAndOperationsAreTrackedSeparately() throws IOException {
+        serverlessMode = true;
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        final AzureBlobStore blobStore = blobContainer.getBlobStore();
+        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
+
+        // Just a sample of the easy operations to test
+        final List<AzureBlobStore.Operation> supportedOperations = Arrays.asList(PUT_BLOB, LIST_BLOBS, BLOB_BATCH);
+        final Map<AzureBlobStore.Operation, BlobStoreActionStats> expectedActionStats = new HashMap<>();
+        supportedOperations.forEach(operation -> expectedActionStats.put(operation, BlobStoreActionStats.ZERO));
+
+        for (int i = 0; i < randomIntBetween(10, 50); i++) {
+            final boolean triggerRetry = randomBoolean();
+            if (triggerRetry) {
+                requestHandlers.offer(new ResponseInjectingAzureHttpHandler.FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS));
+            }
+            final AzureBlobStore.Operation operation = randomFrom(supportedOperations);
+            switch (operation) {
+                case PUT_BLOB -> blobStore.writeBlob(
+                    purpose,
+                    randomIdentifier(),
+                    BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())),
+                    false
+                );
+                case LIST_BLOBS -> blobStore.listBlobsByPrefix(purpose, randomIdentifier(), randomIdentifier());
+                case BLOB_BATCH -> blobStore.deleteBlobsIgnoringIfNotExists(
+                    purpose,
+                    List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator()
+                );
+            }
+            expectedActionStats.computeIfPresent(operation, (op, stats) -> stats.add(new BlobStoreActionStats(1, triggerRetry ? 2 : 1)));
+        }
+
+        final Map<String, BlobStoreActionStats> stats = blobStore.stats();
+        expectedActionStats.forEach((operation, value) -> {
+            if (value.isZero() == false) {
+                String key = statsKey(purpose, operation);
+                assertEquals(key, stats.get(key), value);
+            }
+        });
     }
 
     public void testOperationPurposeIsReflectedInBlobStoreStats() throws IOException {

@@ -87,7 +87,15 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         return (MasterServiceTaskQueue<T>) mock(MasterServiceTaskQueue.class);
     }
 
-    enum TaskState { INCOMPLETE, SUCCEEDED, FAILED };
+    enum TaskState {
+        INCOMPLETE,
+        FAILED,
+
+        /**
+         * Also used for when a task was skipped because another task takes precedence and that one succeeded.
+         */
+        SUCCEEDED,
+    }
 
     static class TestTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
         private final T task;
@@ -97,8 +105,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             this.task = task;
         }
 
-        public boolean isIncomplete() {
-            return state.get() == INCOMPLETE;
+        public TaskState getState() {
+            return state.get();
         }
 
         @Override
@@ -325,7 +333,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(updates.tasks().get(0), times(0)).execute(any());
         verify(updates.tasks().get(1), times(1)).execute(any());
 
-        assertEquals(List.of(), updates.incompleteTasks());
+        assertTaskStates(updates, SUCCEEDED, SUCCEEDED);
     }
 
     public void testBatchLastSuccessfulUpdateIsApplied() throws Exception {
@@ -344,12 +352,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         assertThat("State should be the last successful state", newState, sameInstance(updates.states().get(1)));
 
+        assertTaskStates(updates, SUCCEEDED, SUCCEEDED, FAILED);
+
         // Only process the final task; the intermediate ones can be skipped
         verify(updates.tasks().get(2), times(1)).execute(any()); // Tried the last one, it failed
         verify(updates.tasks().get(1), times(1)).execute(any()); // Tried the second-last one, it succeeded
         verify(updates.tasks().get(0), times(0)).execute(any()); // Didn't bother trying the first one
-
-        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     public void testBatchHigherVersionEarlierWins() throws Exception {
@@ -362,11 +370,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         assertThat("State should be the highest-versioned state", newState, sameInstance(updates.states().get(1)));
 
+        assertTaskStates(updates, SUCCEEDED, SUCCEEDED, SUCCEEDED);
+
         verify(updates.tasks().get(0), times(0)).execute(any());
         verify(updates.tasks().get(1), times(1)).execute(any());
-        verify(updates.tasks().get(2), times(0)).execute(any());
-
-        assertEquals(List.of(), updates.incompleteTasks());
+        verify(updates.tasks().get(2), times(0)).execute(any()); // Prior task had higher version
     }
 
     public void testBatchEqualVersionEarlierWins() throws Exception {
@@ -379,12 +387,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         assertThat("State should be the first instance of the highest-versioned state", newState, sameInstance(updates.states().get(0)));
 
+        assertTaskStates(updates, SUCCEEDED, SUCCEEDED, SUCCEEDED);
+
         // Only process the highest-version task; the others can be skipped
         verify(updates.tasks().get(0), times(1)).execute(any());
-        verify(updates.tasks().get(1), times(0)).execute(any());
+        verify(updates.tasks().get(1), times(0)).execute(any()); // Prior task already had the same version
         verify(updates.tasks().get(2), times(0)).execute(any());
-
-        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     public void testBatchEqualVersionLaterWins() throws Exception {
@@ -396,12 +404,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         assertThat("State should be the last instance of the highest-versioned state", newState, sameInstance(updates.states().get(1)));
 
+        assertTaskStates(updates, SUCCEEDED, SUCCEEDED, SUCCEEDED);
+
         // Only process the highest-version task; the others can be skipped
-        verify(updates.tasks().get(0), times(0)).execute(any());
+        verify(updates.tasks().get(0), times(0)).execute(any()); // Next task has same version and uses higherOrSame
         verify(updates.tasks().get(1), times(1)).execute(any());
         verify(updates.tasks().get(2), times(0)).execute(any());
-
-        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     record MockUpdateSpec(long version, ReservedStateVersionCheck check){
@@ -419,9 +427,6 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
      * @param states the corresponding states returned by {@link #tasks}
      */
     record MockUpdateSequence(List<TestTaskContext<ReservedStateUpdateTask>> contexts, List<ReservedStateUpdateTask> tasks, List<ClusterState> states) {
-        public List<TestTaskContext<ReservedStateUpdateTask>> incompleteTasks() {
-            return contexts.stream().filter(TestTaskContext::isIncomplete).toList();
-        }
     }
 
     private MockUpdateSequence mockUpdateSequence(ClusterName clusterName, List<MockUpdateSpec> specs) {
@@ -445,6 +450,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             states.add(state);
         }
         return new MockUpdateSequence(tasks.stream().map(TestTaskContext::new).toList(), tasks, states);
+    }
+
+    private void assertTaskStates(MockUpdateSequence updates, TaskState... stateSequence) {
+        assertEquals(List.of(stateSequence), updates.contexts().stream().map(TestTaskContext::getState).toList());
     }
 
     public void testUpdateErrorState() {

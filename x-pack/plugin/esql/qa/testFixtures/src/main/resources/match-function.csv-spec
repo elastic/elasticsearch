@@ -254,3 +254,17 @@ from semantic_text
 result:long
 1
 ;
+
+testMatchWithSemanticTextAndKql
+required_capability: match_function
+required_capability: semantic_text_type
+required_capability: kql_function
+
+from semantic_text
+| where kql("host:host1") AND match(semantic_text_field, "something")
+| KEEP host, semantic_text_field
+;
+
+host:keyword | semantic_text_field
+"host1"      | live long and prosper
+;

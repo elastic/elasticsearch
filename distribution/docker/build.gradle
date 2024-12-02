@@ -21,17 +21,17 @@ apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.repositories'
 
-// Setup FIPS image jdk
-project.jdks {
-  ['x64', 'aarch64'].each { architecture ->
-    "fips_linux_${architecture}" {
-      it.platform = "linux"
-      it.version = VersionProperties.bundledJdkVersion
-      it.vendor = VersionProperties.bundledJdkVendor
-      it.architecture = architecture
-    }
-  }
-}
+//// Setup FIPS image jdk
+//project.jdks {
+//  ['x64', 'aarch64'].each { architecture ->
+//    "fips_linux_${architecture}" {
+//      it.platform = "linux"
+//      it.version = "17.0.12"
+//      it.vendor = VersionProperties.bundledJdkVendor
+//      it.architecture = architecture
+//    }
+//  }
+//}
 
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
@@ -125,8 +125,10 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
-  fips "org.bouncycastle:bcpg-fips:1.0.7.1"
-  fips "org.bouncycastle:bc-fips:1.0.2.4"
+//  fips "org.bouncycastle:bcpg-fips:1.0.7.1"
+//  fips "org.bouncycastle:bc-fips:1.0.2.4"
+  fips "org.bouncycastle:bcprov-jdk18on:1.78.1"
+
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -467,7 +469,7 @@ void addBuildFipsDockerImageTasks(Architecture architecture) {
           from tasks.named('fipsResources')
         }
         into('jdk') {
-          from(jdks."fips_linux_${architecture.toString().toLowerCase()}")
+//          from(files("jdk-17.0.12"))
           eachFile { FileCopyDetails details ->
             if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
               details.permissions {

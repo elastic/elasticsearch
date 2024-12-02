@@ -6,7 +6,7 @@
 
 The {stack} is composed of many moving parts. There are the {es}
 nodes that form the cluster, plus {ls} instances, {kib} instances, {beats}
-agents, and clients all communicating with the cluster. To keep your cluster
+agents, Elastic Agents, and clients all communicating with the cluster. To keep your cluster
 safe, adhere to the <<es-security-principles,{es} security principles>>.
 
 The first principle is to run {es} with security enabled. Configuring security

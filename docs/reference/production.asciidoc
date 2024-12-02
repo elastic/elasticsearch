@@ -63,16 +63,18 @@ Refer to the documentation for each deployment method for detailed information a
 [discrete]
 == Cluster or deployment design
 
-{es} is built to be always available and to scale with your needs. It does this using a distributed architecture. By distributing your cluster, you can keep Elastic online and responsive to requests.
+{es} is built to be always available and to scale with your needs. It does this using a distributed architecture. By distributing your cluster, you can keep Elastic online and responsive to requests. Consider the following elements when you design your cluster or deployment.
 
 [discrete]
 === Where to start
 
 Many {es} options come with different performance considerations and trade-offs. The best way to determine the
-optimal configuration for your use case is through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[testing with your own data and queries]. When you understand the shape and size of your data, as well as your use case, you can make informed decisions about how to configure your cluster.
+optimal configuration for your use case is through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[testing with your own data and queries]. When you understand the shape and size of your data, as well as your use case, you can make informed decisions about how to configure your cluster. 
+
+After you understand your data, use case, and organizational priorities, you can review the guidelines in our <<how-to,Optimizations>> topics to learn how to tune your cluster to meet your needs.
 
 [discrete]
-=== Your data retention strategy
+=== Data retention strategy
 
 include::{es-ref-dir}/lifecycle-options.asciidoc[]
 
@@ -81,11 +83,9 @@ You should determine how long you need to retain your data and how you will mana
 something about when to use which one?
 
 [discrete]
-=== Nodes and shards
+=== Node and shard configuration
 
-When you move to production, you need to introduce multiple nodes and shards to your cluster. Nodes and shards are what make Elasticsearch distributed and scalable.
-
-The number of these nodes and shards depends on your data, your use case, and your budget. See <<how-to,Optimizations>> for more information.
+When you move to production, you need to introduce multiple nodes and shards to your cluster. Nodes and shards are what make Elasticsearch distributed and scalable. The size and number of these nodes and shards depends on your data, your use case, and your budget. 
 
 The way that you manage your nodes and shards depends on your deployment method:
 
@@ -111,7 +111,7 @@ include::{es-ref-dir}/high-availability-overview.asciidoc[]
 // each of these topics needs to be reviewed to mark elements related/unrelated to each deployment type
 
 [discrete]
-=== Optimize your cluster for your use case
+=== Tuning your cluster
 
 {es} offers many options that allow you to configure your cluster to meet your organization's goals, requirements, and restrictions. Review these guidelines to learn how to tune your cluster to meet your needs. These guidelines cover elements from hardware provision to query optimization.
 
@@ -126,38 +126,73 @@ include::{es-ref-dir}/high-availability-overview.asciidoc[]
 [discrete]
 == Security
 
-The {stack} is composed of many moving parts. There are the {es} nodes that form the cluster, plus {ls} instances, {kib} instances, {beats} agents, and clients all communicating with the cluster. In the case of *Elastic Cloud Hosted*, *Elastic Cloud Enterprise*, or *Elastic Cloud Serverless* deployments, you also need to consider the security of the Elastic Cloud instance.
+The {stack} is composed of many moving parts. There are the {es} nodes that form the cluster, plus {ls} instances, {kib} instances, {beats} agents, Elastic Agents, and clients all communicating with the cluster. 
 
+In the case of *Elastic Cloud Hosted*, *Elastic Cloud Enterprise*, or *Elastic Cloud Serverless* deployments, you also need to consider the security of the Elastic Cloud installation or organization. You also can optionally manage deployment-level user roles from the Cloud UI.
 
+Security comprises the following concerns: 
 
-Review the following topics
+* *Preventing unauthorized access* with password protection, role-based access control, and IP filtering.
+* *Preserving the integrity of your data* with SSL/TLS encryption.
+* *Maintaining an audit trail* so you know who's doing what to your cluster and the data it stores.
 
-```
-ECE
-https://www.elastic.co/guide/en/cloud-enterprise/current/ece-securing-ece.html
-https://www.elastic.co/guide/en/cloud-enterprise/current/ece-securing-clusters.html 
-Elastic Cloud Enterprise supports most of the security features that are part of the Elastic Stack
+The technologies and methods that you can use to address these concerns are different depending on your deployment method.
 
-ESS
-https://www.elastic.co/guide/en/cloud/current/ec-security.html
-https://www.elastic.co/guide/en/cloud/current/ec-organizations.html 
+Review the following topics to design your security strategy: 
 
-SERVERLESS
-https://www.elastic.co/guide/en/cloud/current/ec-organizations.html
-https://www.elastic.co/guide/en/serverless/current/custom-roles.html
+[discrete]
+=== Cluster and deployment security
 
-ECK
-https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-securing-stack.html
-https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-fips.html
-```
+[cols="1,1,1,1",options="header"]
+|===
+| Deployment method | Documentation
 
-Enabling security protects {es} clusters by:
+| {serverless-docs}/intro.html[*Elastic Cloud Serverless*]
+| {serverless-docs}/general-manage-organization.html[Manage users and roles]<br>{cloud}/ec-saml-sso.html[Configure Elastic Cloud SAML single sign-on]<br>{serverless-docs}/custom-roles.html[Custom roles]
+// need to figure out if anything in https://www.elastic.co/guide/en/elasticsearch/reference/current/secure-cluster.html applies
+// suspect they have access to anything they can configure through kibana
 
-* <<preventing-unauthorized-access, Preventing unauthorized access>> with password protection, role-based access control, and IP filtering.
-* <<preserving-data-integrity, Preserving the integrity of your data>> with SSL/TLS encryption.
-* <<maintaining-audit-trail, Maintaining an audit trail>> so you know who's doing what to your cluster and the data it stores.
+| {cloud}/ec-getting-started-trial.html[*Elastic Cloud Hosted*]
+| {cloud}/ec-security.html[Securing your deployment]<br>{cloud}/ec-organizations.html[Managing your organization]
 
-<<secure-cluster,Learn about securing an Elasticsearch cluster>>. 
+| *Elasticsearch Add-On for Heroku*
+| https://www.elastic.co/guide/en/cloud-heroku/current/ech-security.html[Securing your deployment]
+
+| {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]
+| https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-securing-stack.html
+
+| {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]
+| {ece-ref}/ece-security.html[Secure your clusters]
+
+| *<<elasticsearch-deployment-options,Manual on-premise>>*
+| 
+|===
+
+[discrete]
+=== Cloud layer security
+
+These pages provide information about securing your Elastic Cloud Enterprise installation or Elastic Cloud organization, as well as managing access to deployments from the Cloud UI.
+
+[cols="1,1,1,1",options="header"]
+|===
+| Deployment method | Documentation
+
+| {cloud}/ec-getting-started-trial.html[*Elastic Cloud Hosted*]
+| {cloud}/ec-organizations.html[Managing your organization]
+
+| {serverless-docs}/intro.html[*Elastic Cloud Serverless*]
+| {serverless-docs}/general-manage-organization.html[Manage users and roles]<br>{cloud}/ec-saml-sso.html[Configure Elastic Cloud SAML single sign-on]
+
+| {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]
+| {ece-ref}/ece-security.html[Securing your installation]
+
+|===
+
+[discrete]
+=== Security for additional components
+
+<<security-clients-integrations,Securing clients and integrations>>
+
 
 [discrete]
 == Monitoring

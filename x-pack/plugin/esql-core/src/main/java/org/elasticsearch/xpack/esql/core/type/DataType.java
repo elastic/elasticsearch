@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  * {@link DataType#LONG}, numeric types which we promote early in the
  * processing pipeline (e.g. {@link DataType#SHORT}),  types for internal use
  * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
- * doesn't support but require special handling anyway (e.g.
+ * doesn't support, but require special handling anyway (e.g.
  * {@link DataType#OBJECT})
  *
  * <h2>Process for adding a new data type</h2>
@@ -47,15 +47,15 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  * appropriate. New data types are complex, and smaller PRs will make reviews
  * easier.
  * <ul>
- *     <li>Create a new feature flag for the type in {@link EsqlCorePlugin}.  We
+ *     <li>Create a new feature flag for the type in {@link EsqlCorePlugin}. We
  *     recommend developing the data type over a series of smaller PRs behind
- *     a feature flag. even for relatively simple data types.</li>
+ *     a feature flag; even for relatively simple data types.</li>
  *     <li>Add a capability to EsqlCapabilities related to the new type, and
- *     gated by the feature flag you just created.  Again, using the feature
- *     flag is preferred over snapshot-only.  As development progresses, you may
+ *     gated by the feature flag you just created. Again, using the feature
+ *     flag is preferred over snapshot-only. As development progresses, you may
  *     need to add more capabilities related to the new type, e.g. for
- *     supporting specific functions.  This is fine, and expected.</li>
- *     <li>Create a new CSV test file for the new type.  Depending on the type,
+ *     supporting specific functions. This is fine, and expected.</li>
+ *     <li>Create a new CSV test file for the new type. Depending on the type,
  *     you may also need to create a new sample data file if none of the
  *     existing sample data files have fields of that type. See
  *     CsvTestDataLoader for creating a new data set.</li>
@@ -64,12 +64,12 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *     and from the ROW command.  It should also include functions that support
  *     "every" type, such as MvFirst.</li>
  *     <li>Add the new type to the CsvTestUtils#Type enum, if it isn't already
- *     there.  You may also need to modify CsvAssert to support reading values
+ *     there. You may also need to modify CsvAssert to support reading values
  *     of the new type.</li>
  *     <li>At this point, the CSV tests should fail with a sensible ES|QL error
  *     message. Make sure they're failing in ES|QL, not in the test
  *     framework.</li>
- *     <li>Add the new data type to this enum.  This will cause a bunch of
+ *     <li>Add the new data type to this enum. This will cause a bunch of
  *     compile errors for switch statements throughout the code.  Resolve those
  *     as appropriate. That is the main way in which the new type will be tied
  *     into the framework.</li>
@@ -79,9 +79,9 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *     generate a lot of noise while the type is still in development.</li>
  *     <li>Add typed data generators to TestCaseSupplier, and make sure all
  *     functions that support the new type have tests for it.</li>
- *     <li>Work to support things all types should do.  Equality and the
+ *     <li>Work to support things all types should do. Equality and the
  *     "typeless" MV functions (MvFirst, MvLast, and MvCount) should work for
- *     most types.  If the type has a natural ordering, make sure to test
+ *     most types. If the type has a natural ordering, make sure to test
  *     sorting and the other binary comparisons. Make sure these functions all
  *     have CSV tests that run against indexed data.</li>
  *     <li>Add conversion functions as appropriate.  Almost all types should
@@ -99,7 +99,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *     if the new type is numeric, it may be good for it to be comparable with
  *     other numbers. Supporting this may require new logic in
  *     EsqlDataTypeConverter#commonType, individual function type checking, the
- *     verifier rules, or other places.  We suggesst starting with CSV tests and
+ *     verifier rules, or other places. We suggesst starting with CSV tests and
  *     seeing where they fail.</li>
  * </ul>
  * There are some additional steps that should be taken when removing the

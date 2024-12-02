@@ -49,9 +49,4 @@ public record OpenAiChatCompletionRequestTaskSettings(@Nullable String user) {
 
         return new OpenAiChatCompletionRequestTaskSettings(user);
     }
-
-    public static OpenAiChatCompletionRequestTaskSettings fromUnifiedRequest(UnifiedCompletionRequest request) {
-        return new OpenAiChatCompletionRequestTaskSettings(request.user());
-    }
-
 }

@@ -19,7 +19,7 @@ public class InferenceInputsTests extends ESTestCase {
         InferenceInputs inputs = new DocumentsOnlyInput(List.of(), false);
         assertThat(inputs.castTo(DocumentsOnlyInput.class), Matchers.instanceOf(DocumentsOnlyInput.class));
 
-        var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null, null, null);
+        var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null);
         assertThat(new UnifiedChatInput(emptyRequest, false).castTo(UnifiedChatInput.class), Matchers.instanceOf(UnifiedChatInput.class));
         assertThat(
             new QueryAndDocsInputs("hello", List.of(), false).castTo(QueryAndDocsInputs.class),

@@ -50,7 +50,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                   }
                 ],
                 "max_completion_tokens": 100,
-                "n": 1,
                 "stop": ["stop"],
                 "temperature": 0.1,
                 "tools": [
@@ -71,8 +70,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                     "name": "some function"
                   }
                 },
-                "top_p": 0.2,
-                "user": "user"
+                "top_p": 0.2
             }
             """;
 
@@ -98,7 +96,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ),
                 "gpt-4o",
                 100L,
-                1,
                 new UnifiedCompletionRequest.StopValues(List.of("stop")),
                 0.1F,
                 new UnifiedCompletionRequest.ToolChoiceObject(
@@ -116,8 +113,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                         )
                     )
                 ),
-                0.2F,
-                "user"
+                0.2F
             );
 
             assertThat(request, is(expected));
@@ -165,7 +161,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ),
                 "gpt-4o",
                 null,
-                null,
                 new UnifiedCompletionRequest.StopString("none"),
                 null,
                 new UnifiedCompletionRequest.ToolChoiceString("auto"),
@@ -180,7 +175,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                         )
                     )
                 ),
-                null,
                 null
             );
 
@@ -191,15 +185,13 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     public static UnifiedCompletionRequest randomUnifiedCompletionRequest() {
         return new UnifiedCompletionRequest(
             randomList(5, UnifiedCompletionRequestTests::randomMessage),
-            randomNullOrAlphaOfLength(10),
-            randomNullOrPositiveLong(),
-            randomNullOrPositiveInt(),
-            randomNullOrStop(),
-            randomNullOrFloat(),
-            randomNullOrToolChoice(),
-            randomList(5, UnifiedCompletionRequestTests::randomTool),
-            randomNullOrFloat(),
-            randomNullOrAlphaOfLength(10)
+            randomAlphaOfLengthOrNull(10),
+            randomPositiveLongOrNull(),
+             randomStopOrNull(),
+            randomFloatOrNull(),
+            randomToolChoiceOrNull(),
+            randomToolListOrNull(),
+            randomFloatOrNull()
         );
     }
 
@@ -207,9 +199,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest.Message(
             randomContent(),
             randomAlphaOfLength(10),
-            randomNullOrAlphaOfLength(10),
-            randomNullOrAlphaOfLength(10),
-            randomList(10, UnifiedCompletionRequestTests::randomToolCall)
+            randomAlphaOfLengthOrNull(10),
+            randomAlphaOfLengthOrNull(10),
+            randomToolCallListOrNull()
         );
     }
 
@@ -223,6 +215,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest.ContentObject(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
+    public static List<UnifiedCompletionRequest.ToolCall> randomToolCallListOrNull() {
+        return randomBoolean() ? randomList(10, UnifiedCompletionRequestTests::randomToolCall) : null;
+    }
+
     public static UnifiedCompletionRequest.ToolCall randomToolCall() {
         return new UnifiedCompletionRequest.ToolCall(randomAlphaOfLength(10), randomToolCallFunctionField(), randomAlphaOfLength(10));
     }
@@ -231,7 +227,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest.ToolCall.FunctionField(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
-    public static UnifiedCompletionRequest.Stop randomNullOrStop() {
+    public static UnifiedCompletionRequest.Stop randomStopOrNull() {
         return randomBoolean() ? randomStop() : null;
     }
 
@@ -241,7 +237,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             : new UnifiedCompletionRequest.StopValues(randomList(5, () -> randomAlphaOfLength(10)));
     }
 
-    public static UnifiedCompletionRequest.ToolChoice randomNullOrToolChoice() {
+    public static UnifiedCompletionRequest.ToolChoice randomToolChoiceOrNull() {
         return randomBoolean() ? randomToolChoice() : null;
     }
 
@@ -255,13 +251,17 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest.ToolChoiceObject.FunctionField(randomAlphaOfLength(10));
     }
 
+    public static List<UnifiedCompletionRequest.Tool> randomToolListOrNull() {
+        return randomBoolean() ? randomList(10, UnifiedCompletionRequestTests::randomTool) : null;
+    }
+
     public static UnifiedCompletionRequest.Tool randomTool() {
         return new UnifiedCompletionRequest.Tool(randomAlphaOfLength(10), randomToolFunctionField());
     }
 
     public static UnifiedCompletionRequest.Tool.FunctionField randomToolFunctionField() {
         return new UnifiedCompletionRequest.Tool.FunctionField(
-            randomNullOrAlphaOfLength(10),
+            randomAlphaOfLengthOrNull(10),
             randomAlphaOfLength(10),
             null,
             randomOptionalBoolean()
@@ -290,9 +290,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        // List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        // entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        // entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
         return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
     }
 }

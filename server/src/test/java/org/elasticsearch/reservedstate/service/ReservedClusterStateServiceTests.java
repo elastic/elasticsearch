@@ -287,15 +287,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
         ReservedStateUpdateTask task = spy(
-            new ReservedStateUpdateTask(
-                "test",
-                null,
-                HIGHER_VERSION_ONLY,
-                Map.of(),
-                Set.of(),
-                errorState -> {},
-                ActionListener.noop()
-            )
+            new ReservedStateUpdateTask("test", null, HIGHER_VERSION_ONLY, Map.of(), Set.of(), errorState -> {}, ActionListener.noop())
         );
 
         doReturn(state).when(task).execute(any());
@@ -412,7 +404,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(updates.tasks().get(2), times(0)).execute(any());
     }
 
-    record MockUpdateSpec(long version, ReservedStateVersionCheck check){
+    record MockUpdateSpec(long version, ReservedStateVersionCheck check) {
         public static MockUpdateSpec higher(long version) {
             return new MockUpdateSpec(version, HIGHER_VERSION_ONLY);
         }
@@ -426,8 +418,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
      * @param tasks Mockito spies configured to return a specific state
      * @param states the corresponding states returned by {@link #tasks}
      */
-    record MockUpdateSequence(List<TestTaskContext<ReservedStateUpdateTask>> contexts, List<ReservedStateUpdateTask> tasks, List<ClusterState> states) {
-    }
+    record MockUpdateSequence(
+        List<TestTaskContext<ReservedStateUpdateTask>> contexts,
+        List<ReservedStateUpdateTask> tasks,
+        List<ClusterState> states
+    ) {}
 
     private MockUpdateSequence mockUpdateSequence(ClusterName clusterName, List<MockUpdateSpec> specs) {
         List<ReservedStateUpdateTask> tasks = new ArrayList<>(specs.size());

@@ -223,14 +223,11 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
     @Override
     public String toString() {
-        return "ReservedStateUpdateTask{" +
-            "namespace='" + namespace + '\'' +
-            ", metadata=" + stateChunk.metadata() +
-            '}';
+        return "ReservedStateUpdateTask{" + "namespace='" + namespace + '\'' + ", metadata=" + stateChunk.metadata() + '}';
     }
 
     /**
      * x &lt; y if x.{@linkplain #supersedes}(y)
      */
-    public static final Comparator<ReservedStateUpdateTask> SUPERSEDING_FIRST = (x,y) -> x.supersedes(y) ? -1 : y.supersedes(x)? 1 : 0;
+    public static final Comparator<ReservedStateUpdateTask> SUPERSEDING_FIRST = (x, y) -> x.supersedes(y) ? -1 : y.supersedes(x) ? 1 : 0;
 }

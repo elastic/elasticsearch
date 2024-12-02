@@ -60,7 +60,7 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
 
         var candidates = new ArrayList<>(taskContexts);
         candidates.sort(comparing(TaskContext::getTask, SUPERSEDING_FIRST));
-        for (var iter = candidates.iterator(); iter.hasNext(); ) {
+        for (var iter = candidates.iterator(); iter.hasNext();) {
             TaskContext<ReservedStateUpdateTask> taskContext = iter.next();
             logger.info("Effective task: {}", taskContext.getTask());
             ClusterState clusterState = initState;

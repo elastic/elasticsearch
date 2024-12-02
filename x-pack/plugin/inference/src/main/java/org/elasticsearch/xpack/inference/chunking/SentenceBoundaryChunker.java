@@ -66,6 +66,10 @@ public class SentenceBoundaryChunker implements Chunker {
      * @return The input text chunked
      */
     public List<String> chunk(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
+        if (input.isEmpty()) {
+            return List.of("");
+        }
+
         var chunks = new ArrayList<String>();
 
         sentenceIterator.setText(input);

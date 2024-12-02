@@ -37,7 +37,7 @@ public final class SourceFieldBlockLoader implements BlockLoader {
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(true, false, Set.of());
+        return new StoredFieldsSpec(true, false, Set.of(), false);
     }
 
     @Override

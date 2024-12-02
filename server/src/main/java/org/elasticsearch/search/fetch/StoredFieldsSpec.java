@@ -18,8 +18,9 @@ import java.util.function.Function;
  * Defines which stored fields need to be loaded during a fetch
  * @param requiresSource        should source be loaded
  * @param requiredStoredFields  a set of stored fields to load
+ * @param hasScript             Whether scripts or runtime fields are used
  */
-public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
+public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields, boolean hasScript) {
 
     public boolean noRequirements() {
         return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty();
@@ -28,12 +29,17 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
     /**
      * Use when no stored fields are required
      */
-    public static final StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of());
+    public static final StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of(), false);
+
+    /**
+     * Use when scripts / runtime fields are used and no stored fields are required
+     */
+    public static final StoredFieldsSpec SCRIPT_NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of(), true);
 
     /**
      * Use when the source should be loaded but no other stored fields are required
      */
-    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
+    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of(), false);
 
     /**
      * Combine these stored field requirements with those from another StoredFieldsSpec
@@ -47,7 +53,8 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,
             this.requiresMetadata || other.requiresMetadata,
-            mergedFields
+            mergedFields,
+            this.hasScript || other.hasScript
         );
     }
 

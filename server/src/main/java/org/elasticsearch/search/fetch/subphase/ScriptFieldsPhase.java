@@ -46,7 +46,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                 // which has its own lazy loading config that kicks in if not overridden
                 // by other sub phases that require source. However, if script fields
                 // are present then we enforce metadata loading
-                return new StoredFieldsSpec(false, true, Set.of());
+                return new StoredFieldsSpec(false, true, Set.of(), false);
             }
 
             @Override

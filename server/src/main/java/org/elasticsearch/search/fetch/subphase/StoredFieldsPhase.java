@@ -82,7 +82,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                 }
             }
         }
-        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(false, true, fieldsToLoad);
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(false, true, fieldsToLoad, false);
 
         return new FetchSubPhaseProcessor() {
             @Override

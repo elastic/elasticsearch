@@ -36,7 +36,7 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    static class RowStrideLongScriptBlockLoader extends RowStrideOnlyDocValuesBlockLoader {
+    static class RowStrideLongScriptBlockLoader extends AbstractScriptBlockLoader {
         private final LongFieldScript.LeafFactory factory;
 
         RowStrideLongScriptBlockLoader(LongFieldScript.LeafFactory factory) {

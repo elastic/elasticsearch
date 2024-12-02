@@ -154,7 +154,7 @@ public class HighlightPhase implements FetchSubPhase {
                     )
                 );
             }
-            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
+            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields, false));
         }
         return new FieldContext(storedFieldsSpec, builders);
     }

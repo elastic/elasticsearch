@@ -82,7 +82,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public abstract static class RowStrideOnlyDocValuesBlockLoader implements BlockLoader {
+    /**
+     * Base class for block loader that loads in row oriented fashion only and leaves stored field loading
+     * to scripting infrastructure.
+     */
+    public abstract static class AbstractScriptBlockLoader implements BlockLoader {
 
         @Override
         public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
@@ -101,7 +105,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
+            return StoredFieldsSpec.SCRIPT_NO_REQUIREMENTS;
         }
     }
 

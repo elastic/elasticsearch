@@ -44,7 +44,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
-        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource(innerHits.values()), false, Set.of());
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource(innerHits.values()), false, Set.of(), false);
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {

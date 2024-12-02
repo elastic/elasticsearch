@@ -22,9 +22,7 @@ public class UnifiedChatInput extends InferenceInputs {
     }
 
     public UnifiedChatInput(ChatCompletionInput completionInput, String roleValue) {
-        this(
-            completionInput.getInputs(), roleValue, completionInput.stream()
-        );
+        this(completionInput.getInputs(), roleValue, completionInput.stream());
     }
 
     public UnifiedChatInput(List<String> inputs, String roleValue, boolean stream) {
@@ -33,7 +31,15 @@ public class UnifiedChatInput extends InferenceInputs {
 
     private static List<UnifiedCompletionRequest.Message> convertToMessages(List<String> inputs, String roleValue) {
         return inputs.stream()
-            .map(value -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(value), roleValue, null, null, null))
+            .map(
+                value -> new UnifiedCompletionRequest.Message(
+                    new UnifiedCompletionRequest.ContentString(value),
+                    roleValue,
+                    null,
+                    null,
+                    null
+                )
+            )
             .toList();
     }
 

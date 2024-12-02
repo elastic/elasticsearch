@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 
 import java.util.Map;
 

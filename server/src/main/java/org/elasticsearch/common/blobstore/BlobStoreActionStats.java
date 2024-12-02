@@ -25,7 +25,7 @@ import java.io.IOException;
  */
 public record BlobStoreActionStats(long operations, long requests) implements Writeable, ToXContentObject {
 
-    public static BlobStoreActionStats ZERO = new BlobStoreActionStats(0, 0);
+    public static final BlobStoreActionStats ZERO = new BlobStoreActionStats(0, 0);
 
     public BlobStoreActionStats(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong());

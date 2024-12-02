@@ -32,8 +32,8 @@ public record BlobStoreActionStats(long operations, long requests) implements Wr
     }
 
     public BlobStoreActionStats {
-        assert operations >= 0 && requests >= 0;
-        assert requests >= operations;
+        assert operations >= 0 && requests >= 0 : "Requests (" + requests + ") and operations (" + operations + ") must be non-negative";
+        assert requests >= operations : "Requests (" + requests + ") must be >= operations (" + operations + ")";
     }
 
     @Override

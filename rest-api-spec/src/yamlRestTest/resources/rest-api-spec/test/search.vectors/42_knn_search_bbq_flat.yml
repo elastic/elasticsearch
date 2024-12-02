@@ -88,6 +88,13 @@ setup:
   - match: { hits.hits.2._id: "1" }
 ---
 "Vector rescoring has similar ordering as knn, same scoring as exact search for kNN section":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore]
   - skip:
       features: "headers"
   - do:
@@ -147,6 +154,7 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: bbq_flat
         body:
           query:
             script_score:

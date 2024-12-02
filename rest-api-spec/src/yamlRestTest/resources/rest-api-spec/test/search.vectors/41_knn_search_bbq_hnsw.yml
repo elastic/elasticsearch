@@ -89,6 +89,13 @@ setup:
 
 ---
 "Vector rescoring has similar ordering as knn, same scoring as exact search for kNN section":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore]
   - skip:
       features: "headers"
   - do:

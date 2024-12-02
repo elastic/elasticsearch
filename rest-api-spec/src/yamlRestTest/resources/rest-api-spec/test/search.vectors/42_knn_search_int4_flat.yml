@@ -346,6 +346,13 @@ setup:
           vector: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 ---
 "Vector rescoring has same ordering as knn, same scoring as exact search for kNN section":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore]
   - skip:
       features: "headers"
   - do:

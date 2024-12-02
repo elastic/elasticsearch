@@ -372,9 +372,15 @@ setup:
 ---
 # Won't be true for larger datasets, but this helps checking kNN vs rescoring vs exact search
 "Vector rescoring has same ordering as knn, same scoring as exact search for kNN section":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore]
   - skip:
       features: "headers"
-
   # kNN search
   - do:
       headers:

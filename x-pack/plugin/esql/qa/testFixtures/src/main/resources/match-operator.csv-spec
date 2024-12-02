@@ -285,6 +285,6 @@ from semantic_text
 | KEEP host, semantic_text_field
 ;
 
-host:keyword | semantic_text_field
+host:keyword | semantic_text_field:semantic_text
 "host1"      | live long and prosper
 ;

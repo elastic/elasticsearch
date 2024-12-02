@@ -54,6 +54,10 @@ public final class TestUtils {
         return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
     }
 
+    public static FieldAttribute fieldAttributeWithType(DataType dataType) {
+        return fieldAttribute(randomAlphaOfLength(10), dataType);
+    }
+
     public static FieldAttribute fieldAttribute(String name, DataType type) {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
     }

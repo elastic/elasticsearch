@@ -13,18 +13,24 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.querydsl.query.SemanticQueryTests;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.TestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
@@ -128,5 +134,41 @@ public class MatchTests extends AbstractFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Match(source, args.get(0), args.get(1));
+    }
+
+    public void testEqualsAndHashCode() {
+        checkEqualsAndHashCode(randomMatch(), MatchTests::copy, MatchTests::mutate);
+    }
+
+    private static Match randomMatch() {
+        Match match = new Match(
+            SourceTests.randomSource(),
+            TestUtils.fieldAttributeWithType(DataType.KEYWORD),
+            TestUtils.of(randomAlphaOfLength(10))
+        );
+        if (randomBoolean()) {
+            return Match.newWithInferenceResults(match, SemanticQueryTests.randomInferenceResults());
+        }
+        return match;
+    }
+
+    private static Match copy(Match m) {
+        return Match.newWithInferenceResults(m, m.inferenceResults());
+    }
+
+    private static Match mutate(Match match) {
+        List<Function<Match, Match>> options = Arrays.asList(
+            q -> Match.newWithInferenceResults(
+                new Match(q.source(), TestUtils.fieldAttributeWithType(DataType.TEXT), q.query()),
+                q.inferenceResults()
+            ),
+            q -> Match.newWithInferenceResults(
+                new Match(q.source(), q.field(), TestUtils.of(randomAlphaOfLength(5))),
+                q.inferenceResults()
+            ),
+            q -> Match.newWithInferenceResults(q, SemanticQueryTests.randomInferenceResults())
+        );
+
+        return randomFrom(options).apply(match);
     }
 }

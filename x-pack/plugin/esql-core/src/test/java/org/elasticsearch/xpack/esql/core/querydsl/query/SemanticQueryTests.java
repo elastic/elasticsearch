@@ -112,7 +112,7 @@ public class SemanticQueryTests extends ESTestCase {
         assertEquals("SemanticQuery@1:2[title:foo]", semanticQuery.toString());
     }
 
-    private static InferenceResults randomInferenceResults() {
+    public static InferenceResults randomInferenceResults() {
         if (randomBoolean()) {
             return randomTextExpansionResults();
         }

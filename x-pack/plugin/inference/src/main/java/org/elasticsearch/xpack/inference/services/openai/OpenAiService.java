@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCrea
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.OpenAiUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -278,7 +278,7 @@ public class OpenAiService extends SenderService {
         OpenAiChatCompletionModel openAiModel = (OpenAiChatCompletionModel) model;
 
         var overriddenModel = OpenAiChatCompletionModel.of(openAiModel, inputs.getRequest());
-        var requestCreator = OpenAiCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var requestCreator = OpenAiUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
         var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getServiceSettings().uri(), COMPLETION_ERROR_PREFIX);
         var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
 

@@ -22,6 +22,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -73,8 +74,7 @@ public abstract class SenderService implements InferenceService {
 
     private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
         return switch (model.getTaskType()) {
-            // TODO implement parameters
-            case COMPLETION -> UnifiedChatInput.of(input, stream);
+            case COMPLETION -> new ChatCompletionInput(input, stream);
             case RERANK -> new QueryAndDocsInputs(query, input, stream);
             case TEXT_EMBEDDING -> new DocumentsOnlyInput(input, stream);
             default -> throw new ElasticsearchStatusException(

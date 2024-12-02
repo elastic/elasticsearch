@@ -14,8 +14,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
@@ -23,19 +22,19 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
+public class OpenAiUnifiedCompletionRequestManager extends OpenAiRequestManager {
 
-    private static final Logger logger = LogManager.getLogger(OpenAiCompletionRequestManager.class);
+    private static final Logger logger = LogManager.getLogger(OpenAiUnifiedCompletionRequestManager.class);
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
-    public static OpenAiCompletionRequestManager of(OpenAiChatCompletionModel model, ThreadPool threadPool) {
-        return new OpenAiCompletionRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
+    public static OpenAiUnifiedCompletionRequestManager of(OpenAiChatCompletionModel model, ThreadPool threadPool) {
+        return new OpenAiUnifiedCompletionRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
     }
 
     private final OpenAiChatCompletionModel model;
 
-    private OpenAiCompletionRequestManager(OpenAiChatCompletionModel model, ThreadPool threadPool) {
+    private OpenAiUnifiedCompletionRequestManager(OpenAiChatCompletionModel model, ThreadPool threadPool) {
         super(threadPool, model, OpenAiUnifiedChatCompletionRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
     }
@@ -47,17 +46,16 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var chatCompletionInputs = inferenceInputs.castTo(ChatCompletionInput.class);
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(
-            chatCompletionInputs.getInputs(),
-            model,
-            chatCompletionInputs.stream()
+
+        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(
+            inferenceInputs.castTo(UnifiedChatInput.class),
+            model
         );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 
     private static ResponseHandler createCompletionHandler() {
-        return new OpenAiChatCompletionResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
+        return new OpenAiUnifiedChatCompletionResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
     }
 }

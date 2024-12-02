@@ -24,6 +24,11 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -111,8 +116,6 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
     private static final String DELTA_FIELD = "delta";
     private static final String CONTENT_FIELD = "content";
     private static final String DONE_MESSAGE = "[done]";
-    private static final String REFUSAL_FIELD = "refusal";
-    private static final String TOOL_CALLS_FIELD = "tool_calls";
 
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
@@ -456,6 +459,8 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("type"));
             }
 
+            return parseList(jsonParser, parser -> {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
             public static ChatCompletionChunk.Choice.Delta.ToolCall parse(XContentParser parser) throws IOException {
                 return PARSER.parse(parser, null);
             }

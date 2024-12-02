@@ -262,6 +262,42 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    /**
+     *
+     * Generate cases for {@link DataType#DATE_NANOS}.
+     *
+     */
+    public static List<TypedDataSupplier> dateNanosCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<1970-01-01T00:00:00.000000000Z>", DataType.DATE_NANOS, () -> 0L);
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<date nanos>",
+            DataType.DATE_NANOS,
+            () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11)
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<far future date nanos>",
+            DataType.DATE_NANOS,
+            () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE)
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<nanos near the end of time>",
+            DataType.DATE_NANOS,
+            () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE)
+        );
+
+        return cases;
+    }
+
     public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 

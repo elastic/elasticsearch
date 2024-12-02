@@ -981,7 +981,7 @@ public class ModelLoadingService implements ClusterStateListener {
             return allReferencedModelKeys;
         }
         ingestMetadata.getPipelines().forEach((pipelineId, pipelineConfiguration) -> {
-            Object processors = pipelineConfiguration.getConfigAsMap().get("processors");
+            Object processors = pipelineConfiguration.getConfig().get("processors");
             if (processors instanceof List<?>) {
                 for (Object processor : (List<?>) processors) {
                     if (processor instanceof Map<?, ?>) {

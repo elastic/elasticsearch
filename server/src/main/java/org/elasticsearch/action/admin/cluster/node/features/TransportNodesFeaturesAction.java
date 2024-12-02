@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -27,8 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-@UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-// @UpdateForV10 // this can be removed in v10. It may be called by v8 nodes to v9 nodes.
+@UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // this can be removed in v10. It may be called by v8 nodes to v9 nodes.
 public class TransportNodesFeaturesAction extends TransportNodesAction<
     NodesFeaturesRequest,
     NodesFeaturesResponse,

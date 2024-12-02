@@ -26,6 +26,24 @@
       "params" : [
         {
           "name" : "interval",
+          "type" : "date_period",
+          "optional" : false,
+          "description" : "Interval; expressed using the timespan literal syntax."
+        },
+        {
+          "name" : "date",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Date expression"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "interval",
           "type" : "time_duration",
           "optional" : false,
           "description" : "Interval; expressed using the timespan literal syntax."
@@ -39,6 +57,24 @@
       ],
       "variadic" : false,
       "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "interval",
+          "type" : "time_duration",
+          "optional" : false,
+          "description" : "Interval; expressed using the timespan literal syntax."
+        },
+        {
+          "name" : "date",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Date expression"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
     }
   ],
   "examples" : [

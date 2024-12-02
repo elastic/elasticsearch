@@ -56,7 +56,7 @@ public class ApiKeyBaseRestHandlerTests extends ESTestCase {
             }
         };
         final var fakeRestRequest = new FakeRestRequest();
-        final var fakeRestChannel = new FakeRestChannel(fakeRestRequest, true, requiredSettingsEnabled ? 0 : 1);
+        final var fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), requiredSettingsEnabled ? 0 : 1);
 
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);

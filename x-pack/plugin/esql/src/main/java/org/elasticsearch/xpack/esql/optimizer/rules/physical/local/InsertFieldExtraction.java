@@ -12,15 +12,18 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,11 +59,17 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
              * make sure the fields are loaded for the standard hash aggregator.
              */
             if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
-                var leaves = new LinkedList<>();
-                // TODO: this seems out of place
-                agg.aggregates().stream().filter(a -> agg.groupings().contains(a) == false).forEach(a -> leaves.addAll(a.collectLeaves()));
-                var remove = agg.groupings().stream().filter(g -> leaves.contains(g) == false).toList();
-                missing.removeAll(Expressions.references(remove));
+                // CATEGORIZE requires the standard hash aggregator as well.
+                if (agg.groupings().get(0).anyMatch(e -> e instanceof Categorize) == false) {
+                    var leaves = new LinkedList<>();
+                    // TODO: this seems out of place
+                    agg.aggregates()
+                        .stream()
+                        .filter(a -> agg.groupings().contains(a) == false)
+                        .forEach(a -> leaves.addAll(a.collectLeaves()));
+                    var remove = agg.groupings().stream().filter(g -> leaves.contains(g) == false).toList();
+                    missing.removeAll(Expressions.references(remove));
+                }
             }
 
             // add extractor
@@ -93,9 +102,17 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
     private static Set<Attribute> missingAttributes(PhysicalPlan p) {
         var missing = new LinkedHashSet<Attribute>();
-        var input = p.inputSet();
+        var inputSet = p.inputSet();
 
+        // TODO: We need to extract whatever fields are missing from the left hand side.
+        // skip the lookup join since the right side is always materialized and a projection
+        if (p instanceof LookupJoinExec join) {
+            return Collections.emptySet();
+        }
+
+        var input = inputSet;
         // collect field attributes used inside expressions
+        // TODO: Rather than going over all expressions manually, this should just call .references()
         p.forEachExpression(TypedAttribute.class, f -> {
             if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {
                 if (input.contains(f) == false) {

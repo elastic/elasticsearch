@@ -45,7 +45,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public static final String BG_COUNT = "bg_count";
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
-    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             SignificantTerms.Bucket {
         /**
@@ -62,7 +62,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         long supersetSize;
         /**
          * Ordinal of the bucket while it is being built. Not used after it is
-         * returned from {@link Aggregator#buildAggregations(long[])} and not
+         * returned from {@link Aggregator#buildAggregations(org.elasticsearch.common.util.LongArray)} and not
          * serialized.
          */
         transient long bucketOrd;
@@ -157,8 +157,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return Objects.hash(getClass(), aggregations, score, format);
         }
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
@@ -166,7 +165,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             builder.field(BG_COUNT, supersetDf);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;

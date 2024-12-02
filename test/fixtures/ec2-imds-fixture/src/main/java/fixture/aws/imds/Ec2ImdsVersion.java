@@ -7,16 +7,20 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
-
-import java.io.IOException;
-import java.util.Map;
+package fixture.aws.imds;
 
 /**
- * The SPI service entry point for instrumentation.
+ * Represents the IMDS protocol version simulated by the {@link Ec2ImdsHttpHandler}.
  */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods);
+public enum Ec2ImdsVersion {
+    /**
+     * Classic V1 behavior: plain {@code GET} requests, no tokens.
+     */
+    V1,
 
-    Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException, IOException;
+    /**
+     * Newer V2 behavior: {@code GET} requests must include a {@code X-aws-ec2-metadata-token} header providing a token previously obtained
+     * by calling {@code PUT /latest/api/token}.
+     */
+    V2
 }

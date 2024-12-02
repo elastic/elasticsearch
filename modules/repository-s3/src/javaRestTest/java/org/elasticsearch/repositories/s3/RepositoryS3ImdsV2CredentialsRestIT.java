@@ -27,19 +27,19 @@ import java.util.Set;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
-public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
+public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3EcsCredentialsRestIT");
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3ImdsV2CredentialsRestIT");
     private static final String BUCKET = PREFIX + "bucket";
     private static final String BASE_PATH = PREFIX + "base_path";
-    private static final String CLIENT = "ecs_credentials_client";
+    private static final String CLIENT = "imdsv2_credentials_client";
 
     private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        Ec2ImdsVersion.V1,
+        Ec2ImdsVersion.V2,
         dynamicS3Credentials::addValidCredentials,
-        Set.of("/ecs_credentials_endpoint")
+        Set.of()
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicS3Credentials::isAuthorized);
@@ -47,11 +47,11 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .environment("AWS_CONTAINER_CREDENTIALS_FULL_URI", () -> ec2ImdsHttpFixture.getAddress() + "/ecs_credentials_endpoint")
+        .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", ec2ImdsHttpFixture::getAddress)
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(ec2ImdsHttpFixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(ec2ImdsHttpFixture).around(s3Fixture).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

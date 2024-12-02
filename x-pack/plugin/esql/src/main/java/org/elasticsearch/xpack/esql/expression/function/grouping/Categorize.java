@@ -32,12 +32,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  *     This function has no evaluators, as it works like an aggregation (Accumulates values, stores intermediate states, etc).
  * </p>
  * <p>
- *     For the implementation, see:
+ *     For the implementation, see {@link org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash}
  * </p>
- * <ul>
- *     <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizedIntermediateBlockHash}</li>
- *     <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizeRawBlockHash}</li>
- * </ul>
  */
 public class Categorize extends GroupingFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

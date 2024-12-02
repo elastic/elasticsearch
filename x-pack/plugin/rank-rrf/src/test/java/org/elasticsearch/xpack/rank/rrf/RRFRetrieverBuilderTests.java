@@ -54,7 +54,9 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
-                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
+                    .rewrite(
+                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                    )
             );
             assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
@@ -70,7 +72,9 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
-                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
+                    .rewrite(
+                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                    )
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
         }

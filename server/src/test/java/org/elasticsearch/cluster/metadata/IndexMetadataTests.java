@@ -693,8 +693,8 @@ public class IndexMetadataTests extends ESTestCase {
         return new InferenceFieldMetadata(
             name,
             randomIdentifier(),
-            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
-            randomIdentifier()
+            randomIdentifier(),
+            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new)
         );
     }
 

@@ -293,6 +293,17 @@ public class DateUtils {
         return nanoSecondsSinceEpoch / 1_000_000;
     }
 
+    public static int compareNanosToMillis(long nanos, long millis) {
+        if (millis < 0) {
+            return -1;
+        }
+        if (millis > MAX_NANOSECOND_IN_MILLIS) {
+            return 1;
+        }
+        long diff = nanos - (millis * 1_000_000);
+        return diff == 0 ? 0 : diff < 0 ? -1 : 1;
+    }
+
     /**
      * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
      *

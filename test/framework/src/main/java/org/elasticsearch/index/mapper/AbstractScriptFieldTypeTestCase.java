@@ -25,8 +25,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -314,6 +316,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
+        var indexSettings = createIndexSettings(IndexVersion.current(), Settings.EMPTY);
+        when(context.getIndexSettings()).thenReturn(indexSettings);
         return context;
     }
 
@@ -430,6 +434,19 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return all;
     }
 
+    protected final boolean hasNullColumnarReader(DirectoryReader reader, MappedFieldType fieldType)
+        throws IOException {
+        BlockLoader loader = fieldType.blockLoader(blContext());
+        for (LeafReaderContext ctx : reader.leaves()) {
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx);
+            if (block != null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
         throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
@@ -449,6 +466,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     private MappedFieldType.BlockLoaderContext blContext() {
+        var mockContext = mockContext();
         return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
@@ -457,7 +475,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
             @Override
             public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
+                return mockContext.getIndexSettings();
             }
 
             @Override
@@ -467,7 +485,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
             @Override
             public SearchLookup lookup() {
-                return mockContext().lookup();
+                return mockContext.lookup();
             }
 
             @Override

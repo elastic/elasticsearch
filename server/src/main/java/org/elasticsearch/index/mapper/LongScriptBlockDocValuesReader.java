@@ -18,7 +18,7 @@ import java.io.IOException;
  * {@link BlockDocValuesReader} implementation for {@code long} scripts.
  */
 public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class LongScriptBlockLoader extends DocValuesBlockLoader {
+    static class LongScriptBlockLoader extends AbstractScriptBlockLoader {
         private final LongFieldScript.LeafFactory factory;
 
         LongScriptBlockLoader(LongFieldScript.LeafFactory factory) {
@@ -31,28 +31,9 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
+        public AllReader rowStrideReader(LeafReaderContext context) throws IOException {
             return new LongScriptBlockDocValuesReader(factory.newInstance(context));
         }
-    }
-
-    static class RowStrideLongScriptBlockLoader extends AbstractScriptBlockLoader {
-        private final LongFieldScript.LeafFactory factory;
-
-        RowStrideLongScriptBlockLoader(LongFieldScript.LeafFactory factory) {
-            this.factory = factory;
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.longs(expectedCount);
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            return new LongScriptBlockDocValuesReader(factory.newInstance(context));
-        }
-
     }
 
     private final LongFieldScript script;

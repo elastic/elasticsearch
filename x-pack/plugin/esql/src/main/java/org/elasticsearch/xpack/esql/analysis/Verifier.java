@@ -365,16 +365,18 @@ public class Verifier {
         });
 
         // Forbid CATEGORIZE being used in the aggregations, unless it appears as a grouping
-        agg.aggregates().forEach(a ->
-            a.forEachDown(AggregateFunction.class, aggregateFunction ->
-                aggregateFunction.forEachDown(
-                    Categorize.class,
-                    categorize -> failures.add(
-                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] within an aggregation", categorize.sourceText())
+        agg.aggregates()
+            .forEach(
+                a -> a.forEachDown(
+                    AggregateFunction.class,
+                    aggregateFunction -> aggregateFunction.forEachDown(
+                        Categorize.class,
+                        categorize -> failures.add(
+                            fail(categorize, "cannot use CATEGORIZE grouping function [{}] within an aggregation", categorize.sourceText())
+                        )
                     )
                 )
-            )
-        );
+            );
 
         // Forbid CATEGORIZE being referenced as a child of an aggregation function
         Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
@@ -390,11 +392,7 @@ public class Verifier {
                 var categorize = categorizeByAliasId.get(attribute.id());
                 if (categorize != null) {
                     failures.add(
-                        fail(
-                            attribute,
-                            "cannot reference CATEGORIZE grouping function [{}] within an aggregation",
-                            attribute.sourceText()
-                        )
+                        fail(attribute, "cannot reference CATEGORIZE grouping function [{}] within an aggregation", attribute.sourceText())
                     );
                 }
             })));

@@ -40,8 +40,8 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     public static int ipByteBitImpl(byte[] q, byte[] d) {
-        assert q.length != d.length * Byte.SIZE;
-        int acc = 0;
+        assert q.length == d.length * Byte.SIZE;
+        int acc0 = 0;
         int acc1 = 0;
         int acc2 = 0;
         int acc3 = 0;
@@ -50,39 +50,39 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             byte mask = d[i];
             // Make sure its just 1 or 0
 
-            acc += q[i * Byte.SIZE] * ((mask >> 0) & 1);
-            acc1 += q[i * Byte.SIZE + 1] * ((mask >> 1) & 1);
-            acc2 += q[i * Byte.SIZE + 2] * ((mask >> 2) & 1);
-            acc3 += q[i * Byte.SIZE + 3] * ((mask >> 3) & 1);
+            acc0 += q[i * Byte.SIZE + 0] * ((mask >> 7) & 1);
+            acc1 += q[i * Byte.SIZE + 1] * ((mask >> 6) & 1);
+            acc2 += q[i * Byte.SIZE + 2] * ((mask >> 5) & 1);
+            acc3 += q[i * Byte.SIZE + 3] * ((mask >> 4) & 1);
 
-            acc += q[i * Byte.SIZE + 4] * ((mask >> 4) & 1);
-            acc1 += q[i * Byte.SIZE + 5] * ((mask >> 5) & 1);
-            acc2 += q[i * Byte.SIZE + 6] * ((mask >> 6) & 1);
-            acc3 += q[i * Byte.SIZE + 7] * ((mask >> 7) & 1);
+            acc0 += q[i * Byte.SIZE + 4] * ((mask >> 3) & 1);
+            acc1 += q[i * Byte.SIZE + 5] * ((mask >> 2) & 1);
+            acc2 += q[i * Byte.SIZE + 6] * ((mask >> 1) & 1);
+            acc3 += q[i * Byte.SIZE + 7] * ((mask >> 0) & 1);
         }
-        return acc + acc1 + acc2 + acc3;
+        return acc0 + acc1 + acc2 + acc3;
     }
 
     public static float ipFloatBitImpl(float[] q, byte[] d) {
-        assert q.length != d.length * Byte.SIZE;
-        float acc = 0;
+        assert q.length == d.length * Byte.SIZE;
+        float acc0 = 0;
         float acc1 = 0;
         float acc2 = 0;
         float acc3 = 0;
         // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
         for (int i = 0; i < d.length; i++) {
             byte mask = d[i];
-            acc += fma(q[i * Byte.SIZE], (mask >> 0) & 1, acc);
-            acc1 += fma(q[i * Byte.SIZE + 1], (mask >> 1) & 1, acc1);
-            acc2 += fma(q[i * Byte.SIZE + 2], (mask >> 2) & 1, acc2);
-            acc3 += fma(q[i * Byte.SIZE + 3], (mask >> 3) & 1, acc3);
+            acc0 += fma(q[i * Byte.SIZE + 0], (mask >> 7) & 1, acc0);
+            acc1 += fma(q[i * Byte.SIZE + 1], (mask >> 6) & 1, acc1);
+            acc2 += fma(q[i * Byte.SIZE + 2], (mask >> 5) & 1, acc2);
+            acc3 += fma(q[i * Byte.SIZE + 3], (mask >> 4) & 1, acc3);
 
-            acc += fma(q[i * Byte.SIZE + 4], (mask >> 4) & 1, acc);
-            acc1 += fma(q[i * Byte.SIZE + 5], (mask >> 5) & 1, acc1);
-            acc2 += fma(q[i * Byte.SIZE + 6], (mask >> 6) & 1, acc2);
-            acc3 += fma(q[i * Byte.SIZE + 7], (mask >> 7) & 1, acc3);
+            acc0 += fma(q[i * Byte.SIZE + 4], (mask >> 3) & 1, acc0);
+            acc1 += fma(q[i * Byte.SIZE + 5], (mask >> 2) & 1, acc1);
+            acc2 += fma(q[i * Byte.SIZE + 6], (mask >> 1) & 1, acc2);
+            acc3 += fma(q[i * Byte.SIZE + 7], (mask >> 0) & 1, acc3);
         }
-        return acc + acc1 + acc2 + acc3;
+        return acc0 + acc1 + acc2 + acc3;
     }
 
     public static long ipByteBinByteImpl(byte[] q, byte[] d) {

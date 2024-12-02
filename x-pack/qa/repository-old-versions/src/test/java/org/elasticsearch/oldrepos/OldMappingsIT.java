@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
@@ -166,7 +167,10 @@ public class OldMappingsIT extends ESRestTestCase {
         createRestoreRequest.addParameter("wait_for_completion", "true");
         createRestoreRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
         createRestoreRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        assertOK(client().performRequest(createRestoreRequest));
+        Response response = client().performRequest(createRestoreRequest);
+        // check deprecation warning for "_field_name" disabling
+        assertTrue(response.getWarnings().stream().filter(s -> s.contains("Disabling _field_names is not necessary")).count() > 0);
+        assertOK(response);
     }
 
     private Request createIndex(String indexName, String file) throws IOException {

@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -289,7 +290,8 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.serverless.version,
             org.elasticsearch.serverless.buildinfo,
-            org.elasticsearch.serverless.constants;
+            org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.codec;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -396,6 +398,7 @@ module org.elasticsearch.server {
             org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.codec,
             org.elasticsearch.serverless.apifiltering,
             org.elasticsearch.internal.security;
 
@@ -415,6 +418,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses CompletionsPostingsFormatExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
 
@@ -434,7 +438,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures;
+            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

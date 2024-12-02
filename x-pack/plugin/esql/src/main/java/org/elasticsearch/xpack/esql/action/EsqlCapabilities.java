@@ -141,6 +141,12 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * Support for loading values over enrich. This is supported by all versions of ESQL but not
+         * the unit test CsvTests.
+         */
+        ENRICH_LOAD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -397,7 +403,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE(Build.current().isSnapshot()),
+        CATEGORIZE_V4(Build.current().isSnapshot()),
 
         /**
          * QSTR function
@@ -408,6 +414,11 @@ public class EsqlCapabilities {
          * MATCH function
          */
         MATCH_FUNCTION,
+
+        /**
+         * KQL function
+         */
+        KQL_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -440,6 +451,11 @@ public class EsqlCapabilities {
          * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
          */
         PER_AGG_FILTERING_ORDS,
+
+        /**
+         * Support for {@code STD_DEV} aggregation.
+         */
+        STD_DEV,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
@@ -505,7 +521,27 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot());
+        JOIN_LOOKUP_V3(Build.current().isSnapshot()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
+
+        /**
+         * support for aggregations on semantic_text
+         */
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
+         */
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE(Build.current().isSnapshot());
 
         private final boolean enabled;
 
@@ -549,9 +585,6 @@ public class EsqlCapabilities {
          * Add all of our cluster features without the leading "esql."
          */
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
-            caps.add(cap(feature));
-        }
-        for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
         return Set.copyOf(caps);

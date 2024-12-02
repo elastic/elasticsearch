@@ -20,6 +20,9 @@ import org.elasticsearch.common.Priority;
 
 import java.util.ArrayList;
 
+import static java.util.Comparator.comparing;
+import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.SUPERSEDING_FIRST;
+
 /**
  * Reserved cluster state update task executor
  */
@@ -56,8 +59,9 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
         // not the task that actually took effect, and we must eliminate that one and try again.
 
         var candidates = new ArrayList<>(taskContexts);
-        while (candidates.isEmpty() == false) {
-            TaskContext<ReservedStateUpdateTask> taskContext = removeEffectiveTaskContext(candidates);
+        candidates.sort(comparing(TaskContext::getTask, SUPERSEDING_FIRST));
+        for (var iter = candidates.iterator(); iter.hasNext(); ) {
+            TaskContext<ReservedStateUpdateTask> taskContext = iter.next();
             logger.info("Effective task: {}", taskContext.getTask());
             ClusterState clusterState = initState;
             try (var ignored = taskContext.captureResponseHeaders()) {
@@ -65,8 +69,8 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
                 clusterState = task.execute(clusterState);
                 taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
                 logger.debug("-> Update task succeeded");
-                // All the others "succeeded" and then were conceptually superseded by the effective task
-                candidates.forEach(c -> c.success(() -> c.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE)));
+                // All the others conceptually "succeeded" and then were superseded by the effective task
+                iter.forEachRemaining(c -> c.success(() -> c.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE)));
                 return clusterState;
             } catch (Exception e) {
                 taskContext.onFailure(e);
@@ -78,21 +82,6 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
 
         logger.warn("All {} update tasks failed; returning initial state", taskContexts.size());
         return initState;
-    }
-
-    /**
-     * Removes and returns the {@link TaskContext} corresponding to the task that would take effect
-     * if the tasks were executed one after the other.
-     */
-    private TaskContext<ReservedStateUpdateTask> removeEffectiveTaskContext(ArrayList<? extends TaskContext<ReservedStateUpdateTask>> candidates) {
-        assert candidates.isEmpty() == false;
-        int winner = 0;
-        for (int candidate = 1; candidate < candidates.size(); candidate++) {
-            if (candidates.get(candidate).getTask().supersedes(candidates.get(winner).getTask())) {
-                winner = candidate;
-            }
-        }
-        return candidates.remove(winner);
     }
 
     @Override

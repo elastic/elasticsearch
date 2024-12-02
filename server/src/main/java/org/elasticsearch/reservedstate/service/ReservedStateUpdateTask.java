@@ -26,6 +26,7 @@ import org.elasticsearch.reservedstate.TransformState;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +71,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         this.listener = listener;
     }
 
+    /**
+     * @return true if {@code this} would overwrite the effects of {@code prev} assuming {@code this} is executed later.
+     */
     public boolean supersedes(ReservedStateUpdateTask prev) {
         return versionCheck.test(prev.stateChunk.metadata().version(), this.stateChunk.metadata().version());
     }
@@ -224,4 +228,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             ", metadata=" + stateChunk.metadata() +
             '}';
     }
+
+    /**
+     * x &lt; y if x.{@linkplain #supersedes}(y)
+     */
+    public static final Comparator<ReservedStateUpdateTask> SUPERSEDING_FIRST = (x,y) -> x.supersedes(y) ? -1 : y.supersedes(x)? 1 : 0;
 }

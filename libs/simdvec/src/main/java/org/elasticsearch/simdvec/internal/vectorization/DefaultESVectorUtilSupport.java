@@ -72,15 +72,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
         for (int i = 0; i < d.length; i++) {
             byte mask = d[i];
-            acc0 += fma(q[i * Byte.SIZE + 0], (mask >> 7) & 1, acc0);
-            acc1 += fma(q[i * Byte.SIZE + 1], (mask >> 6) & 1, acc1);
-            acc2 += fma(q[i * Byte.SIZE + 2], (mask >> 5) & 1, acc2);
-            acc3 += fma(q[i * Byte.SIZE + 3], (mask >> 4) & 1, acc3);
+            acc0 = fma(q[i * Byte.SIZE + 0], (mask >> 7) & 1, acc0);
+            acc1 = fma(q[i * Byte.SIZE + 1], (mask >> 6) & 1, acc1);
+            acc2 = fma(q[i * Byte.SIZE + 2], (mask >> 5) & 1, acc2);
+            acc3 = fma(q[i * Byte.SIZE + 3], (mask >> 4) & 1, acc3);
 
-            acc0 += fma(q[i * Byte.SIZE + 4], (mask >> 3) & 1, acc0);
-            acc1 += fma(q[i * Byte.SIZE + 5], (mask >> 2) & 1, acc1);
-            acc2 += fma(q[i * Byte.SIZE + 6], (mask >> 1) & 1, acc2);
-            acc3 += fma(q[i * Byte.SIZE + 7], (mask >> 0) & 1, acc3);
+            acc0 = fma(q[i * Byte.SIZE + 4], (mask >> 3) & 1, acc0);
+            acc1 = fma(q[i * Byte.SIZE + 5], (mask >> 2) & 1, acc1);
+            acc2 = fma(q[i * Byte.SIZE + 6], (mask >> 1) & 1, acc2);
+            acc3 = fma(q[i * Byte.SIZE + 7], (mask >> 0) & 1, acc3);
         }
         return acc0 + acc1 + acc2 + acc3;
     }

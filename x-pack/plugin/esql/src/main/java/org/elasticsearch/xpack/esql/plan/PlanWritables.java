@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,6 +67,7 @@ public class PlanWritables {
         return List.of(
             Aggregate.ENTRY,
             Dissect.ENTRY,
+            Completion.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
             EsqlProject.ENTRY,
@@ -88,6 +91,7 @@ public class PlanWritables {
         return List.of(
             AggregateExec.ENTRY,
             DissectExec.ENTRY,
+            CompletionExec.ENTRY,
             EnrichExec.ENTRY,
             EsQueryExec.ENTRY,
             EsSourceExec.ENTRY,

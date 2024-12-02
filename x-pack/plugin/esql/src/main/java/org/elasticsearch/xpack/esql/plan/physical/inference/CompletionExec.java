@@ -5,45 +5,48 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.inference;
+package org.elasticsearch.xpack.esql.plan.physical.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Completion extends UnaryPlan {
+public class CompletionExec extends UnaryExec {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Completion", Completion::new);
-
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "CompileExec",
+        CompletionExec::new
+    );
     private final ReferenceAttribute target;
     private final Expression prompt;
     private final Expression inferenceId;
 
-    public Completion(Source source, LogicalPlan child, ReferenceAttribute target, Expression prompt, Expression inferenceId) {
+    public CompletionExec(Source source, PhysicalPlan child, ReferenceAttribute target, Expression prompt, Expression inferenceId) {
         super(source, child);
         this.target = target;
         this.prompt = prompt;
         this.inferenceId = inferenceId;
     }
 
-    public Completion(StreamInput in) throws IOException {
+    public CompletionExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(ReferenceAttribute.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class)
@@ -59,7 +62,7 @@ public class Completion extends UnaryPlan {
         out.writeNamedWriteable(inferenceId());
     }
 
-    public ReferenceAttribute target() {
+    public NamedExpression target() {
         return target;
     }
 
@@ -77,33 +80,18 @@ public class Completion extends UnaryPlan {
     }
 
     @Override
-    public String commandName() {
-        return "COMPLETION";
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return prompt.resolved() && inferenceId.resolved();
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return prompt.references();
-    }
-
-    @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, target, prompt, inferenceId);
-    }
-
-    @Override
     public List<Attribute> output() {
         return NamedExpressions.mergeOutputAttributes(List.of(target), child().output());
     }
 
     @Override
-    protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), target, prompt, inferenceId);
+    public UnaryExec replaceChild(PhysicalPlan newChild) {
+        return new CompletionExec(source(), newChild, target, prompt, inferenceId);
+    }
+
+    @Override
+    protected NodeInfo<? extends PhysicalPlan> info() {
+        return NodeInfo.create(this, CompletionExec::new, child(), target, prompt, inferenceId);
     }
 
     @Override
@@ -116,7 +104,7 @@ public class Completion extends UnaryPlan {
         if (false == super.equals(obj)) {
             return false;
         }
-        Completion other = ((Completion) obj);
+        CompletionExec other = ((CompletionExec) obj);
         return Objects.equals(target, other.target) && Objects.equals(prompt, other.prompt) && Objects.equals(inferenceId, other.inferenceId);
     }
 }

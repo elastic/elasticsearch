@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.inference.CompletionInferenceOperator;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -232,6 +234,10 @@ public class LocalExecutionPlanner {
             return planHashJoin(join, context);
         } else if (node instanceof LookupJoinExec join) {
             return planLookupJoin(join, context);
+        }
+        // inference
+        else if (node instanceof CompletionExec completion) {
+            return planCompletion(completion, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -417,6 +423,16 @@ public class LocalExecutionPlanner {
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
+    }
+
+    private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(completion.child(), context);
+        ExpressionEvaluator.Factory promptEvaluatorSupplier = EvalMapper.toEvaluator(completion.prompt(), source.layout);
+
+        Layout.Builder layout = source.layout.builder();
+        layout.append(completion.target());
+
+        return source.with(new CompletionInferenceOperator.Factory(promptEvaluatorSupplier), layout.build());
     }
 
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {

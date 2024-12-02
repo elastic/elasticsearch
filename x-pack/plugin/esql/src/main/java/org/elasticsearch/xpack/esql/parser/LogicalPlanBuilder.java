@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -189,7 +190,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            UnresolvedAttribute target = visitQualifiedName(ctx.target);
+            ReferenceAttribute target = new ReferenceAttribute(source(ctx.target), ctx.target.getText(), DataType.TEXT);
             return new Completion(source, p, target, expression(ctx.prompt), expression(ctx.inferenceId));
         };
     }

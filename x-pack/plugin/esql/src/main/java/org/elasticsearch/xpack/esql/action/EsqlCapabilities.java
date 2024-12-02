@@ -351,6 +351,10 @@ public class EsqlCapabilities {
         LEAST_GREATEST_FOR_DATENANOS(),
 
         /**
+         * Support add and subtract on date nanos
+         */
+        DATE_NANOS_ADD_SUBTRACT(),
+        /**
          * Support for date_trunc function on date nanos type
          */
         DATE_TRUNC_DATE_NANOS(),

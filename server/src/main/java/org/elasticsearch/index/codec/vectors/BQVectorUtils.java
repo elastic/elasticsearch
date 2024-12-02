@@ -40,6 +40,21 @@ public class BQVectorUtils {
         return Math.abs(l1norm - 1.0d) <= EPSILON;
     }
 
+    public static void packAsBinary(byte[] vector, byte[] packed) {
+        for (int h = 0; h < vector.length; h += 8) {
+            byte result = 0;
+            int q = 0;
+            for (int i = 7; i >= 0; i--) {
+                assert vector[h + i] == 0 || vector[h + i] == 1;
+                if (vector[h + i] > 0) {
+                    result |= (byte) (1 << q);
+                }
+                q++;
+            }
+            packed[h / 8] = result;
+        }
+    }
+
     public static int discretize(int value, int bucket) {
         return ((value + (bucket - 1)) / bucket) * bucket;
     }

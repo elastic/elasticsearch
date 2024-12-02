@@ -1,4 +1,13 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+/*
  * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -17,7 +26,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -26,6 +35,9 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.ES816BinaryFlatVectorsScorer;
+import org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsReader;
+import org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsWriter;
 
 import java.io.IOException;
 
@@ -34,7 +46,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
+public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
     public static final String NAME = "ES816BinaryQuantizedVectorsFormat";
@@ -56,13 +68,13 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     );
 
     /** Creates a new instance with the default number of vectors per cluster. */
-    public ES816BinaryQuantizedVectorsFormat() {
+    public ES818BinaryQuantizedVectorsFormat() {
         super(NAME);
     }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        throw new UnsupportedOperationException();
+        return new ES816BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
     }
 
     @Override

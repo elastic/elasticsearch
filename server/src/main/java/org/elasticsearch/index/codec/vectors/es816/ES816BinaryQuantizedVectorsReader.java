@@ -65,7 +65,7 @@ class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     private final FlatVectorsReader rawVectorsReader;
     private final ES816BinaryFlatVectorsScorer vectorScorer;
 
-    public ES816BinaryQuantizedVectorsReader(
+    ES816BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
         ES816BinaryFlatVectorsScorer vectorsScorer

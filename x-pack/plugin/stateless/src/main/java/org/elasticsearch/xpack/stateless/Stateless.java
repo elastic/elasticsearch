@@ -596,7 +596,7 @@ public class Stateless extends Plugin
                 averageSearchLoadSampler,
                 searchLoadProbe::getSearchLoad,
                 searchLoadProbe::getSearchLoadQuality,
-                EsExecutors.nodeProcessors(settings).count(),
+                averageSearchLoadSampler.getNumProcessors(),
                 clusterService.getClusterSettings(),
                 clusterService
             );
@@ -931,6 +931,7 @@ public class Stateless extends Plugin
             SearchLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING,
             SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
+            AverageSearchLoadSampler.USE_VCPU_REQUEST,
             AverageSearchLoadSampler.SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             AverageSearchLoadSampler.SHARD_READ_SAMPLER_EWMA_ALPHA_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,

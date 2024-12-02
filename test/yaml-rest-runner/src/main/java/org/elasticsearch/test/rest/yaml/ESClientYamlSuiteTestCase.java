@@ -218,28 +218,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
-     * Create parameters for this parameterized test.
-     * Enables support for parsing the legacy version-based node_selector format.
-     */
-    @Deprecated
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static Iterable<Object[]> createParametersWithLegacyNodeSelectorSupport() throws Exception {
-        var executableSectionRegistry = new NamedXContentRegistry(
-            Stream.concat(
-                ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS.stream().filter(entry -> entry.name.getPreferredName().equals("do") == false),
-                Stream.of(
-                    new NamedXContentRegistry.Entry(
-                        ExecutableSection.class,
-                        new ParseField("do"),
-                        DoSection::parseWithLegacyNodeSelectorSupport
-                    )
-                )
-            ).toList()
-        );
-        return createParameters(executableSectionRegistry, null);
-    }
-
-    /**
      * Create parameters for this parameterized test. Uses the
      * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
      * defined in {@link ExecutableSection}.

@@ -62,13 +62,11 @@ public class IndexVersions {
     public static final IndexVersion ZERO = def(0, Version.LATEST);
 
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
-    public static final IndexVersion V_7_1_0 = def(7_01_00_99, parseUnchecked("8.0.0"));
     public static final IndexVersion V_7_2_0 = def(7_02_00_99, parseUnchecked("8.0.0"));
     public static final IndexVersion V_7_2_1 = def(7_02_01_99, parseUnchecked("8.0.0"));
     public static final IndexVersion V_7_3_0 = def(7_03_00_99, parseUnchecked("8.1.0"));
     public static final IndexVersion V_7_4_0 = def(7_04_00_99, parseUnchecked("8.2.0"));
     public static final IndexVersion V_7_5_0 = def(7_05_00_99, parseUnchecked("8.3.0"));
-    public static final IndexVersion V_7_5_2 = def(7_05_02_99, parseUnchecked("8.3.0"));
     public static final IndexVersion V_7_6_0 = def(7_06_00_99, parseUnchecked("8.4.0"));
     public static final IndexVersion V_7_7_0 = def(7_07_00_99, parseUnchecked("8.5.1"));
     public static final IndexVersion V_7_8_0 = def(7_08_00_99, parseUnchecked("8.5.1"));

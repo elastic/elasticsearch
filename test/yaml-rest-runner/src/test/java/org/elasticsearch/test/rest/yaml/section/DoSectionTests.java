@@ -580,57 +580,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove
-    public void testLegacyNodeSelectorByVersionRange() throws IOException {
-        parser = createParser(YamlXContent.yamlXContent, """
-            node_selector:
-                version: 5.2.0-6.0.0
-            indices.get_field_mapping:
-                index: test_index""");
-
-        DoSection doSection = DoSection.parseWithLegacyNodeSelectorSupport(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node v170 = nodeWithVersion("1.7.0");
-        Node v521 = nodeWithVersion("5.2.1");
-        Node v550 = nodeWithVersion("5.5.0");
-        Node v612 = nodeWithVersion("6.1.2");
-        List<Node> nodes = new ArrayList<>();
-        nodes.add(v170);
-        nodes.add(v521);
-        nodes.add(v550);
-        nodes.add(v612);
-        doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(Arrays.asList(v521, v550), nodes);
-        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
-        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
-        when(
-            context.callApi(
-                "indices.get_field_mapping",
-                singletonMap("index", "test_index"),
-                emptyList(),
-                emptyMap(),
-                doSection.getApiCallSection().getNodeSelector()
-            )
-        ).thenReturn(mockResponse);
-        when(context.nodesVersions()).thenReturn(Set.of(randomAlphaOfLength(10)));
-        when(mockResponse.getHeaders("X-elastic-product")).thenReturn(List.of("Elasticsearch"));
-        doSection.execute(context);
-        verify(context).callApi(
-            "indices.get_field_mapping",
-            singletonMap("index", "test_index"),
-            emptyList(),
-            emptyMap(),
-            doSection.getApiCallSection().getNodeSelector()
-        );
-
-        {
-            List<Node> badNodes = new ArrayList<>();
-            badNodes.add(new Node(new HttpHost("dummy")));
-            Exception e = expectThrows(IllegalStateException.class, () -> doSection.getApiCallSection().getNodeSelector().select(badNodes));
-            assertEquals("expected [version] metadata to be set but got [host=http://dummy]", e.getMessage());
-        }
-    }
-
     public void testNodeSelectorByVersionRangeFails() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:

@@ -228,7 +228,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts.entrySet()
+        Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().requests()));
         assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));

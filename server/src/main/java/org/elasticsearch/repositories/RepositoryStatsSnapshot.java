@@ -72,7 +72,7 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
         builder.startObject();
         repositoryInfo.toXContent(builder, params);
         builder.startObject("request_counts");
-        for (Map.Entry<String, BlobStoreActionStats> entry : repositoryStats.requestCounts.entrySet()) {
+        for (Map.Entry<String, BlobStoreActionStats> entry : repositoryStats.actionStats.entrySet()) {
             final BlobStoreActionStats stats = entry.getValue();
             builder.field(entry.getKey(), stats.operations());
         }

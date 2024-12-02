@@ -25,17 +25,17 @@ public class RepositoryStats implements Writeable {
 
     public static final RepositoryStats EMPTY_STATS = new RepositoryStats(Collections.emptyMap());
 
-    public final Map<String, BlobStoreActionStats> requestCounts;
+    public final Map<String, BlobStoreActionStats> actionStats;
 
-    public RepositoryStats(Map<String, BlobStoreActionStats> requestCounts) {
-        this.requestCounts = Collections.unmodifiableMap(requestCounts);
+    public RepositoryStats(Map<String, BlobStoreActionStats> actionStats) {
+        this.actionStats = Collections.unmodifiableMap(actionStats);
     }
 
     public RepositoryStats(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
-            this.requestCounts = in.readMap(BlobStoreActionStats::new);
+            this.actionStats = in.readMap(BlobStoreActionStats::new);
         } else {
-            this.requestCounts = in.readMap(si -> {
+            this.actionStats = in.readMap(si -> {
                 long legacyValue = in.readLong();
                 return new BlobStoreActionStats(legacyValue, legacyValue);
             });
@@ -44,8 +44,8 @@ public class RepositoryStats implements Writeable {
 
     public RepositoryStats merge(RepositoryStats otherStats) {
         final Map<String, BlobStoreActionStats> result = new HashMap<>();
-        result.putAll(requestCounts);
-        for (Map.Entry<String, BlobStoreActionStats> entry : otherStats.requestCounts.entrySet()) {
+        result.putAll(actionStats);
+        for (Map.Entry<String, BlobStoreActionStats> entry : otherStats.actionStats.entrySet()) {
             result.merge(entry.getKey(), entry.getValue(), BlobStoreActionStats::add);
         }
         return new RepositoryStats(result);
@@ -54,9 +54,9 @@ public class RepositoryStats implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
-            out.writeMap(requestCounts, (so, v) -> v.writeTo(so));
+            out.writeMap(actionStats, (so, v) -> v.writeTo(so));
         } else {
-            out.writeMap(requestCounts, (so, v) -> so.writeLong(v.requests()));
+            out.writeMap(actionStats, (so, v) -> so.writeLong(v.requests()));
         }
     }
 
@@ -65,16 +65,16 @@ public class RepositoryStats implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStats that = (RepositoryStats) o;
-        return requestCounts.equals(that.requestCounts);
+        return actionStats.equals(that.actionStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestCounts);
+        return Objects.hash(actionStats);
     }
 
     @Override
     public String toString() {
-        return "RepositoryStats{" + "requestCounts=" + requestCounts + '}';
+        return "RepositoryStats{actionStats=" + actionStats + '}';
     }
 }

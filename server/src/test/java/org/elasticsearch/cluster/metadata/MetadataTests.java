@@ -48,7 +48,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -2870,46 +2869,6 @@ public class MetadataTests extends ESTestCase {
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
             assertThat(m.getProject().retrieveIndexModeFromTemplate(indexTemplate), nullValue());
-        }
-    }
-
-    public void testGetSingleProjectWithCustom() {
-        var type = IngestMetadata.TYPE;
-        {
-            Metadata metadata = Metadata.builder().build();
-            assertNull(metadata.getSingleProjectCustom(type));
-            assertNull(metadata.getSingleProjectWithCustom(type));
-        }
-        {
-            Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(new ProjectId(randomUUID())).build()).build();
-            assertNull(metadata.getSingleProjectCustom(type));
-            assertNull(metadata.getSingleProjectWithCustom(type));
-        }
-        {
-            var ingestMetadata = new IngestMetadata(Map.of());
-            Metadata metadata = Metadata.builder()
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, ingestMetadata))
-                .build();
-            assertEquals(ingestMetadata, metadata.getSingleProjectCustom(type));
-            assertEquals(ingestMetadata, metadata.getSingleProjectWithCustom(type).custom(type));
-        }
-        {
-            var ingestMetadata = new IngestMetadata(Map.of());
-            Metadata metadata = Metadata.builder()
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())))
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, ingestMetadata))
-                .build();
-            assertEquals(ingestMetadata, metadata.getSingleProjectCustom(type));
-            assertEquals(ingestMetadata, metadata.getSingleProjectWithCustom(type).custom(type));
-        }
-        {
-            var ingestMetadata = new IngestMetadata(Map.of());
-            Metadata metadata = Metadata.builder()
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, new IngestMetadata(Map.of())))
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, ingestMetadata))
-                .build();
-            assertThrows(UnsupportedOperationException.class, () -> metadata.getSingleProjectCustom(type));
-            assertThrows(UnsupportedOperationException.class, () -> metadata.getSingleProjectWithCustom(type));
         }
     }
 

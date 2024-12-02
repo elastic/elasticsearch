@@ -528,14 +528,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
-                if (format != null) {
-                    if (format.equalsIgnoreCase("inference") == false) {
-                        throw new IllegalArgumentException("Illegal format for field [" + name() + "], got " + format);
-                    }
-                    return valueFetcherWithInferenceResults(context::bitsetFilter, context.searcher());
-                } else {
-                    return SourceValueFetcher.toString(name(), context, null);
-                }
+                return SourceValueFetcher.toString(name(), context, null);
             } else {
                 // Redirect the fetcher to load the original values of the field
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);

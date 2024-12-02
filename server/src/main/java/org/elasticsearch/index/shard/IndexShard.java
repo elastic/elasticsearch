@@ -2275,7 +2275,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         final MappedFieldType mappedFieldType = mapperService().fieldType(fieldName);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
-            return ShardLongFieldRange.UNKNOWN; // field missing or not a date or an alias
+            return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
         if (mappedFieldType.isIndexed() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing

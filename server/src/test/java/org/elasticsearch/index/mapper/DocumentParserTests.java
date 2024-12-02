@@ -2625,7 +2625,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             newMapping,
             newMapping.toCompressedXContent(),
             IndexVersion.current(),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            "myIndex"
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {

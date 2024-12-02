@@ -7,16 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.instrumentation.impl;
 
-import java.io.IOException;
-import java.util.Map;
-
-/**
- * The SPI service entry point for instrumentation.
- */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods);
-
-    Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException, IOException;
-}
+final class TestException extends RuntimeException {}

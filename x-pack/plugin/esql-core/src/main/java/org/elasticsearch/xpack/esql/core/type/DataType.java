@@ -86,7 +86,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *     sorting and the other binary comparisons. Make sure these functions all
  *     have CSV tests that run against indexed data.</li>
  *     <li>Add conversion functions as appropriate.  Almost all types should
- *     support TO_STRING, and should have a TO_TYPE function that accepts a
+ *     support ToString, and should have a "ToType" function that accepts a
  *     string.  There may be other logical conversions depending on the nature
  *     of the type. Make sure to add the conversion function to the
  *     TYPE_TO_CONVERSION_FUNCTION map in EsqlDataTypeConverter. Make sure the

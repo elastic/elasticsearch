@@ -1,0 +1,5 @@
+pr: 117826
+summary: "Add deprecation warning for ELSER in semantic search tutorial"
+area: Docs
+type: doc
+issues: ["117829"]

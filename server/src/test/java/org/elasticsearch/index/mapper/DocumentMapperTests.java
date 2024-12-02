@@ -9,12 +9,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -24,6 +29,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +53,27 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DocumentMapperTests extends MapperServiceTestCase {
+
+    static MockAppender appender;
+    static Logger testLogger = LogManager.getLogger(DocumentMapper.class);
+    static Level originalLogLevel = testLogger.getLevel();
+
+    @BeforeClass
+    public static void init() throws IllegalAccessException {
+        appender = new MockAppender("mock_appender");
+        appender.start();
+        Loggers.addAppender(testLogger, appender);
+        Loggers.setLevel(testLogger, Level.ERROR);
+        DocumentMapper.setErrorThrottlingIntervalSecondsForTesting();
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        Loggers.removeAppender(testLogger, appender);
+        appender.stop();
+        Loggers.setLevel(testLogger, originalLogLevel);
+        DocumentMapper.resetErrorThrottlingIntervalSeconds();
+    }
 
     public void testAddFields() throws Exception {
         DocumentMapper stage1 = createDocumentMapper(mapping(b -> b.startObject("name").field("type", "text").endObject()));
@@ -492,5 +520,27 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 thread.join();
             }
         }
+    }
+
+    public void testParsingErrorLogging() throws Exception {
+        DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
+        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+        assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
+
+        e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
+        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+        assertThat(appender.getLastEventAndReset(), nullValue());
+
+        Thread.sleep(1000);  // Wait for throttling to back off.
+
+        e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
+        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+        assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
+
+        e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
+        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+        assertThat(appender.getLastEventAndReset(), nullValue());
     }
 }

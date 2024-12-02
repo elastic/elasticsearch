@@ -28,6 +28,7 @@ public class DocumentMapper {
 
     private static final AtomicBoolean lastErrorLogLock = new AtomicBoolean(false);
     private static volatile long lastErrorLogEpochSecond = 0;
+    private static long errorThrottlingIntervalSeconds = ERROR_THROTTLING_INTERVAL_SECONDS;
 
     private final String type;
     private final CompressedXContent mappingSource;
@@ -36,6 +37,15 @@ public class DocumentMapper {
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
     private final Logger logger;
+
+    // For testing.
+    static void setErrorThrottlingIntervalSecondsForTesting() {
+        DocumentMapper.errorThrottlingIntervalSeconds = 0;
+    }
+
+    static void resetErrorThrottlingIntervalSeconds() {
+        DocumentMapper.errorThrottlingIntervalSeconds = ERROR_THROTTLING_INTERVAL_SECONDS;
+    }
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -84,13 +94,13 @@ public class DocumentMapper {
         } else {
             final long now = Instant.now().getEpochSecond();
             // Check without locking first, to reduce lock contention.
-            if (now - lastErrorLogEpochSecond > ERROR_THROTTLING_INTERVAL_SECONDS) {
+            if (now - lastErrorLogEpochSecond > errorThrottlingIntervalSeconds) {
                 boolean shouldLog = false;
                 // Acquire spinlock.
                 while (lastErrorLogLock.compareAndSet(false, true)) {
                 }
                 // Repeat check under lock, so that only one message gets written per interval.
-                if (now - lastErrorLogEpochSecond > ERROR_THROTTLING_INTERVAL_SECONDS) {
+                if (now - lastErrorLogEpochSecond > errorThrottlingIntervalSeconds) {
                     shouldLog = true;
                     lastErrorLogEpochSecond = now;
                 }

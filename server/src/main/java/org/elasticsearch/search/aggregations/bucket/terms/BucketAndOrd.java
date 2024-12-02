@@ -7,15 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec.internal.vectorization;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
-public interface ESVectorUtilSupport {
+/** Represents a bucket and its bucket ordinal */
+public final class BucketAndOrd<B> {
 
-    short B_QUERY = 4;
+    public final B bucket; // the bucket
+    public long ord; // mutable ordinal of the bucket
 
-    long ipByteBinByte(byte[] q, byte[] d);
-
-    int ipByteBit(byte[] q, byte[] d);
-
-    float ipFloatBit(float[] q, byte[] d);
+    public BucketAndOrd(B bucket) {
+        this.bucket = bucket;
+    }
 }

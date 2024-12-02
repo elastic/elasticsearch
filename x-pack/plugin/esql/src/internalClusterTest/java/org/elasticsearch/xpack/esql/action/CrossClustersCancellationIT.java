@@ -212,19 +212,22 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         });
         var cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTasks.get(0).taskId()).setReason("proxy timeout");
         client().execute(TransportCancelTasksAction.TYPE, cancelRequest);
-        assertBusy(() -> {
-            List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .get()
-                .getTasks();
-            assertThat(drivers.size(), greaterThanOrEqualTo(1));
-            for (TaskInfo driver : drivers) {
-                assertTrue(driver.cancellable());
-            }
-        });
-        PauseFieldPlugin.allowEmitting.countDown();
+        try {
+            assertBusy(() -> {
+                List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .get()
+                    .getTasks();
+                assertThat(drivers.size(), greaterThanOrEqualTo(1));
+                for (TaskInfo driver : drivers) {
+                    assertTrue(driver.cancelled());
+                }
+            });
+        } finally {
+            PauseFieldPlugin.allowEmitting.countDown();
+        }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
         assertThat(error.getMessage(), containsString("proxy timeout"));
     }

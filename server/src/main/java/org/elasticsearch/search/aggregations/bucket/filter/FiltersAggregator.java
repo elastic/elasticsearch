@@ -462,7 +462,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         final int filterOrd;
 
         FilterMatchingDisiWrapper(Scorer scorer, int ord) {
-            super(scorer);
+            super(scorer, false);
             this.filterOrd = ord;
         }
 

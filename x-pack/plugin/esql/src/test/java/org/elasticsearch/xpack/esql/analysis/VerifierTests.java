@@ -1337,6 +1337,10 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
+    public void testTermFunctionOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
+    }
+
     public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
     }
@@ -1401,6 +1405,10 @@ public class VerifierTests extends ESTestCase {
         checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
+    public void testTermFunctionWithDisjunctions() {
+        checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
+    }
+
     public void testMatchOperatorWithDisjunctions() {
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
     }
@@ -1461,6 +1469,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchFunctionWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
+    }
+
+    public void testTermFunctionWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
     }
 
     public void testMatchOperatorWithNonBooleanFunctions() {
@@ -1561,6 +1573,41 @@ public class VerifierTests extends ESTestCase {
     public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
         assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
+    }
+
+    public void testTermFunctionArgNotConstant() throws Exception {
+        assertEquals(
+            "1:19: second argument of [term(first_name, first_name)] must be a constant, received [first_name]",
+            error("from test | where term(first_name, first_name)")
+        );
+        assertEquals(
+            "1:59: second argument of [term(first_name, query)] must be a constant, received [query]",
+            error("from test | eval query = concat(\"first\", \" name\") | where term(first_name, query)")
+        );
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testTermFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assertEquals(
+            "1:67: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where term(first_name, \"Anna\")")
+        );
+    }
+
+    public void testTermFunctionNullArgs() throws Exception {
+        assertEquals(
+            "1:19: first argument of [term(null, \"query\")] cannot be null, received [null]",
+            error("from test | where term(null, \"query\")")
+        );
+        assertEquals(
+            "1:19: second argument of [term(first_name, null)] cannot be null, received [null]",
+            error("from test | where term(first_name, null)")
+        );
+    }
+
+    public void testTermTargetsExistingField() throws Exception {
+        assertEquals("1:38: Unknown column [first_name]", error("from test | keep emp_no | where term(first_name, \"Anna\")"));
     }
 
     public void testCoalesceWithMixedNumericTypes() {

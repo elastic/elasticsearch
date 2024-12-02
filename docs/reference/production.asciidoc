@@ -140,6 +140,8 @@ The technologies and methods that you can use to address these concerns are diff
 
 Review the following topics to design your security strategy: 
 
+// these could be rearranged by "type" of security concern, but there are a LOT of topics to list if we split them that way
+
 [discrete]
 === Cluster and deployment security
 

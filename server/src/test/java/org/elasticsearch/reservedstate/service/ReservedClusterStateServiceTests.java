@@ -51,6 +51,9 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests.MockUpdateSpec.higher;
 import static org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests.MockUpdateSpec.higherOrSame;
+import static org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests.TaskState.FAILED;
+import static org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests.TaskState.INCOMPLETE;
+import static org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests.TaskState.SUCCEEDED;
 import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION;
 import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_VERSION_ONLY;
 import static org.hamcrest.Matchers.anyOf;
@@ -84,11 +87,18 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         return (MasterServiceTaskQueue<T>) mock(MasterServiceTaskQueue.class);
     }
 
-    private static class TestTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
+    enum TaskState { INCOMPLETE, SUCCEEDED, FAILED };
+
+    static class TestTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
         private final T task;
+        private final AtomicReference<TaskState> state = new AtomicReference<>(INCOMPLETE);
 
         private TestTaskContext(T task) {
             this.task = task;
+        }
+
+        public boolean isIncomplete() {
+            return state.get() == INCOMPLETE;
         }
 
         @Override
@@ -98,24 +108,39 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         @Override
         public void success(Runnable onPublicationSuccess) {
+            assert state.get() == INCOMPLETE;
             onPublicationSuccess.run();
+            setCompletedState(SUCCEEDED);
         }
 
         @Override
-        public void success(Consumer<ClusterState> publishedStateConsumer) {}
+        public void success(Consumer<ClusterState> publishedStateConsumer) {
+            setCompletedState(SUCCEEDED);
+        }
 
         @Override
-        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {
+            setCompletedState(SUCCEEDED);
+        }
 
         @Override
-        public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
+        public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {
+            setCompletedState(SUCCEEDED);
+        }
 
         @Override
-        public void onFailure(Exception failure) {}
+        public void onFailure(Exception failure) {
+            setCompletedState(FAILED);
+        }
 
         @Override
         public Releasable captureResponseHeaders() {
             return null;
+        }
+
+        private void setCompletedState(TaskState newState) {
+            var prev = state.getAndSet(newState);
+            assert prev == INCOMPLETE;
         }
     }
 
@@ -291,7 +316,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         var updates = mockUpdateSequence(clusterName, List.of(higher(1001), higher(1002)));
         ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
         ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.contexts, () -> null)
         );
 
         assertThat("State should be the final state", newState, sameInstance(updates.states().get(updates.states().size() - 1)));
@@ -299,6 +324,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         // Only process the final task; the intermediate ones can be skipped
         verify(updates.tasks().get(0), times(0)).execute(any());
         verify(updates.tasks().get(1), times(1)).execute(any());
+
+        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     public void testBatchLastSuccessfulUpdateIsApplied() throws Exception {
@@ -312,7 +339,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
         ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.contexts, () -> null)
         );
 
         assertThat("State should be the last successful state", newState, sameInstance(updates.states().get(1)));
@@ -321,6 +348,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(updates.tasks().get(2), times(1)).execute(any()); // Tried the last one, it failed
         verify(updates.tasks().get(1), times(1)).execute(any()); // Tried the second-last one, it succeeded
         verify(updates.tasks().get(0), times(0)).execute(any()); // Didn't bother trying the first one
+
+        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     public void testBatchHigherVersionEarlierWins() throws Exception {
@@ -328,7 +357,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         var updates = mockUpdateSequence(clusterName, List.of(higher(1001), higher(1003), higher(1002))); // Out of order
         ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
         ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.contexts, () -> null)
         );
 
         assertThat("State should be the highest-versioned state", newState, sameInstance(updates.states().get(1)));
@@ -336,6 +365,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(updates.tasks().get(0), times(0)).execute(any());
         verify(updates.tasks().get(1), times(1)).execute(any());
         verify(updates.tasks().get(2), times(0)).execute(any());
+
+        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     public void testBatchEqualVersionEarlierWins() throws Exception {
@@ -343,7 +374,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         var updates = mockUpdateSequence(clusterName, List.of(higher(1003), higher(1003), higher(1002)));
         ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
         ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.contexts, () -> null)
         );
 
         assertThat("State should be the first instance of the highest-versioned state", newState, sameInstance(updates.states().get(0)));
@@ -352,15 +383,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(updates.tasks().get(0), times(1)).execute(any());
         verify(updates.tasks().get(1), times(0)).execute(any());
         verify(updates.tasks().get(2), times(0)).execute(any());
+
+        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     public void testBatchEqualVersionLaterWins() throws Exception {
         ClusterName clusterName = new ClusterName("test");
         var updates = mockUpdateSequence(clusterName, List.of(higher(1003), higherOrSame(1003), higher(1002)));
         ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
-        ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
-        );
+        var batch = new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.contexts, () -> null);
+        ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(batch);
 
         assertThat("State should be the last instance of the highest-versioned state", newState, sameInstance(updates.states().get(1)));
 
@@ -368,6 +400,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(updates.tasks().get(0), times(0)).execute(any());
         verify(updates.tasks().get(1), times(1)).execute(any());
         verify(updates.tasks().get(2), times(0)).execute(any());
+
+        assertEquals(List.of(), updates.incompleteTasks());
     }
 
     record MockUpdateSpec(long version, ReservedStateVersionCheck check){
@@ -384,9 +418,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
      * @param tasks Mockito spies configured to return a specific state
      * @param states the corresponding states returned by {@link #tasks}
      */
-    record MockUpdateSequence(List<ReservedStateUpdateTask> tasks, List<ClusterState> states) {
-        public List<TestTaskContext<ReservedStateUpdateTask>> taskContexts() {
-            return tasks.stream().map(TestTaskContext::new).toList();
+    record MockUpdateSequence(List<TestTaskContext<ReservedStateUpdateTask>> contexts, List<ReservedStateUpdateTask> tasks, List<ClusterState> states) {
+        public List<TestTaskContext<ReservedStateUpdateTask>> incompleteTasks() {
+            return contexts.stream().filter(TestTaskContext::isIncomplete).toList();
         }
     }
 
@@ -410,7 +444,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             tasks.add(task);
             states.add(state);
         }
-        return new MockUpdateSequence(tasks, states);
+        return new MockUpdateSequence(tasks.stream().map(TestTaskContext::new).toList(), tasks, states);
     }
 
     public void testUpdateErrorState() {

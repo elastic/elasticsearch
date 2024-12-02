@@ -65,6 +65,8 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
                 clusterState = task.execute(clusterState);
                 taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
                 logger.debug("-> Update task succeeded");
+                // All the others "succeeded" and then were conceptually superseded by the effective task
+                candidates.forEach(c -> c.success(() -> c.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE)));
                 return clusterState;
             } catch (Exception e) {
                 taskContext.onFailure(e);

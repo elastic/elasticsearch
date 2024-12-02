@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -222,6 +223,7 @@ public class Verifier {
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -233,6 +235,13 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
+        // _score can only be set as metadata attribute
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
+            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+        }
     }
 
     private void checkSort(LogicalPlan p, Set<Failure> failures) {

@@ -295,19 +295,22 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         });
         var cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTasks.get(0).taskId()).setReason("remote failed");
         client(REMOTE_CLUSTER).execute(TransportCancelTasksAction.TYPE, cancelRequest);
-        assertBusy(() -> {
-            List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .get()
-                .getTasks();
-            assertThat(drivers.size(), greaterThanOrEqualTo(1));
-            for (TaskInfo driver : drivers) {
-                assertTrue(driver.cancellable());
-            }
-        });
-        PauseFieldPlugin.allowEmitting.countDown();
+        try {
+            assertBusy(() -> {
+                List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .get()
+                    .getTasks();
+                assertThat(drivers.size(), greaterThanOrEqualTo(1));
+                for (TaskInfo driver : drivers) {
+                    assertTrue(driver.cancelled());
+                }
+            });
+        } finally {
+            PauseFieldPlugin.allowEmitting.countDown();
+        }
         var resp = requestFuture.actionGet();
         EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
 
@@ -334,18 +337,6 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         request.pragmas(randomPragmas());
         var requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         assertTrue(PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
-        assertBusy(() -> {
-            List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .get()
-                .getTasks();
-            assertThat(drivers.size(), greaterThanOrEqualTo(1));
-            for (TaskInfo driver : drivers) {
-                assertTrue(driver.cancellable());
-            }
-        });
         PauseFieldPlugin.allowEmitting.countDown();
         cluster(REMOTE_CLUSTER).close();
         try (var resp = requestFuture.actionGet()) {

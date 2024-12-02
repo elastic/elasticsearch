@@ -42,7 +42,10 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
 
     @Override
     public boolean checkLicense(XPackLicenseState state) {
-        return state.isAllowedByLicense(License.OperationMode.PLATINUM);
+        return switch (field().dataType()) {
+            case GEO_SHAPE, CARTESIAN_SHAPE -> state.isAllowedByLicense(License.OperationMode.PLATINUM);
+            default -> true;
+        };
     }
 
     @Override

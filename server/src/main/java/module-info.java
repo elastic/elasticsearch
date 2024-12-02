@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
 import org.elasticsearch.plugins.internal.RestExtension;
 
@@ -457,8 +459,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat;
+            ES816BinaryQuantizedVectorsFormat,
+            ES816HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with

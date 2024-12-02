@@ -51,14 +51,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * the inference results under the {@link SemanticTextField#INFERENCE_FIELD}.
  *
  * @param fieldName The original field name.
- * @param originalValues The original values associated with the field name.
+ * @param originalValues The original values associated with the field name for indices created before {@link IndexVersions#INFERENCE_METADATA_FIELDS}, null otherwise.
  * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
  */
 public record SemanticTextField(
     IndexVersion indexCreatedVersion,
     String fieldName,
-    List<String> originalValues,
+    @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
 ) implements ToXContentObject {
@@ -274,17 +274,22 @@ public record SemanticTextField(
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
-        new ConstructingObjectParser<>(
-            SemanticTextFieldMapper.CONTENT_TYPE,
-            true,
-            (args, context) -> new SemanticTextField(
+        new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
+            List<String> originalValues = (List<String>) args[0];
+            if (context.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (originalValues != null && originalValues.isEmpty() == false) {
+                    throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
+                }
+                originalValues = null;
+            }
+            return new SemanticTextField(
                 context.indexVersionCreated(),
                 context.fieldName(),
-                (List<String>) (args[0] == null ? List.of() : args[0]),
+                originalValues,
                 (InferenceResult) args[1],
                 context.xContentType()
-            )
-        );
+            );
+        });
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceResult, ParserContext> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
@@ -332,13 +337,13 @@ public record SemanticTextField(
             (p, c) -> MODEL_SETTINGS_PARSER.parse(p, null),
             new ParseField(MODEL_SETTINGS_FIELD)
         );
-        INFERENCE_RESULT_PARSER.declareObject(constructorArg(), (p, c) -> {
+        INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
                 return parseChunksMap(p);
             } else {
                 return Map.of(c.fieldName, parseChunksArrayLegacy(p));
             }
-        }, new ParseField(CHUNKS_FIELD));
+        }, new ParseField(CHUNKS_FIELD), ObjectParser.ValueType.OBJECT_ARRAY);
 
         CHUNKS_PARSER.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         CHUNKS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CHUNKED_START_OFFSET_FIELD));
@@ -372,7 +377,7 @@ public record SemanticTextField(
 
     private static List<Chunk> parseChunksArrayLegacy(XContentParser parser) throws IOException {
         List<Chunk> results = new ArrayList<>();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             results.add(CHUNKS_PARSER.parse(parser, null));
         }
@@ -397,7 +402,7 @@ public record SemanticTextField(
                 chunks.add(
                     new Chunk(
                         withOffsets ? null : input,
-                        startOffset,
+                        withOffsets ? startOffset : -1,
                         withOffsets ? startOffset + chunkAsByteReference.matchedText().length() : -1,
                         chunkAsByteReference.bytesReference()
                     )

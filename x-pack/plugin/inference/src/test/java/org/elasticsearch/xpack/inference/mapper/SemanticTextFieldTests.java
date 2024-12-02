@@ -17,6 +17,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,6 +42,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTextField> {
     private static final String NAME = "field";
 
+    private IndexVersion currentIndexVersion;
+
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return n -> n.endsWith(CHUNKED_EMBEDDINGS_FIELD);
@@ -48,49 +51,59 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected void assertEqualInstances(SemanticTextField expectedInstance, SemanticTextField newInstance) {
+        assertThat(newInstance.indexCreatedVersion(), equalTo(newInstance.indexCreatedVersion()));
         assertThat(newInstance.fieldName(), equalTo(expectedInstance.fieldName()));
         assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
         SemanticTextField.ModelSettings modelSettings = newInstance.inference().modelSettings();
-        for (int i = 0; i < newInstance.inference().chunks().size(); i++) {
-            /* assertThat(newInstance.inference().chunks().get(i).text(), equalTo(expectedInstance.inference().chunks().get(i).text()));
-            switch (modelSettings.taskType()) {
-                case TEXT_EMBEDDING -> {
-                    double[] expectedVector = parseDenseVector(
-                        expectedInstance.inference().chunks().get(i).rawEmbeddings(),
-                        modelSettings.dimensions(),
-                        expectedInstance.contentType()
-                    );
-                    double[] newVector = parseDenseVector(
-                        newInstance.inference().chunks().get(i).rawEmbeddings(),
-                        modelSettings.dimensions(),
-                        newInstance.contentType()
-                    );
-                    assertArrayEquals(expectedVector, newVector, 0.0000001f);
+        for (var entry : newInstance.inference().chunks().entrySet()) {
+            var expectedChunks = expectedInstance.inference().chunks().get(entry.getKey());
+            assertNotNull(expectedChunks);
+            assertThat(entry.getValue().size(), equalTo(expectedChunks.size()));
+            for (int i = 0; i < entry.getValue().size(); i++) {
+                var actualChunk = entry.getValue().get(i);
+                assertThat(actualChunk.text(), equalTo(expectedChunks.get(i).text()));
+                assertThat(actualChunk.startOffset(), equalTo(expectedChunks.get(i).startOffset()));
+                assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
+                switch (modelSettings.taskType()) {
+                    case TEXT_EMBEDDING -> {
+                        double[] expectedVector = parseDenseVector(
+                            expectedChunks.get(i).rawEmbeddings(),
+                            modelSettings.dimensions(),
+                            expectedInstance.contentType()
+                        );
+                        double[] newVector = parseDenseVector(
+                            actualChunk.rawEmbeddings(),
+                            modelSettings.dimensions(),
+                            newInstance.contentType()
+                        );
+                        assertArrayEquals(expectedVector, newVector, 0.0000001f);
+                    }
+                    case SPARSE_EMBEDDING -> {
+                        List<WeightedToken> expectedTokens = parseWeightedTokens(
+                            expectedChunks.get(i).rawEmbeddings(),
+                            expectedInstance.contentType()
+                        );
+                        List<WeightedToken> newTokens = parseWeightedTokens(actualChunk.rawEmbeddings(), newInstance.contentType());
+                        assertThat(newTokens, equalTo(expectedTokens));
+                    }
+                    default -> throw new AssertionError("Invalid task type " + modelSettings.taskType());
                 }
-                case SPARSE_EMBEDDING -> {
-                    List<WeightedToken> expectedTokens = parseWeightedTokens(
-                        expectedInstance.inference().chunks().get(i).rawEmbeddings(),
-                        expectedInstance.contentType()
-                    );
-                    List<WeightedToken> newTokens = parseWeightedTokens(
-                        newInstance.inference().chunks().get(i).rawEmbeddings(),
-                        newInstance.contentType()
-                    );
-                    assertThat(newTokens, equalTo(expectedTokens));
-                }
-                default -> throw new AssertionError("Invalid task type " + modelSettings.taskType());
-            }**/
+            }
         }
     }
 
     @Override
     protected SemanticTextField createTestInstance() {
+        currentIndexVersion = randomFrom(
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS),
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
+        );
         List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
         try { // try catch required for override
             return randomSemanticText(
-                IndexVersion.current(),
+                currentIndexVersion,
                 NAME,
                 TestModel.createRandomInstance(),
                 rawValues,
@@ -104,12 +117,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField doParseInstance(XContentParser parser) throws IOException {
-        return SemanticTextField.parse(parser, new SemanticTextField.ParserContext(IndexVersion.current(), NAME, parser.contentType()));
+        return SemanticTextField.parse(parser, new SemanticTextField.ParserContext(currentIndexVersion, NAME, parser.contentType()));
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 
     public void testModelSettingsValidation() {
@@ -218,7 +231,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new SemanticTextField(
             indexVersion,
             fieldName,
-            inputs,
+            indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) ? null : inputs,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),

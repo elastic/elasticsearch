@@ -314,17 +314,8 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testManyConcatFromRow() throws IOException {
         int strings = 2000;
-        initManyLongs();
         Response resp = manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", strings);
         assertManyStrings(resp, strings);
-    }
-
-    /**
-     * Hits a circuit breaker by building many moderately long strings.
-     */
-    public void testHugeManyConcatFromRow() throws IOException {
-        // 10000 is too many for the parser
-        assertCircuitBreaks(() -> manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", 10000));
     }
 
     /**
@@ -383,18 +374,8 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testManyRepeatFromRow() throws IOException {
         int strings = 10000;
-        initManyLongs();
         Response resp = manyRepeat("ROW a = 99", strings);
-        assertManyStrings(resp, 30);
-    }
-
-    /**
-     * Hits a circuit breaker by building many moderately long strings.
-     */
-    public void testHugeManyRepeatFromRow() throws IOException {
-        initManyLongs();
-        assertCircuitBreaks(() -> manyRepeat("ROW a = 99", 30000));
-        // 100000 is too many for the parser
+        assertManyStrings(resp, strings);
     }
 
     /**

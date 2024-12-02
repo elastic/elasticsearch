@@ -547,3 +547,48 @@ c:long
 3
 3
 ;
+
+categorize in aggs inside function
+required_capability: categorize_v4
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(category, category) BY category=CATEGORIZE(message)
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
+           3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
+           1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;
+
+categorize in aggs same as grouping inside function
+required_capability: categorize_v4
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(CATEGORIZE(message), `CATEGORIZE(message)`) BY CATEGORIZE(message)
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
+           3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
+           1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;
+
+categorize in aggs same as grouping inside function with explicit alias
+required_capability: categorize_v4
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(CATEGORIZE(message), category) BY category=CATEGORIZE(message)
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
+           3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
+           1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;

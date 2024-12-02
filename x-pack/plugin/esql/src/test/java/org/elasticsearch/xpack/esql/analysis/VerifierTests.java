@@ -1893,23 +1893,29 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V4.isEnabled());
 
         query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY CATEGORIZE(first_name)");
 
         assertEquals(
-            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within the aggregations",
+            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within an aggregation",
             error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
         );
-
         assertEquals(
-            "1:25: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            "1:25: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
             error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
         );
         assertEquals(
-            "1:30: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            "1:30: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
             error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
         );
         assertEquals(
-            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within the aggregations",
+            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within an aggregation",
             error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
+        );
+
+        assertEquals(
+            "1:28: can only use grouping function [CATEGORIZE(last_name)] part of the BY clause",
+            error("FROM test | STATS MV_COUNT(CATEGORIZE(last_name)) BY CATEGORIZE(first_name)")
         );
     }
 

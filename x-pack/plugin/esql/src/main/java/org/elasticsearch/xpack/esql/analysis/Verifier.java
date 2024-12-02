@@ -364,17 +364,19 @@ public class Verifier {
                 );
         });
 
-        // Forbid CATEGORIZE being used in the aggregations
-        agg.aggregates().forEach(a -> {
-            a.forEachDown(
-                Categorize.class,
-                categorize -> failures.add(
-                    fail(categorize, "cannot use CATEGORIZE grouping function [{}] within the aggregations", categorize.sourceText())
+        // Forbid CATEGORIZE being used in the aggregations, unless it appears as a grouping
+        agg.aggregates().forEach(a ->
+            a.forEachDown(AggregateFunction.class, aggregateFunction ->
+                aggregateFunction.forEachDown(
+                    Categorize.class,
+                    categorize -> failures.add(
+                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] within an aggregation", categorize.sourceText())
+                    )
                 )
-            );
-        });
+            )
+        );
 
-        // Forbid CATEGORIZE being referenced in the aggregation functions
+        // Forbid CATEGORIZE being referenced as a child of an aggregation function
         Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
         agg.groupings().forEach(g -> {
             g.forEachDown(Alias.class, alias -> {
@@ -390,7 +392,7 @@ public class Verifier {
                     failures.add(
                         fail(
                             attribute,
-                            "cannot reference CATEGORIZE grouping function [{}] within the aggregations",
+                            "cannot reference CATEGORIZE grouping function [{}] within an aggregation",
                             attribute.sourceText()
                         )
                     );

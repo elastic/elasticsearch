@@ -66,7 +66,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
     }
 
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.LT, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.LT, zoneId, evaluatorMap, LessThanNanosMillisEvaluator.Factory::new, LessThanMillisNanosEvaluator.Factory::new);
     }
 
     @Override

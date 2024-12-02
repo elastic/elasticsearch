@@ -62,11 +62,28 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
             description = "An expression."
         ) Expression right
     ) {
-        super(source, left, right, BinaryComparisonOperation.GTE, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.GTE,
+            evaluatorMap,
+            GreaterThanOrEqualNanosMillisEvaluator.Factory::new,
+            GreaterThanOrEqualLongsEvaluator.Factory::new
+        );
     }
 
     public GreaterThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.GTE, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.GTE,
+            zoneId,
+            evaluatorMap,
+            GreaterThanOrEqualNanosMillisEvaluator.Factory::new,
+            GreaterThanOrEqualLongsEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -108,6 +125,7 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     static boolean processLongs(long lhs, long rhs) {
         return lhs >= rhs;
     }
+
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
         return false;
@@ -117,6 +135,7 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     static boolean processNanosMillis(long lhs, long rhs) {
         return false;
     }
+
     @Evaluator(extraName = "Doubles")
     static boolean processDoubles(double lhs, double rhs) {
         return lhs >= rhs;

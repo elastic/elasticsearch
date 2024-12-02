@@ -95,11 +95,28 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
             description = "An expression."
         ) Expression right
     ) {
-        super(source, left, right, BinaryComparisonOperation.NEQ, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.NEQ,
+            evaluatorMap,
+            NotEqualsNanosMillisEvaluator.Factory::new,
+            NotEqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.NEQ,
+            zoneId,
+            evaluatorMap,
+            NotEqualsNanosMillisEvaluator.Factory::new,
+            NotEqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -126,6 +143,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     static boolean processNanosMillis(long lhs, long rhs) {
         return false;
     }
+
     @Evaluator(extraName = "Doubles")
     static boolean processDoubles(double lhs, double rhs) {
         return lhs != rhs;

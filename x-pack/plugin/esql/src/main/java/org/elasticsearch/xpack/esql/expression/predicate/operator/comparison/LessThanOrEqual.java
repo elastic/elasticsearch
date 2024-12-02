@@ -66,7 +66,16 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     }
 
     public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.LTE, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.LTE,
+            zoneId,
+            evaluatorMap,
+            LessThanOrEqualNanosMillisEvaluator.Factory::new,
+            LessThanMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -118,6 +127,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     static boolean processNanosMillis(long lhs, long rhs) {
         return false;
     }
+
     @Evaluator(extraName = "Doubles")
     static boolean processDoubles(double lhs, double rhs) {
         return lhs <= rhs;

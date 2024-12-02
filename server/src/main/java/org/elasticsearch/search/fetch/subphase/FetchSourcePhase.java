@@ -65,6 +65,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
                 if (nestedHit == false && fetchSourceContext.hasFilter() == false) {
+                    source = replaceInferenceMetadataFields(hitContext.hit(), source);
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;
@@ -79,27 +80,29 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 }
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
-                }
-                if (fetchContext.getSearchExecutionContext()
-                    .getIndexSettings()
-                    .getIndexVersionCreated()
-                    .onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
-                    /**
-                     * Transfers the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
-                     * to the original _source if it has been requested.
-                     */
+                } else {
                     source = replaceInferenceMetadataFields(hitContext.hit(), source);
                 }
                 hitContext.hit().sourceRef(source.internalSourceRef());
             }
 
+            /**
+             * Transfers the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
+             * to the original _source if it has been requested.
+             */
             private Source replaceInferenceMetadataFields(SearchHit hit, Source source) {
-                var field = hit.getFields().remove(InferenceMetadataFieldsMapper.NAME);
-                if (field == null) {
+                if (fetchContext.getSearchExecutionContext()
+                    .getIndexSettings()
+                    .getIndexVersionCreated()
+                    .before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
                     return source;
                 }
-                var newSource = hit.getSourceAsMap();
-                newSource.put(InferenceMetadataFieldsMapper.NAME, field);
+                var field = hit.removeMetadataFields(InferenceMetadataFieldsMapper.NAME);
+                if (field == null || field.getValues().isEmpty()) {
+                    return source;
+                }
+                var newSource = source.source();
+                newSource.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0));
                 return Source.fromMap(newSource, source.sourceContentType());
             }
 

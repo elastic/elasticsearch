@@ -302,8 +302,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean hasInferenceMetadataFields = false;
         if (storedFields != null) {
             for (String field : storedFields) {
-                if (storedFields.equals(InferenceMetadataFieldsMapper.NAME)
-                    && indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (field.equals(InferenceMetadataFieldsMapper.NAME) && indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
                     hasInferenceMetadataFields = true;
                     continue;
                 }
@@ -391,7 +390,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                  * Adds the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
                  * to the original _source if it has been requested.
                  */
-                addInferenceMetadataFields(mapperService, docIdAndVersion.reader.getContext(), docIdAndVersion.docId, source);
+                source = addInferenceMetadataFields(mapperService, docIdAndVersion.reader.getContext(), docIdAndVersion.docId, source);
             }
             sourceBytes = source.internalSourceRef();
         }
@@ -430,7 +429,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         var mappingLookup = mapperService.mappingLookup();
         var inferenceMetadata = (InferenceMetadataFieldsMapper) mappingLookup.getMapping()
             .getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
-        if (inferenceMetadata == null || mapperService.mappingLookup().inferenceFields().isEmpty() == false) {
+        if (inferenceMetadata == null || mapperService.mappingLookup().inferenceFields().isEmpty()) {
             return source;
         }
         var inferenceLoader = inferenceMetadata.fieldType()
@@ -438,9 +437,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         inferenceLoader.setNextReader(readerContext);
         List<Object> values = inferenceLoader.fetchValues(source, docId, List.of());
         if (values.size() == 1) {
-            var sourceMap = source.source();
-            sourceMap.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-            return Source.fromMap(sourceMap, source.sourceContentType());
+            var newSource = source.source();
+            newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+            return Source.fromMap(newSource, source.sourceContentType());
         }
         return source;
     }

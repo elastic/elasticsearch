@@ -1070,8 +1070,9 @@ public class SearchModule {
         registerFetchSubPhase(new StoredFieldsPhase());
         registerFetchSubPhase(new FetchDocValuesPhase());
         registerFetchSubPhase(new ScriptFieldsPhase());
-        registerFetchSubPhase(new FetchSourcePhase());
         registerFetchSubPhase(new FetchFieldsPhase());
+        // register after fetch fields to handle metadata fields that needs to be copied in _source (e.g. _inference_fields).
+        registerFetchSubPhase(new FetchSourcePhase());
         registerFetchSubPhase(new FetchVersionPhase());
         registerFetchSubPhase(new SeqNoPrimaryTermPhase());
         registerFetchSubPhase(new MatchedQueriesPhase());

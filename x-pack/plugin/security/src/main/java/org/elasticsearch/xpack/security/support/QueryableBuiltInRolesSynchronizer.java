@@ -58,8 +58,14 @@ public class QueryableBuiltInRolesSynchronizer implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(QueryableBuiltInRolesSynchronizer.class);
 
+    /**
+     * This is a temporary feature flag to allow enabling the synchronization of built-in roles to the .security index.
+     * Initially, it is disabled by default due to the number of tests that need to be adjusted now that .security index
+     * is created earlier in the cluster lifecycle.
+     * <p>
+     * Once all tests are adjusted, this flag will be set to enabled by default and later removed altogether.
+     */
     public static final boolean QUERYABLE_BUILT_IN_ROLES_ENABLED;
-
     static {
         final var propertyValue = System.getProperty("es.queryable_built_in_roles_enabled");
         if (propertyValue == null || propertyValue.isEmpty() || "false".equals(propertyValue)) {

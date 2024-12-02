@@ -12,6 +12,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.junit.Before;
 
 import java.util.List;
@@ -24,6 +27,12 @@ public class TermIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex();
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        return super.run(request);
     }
 
     public void testSimpleTermQuery() throws Exception {

@@ -12,11 +12,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 
@@ -114,11 +112,13 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testEsqlRuntimeFields() throws IOException {
-        String indexName = "test-foo";
         String mappings = """
             {
                 "runtime": {
                     "message_length": {
+                        "type": "long"
+                    },
+                    "log.offset": {
                         "type": "long"
                     }
                 },
@@ -132,9 +132,6 @@ public class LogsdbRestIT extends ESRestTestCase {
                             "level": {
                                 "type": "keyword"
                             },
-                            "offset": {
-                                "type": "long"
-                            },
                             "file": {
                                 "type": "keyword"
                             }
@@ -143,9 +140,10 @@ public class LogsdbRestIT extends ESRestTestCase {
                 }
             }
             """;
+        String indexName = "test-foo";
         createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
 
-        int numDocs = 1000;
+        int numDocs = 500;
         var sb = new StringBuilder();
         var now = Instant.now();
 
@@ -187,33 +185,40 @@ public class LogsdbRestIT extends ESRestTestCase {
         var bulkResponseBody = responseAsMap(bulkResponse);
         assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
 
-        String query =
-            "FROM test-foo | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length) | LIMIT 1";
+        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        forceMergeRequest.addParameter("max_num_segments", "1");
+        var forceMergeResponse = client().performRequest(forceMergeRequest);
+        assertOK(forceMergeResponse);
+
+        String query = "FROM test-foo | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length)" +
+            " ,sum(message_length), avg(message_length), min(log.offset), max(log.offset) | LIMIT 1";
         final Request esqlRequest = new Request("POST", "/_query");
         esqlRequest.setJsonEntity("""
             {
                 "query": "$query"
             }
             """.replace("$query", query));
-        var response = client().performRequest(esqlRequest);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        final Map<String, Object> responseBody = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            response.getEntity().getContent(),
-            false
-        );
-        List<?> values = (List<?>) responseBody.get("values");
+        var esqlResponse = client().performRequest(esqlRequest);
+        assertOK(esqlResponse);
+        Map<String, Object> esqlResponseBody = responseAsMap(esqlResponse);
+
+        List<?> values = (List<?>) esqlResponseBody.get("values");
         assertThat(values, Matchers.not(Matchers.empty()));
         var count = ((List<?>) values.getFirst()).get(0);
         assertThat(count, equalTo(numDocs));
+        logger.warn("VALUES: {}", values);
+
         var minTimestamp = ((List<?>) values.getFirst()).get(1);
-        var maxTimestamp = ((List<?>) values.getFirst()).get(2);
-        var minLength = ((List<?>) values.getFirst()).get(3);
-        var maxLength = ((List<?>) values.getFirst()).get(4);
         assertThat(minTimestamp, equalTo(formatInstant(expectedMinTimestamp)));
-        assertThat(minLength, equalTo(20));
+        var maxTimestamp = ((List<?>) values.getFirst()).get(2);
         assertThat(maxTimestamp, equalTo(formatInstant(expectedMaxTimestamp)));
+
+        var minLength = ((List<?>) values.getFirst()).get(3);
+        assertThat(minLength, equalTo(20));
+        var maxLength = ((List<?>) values.getFirst()).get(4);
         assertThat(maxLength, equalTo(20));
+        var sumLength = ((List<?>) values.getFirst()).get(5);
+        assertThat(sumLength, equalTo(20 * numDocs));
     }
 
     static String formatInstant(Instant instant) {

@@ -5,7 +5,7 @@
 
 //TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
 basicOnTheDataNode-Ignore
-required_capability: join_lookup_v2
+required_capability: join_lookup_v3
 
 FROM employees
 | EVAL language_code = languages
@@ -22,7 +22,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 basicRow-Ignore
-required_capability: join_lookup
+required_capability: join_lookup_v3
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -33,7 +33,7 @@ language_code:keyword  | language_name:keyword
 ;
 
 basicOnTheCoordinator
-required_capability: join_lookup_v2
+required_capability: join_lookup_v3
 
 FROM employees
 | SORT emp_no
@@ -51,7 +51,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 //TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
 subsequentEvalOnTheDataNode-Ignore
-required_capability: join_lookup_v2
+required_capability: join_lookup_v3
 
 FROM employees
 | EVAL language_code = languages
@@ -69,7 +69,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 subsequentEvalOnTheCoordinator
-required_capability: join_lookup_v2
+required_capability: join_lookup_v3
 
 FROM employees
 | SORT emp_no

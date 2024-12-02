@@ -194,30 +194,30 @@ class FieldCapabilitiesFetcher {
             // TODO find a way to do this that does not require an instanceof check
             if (ft instanceof RuntimeField == false && includeParentObjects) {
                 int dotIndex = ft.name().lastIndexOf('.');
-                while (dotIndex > -1) {
-                    String parentField = ft.name().substring(0, dotIndex);
-                    if (responseMap.containsKey(parentField)) {
-                        // we added this path on another field already
-                        break;
-                    }
-                    // checks if the parent field contains sub-fields
-                    if (context.getFieldType(parentField) == null) {
-                        // no field type, it must be an object field
-                        String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                            parentField,
-                            type,
-                            false,
-                            false,
-                            false,
-                            false,
-                            null,
-                            Map.of()
-                        );
-                        responseMap.put(parentField, fieldCap);
-                    }
-                    dotIndex = parentField.lastIndexOf('.');
-                }
+//                while (dotIndex > -1) {
+//                    String parentField = ft.name().substring(0, dotIndex);
+//                    if (responseMap.containsKey(parentField)) {
+//                        // we added this path on another field already
+//                        break;
+//                    }
+//                    // checks if the parent field contains sub-fields
+//                    if (context.getFieldType(parentField) == null) {
+//                        // no field type, it must be an object field
+//                        String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+//                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+//                            parentField,
+//                            type,
+//                            false,
+//                            false,
+//                            false,
+//                            false,
+//                            null,
+//                            Map.of()
+//                        );
+//                        responseMap.put(parentField, fieldCap);
+//                    }
+//                    dotIndex = parentField.lastIndexOf('.');
+//                }
             }
         }
         return responseMap;

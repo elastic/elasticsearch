@@ -434,8 +434,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return all;
     }
 
-    protected final boolean hasNullColumnarReader(DirectoryReader reader, MappedFieldType fieldType)
-        throws IOException {
+    protected final boolean hasNullColumnarReader(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         for (LeafReaderContext ctx : reader.leaves()) {
             TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx);

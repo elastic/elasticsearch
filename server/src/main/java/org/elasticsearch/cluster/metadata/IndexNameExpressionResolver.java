@@ -290,12 +290,13 @@ public class IndexNameExpressionResolver {
             String originalExpression = expressions[i];
 
             // Resolve the selector when applicable
-            IndexComponentSelector selector = null;
-            String baseExpression = originalExpression;
+            Tuple<String, IndexComponentSelector> tuple = SelectorResolver.parseSelectorExpression(originalExpression);
+            String  baseExpression = tuple.v1();
+            IndexComponentSelector selector = tuple.v2();
             if (context.getOptions().gatekeeperOptions().allowSelectors()) {
-                Tuple<String, IndexComponentSelector> tuple = SelectorResolver.parseSelectorExpression(baseExpression);
-                baseExpression = tuple.v1();
-                selector = tuple.v2() == null ? context.getOptions().selectorOptions().defaultSelector() : tuple.v2();
+                selector = selector == null ? context.getOptions().selectorOptions().defaultSelector() : selector;
+            } else {
+                SelectorResolver.ensureNoSelectorsProvided(originalExpression, selector);
             }
 
             // Resolve exclusion, a `-` prefixed expression is an exclusion only if it succeeds a wildcard.
@@ -1188,7 +1189,7 @@ public class IndexNameExpressionResolver {
         boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
         IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(name);
         if (indexAbstraction == null) {
-            if (ignoreUnavailable == false) {
+            if (ignoreUnavailable) {
                 return;
             } else {
                 throw notFoundException(name);
@@ -1596,7 +1597,9 @@ public class IndexNameExpressionResolver {
             boolean hasExpanded
         ) {
             if (context.getOptions().allowNoIndices() == false && hasExpanded == false) {
-                String expressionWithSelector = selector == null ? expression : expression + SelectorResolver.SELECTOR_SEPARATOR + selector.getKey();
+                String expressionWithSelector = selector == null
+                    ? expression
+                    : expression + SelectorResolver.SELECTOR_SEPARATOR + selector.getKey();
                 throw notFoundException(expressionWithSelector);
             }
         }
@@ -2171,11 +2174,10 @@ public class IndexNameExpressionResolver {
         /**
          * Checks the selectors that have been returned from splitting an expression and throws an exception if any were present.
          * @param expression Original expression
-         * @param selectors Selectors to validate
          * @throws IllegalArgumentException if selectors are present
          */
-        private static void ensureNoSelectorsProvided(String expression, Collection<IndexComponentSelector> selectors) {
-            if (selectors.isEmpty() == false) {
+        static void ensureNoSelectorsProvided(String expression, IndexComponentSelector selector) {
+            if (selector != null) {
                 throw new IllegalArgumentException(
                     "Index component selectors are not supported in this context but found selector in expression [" + expression + "]"
                 );

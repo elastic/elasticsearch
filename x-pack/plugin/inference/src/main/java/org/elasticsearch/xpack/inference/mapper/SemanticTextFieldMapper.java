@@ -293,13 +293,24 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
+        final XContentParser parser = context.parser();
+        final XContentLocation xContentLocation = parser.getTokenLocation();
+
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
             && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
-            // ignore original text value
-            context.parser().skipChildren();
+            // Detect if field value is an object, which we don't support parsing
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                throw new DocumentParsingException(
+                    xContentLocation,
+                    "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support object values"
+                );
+            }
+
+            // ignore the rest of the field value
+            parser.skipChildren();
             return;
         }
-        XContentLocation xContentLocation = context.parser().getTokenLocation();
+
         final SemanticTextField field = parseSemanticTextField(context);
         if (field != null) {
             parseCreateFieldFromContext(context, field, xContentLocation);

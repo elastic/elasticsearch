@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -23,9 +23,6 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -723,7 +720,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-                hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
+            hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
             if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
                 var indices = DiffableUtils.readImmutableOpenMapDiff(
                     in,
@@ -754,11 +751,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     ProjectMetadata.ProjectMetadataDiff::new
                 );
             }
-                reservedStateMetadata = DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    RESERVED_DIFF_VALUE_READER
-                );
+            reservedStateMetadata = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), RESERVED_DIFF_VALUE_READER);
         }
 
         @SuppressWarnings("unchecked")
@@ -791,7 +784,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             coordinationMetadata.writeTo(out);
             transientSettings.writeTo(out);
             persistentSettings.writeTo(out);
-                hashesOfConsistentSettings.writeTo(out);
+            hashesOfConsistentSettings.writeTo(out);
             if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
                 // there's only ever a single project with pre-multi-project
                 if (multiProject != null) {
@@ -812,7 +805,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 }
             }
 
-                reservedStateMetadata.writeTo(out);
+            reservedStateMetadata.writeTo(out);
         }
 
         @SuppressWarnings("unchecked")
@@ -863,15 +856,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
+        builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
             final Function<String, MappingMetadata> mappingLookup;
-                final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
-                if (mappingMetadataMap.isEmpty() == false) {
-                    mappingLookup = mappingMetadataMap::get;
-                } else {
-                    mappingLookup = null;
-                }
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.isEmpty() == false) {
+                mappingLookup = mappingMetadataMap::get;
+            } else {
+                mappingLookup = null;
+            }
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
@@ -932,10 +925,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         coordinationMetadata.writeTo(out);
         transientSettings.writeTo(out);
         persistentSettings.writeTo(out);
-            hashesOfConsistentSettings.writeTo(out);
+        hashesOfConsistentSettings.writeTo(out);
         if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
             ProjectMetadata singleProject = getSingleProject();
-                out.writeMapValues(singleProject.getMappingsByHash());
+            out.writeMapValues(singleProject.getMappingsByHash());
             out.writeVInt(singleProject.size());
             for (IndexMetadata indexMetadata : singleProject) {
                 indexMetadata.writeTo(out, true);
@@ -951,7 +944,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
             out.writeMap(projectMetadata, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
-            out.writeCollection(reservedStateMetadata.values());
+        out.writeCollection(reservedStateMetadata.values());
     }
 
     public static Builder builder() {

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -33,9 +33,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
-import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -210,7 +207,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         return (shouldPruneTokens)
             ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
-            : WeightedTokensUtils.queryBuilderWithAllTokens(queryVectors, ft, context);
+            : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
     }
 
     @Override

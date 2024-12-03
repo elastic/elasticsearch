@@ -44,21 +44,23 @@ enum IntervalThrottler {
 
         boolean accept() {
             final long now = System.currentTimeMillis();
-            boolean accepted = false;
             // Check without guarding first, to reduce contention.
             if (now - lastAcceptedTimeMillis > intervalMillis) {
-                // Check if another concurrent logging operation succeeded.
+                // Check if another concurrent operation succeeded.
                 if (lastAcceptedGuard.compareAndSet(false, true)) {
-                    // Repeat check under guard protection, so that only one message gets written per interval.
-                    if (now - lastAcceptedTimeMillis > intervalMillis) {
-                        lastAcceptedTimeMillis = now;
-                        accepted = true;
+                    try {
+                        // Repeat check under guard protection, so that only one message gets written per interval.
+                        if (now - lastAcceptedTimeMillis > intervalMillis) {
+                            lastAcceptedTimeMillis = now;
+                            return true;
+                        }
+                    } finally {
+                        // Reset guard.
+                        lastAcceptedGuard.set(false);
                     }
-                    // Reset guard before logging.
-                    lastAcceptedGuard.set(false);
                 }
             }
-            return accepted;
+            return false;
         }
     }
 }

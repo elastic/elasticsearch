@@ -145,29 +145,21 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         List<? extends NamedExpression> lowerProjections
     ) {
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-        AttributeMap<Expression> aliases = new AttributeMap<>();
+        AttributeMap<Attribute> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {
             // record the alias
-            aliases.put(ne.toAttribute(), Alias.unwrap(ne));
+            aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
         }
+
         // Replace any matching attribute directly with the aliased attribute from the projection.
-        AttributeSet seen = new AttributeSet();
-        List<Expression> replaced = new ArrayList<>();
+        AttributeMap<NamedExpression> replaced = new AttributeMap<>();
         for (NamedExpression ne : upperGroupings) {
-            // Duplicated attributes are ignored.
-            if (ne instanceof Attribute attribute) {
-                var newExpression = aliases.resolve(attribute, attribute);
-                if (newExpression instanceof Attribute newAttribute && seen.add(newAttribute) == false) {
-                    // Already seen, skip
-                    continue;
-                }
-                replaced.add(newExpression);
-            } else {
-                // For grouping functions, this will replace nested properties too
-                replaced.add(ne.transformUp(Attribute.class, a -> aliases.resolve(a, a)));
-            }
+            // All substitutions happen before; groupings must be attributes at this point
+            // except for CATEGORIZE which will be an alias like `c = CATEGORIZE(attribute)`
+            NamedExpression transformed = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
+            replaced.add(transformed.toAttribute(), transformed);
         }
-        return replaced;
+        return new ArrayList<>(replaced.values());
     }
 
     /**

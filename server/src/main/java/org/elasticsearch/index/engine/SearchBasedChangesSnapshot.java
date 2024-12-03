@@ -83,6 +83,13 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
             throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
         }
 
+        final AtomicBoolean closed = new AtomicBoolean();
+        this.onClose = () -> {
+            if (closed.compareAndSet(false, true)) {
+                IOUtils.close(engineSearcher);
+            }
+        };
+
         this.indexVersionCreated = indexVersionCreated;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
@@ -90,13 +97,6 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         this.requiredFullRange = requiredFullRange;
         this.indexSearcher = newIndexSearcher(engineSearcher);
         this.indexSearcher.setQueryCache(null);
-
-        final AtomicBoolean closed = new AtomicBoolean();
-        this.onClose = () -> {
-            if (closed.compareAndSet(false, true)) {
-                IOUtils.close(engineSearcher);
-            }
-        };
 
         long requestingSize = (toSeqNo - fromSeqNo == Long.MAX_VALUE) ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = (int) Math.min(requestingSize, searchBatchSize);

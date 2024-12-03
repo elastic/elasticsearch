@@ -1945,9 +1945,10 @@ public class AnalyzerTests extends ESTestCase {
                 .item(startsWith("job{f}"))
                 .item(startsWith("job.raw{f}"))
                 /*
-                 * Int key is returned as a full field (despite the rename)
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
                  */
-                .item(containsString("int{f}"))
+                .item(containsString("int{r}"))
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
@@ -2008,14 +2009,14 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [datetime or numeric]")
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [date_nanos, datetime or numeric]")
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = to_string(null) - 1 day
             """));
 
-        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [datetime or numeric]"));
+        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [date_nanos, datetime or numeric]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = concat("2024", "-04", "-01") + "1 day"
@@ -2023,7 +2024,7 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [datetime or numeric]")
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [date_nanos, datetime or numeric]")
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""

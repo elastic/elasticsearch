@@ -24,10 +24,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
  * and feeds them to its {@link ExchangeSource}, which are created using the {@link #createExchangeSource()}) method.
- * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, int)}) method.
+ * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, boolean, int, ActionListener)}) method.
  *
  * @see #createExchangeSource()
- * @see #addRemoteSink(RemoteSink, int)
+ * @see #addRemoteSink(RemoteSink, boolean, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
     private final ExchangeBuffer buffer;
@@ -35,13 +35,43 @@ public final class ExchangeSourceHandler {
 
     private final PendingInstances outstandingSinks;
     private final PendingInstances outstandingSources;
+    // Collect failures that occur while fetching pages from the remote sink with `failFast=true`.
+    // The exchange source will stop fetching and abort as soon as any failure is added to this failure collector.
+    // The final failure collected will be notified to callers via the {@code completionListener}.
     private final FailureCollector failure = new FailureCollector();
 
-    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
+    /**
+     * Creates a new ExchangeSourceHandler.
+     *
+     * @param maxBufferSize      the maximum size of the exchange buffer. A larger buffer reduces ``pauses`` but uses more memory,
+     *                           which could otherwise be allocated for other purposes.
+     * @param fetchExecutor      the executor used to fetch pages.
+     * @param completionListener a listener that will be notified when the exchange source handler fails or completes
+     */
+    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor, ActionListener<Void> completionListener) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
         this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
+        buffer.addCompletionListener(ActionListener.running(() -> {
+            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener).delegateFailure((l, unused) -> {
+                final Exception e = failure.getFailure();
+                if (e != null) {
+                    l.onFailure(e);
+                } else {
+                    l.onResponse(null);
+                }
+            });
+            try (RefCountingListener refs = new RefCountingListener(listener)) {
+                for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
+                    // Create an outstanding instance and then finish to complete the completionListener
+                    // if we haven't registered any instances of exchange sinks or exchange sources before.
+                    pending.trackNewInstance();
+                    pending.completion.addListener(refs.acquire());
+                    pending.finishInstance();
+                }
+            }
+        }));
     }
 
     private class ExchangeSourceImpl implements ExchangeSource {
@@ -87,20 +117,6 @@ public final class ExchangeSourceHandler {
         public int bufferSize() {
             return buffer.size();
         }
-    }
-
-    public void addCompletionListener(ActionListener<Void> listener) {
-        buffer.addCompletionListener(ActionListener.running(() -> {
-            try (RefCountingListener refs = new RefCountingListener(listener)) {
-                for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
-                    // Create an outstanding instance and then finish to complete the completionListener
-                    // if we haven't registered any instances of exchange sinks or exchange sources before.
-                    pending.trackNewInstance();
-                    pending.completion.addListener(refs.acquire());
-                    pending.finishInstance();
-                }
-            }
-        }));
     }
 
     /**
@@ -159,10 +175,14 @@ public final class ExchangeSourceHandler {
     private final class RemoteSinkFetcher {
         private volatile boolean finished = false;
         private final RemoteSink remoteSink;
+        private final boolean failFast;
+        private final ActionListener<Void> completionListener;
 
-        RemoteSinkFetcher(RemoteSink remoteSink) {
+        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, ActionListener<Void> completionListener) {
             outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
+            this.failFast = failFast;
+            this.completionListener = completionListener;
         }
 
         void fetchPage() {
@@ -198,15 +218,24 @@ public final class ExchangeSourceHandler {
         }
 
         void onSinkFailed(Exception e) {
-            failure.unwrapAndCollect(e);
+            if (failFast) {
+                failure.unwrapAndCollect(e);
+            }
             buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
-            onSinkComplete();
+            if (finished == false) {
+                finished = true;
+                remoteSink.close(ActionListener.running(() -> {
+                    outstandingSinks.finishInstance();
+                    completionListener.onFailure(e);
+                }));
+            }
         }
 
         void onSinkComplete() {
             if (finished == false) {
                 finished = true;
                 outstandingSinks.finishInstance();
+                completionListener.onResponse(null);
             }
         }
     }
@@ -215,25 +244,39 @@ public final class ExchangeSourceHandler {
      * Add a remote sink as a new data source of this handler. The handler will start fetching data from this remote sink intermediately.
      *
      * @param remoteSink the remote sink
-     * @param instances  the number of concurrent ``clients`` that this handler should use to fetch pages. More clients reduce latency,
-     *                   but add overhead.
+     * @param failFast   determines how failures in this remote sink are handled:
+     *                   - If {@code false}, failures from this remote sink will not cause the exchange source to abort.
+     *                   Callers must handle these failures notified via {@code listener}.
+     *                   - If {@code true}, failures from this remote sink will cause the exchange source to abort.
+     *                   Callers can safely ignore failures notified via this listener, as they are collected and
+     *                   reported by the exchange source.
+     * @param instances  the number of concurrent ``clients`` that this handler should use to fetch pages.
+     *                   More clients reduce latency, but add overhead.
+     * @param listener   a listener that will be notified when the sink fails or completes
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
-    public void addRemoteSink(RemoteSink remoteSink, int instances) {
-        for (int i = 0; i < instances; i++) {
-            var fetcher = new RemoteSinkFetcher(remoteSink);
-            fetchExecutor.execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    fetcher.onSinkFailed(e);
+    public void addRemoteSink(RemoteSink remoteSink, boolean failFast, int instances, ActionListener<Void> listener) {
+        final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(ActionListener.notifyOnce(listener));
+        fetchExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                if (failFast) {
+                    failure.unwrapAndCollect(e);
                 }
+                buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
+                remoteSink.close(ActionListener.running(() -> sinkListener.onFailure(e)));
+            }
 
-                @Override
-                protected void doRun() {
-                    fetcher.fetchPage();
+            @Override
+            protected void doRun() {
+                try (RefCountingListener refs = new RefCountingListener(sinkListener)) {
+                    for (int i = 0; i < instances; i++) {
+                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, refs.acquire());
+                        fetcher.fetchPage();
+                    }
                 }
-            });
-        }
+            }
+        });
     }
 
     /**

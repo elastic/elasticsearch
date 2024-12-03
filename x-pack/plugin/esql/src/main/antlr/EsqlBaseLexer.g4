@@ -209,6 +209,10 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+
+LEFT_BRACES : {this.isDevVersion()}? '{';
+RIGHT_BRACES : {this.isDevVersion()}? '}';
+
 EXPRESSION_COLON : {this.isDevVersion()}? COLON -> type(COLON);
 
 NESTED_WHERE : WHERE -> type(WHERE);

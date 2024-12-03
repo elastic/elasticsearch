@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -409,6 +410,7 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Categorize.class, Categorize::new, "categorize"),
+                def(MapCount.class, MapCount::new, "map_count"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }
 
@@ -521,14 +523,24 @@ public class EsqlFunctionRegistry {
         boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String name = paramInfo == null ? params[i].getName() : paramInfo.name();
-                variadic |= List.class.isAssignableFrom(params[i].getType());
-                String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
+                if (mapParamInfo != null) {
+                    String name = mapParamInfo == null ? params[i].getName() : mapParamInfo.name();
+                    String[] valueType = mapParamInfo == null ? new String[] { "?" } : removeUnderConstruction(mapParamInfo.valueType());
+                    String desc = mapParamInfo == null ? "" : mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo == null ? false : mapParamInfo.optional();
+                    DataType targetDataType = getTargetType(valueType);
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, targetDataType));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String name = paramInfo == null ? params[i].getName() : paramInfo.name();
+                    variadic |= List.class.isAssignableFrom(params[i].getType());
+                    String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
+                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                    boolean optional = paramInfo == null ? false : paramInfo.optional();
+                    DataType targetDataType = getTargetType(type);
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                }
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);

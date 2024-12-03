@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -57,9 +58,10 @@ public class Match extends FullTextFunction implements Validatable {
             name = "query",
             type = { "keyword", "text" },
             description = "Text you wish to find in the provided field."
-        ) Expression matchQuery
+        ) Expression matchQuery,
+        @MapParam(name = "options", optional = true) Expression options
     ) {
-        super(source, matchQuery, List.of(field, matchQuery));
+        super(source, matchQuery, options, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options));
         this.field = field;
     }
 
@@ -67,7 +69,8 @@ public class Match extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Match(source, field, query);
+        Expression options = in.readOptionalNamedWriteable(Expression.class);
+        return new Match(source, field, query, options);
     }
 
     @Override
@@ -75,6 +78,7 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        out.writeOptionalNamedWriteable(options());
     }
 
     @Override
@@ -104,12 +108,12 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query(), options());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

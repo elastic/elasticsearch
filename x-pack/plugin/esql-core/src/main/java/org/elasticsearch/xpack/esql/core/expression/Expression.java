@@ -35,6 +35,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
             entries.add(new NamedWriteableRegistry.Entry(Expression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
         }
         entries.add(Literal.ENTRY);
+        entries.add(NamedLiterals.ENTRY);
         return entries;
     }
 

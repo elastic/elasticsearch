@@ -16,10 +16,12 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,19 +43,25 @@ public class QueryString extends FullTextFunction {
             name = "query",
             type = { "keyword", "text" },
             description = "Query string in Lucene query string format."
-        ) Expression queryString
+        ) Expression queryString,
+        @MapParam(name = "options", optional = true) Expression options
     ) {
-        super(source, queryString, List.of(queryString));
+        super(source, queryString, options, options == null ? Collections.singletonList(queryString) : List.of(queryString, options));
     }
 
     private QueryString(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
+        out.writeOptionalNamedWriteable(options());
     }
 
     @Override
@@ -68,12 +76,12 @@ public class QueryString extends FullTextFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryString(source(), newChildren.get(0));
+        return new QueryString(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryString::new, query());
+        return NodeInfo.create(this, QueryString::new, query(), options());
     }
 
 }

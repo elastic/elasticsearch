@@ -17,12 +17,14 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.NamedLiterals;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -69,6 +71,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -595,7 +598,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Expression> args = expressions(ctx.functionArgument());
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
                 source(ctx),
@@ -614,6 +617,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
+    }
+
+    @Override
+    public NamedLiterals visitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) {
+        Map<String, String> namedArgs = Maps.newLinkedHashMapWithExpectedSize(ctx.namedConstants().namedConstant().size());
+        List<EsqlBaseParser.NamedConstantContext> kvCtx = ctx.namedConstants().namedConstant();
+        for (EsqlBaseParser.NamedConstantContext entry : kvCtx) {
+            String key = visitString(entry.string()).fold().toString();
+            Expression value = expression(entry.constant());
+            if ((value instanceof Literal) == false) {
+                throw new ParsingException(source(ctx), "Invalid named function argument [{}], only constant value is supported", value);
+            }
+            namedArgs.put(key, value.fold().toString());
+        }
+        return new NamedLiterals(Source.EMPTY, namedArgs);
     }
 
     @Override
@@ -923,6 +941,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
+        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString), null);
     }
 }

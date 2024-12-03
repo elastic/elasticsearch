@@ -197,3 +197,31 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10041          | Uri                 | Lenart         
 10043          | Yishay              | Tzvieli        
 ;
+
+mapCount
+required_capability: optional_named_argument_map_for_function
+row x = 1
+| eval y = map_count({"option1":"value2", "option2":2, "option3":3.0, "option4":true})
+;
+
+x:integer |y:long
+1         |4
+;
+
+matchWithOptions
+required_capability: match_function
+required_capability: optional_named_argument_map_for_function
+
+FROM books 
+| WHERE MATCH(author, "Faulkner", {"fuzziness":"auto", "boost":2, "analyzer":"whitespace"})
+| KEEP book_no, author 
+| SORT book_no 
+| LIMIT 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;

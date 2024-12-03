@@ -489,7 +489,12 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

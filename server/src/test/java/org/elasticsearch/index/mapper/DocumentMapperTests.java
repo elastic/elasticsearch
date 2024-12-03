@@ -29,8 +29,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,25 +51,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DocumentMapperTests extends MapperServiceTestCase {
-
-    static MockAppender appender;
-    static Logger testLogger = LogManager.getLogger(DocumentMapper.class);
-    static Level originalLogLevel = testLogger.getLevel();
-
-    @BeforeClass
-    public static void init() throws IllegalAccessException {
-        appender = new MockAppender("mock_appender");
-        appender.start();
-        Loggers.addAppender(testLogger, appender);
-        Loggers.setLevel(testLogger, Level.ERROR);
-    }
-
-    @AfterClass
-    public static void cleanup() {
-        Loggers.removeAppender(testLogger, appender);
-        appender.stop();
-        Loggers.setLevel(testLogger, originalLogLevel);
-    }
 
     public void testAddFields() throws Exception {
         DocumentMapper stage1 = createDocumentMapper(mapping(b -> b.startObject("name").field("type", "text").endObject()));
@@ -521,14 +500,30 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testParsingErrorLogging() throws Exception {
-        DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
+        MockAppender appender = new MockAppender("mock_appender");
+        appender.start();
+        Logger testLogger = LogManager.getLogger(DocumentMapper.class);
+        Loggers.addAppender(testLogger, appender);
+        Level originalLogLevel = testLogger.getLevel();
+        Loggers.setLevel(testLogger, Level.ERROR);
 
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
-        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-        assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
+        try {
+            DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
 
-        e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
-        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-        assertThat(appender.getLastEventAndReset(), nullValue());
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> doc.parse(source(b -> b.field("value", "foo")))
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+            assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
+
+            e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
+            assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
+            assertThat(appender.getLastEventAndReset(), nullValue());
+        } finally {
+            Loggers.setLevel(testLogger, originalLogLevel);
+            Loggers.removeAppender(testLogger, appender);
+            appender.stop();
+        }
     }
 }

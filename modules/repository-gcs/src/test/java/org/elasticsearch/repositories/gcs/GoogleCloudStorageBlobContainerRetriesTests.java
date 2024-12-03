@@ -41,6 +41,7 @@ import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTest
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -177,9 +178,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-            final Tuple<Long, Long> range = getRange(exchange);
-            final int offset = Math.toIntExact(range.v1());
-            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.v2() + 1, bytes.length)));
+            final HttpHeaderParser.Range range = getRange(exchange);
+            final int offset = Math.toIntExact(range.start());
+            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.end() + 1, bytes.length)));
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
             if (randomBoolean() && countDown.decrementAndGet() >= 0) {
                 exchange.getResponseBody().write(chunk, 0, chunk.length - 1);

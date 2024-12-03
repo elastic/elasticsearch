@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -42,8 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static fixture.azure.MockAzureBlobStore.failTestWithAssertionError;
 import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
@@ -54,7 +53,6 @@ import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertVali
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(AzureHttpHandler.class);
-    private static final Pattern RANGE_HEADER_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
     static final String X_MS_LEASE_ID = "x-ms-lease-id";
     static final String X_MS_PROPOSED_LEASE_ID = "x-ms-proposed-lease-id";
     static final String X_MS_LEASE_DURATION = "x-ms-lease-duration";
@@ -232,29 +230,26 @@ public class AzureHttpHandler implements HttpHandler {
                 final BytesReference responseContent;
                 final RestStatus successStatus;
                 // see Constants.HeaderConstants.STORAGE_RANGE_HEADER
-                final String range = exchange.getRequestHeaders().getFirst("x-ms-range");
-                if (range != null) {
-                    final Matcher matcher = RANGE_HEADER_PATTERN.matcher(range);
-                    if (matcher.matches() == false) {
+                final String rangeHeader = exchange.getRequestHeaders().getFirst("x-ms-range");
+                if (rangeHeader != null) {
+                    final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                    if (range == null) {
                         throw new MockAzureBlobStore.BadRequestException(
                             "InvalidHeaderValue",
-                            "Range header does not match expected format: " + range
+                            "Range header does not match expected format: " + rangeHeader
                         );
                     }
 
-                    final long start = Long.parseLong(matcher.group(1));
-                    final long end = Long.parseLong(matcher.group(2));
-
                     final BytesReference blobContents = blob.getContents();
-                    if (blobContents.length() <= start) {
+                    if (blobContents.length() <= range.start()) {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                         return;
                     }
 
                     responseContent = blobContents.slice(
-                        Math.toIntExact(start),
-                        Math.toIntExact(Math.min(end - start + 1, blobContents.length() - start))
+                        Math.toIntExact(range.start()),
+                        Math.toIntExact(Math.min(range.end() - range.start() + 1, blobContents.length() - range.start()))
                     );
                     successStatus = RestStatus.PARTIAL_CONTENT;
                 } else {

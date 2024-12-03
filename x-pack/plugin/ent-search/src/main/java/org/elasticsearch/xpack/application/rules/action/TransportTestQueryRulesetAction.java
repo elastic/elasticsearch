@@ -49,15 +49,15 @@ public class TransportTestQueryRulesetAction extends HandledTransportAction<
             ENT_SEARCH_ORIGIN,
             GetQueryRulesetAction.TYPE,
             getQueryRulesetRequest,
-            ActionListener.wrap(getQueryRulesetResponse -> {
+            listener.delegateFailureAndWrap((l, getQueryRulesetResponse) -> {
                 List<TestQueryRulesetAction.MatchedRule> matchedRules = new ArrayList<>();
                 for (QueryRule rule : getQueryRulesetResponse.queryRuleset().rules()) {
                     if (rule.isRuleMatch(request.matchCriteria())) {
                         matchedRules.add(new TestQueryRulesetAction.MatchedRule(request.rulesetId(), rule.id()));
                     }
                 }
-                listener.onResponse(new TestQueryRulesetAction.Response(matchedRules.size(), matchedRules));
-            }, listener::onFailure)
+                l.onResponse(new TestQueryRulesetAction.Response(matchedRules.size(), matchedRules));
+            })
         );
     }
 

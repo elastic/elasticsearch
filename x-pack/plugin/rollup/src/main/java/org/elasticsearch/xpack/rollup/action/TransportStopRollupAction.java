@@ -91,7 +91,7 @@ public class TransportStopRollupAction extends TransportTasksAction<
         ThreadPool threadPool
     ) {
         if (request.waitForCompletion()) {
-            return ActionListener.wrap(response -> {
+            return listener.delegateFailureAndWrap((delegate, response) -> {
                 if (response.isStopped()) {
                     // The Task acknowledged that it is stopped/stopping... wait until the status actually
                     // changes over before returning. Switch over to Generic threadpool so
@@ -105,9 +105,9 @@ public class TransportStopRollupAction extends TransportTasksAction<
 
                             if (stopped) {
                                 // We have successfully confirmed a stop, send back the response
-                                listener.onResponse(response);
+                                delegate.onResponse(response);
                             } else {
-                                listener.onFailure(
+                                delegate.onFailure(
                                     new ElasticsearchTimeoutException(
                                         "Timed out after ["
                                             + request.timeout().getStringRep()
@@ -120,9 +120,9 @@ public class TransportStopRollupAction extends TransportTasksAction<
                                 );
                             }
                         } catch (InterruptedException e) {
-                            listener.onFailure(e);
+                            delegate.onFailure(e);
                         } catch (Exception e) {
-                            listener.onFailure(
+                            delegate.onFailure(
                                 new ElasticsearchTimeoutException(
                                     "Encountered unexpected error while waiting for "
                                         + "rollup job ["
@@ -138,9 +138,9 @@ public class TransportStopRollupAction extends TransportTasksAction<
 
                 } else {
                     // Did not acknowledge stop, just return the response
-                    listener.onResponse(response);
+                    delegate.onResponse(response);
                 }
-            }, listener::onFailure);
+            });
         }
         // No request to block, execute async
         return listener;

@@ -299,7 +299,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             client.execute(
                 TransportPutMappingAction.TYPE,
                 request,
-                ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService), listener::onFailure)
+                listener.delegateFailureAndWrap((l, putMappingResponse) -> startPersistentTask(job, l, persistentTasksService))
             );
         };
 

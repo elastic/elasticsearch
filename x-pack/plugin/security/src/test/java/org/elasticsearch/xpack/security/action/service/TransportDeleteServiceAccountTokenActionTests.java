@@ -47,8 +47,7 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8)
         );
-        @SuppressWarnings("unchecked")
-        final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
+        final ActionListener<DeleteServiceAccountTokenResponse> listener = ActionListener.noop();
         transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).deleteIndexToken(eq(request), anyActionListener());
     }

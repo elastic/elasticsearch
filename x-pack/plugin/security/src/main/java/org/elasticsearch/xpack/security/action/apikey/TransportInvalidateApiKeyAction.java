@@ -66,16 +66,15 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         final String username = getUsername(authentication, request);
         final String[] realms = getRealms(authentication, request);
         checkHasManageSecurityPrivilege(
-            ActionListener.wrap(
-                hasPrivilegesResponse -> apiKeyService.invalidateApiKeys(
+            listener.delegateFailureAndWrap(
+                (l, hasPrivilegesResponse) -> apiKeyService.invalidateApiKeys(
                     realms,
                     username,
                     apiKeyName,
                     apiKeyIds,
                     hasPrivilegesResponse.isCompleteMatch(),
-                    listener
-                ),
-                listener::onFailure
+                    l
+                )
             )
         );
     }
@@ -102,6 +101,6 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         hasPrivilegesRequest.clusterPrivileges(ClusterPrivilegeResolver.MANAGE_SECURITY.name());
         hasPrivilegesRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
         hasPrivilegesRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(listener::onResponse, listener::onFailure));
+        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, listener.delegateFailureAndWrap(ActionListener::onResponse));
     }
 }

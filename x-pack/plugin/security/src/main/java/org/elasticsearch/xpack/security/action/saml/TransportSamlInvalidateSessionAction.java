@@ -101,11 +101,10 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
             findAndInvalidateTokens(
                 realm,
                 result,
-                ActionListener.wrap(
-                    count -> listener.onResponse(
+                listener.delegateFailureAndWrap(
+                    (l, count) -> l.onResponse(
                         new SamlInvalidateSessionResponse(realm.name(), count, buildLogoutResponseUrl(realm, result))
-                    ),
-                    listener::onFailure
+                    )
                 )
             );
         } catch (ElasticsearchSecurityException e) {
@@ -132,7 +131,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
             realm.name(),
             null,
             containsMetadata((tokenMetadata)),
-            ActionListener.wrap(tokensInvalidationResult -> {
+            listener.delegateFailureAndWrap((delegate, tokensInvalidationResult) -> {
                 if (LOGGER.isInfoEnabled() && tokensInvalidationResult.getErrors().isEmpty() == false) {
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                         tokensInvalidationResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -143,8 +142,8 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
                 int totalTokensFound = tokensInvalidationResult.getInvalidatedTokens().size() + tokensInvalidationResult
                     .getPreviouslyInvalidatedTokens()
                     .size() + tokensInvalidationResult.getErrors().size();
-                listener.onResponse(totalTokensFound);
-            }, listener::onFailure)
+                delegate.onResponse(totalTokensFound);
+            })
         );
     }
 

@@ -97,9 +97,9 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                     originatingAuthentication,
                     tokenMetadata,
                     true,
-                    ActionListener.wrap(tokenResult -> {
+                    listener.delegateFailureAndWrap((l, tokenResult) -> {
                         final TimeValue expiresIn = tokenService.getExpirationDelay();
-                        listener.onResponse(
+                        l.onResponse(
                             new OpenIdConnectAuthenticateResponse(
                                 authentication,
                                 tokenResult.getAccessToken(),
@@ -107,7 +107,7 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                                 expiresIn
                             )
                         );
-                    }, listener::onFailure)
+                    })
                 );
             }, e -> {
                 logger.debug(() -> "OpenIDConnectToken [" + token + "] could not be authenticated", e);

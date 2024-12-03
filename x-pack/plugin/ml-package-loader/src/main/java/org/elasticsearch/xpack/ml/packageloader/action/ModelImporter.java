@@ -142,13 +142,18 @@ public class ModelImporter {
         List<ModelLoaderUtils.HttpStreamChunker> downloaders,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
-        try (var countingListener = new RefCountingListener(1, ActionListener.wrap(ignore -> executorService.execute(() -> {
-            var finalDownloader = downloaders.get(downloaders.size() - 1);
-            downloadFinalPart(size, totalParts, finalDownloader, finalListener.delegateFailureAndWrap((l, r) -> {
-                checkDownloadComplete(downloaders);
-                l.onResponse(AcknowledgedResponse.TRUE);
-            }));
-        }), finalListener::onFailure))) {
+        try (
+            var countingListener = new RefCountingListener(
+                1,
+                finalListener.delegateFailureAndWrap(((delegate, ignore) -> executorService.execute(() -> {
+                    var finalDownloader = downloaders.get(downloaders.size() - 1);
+                    downloadFinalPart(size, totalParts, finalDownloader, delegate.delegateFailureAndWrap((l, r) -> {
+                        checkDownloadComplete(downloaders);
+                        l.onResponse(AcknowledgedResponse.TRUE);
+                    }));
+                })))
+            )
+        ) {
             // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
             // download is complete
             if (vocabularyParts != null) {
@@ -245,9 +250,12 @@ public class ModelImporter {
         @Nullable ModelLoaderUtils.VocabularyParts vocabularyParts,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
-        try (var countingListener = new RefCountingListener(1, ActionListener.wrap(ignore -> executorService.execute(() -> {
-            finalListener.onResponse(AcknowledgedResponse.TRUE);
-        }), finalListener::onFailure))) {
+        try (
+            var countingListener = new RefCountingListener(
+                1,
+                finalListener.delegateFailureAndWrap((l, ignore) -> executorService.execute(() -> l.onResponse(AcknowledgedResponse.TRUE)))
+            )
+        ) {
             try {
                 if (vocabularyParts != null) {
                     uploadVocabulary(vocabularyParts, countingListener);

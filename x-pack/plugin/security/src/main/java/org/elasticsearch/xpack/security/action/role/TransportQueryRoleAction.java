@@ -90,9 +90,8 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
         }
         nativeRolesStore.queryRoleDescriptors(
             searchSourceBuilder,
-            ActionListener.wrap(
-                queryRoleResults -> listener.onResponse(new QueryRoleResponse(queryRoleResults.total(), queryRoleResults.items())),
-                listener::onFailure
+            listener.delegateFailureAndWrap(
+                (l, queryRoleResults) -> l.onResponse(new QueryRoleResponse(queryRoleResults.total(), queryRoleResults.items()))
             )
         );
     }

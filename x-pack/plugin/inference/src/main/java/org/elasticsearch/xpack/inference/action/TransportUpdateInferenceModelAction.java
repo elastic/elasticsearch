@@ -155,16 +155,16 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
                 if (didUpdate) {
-                    modelRegistry.getModel(inferenceEntityId, ActionListener.wrap((unparsedModel) -> {
+                    modelRegistry.getModel(inferenceEntityId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
                         if (unparsedModel == null) {
-                            listener.onFailure(
+                            delegate.onFailure(
                                 new ElasticsearchStatusException(
                                     "Failed to update model, updated model not found",
                                     RestStatus.INTERNAL_SERVER_ERROR
                                 )
                             );
                         } else {
-                            listener.onResponse(
+                            delegate.onResponse(
                                 service.get()
                                     .parsePersistedConfig(
                                         request.getInferenceEntityId(),
@@ -174,7 +174,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                                     .getConfigurations()
                             );
                         }
-                    }, listener::onFailure));
+                    }));
                 } else {
                     listener.onFailure(new ElasticsearchStatusException("Failed to update model", RestStatus.INTERNAL_SERVER_ERROR));
                 }

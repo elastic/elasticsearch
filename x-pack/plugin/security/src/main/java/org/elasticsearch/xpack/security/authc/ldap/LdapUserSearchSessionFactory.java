@@ -199,9 +199,9 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
     @Override
     void getUnauthenticatedSessionWithPool(LDAPConnectionPool connectionPool, String user, ActionListener<LdapSession> listener) {
-        findUser(user, connectionPool, ActionListener.wrap((entry) -> {
+        findUser(user, connectionPool, listener.delegateFailureAndWrap((delgate, entry) -> {
             if (entry == null) {
-                listener.onResponse(null);
+                delgate.onResponse(null);
             } else {
                 final String dn = entry.getDN();
                 LdapSession session = new LdapSession(
@@ -214,9 +214,9 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                     timeout,
                     entry.getAttributes()
                 );
-                listener.onResponse(session);
+                delgate.onResponse(session);
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

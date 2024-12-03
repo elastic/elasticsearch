@@ -130,10 +130,10 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
 
         @Override
         public void onTimeout(TimeValue timeout) {
-            resolver.execute(clusterService.state(), ActionListener.wrap(response -> {
+            resolver.execute(clusterService.state(), listener.delegateFailureAndWrap((l, response) -> {
                 response.setTimedOut(true);
-                listener.onResponse(response);
-            }, listener::onFailure));
+                l.onResponse(response);
+            }));
         }
     }
 

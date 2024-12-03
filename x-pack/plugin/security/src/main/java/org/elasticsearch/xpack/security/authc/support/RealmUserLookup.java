@@ -45,13 +45,12 @@ public class RealmUserLookup {
     public void lookup(String principal, ActionListener<Tuple<User, Realm>> listener) {
         final IteratingActionListener<Tuple<User, Realm>, ? extends Realm> userLookupListener = new IteratingActionListener<>(
             listener,
-            (realm, lookupUserListener) -> realm.lookupUser(principal, ActionListener.wrap(foundUser -> {
-                if (foundUser != null) {
-                    lookupUserListener.onResponse(new Tuple<>(foundUser, realm));
-                } else {
-                    lookupUserListener.onResponse(null);
-                }
-            }, lookupUserListener::onFailure)),
+            (realm, lookupUserListener) -> realm.lookupUser(
+                principal,
+                lookupUserListener.delegateFailureAndWrap(
+                    (l, foundUser) -> l.onResponse(foundUser == null ? null : new Tuple<>(foundUser, realm))
+                )
+            ),
             realms,
             threadContext
         );

@@ -43,7 +43,7 @@ public class TransportPutQueryRuleAction extends HandledTransportAction<PutQuery
     protected void doExecute(Task task, PutQueryRuleAction.Request request, ActionListener<PutQueryRuleAction.Response> listener) {
         String queryRulesetId = request.queryRulesetId();
         QueryRule queryRule = request.queryRule();
-        systemIndexService.putQueryRule(queryRulesetId, queryRule, ActionListener.wrap(listener::onResponse, listener::onFailure));
+        systemIndexService.putQueryRule(queryRulesetId, queryRule, listener.delegateFailureAndWrap(ActionListener::onResponse));
 
     }
 }

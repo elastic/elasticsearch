@@ -131,17 +131,18 @@ public class ServiceAccountService {
             return;
         }
 
-        compositeServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
-            if (storeAuthenticationResult.isSuccess()) {
-                listener.onResponse(
-                    createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
-                );
-            } else {
-                final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
-                logger.debug(e.getMessage());
-                listener.onFailure(e);
-            }
-        }, listener::onFailure));
+        compositeServiceAccountTokenStore.authenticate(
+            serviceAccountToken,
+            listener.delegateFailureAndWrap((l, storeAuthenticationResult) -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    l.onResponse(createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName));
+                } else {
+                    final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
+                    logger.debug(e.getMessage());
+                    l.onFailure(e);
+                }
+            })
+        );
     }
 
     public void createIndexToken(
@@ -203,9 +204,10 @@ public class ServiceAccountService {
     }
 
     private void findIndexTokens(ServiceAccountId accountId, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(indexTokenInfos -> {
-            findFileTokens(indexTokenInfos, accountId, listener);
-        }, listener::onFailure));
+        indexServiceAccountTokenStore.findTokensFor(
+            accountId,
+            listener.delegateFailureAndWrap((l, indexTokenInfos) -> findFileTokens(indexTokenInfos, accountId, l))
+        );
     }
 
     private void findFileTokens(
@@ -218,11 +220,10 @@ public class ServiceAccountService {
             SECURITY_ORIGIN,
             GetServiceAccountNodesCredentialsAction.INSTANCE,
             new GetServiceAccountCredentialsNodesRequest(accountId.namespace(), accountId.serviceName()),
-            ActionListener.wrap(
-                fileTokensResponse -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, fileTokensResponse) -> l.onResponse(
                     new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), indexTokenInfos, fileTokensResponse)
-                ),
-                listener::onFailure
+                )
             )
         );
     }

@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.datastreams.task;
+package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -22,6 +21,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
+import org.elasticsearch.xpack.migrate.action.SwapDataStreamIndexAction;
 
 import java.util.List;
 import java.util.Map;
@@ -69,32 +70,80 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         GetDataStreamAction.Request request = new GetDataStreamAction.Request(TimeValue.MAX_VALUE, new String[] { sourceDataStream });
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
-        client.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
+        ReindexDataStreamClient reindexClient = new ReindexDataStreamClient(client, params.headers());
+        reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
                 List<Index> indicesToBeReindexed = indices.stream()
                     .filter(index -> clusterService.state().getMetadata().index(index).getCreationVersion().isLegacyIndexVersion())
                     .toList();
-                reindexDataStreamTask.setPendingIndices(indicesToBeReindexed.stream().map(Index::getName).toList());
+                reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
+                CountDownActionListener listener = new CountDownActionListener(
+                    indicesToBeReindexed.size() + 1,
+                    ActionListener.wrap(response1 -> {
+                        completeSuccessfulPersistentTask(reindexDataStreamTask);
+                    }, exception -> { completeFailedPersistentTask(reindexDataStreamTask, exception); })
+                );
+                // TODO: put all these on a queue, only process N from queue at a time
                 for (Index index : indicesToBeReindexed) {
-                    // TODO This is just a placeholder. This is where the real data stream reindex logic will go
-                }
+                    reindexDataStreamTask.incrementInProgressIndicesCount();
+                    reindexClient.execute(
+                        ReindexDataStreamIndexAction.INSTANCE,
+                        new ReindexDataStreamIndexAction.Request(index.getName()),
+                        ActionListener.wrap(response1 -> {
+                            updateDataStream(sourceDataStream, index.getName(), response1.getDestIndex(), ActionListener.wrap(unused -> {
+                                reindexDataStreamTask.reindexSucceeded();
+                                listener.onResponse(null);
+                            }, exception -> {
+                                reindexDataStreamTask.reindexFailed(index.getName(), exception);
+                                listener.onResponse(null);
+                            }), reindexClient);
 
-                completeSuccessfulPersistentTask(reindexDataStreamTask);
+                        }, exception -> {
+                            reindexDataStreamTask.reindexFailed(index.getName(), exception);
+                            listener.onResponse(null);
+                        })
+                    );
+                }
+                listener.onResponse(null);
             } else {
                 completeFailedPersistentTask(reindexDataStreamTask, new ElasticsearchException("data stream does not exist"));
             }
-        }, reindexDataStreamTask::markAsFailed));
+        }, exception -> completeFailedPersistentTask(reindexDataStreamTask, exception)));
+    }
+
+    private void updateDataStream(
+        String dataStream,
+        String oldIndex,
+        String newIndex,
+        ActionListener<Void> listener,
+        ReindexDataStreamClient reindexClient
+    ) {
+        reindexClient.execute(
+            SwapDataStreamIndexAction.INSTANCE,
+            new SwapDataStreamIndexAction.Request(dataStream, oldIndex, newIndex),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(SwapDataStreamIndexAction.Response response) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 
     private void completeSuccessfulPersistentTask(ReindexDataStreamTask persistentTask) {
-        persistentTask.reindexSucceeded();
+        persistentTask.allReindexesCompleted();
         threadPool.schedule(persistentTask::markAsCompleted, getTimeToLive(persistentTask), threadPool.generic());
     }
 
     private void completeFailedPersistentTask(ReindexDataStreamTask persistentTask, Exception e) {
-        persistentTask.reindexFailed(e);
+        persistentTask.taskFailed(e);
         threadPool.schedule(() -> persistentTask.markAsFailed(e), getTimeToLive(persistentTask), threadPool.generic());
     }
 

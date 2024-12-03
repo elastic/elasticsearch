@@ -1,32 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.datastreams.action;
+package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.datastreams.ReindexDataStreamAction;
-import org.elasticsearch.action.datastreams.ReindexDataStreamAction.ReindexDataStreamRequest;
-import org.elasticsearch.action.datastreams.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.datastreams.task.ReindexDataStreamTask;
-import org.elasticsearch.datastreams.task.ReindexDataStreamTaskParams;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
 /*
  * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation
@@ -75,7 +73,8 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),
             totalIndices,
-            totalIndicesToBeUpgraded
+            totalIndicesToBeUpgraded,
+            ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
         String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
         persistentTasksService.sendStartRequest(

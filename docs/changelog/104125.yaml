@@ -1,0 +1,18 @@
+pr: 104125
+summary: Disable machine learning on macOS x86_64
+area: Machine Learning
+type: breaking
+issues: []
+breaking:
+  title: Disable machine learning on macOS x86_64
+  area: Packaging
+  details: The machine learning plugin is permanently disabled on macOS x86_64.
+    For the last three years Apple has been selling hardware based on the arm64
+    architecture, and support will increasingly focus on this architecture in
+    the future. Changes to upstream dependencies of Elastic's machine learning
+    functionality have made it unviable for Elastic to continue to build machine
+    learning on macOS x86_64.
+  impact: To continue to use machine learning functionality on macOS please switch to
+    an arm64 machine (Apple silicon). Alternatively, it will still be possible to run
+    Elasticsearch with machine learning enabled in a Docker container on macOS x86_64.
+  notable: false

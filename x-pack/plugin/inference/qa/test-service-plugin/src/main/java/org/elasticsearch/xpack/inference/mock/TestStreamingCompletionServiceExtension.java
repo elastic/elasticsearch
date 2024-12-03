@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -160,7 +159,6 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
             TimeValue timeout,
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {

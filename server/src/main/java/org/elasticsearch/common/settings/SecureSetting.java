@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
@@ -26,6 +27,7 @@ import java.util.Set;
 public abstract class SecureSetting<T> extends Setting<T> {
 
     /** Determines whether legacy settings with sensitive values should be allowed. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this should no longer be in use, even in v9, so can go away in v10
     private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
 
     private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(

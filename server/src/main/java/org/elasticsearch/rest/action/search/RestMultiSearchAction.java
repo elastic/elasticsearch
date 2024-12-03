@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
@@ -43,9 +43,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestMultiSearchAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
-        + " Specifying types in multi search template requests is deprecated.";
-
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
@@ -184,9 +181,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
 
-        final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
+        final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
-        final BytesReference data = sourceTuple.v2();
+        final ReleasableBytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(
             xContent,
             request.contentParserConfig(),

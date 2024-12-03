@@ -13,6 +13,9 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
+import java.net.URL;
+import java.net.URLStreamHandlerFactory;
+
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
  * API methods for managing the checks.
@@ -28,5 +31,36 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_lang_System$exit(Class<?> callerClass, int status) {
         policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.SYSTEM_EXIT);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(
+        Class<?> callerClass,
+        String name,
+        URL[] urls,
+        ClassLoader parent,
+        URLStreamHandlerFactory factory
+    ) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
     }
 }

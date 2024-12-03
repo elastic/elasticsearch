@@ -1649,7 +1649,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 
-    private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
+    private <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
         if (randomNodeAndClient == null) {
             throw new AssertionError("no node matches [" + predicate + "]");

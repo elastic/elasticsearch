@@ -168,14 +168,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
         for (var entry : balancer.nodes.entrySet()) {
             var node = entry.getValue();
+            var nodeWeight = weightFunction.nodeWeight(
+                node.numShards(),
+                balancer.avgShardsPerNode(),
+                node.writeLoad(),
+                balancer.avgWriteLoadPerNode(),
+                node.diskUsageInBytes(),
+                balancer.avgDiskUsageInBytesPerNode()
+            );
             nodeLevelWeights.put(
                 node.routingNode.node(),
-                new DesiredBalanceMetrics.NodeWeightStats(
-                    node.numShards(),
-                    node.diskUsageInBytes(),
-                    node.writeLoad(),
-                    weightFunction.nodeWeight(balancer, node)
-                )
+                new DesiredBalanceMetrics.NodeWeightStats(node.numShards(), node.diskUsageInBytes(), node.writeLoad(), nodeWeight)
             );
         }
         allocation.routingNodes().setBalanceWeightStatsPerNode(nodeLevelWeights);
@@ -253,65 +256,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
-     * This class is the primary weight function used to create balanced over nodes and shards in the cluster.
-     * Currently this function has 3 properties:
-     * <ul>
-     * <li><code>index balance</code> - balance property over shards per index</li>
-     * <li><code>shard balance</code> - balance property over shards per cluster</li>
-     * </ul>
-     * <p>
-     * Each of these properties are expressed as factor such that the properties factor defines the relative
-     * importance of the property for the weight function. For example if the weight function should calculate
-     * the weights only based on a global (shard) balance the index balance can be set to {@code 0.0} and will
-     * in turn have no effect on the distribution.
-     * </p>
-     * The weight per index is calculated based on the following formula:
-     * <ul>
-     * <li>
-     * <code>weight<sub>index</sub>(node, index) = indexBalance * (node.numShards(index) - avgShardsPerNode(index))</code>
-     * </li>
-     * <li>
-     * <code>weight<sub>node</sub>(node, index) = shardBalance * (node.numShards() - avgShardsPerNode)</code>
-     * </li>
-     * </ul>
-     * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
-     */
-    private static class WeightFunction {
-
-        private final float theta0;
-        private final float theta1;
-        private final float theta2;
-        private final float theta3;
-
-        WeightFunction(float shardBalance, float indexBalance, float writeLoadBalance, float diskUsageBalance) {
-            float sum = shardBalance + indexBalance + writeLoadBalance + diskUsageBalance;
-            if (sum <= 0.0f) {
-                throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
-            }
-            theta0 = shardBalance / sum;
-            theta1 = indexBalance / sum;
-            theta2 = writeLoadBalance / sum;
-            theta3 = diskUsageBalance / sum;
-        }
-
-        float weight(Balancer balancer, ModelNode node, String index) {
-            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            return nodeWeight(balancer, node) + theta1 * weightIndex;
-        }
-
-        float nodeWeight(Balancer balancer, ModelNode node) {
-            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
-            final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
-            final float diskUsage = (float) (node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNode());
-            return theta0 * weightShard + theta2 * ingestLoad + theta3 * diskUsage;
-        }
-
-        float minWeightDelta(Balancer balancer, String index) {
-            return theta0 * 1 + theta1 * 1 + theta2 * balancer.getShardWriteLoad(index) + theta3 * balancer.maxShardSizeBytes(index);
-        }
-    }
-
-    /**
      * A {@link Balancer}
      */
     public static class Balancer {
@@ -335,61 +279,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.metadata = allocation.metadata();
             this.weight = weight;
             this.threshold = threshold;
-            avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-            avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
-            avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(allocation.clusterInfo(), metadata) / routingNodes.size());
+            avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
+            avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
+            avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
-        }
-
-        private static double getTotalWriteLoad(WriteLoadForecaster writeLoadForecaster, Metadata metadata) {
-            double writeLoad = 0.0;
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
-                writeLoad += getIndexWriteLoad(writeLoadForecaster, indexMetadata);
-            }
-            return writeLoad;
-        }
-
-        private static double getIndexWriteLoad(WriteLoadForecaster writeLoadForecaster, IndexMetadata indexMetadata) {
-            var shardWriteLoad = writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            return shardWriteLoad * numberOfCopies(indexMetadata);
-        }
-
-        private static long getTotalDiskUsageInBytes(ClusterInfo clusterInfo, Metadata metadata) {
-            long totalDiskUsageInBytes = 0;
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
-                totalDiskUsageInBytes += getIndexDiskUsageInBytes(clusterInfo, indexMetadata);
-            }
-            return totalDiskUsageInBytes;
-        }
-
-        // Visible for testing
-        static long getIndexDiskUsageInBytes(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
-            if (indexMetadata.ignoreDiskWatermarks()) {
-                // disk watermarks are ignored for partial searchable snapshots
-                // and is equivalent to indexMetadata.isPartialSearchableSnapshot()
-                return 0;
-            }
-            final long forecastedShardSize = indexMetadata.getForecastedShardSizeInBytes().orElse(-1L);
-            long totalSizeInBytes = 0;
-            int shardCount = 0;
-            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
-                final ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
-                final long primaryShardSize = Math.max(forecastedShardSize, clusterInfo.getShardSize(shardId, true, -1L));
-                if (primaryShardSize != -1L) {
-                    totalSizeInBytes += primaryShardSize;
-                    shardCount++;
-                }
-                final long replicaShardSize = Math.max(forecastedShardSize, clusterInfo.getShardSize(shardId, false, -1L));
-                if (replicaShardSize != -1L) {
-                    totalSizeInBytes += replicaShardSize * indexMetadata.getNumberOfReplicas();
-                    shardCount += indexMetadata.getNumberOfReplicas();
-                }
-            }
-            if (shardCount == numberOfCopies(indexMetadata)) {
-                return totalSizeInBytes;
-            }
-            return shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -399,10 +293,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return 0;
             }
             return Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0L), clusterInfo.getShardSize(shardRouting, 0L));
-        }
-
-        private static int numberOfCopies(IndexMetadata indexMetadata) {
-            return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
         }
 
         private float getShardWriteLoad(String index) {
@@ -1433,7 +1323,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float minWeightDelta() {
-            return function.minWeightDelta(balancer, index);
+            return function.minWeightDelta(balancer.getShardWriteLoad(index), balancer.maxShardSizeBytes(index));
         }
 
         @Override

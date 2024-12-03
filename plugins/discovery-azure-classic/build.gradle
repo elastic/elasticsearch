@@ -65,9 +65,10 @@ TaskProvider createKey = tasks.register("createKey", LoggedExec) {
   outputs.file(keystore).withPropertyName('keystoreFile')
   executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
   getStandardInput().set('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n')
+  String keystorePath = projectDir.toPath().relativize(keystore.toPath()).toString()
   args '-genkey',
     '-alias', 'test-node',
-    '-keystore', keystore,
+    '-keystore', keystorePath,
     '-keyalg', 'RSA',
     '-keysize', '2048',
     '-validity', '712',

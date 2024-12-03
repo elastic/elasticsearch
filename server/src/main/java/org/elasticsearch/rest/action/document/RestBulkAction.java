@@ -103,7 +103,7 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
-            ReleasableBytesReference content = request.requiredReleasableContent();
+            ReleasableBytesReference content = request.requiredContent();
 
             try {
                 bulkRequest.add(

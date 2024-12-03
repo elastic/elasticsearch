@@ -1,0 +1,5 @@
+pr: 117271
+summary: Don't skip shards in coord rewrite if timestamp is an alias
+area: Search
+type: bug
+issues: []

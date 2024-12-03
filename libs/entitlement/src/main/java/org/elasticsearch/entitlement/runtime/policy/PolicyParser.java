@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -30,8 +29,6 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException
  * A parser to parse policy files for entitlements.
  */
 public class PolicyParser {
-
-    protected static final ParseField ENTITLEMENTS_PARSEFIELD = new ParseField("entitlements");
 
     protected static final String entitlementPackageName = Entitlement.class.getPackage().getName();
 
@@ -65,13 +62,6 @@ public class PolicyParser {
 
     protected Scope parseScope(String scopeName) throws IOException {
         try {
-            if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw newPolicyParserException(scopeName, "expected object [" + ENTITLEMENTS_PARSEFIELD.getPreferredName() + "]");
-            }
-            if (policyParser.nextToken() != XContentParser.Token.FIELD_NAME
-                || policyParser.currentName().equals(ENTITLEMENTS_PARSEFIELD.getPreferredName()) == false) {
-                throw newPolicyParserException(scopeName, "expected object [" + ENTITLEMENTS_PARSEFIELD.getPreferredName() + "]");
-            }
             if (policyParser.nextToken() != XContentParser.Token.START_ARRAY) {
                 throw newPolicyParserException(scopeName, "expected array of <entitlement type>");
             }
@@ -89,9 +79,6 @@ public class PolicyParser {
                 if (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw newPolicyParserException(scopeName, "expected closing object");
                 }
-            }
-            if (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
-                throw newPolicyParserException(scopeName, "expected closing object");
             }
             return new Scope(scopeName, entitlements);
         } catch (IOException ioe) {

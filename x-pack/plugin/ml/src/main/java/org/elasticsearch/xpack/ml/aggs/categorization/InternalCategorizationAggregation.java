@@ -86,7 +86,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             MultiBucketsAggregation.Bucket,
             Comparable<Bucket> {

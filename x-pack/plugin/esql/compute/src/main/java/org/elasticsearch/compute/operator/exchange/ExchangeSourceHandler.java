@@ -224,8 +224,10 @@ public final class ExchangeSourceHandler {
             buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
             if (finished == false) {
                 finished = true;
-                outstandingSinks.finishInstance();
-                completionListener.onFailure(e);
+                remoteSink.close(ActionListener.running(() -> {
+                    outstandingSinks.finishInstance();
+                    completionListener.onFailure(e);
+                }));
             }
         }
 
@@ -262,7 +264,7 @@ public final class ExchangeSourceHandler {
                     failure.unwrapAndCollect(e);
                 }
                 buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
-                sinkListener.onFailure(e);
+                remoteSink.close(ActionListener.running(() -> sinkListener.onFailure(e)));
             }
 
             @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -1451,7 +1450,6 @@ public class CohereServiceTests extends ESTestCase {
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1543,7 +1541,6 @@ public class CohereServiceTests extends ESTestCase {
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

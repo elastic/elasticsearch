@@ -140,6 +140,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
+    public static final ClusterBlock INDEX_REFRESH_BLOCK = new ClusterBlock(
+        14,
+        "index refresh blocked, waiting for shard(s) to be started",
+        true,
+        false,
+        false,
+        RestStatus.REQUEST_TIMEOUT,
+        EnumSet.of(ClusterBlockLevel.REFRESH)
+    );
 
     // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
     public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
@@ -1776,7 +1785,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.primaryTerms(in.readVLongArray());
         int mappingsSize = in.readVInt();
         if (mappingsSize == 1) {
-            if (mappingLookup != null && in.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingLookup != null) {
                 final String mappingHash = in.readString();
                 final MappingMetadata metadata = mappingLookup.apply(mappingHash);
                 assert metadata != null : "failed to find mapping [" + mappingHash + "] for [" + builder.index + "]";
@@ -1851,7 +1860,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(0);
         } else {
             out.writeVInt(1);
-            if (mappingsAsHash && out.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingsAsHash) {
                 out.writeString(mapping.getSha256());
             } else {
                 mapping.writeTo(out);

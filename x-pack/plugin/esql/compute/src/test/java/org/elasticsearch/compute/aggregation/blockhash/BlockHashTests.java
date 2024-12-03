@@ -11,11 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -26,7 +22,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
@@ -34,8 +29,6 @@ import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -54,14 +47,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class BlockHashTests extends ESTestCase {
-
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+public class BlockHashTests extends BlockHashTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
@@ -1532,13 +1519,6 @@ public class BlockHashTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {

@@ -12,7 +12,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -76,13 +75,12 @@ public abstract class SenderService implements InferenceService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         init();
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, chunkingOptions, timeout, listener);
+        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
@@ -99,7 +97,6 @@ public abstract class SenderService implements InferenceService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );

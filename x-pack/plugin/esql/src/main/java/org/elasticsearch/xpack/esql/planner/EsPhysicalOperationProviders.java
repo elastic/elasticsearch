@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -51,6 +52,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -97,7 +99,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
 
-    public EsPhysicalOperationProviders(List<ShardContext> shardContexts) {
+    public EsPhysicalOperationProviders(List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+        super(analysisRegistry);
         this.shardContexts = shardContexts;
     }
 
@@ -165,7 +168,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
-        if (sorts != null && sorts.isEmpty() == false) {
+        boolean scoring = esQueryExec.attrs()
+            .stream()
+            .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE));
+        if ((sorts != null && sorts.isEmpty() == false)) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
@@ -177,7 +183,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
-                sortBuilders
+                sortBuilders,
+                scoring
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -195,7 +202,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     context.queryPragmas().dataPartitioning(),
                     context.queryPragmas().taskConcurrency(),
                     context.pageSize(rowEstimatedSize),
-                    limit
+                    limit,
+                    scoring
                 );
             }
         }
@@ -273,7 +281,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException {
-            return SortBuilder.buildSort(sorts, ctx);
+            return SortBuilder.buildSort(sorts, ctx, false);
         }
 
         @Override

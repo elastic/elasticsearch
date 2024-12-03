@@ -34,7 +34,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     /**
      * A bucket associated with a specific time series (identified by its key)
      */
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucketWritable {
         protected long bucketOrd;
         protected final BytesRef key;
         // TODO: make computing docCount optional

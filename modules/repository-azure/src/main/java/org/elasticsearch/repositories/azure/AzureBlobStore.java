@@ -40,6 +40,7 @@ import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
+import com.azure.storage.blob.specialized.BlobLeaseClient;
 import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 
@@ -1010,13 +1011,36 @@ public class AzureBlobStore implements BlobStore {
                 }
                 return currentValue;
             } finally {
-                leaseClient.releaseLease();
+                bestEffortRelease(leaseClient);
             }
         } else {
             if (expected.length() == 0) {
                 uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setIfNoneMatch("*"));
             }
             return BytesArray.EMPTY;
+        }
+    }
+
+    /**
+     * Release the lease, ignoring conflicts due to expiry
+     *
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob?outcomes-of-lease-operations-on-blobs-by-lease-state">Outcomes of lease operations by lease state</a>
+     * @param leaseClient The client for the lease
+     */
+    private static void bestEffortRelease(BlobLeaseClient leaseClient) {
+        try {
+            leaseClient.releaseLease();
+        } catch (BlobStorageException blobStorageException) {
+            if (blobStorageException.getStatusCode() == RestStatus.CONFLICT.getStatus()) {
+                // This is OK, we tried to release a lease that was expired/re-acquired
+                logger.debug(
+                    "Ignored conflict on release: errorCode={}, message={}",
+                    blobStorageException.getErrorCode(),
+                    blobStorageException.getMessage()
+                );
+            } else {
+                throw blobStorageException;
+            }
         }
     }
 

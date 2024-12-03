@@ -417,43 +417,64 @@ final class FaceIJK {
      * for this FaceIJK address at a specified resolution.
      *
      * @param res    The H3 resolution of the cell.
-     * @param start  The first topological vertex to return.
-     * @param length The number of topological vertexes to return.
      */
-    public CellBoundary faceIjkPentToCellBoundary(int res, int start, int length) {
+    public CellBoundary faceIjkPentToCellBoundary(int res) {
         // adjust the center point to be in an aperture 33r substrate grid
         // these should be composed for speed
         this.coord.downAp3();
         this.coord.downAp3r();
         // if res is Class III we need to add a cw aperture 7 to get to
         // icosahedral Class II
-        int adjRes = res;
-        if (H3Index.isResolutionClassIII(res)) {
-            this.coord.downAp7r();
-            adjRes += 1;
-        }
+        final int adjRes = adjustRes(this.coord, res);
+
         // If we're returning the entire loop, we need one more iteration in case
         // of a distortion vertex on the last edge
-        final int additionalIteration = length == Constants.NUM_PENT_VERTS ? 1 : 0;
-        final boolean isResolutionClassIII = H3Index.isResolutionClassIII(res);
-        // convert each vertex to lat/lng
-        // adjust the face of each vertex as appropriate and introduce
-        // edge-crossing vertices as needed
+        if (H3Index.isResolutionClassIII(res)) {
+            return faceIjkPentToCellBoundaryClassIII(adjRes);
+        } else {
+            return faceIjkPentToCellBoundaryClassII(adjRes);
+        }
+    }
+
+    private CellBoundary faceIjkPentToCellBoundaryClassII(int adjRes) {
+        final LatLng[] points = new LatLng[Constants.NUM_PENT_VERTS];
+        final FaceIJK fijk = new FaceIJK(this.face, new CoordIJK(0, 0, 0));
+        for (int vert = 0; vert < Constants.NUM_PENT_VERTS; vert++) {
+            // The center point is now in the same substrate grid as the origin
+            // cell vertices. Add the center point substate coordinates
+            // to each vertex to translate the vertices to that cell.
+            fijk.coord.reset(
+                VERTEX_CLASSII[vert][0] + this.coord.i,
+                VERTEX_CLASSII[vert][1] + this.coord.j,
+                VERTEX_CLASSII[vert][2] + this.coord.k
+            );
+            fijk.coord.ijkNormalize();
+            fijk.face = this.face;
+
+            fijk.adjustPentVertOverage(adjRes);
+
+            points[vert] = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
+        }
+        return new CellBoundary(points, Constants.NUM_PENT_VERTS);
+    }
+
+    private CellBoundary faceIjkPentToCellBoundaryClassIII(int adjRes) {
         final LatLng[] points = new LatLng[CellBoundary.MAX_CELL_BNDRY_VERTS];
         int numPoints = 0;
-        final CoordIJK scratch = new CoordIJK(0, 0, 0);
-        final FaceIJK fijk = new FaceIJK(this.face, scratch);
-        final int[][] coord = isResolutionClassIII ? VERTEX_CLASSIII : VERTEX_CLASSII;
+        final FaceIJK fijk = new FaceIJK(this.face, new CoordIJK(0, 0, 0));
         final CoordIJK lastCoord = new CoordIJK(0, 0, 0);
         int lastFace = this.face;
-        for (int vert = start; vert < start + length + additionalIteration; vert++) {
+        for (int vert = 0; vert < Constants.NUM_PENT_VERTS + 1; vert++) {
             final int v = vert % Constants.NUM_PENT_VERTS;
             // The center point is now in the same substrate grid as the origin
             // cell vertices. Add the center point substate coordinates
             // to each vertex to translate the vertices to that cell.
-            scratch.reset(coord[v][0], coord[v][1], coord[v][2]);
-            scratch.ijkAdd(this.coord.i, this.coord.j, this.coord.k);
-            scratch.ijkNormalize();
+            fijk.coord.reset(
+                VERTEX_CLASSIII[v][0] + this.coord.i,
+                VERTEX_CLASSIII[v][1] + this.coord.j,
+                VERTEX_CLASSIII[v][2] + this.coord.k
+            );
+            fijk.coord.ijkNormalize();
             fijk.face = this.face;
 
             fijk.adjustPentVertOverage(adjRes);
@@ -461,7 +482,7 @@ final class FaceIJK {
             // all Class III pentagon edges cross icosa edges
             // note that Class II pentagons have vertices on the edge,
             // not edge intersections
-            if (isResolutionClassIII && vert > start) {
+            if (vert > 0) {
                 // find hex2d of the two vertexes on the last face
                 final Vec2d orig2d0 = lastCoord.ijkToHex2d();
 
@@ -480,35 +501,17 @@ final class FaceIJK {
 
                 final Vec2d orig2d1 = lastCoord.ijkToHex2d();
 
-                // find the appropriate icosa face edge vertexes
-                final Vec2d edge0;
-                final Vec2d edge1;
-                switch (adjacentFaceDir[fijkOrient.face][fijk.face]) {
-                    case IJ -> {
-                        edge0 = maxDimByCIIVec2d[adjRes][0];
-                        edge1 = maxDimByCIIVec2d[adjRes][1];
-                    }
-                    case JK -> {
-                        edge0 = maxDimByCIIVec2d[adjRes][1];
-                        edge1 = maxDimByCIIVec2d[adjRes][2];
-                    }
-                    // case KI:
-                    default -> {
-                        assert (adjacentFaceDir[fijkOrient.face][fijk.face] == KI);
-                        edge0 = maxDimByCIIVec2d[adjRes][2];
-                        edge1 = maxDimByCIIVec2d[adjRes][0];
-                    }
-                }
-
                 // find the intersection and add the lat/lng point to the result
-                final Vec2d inter = Vec2d.v2dIntersect(orig2d0, orig2d1, edge0, edge1);
-                points[numPoints++] = inter.hex2dToGeo(fijkOrient.face, adjRes, true);
+                final Vec2d inter = findIntersectionPoint(orig2d0, orig2d1, adjRes, adjacentFaceDir[fijkOrient.face][fijk.face]);
+                if (inter != null) {
+                    points[numPoints++] = inter.hex2dToGeo(fijkOrient.face, adjRes, true);
+                }
             }
 
             // convert vertex to lat/lng and add to the result
             // vert == start + NUM_PENT_VERTS is only used to test for possible
             // intersection on last edge
-            if (vert < start + Constants.NUM_PENT_VERTS) {
+            if (vert < Constants.NUM_PENT_VERTS) {
                 points[numPoints++] = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
             }
             lastFace = fijk.face;
@@ -522,10 +525,8 @@ final class FaceIJK {
      * FaceIJK address at a specified resolution.
      *
      * @param res    The H3 resolution of the cell.
-     * @param start  The first topological vertex to return.
-     * @param length The number of topological vertexes to return.
      */
-    public CellBoundary faceIjkToCellBoundary(final int res, final int start, final int length) {
+    public CellBoundary faceIjkToCellBoundary(final int res) {
         // adjust the center point to be in an aperture 33r substrate grid
         // these should be composed for speed
         this.coord.downAp3();
@@ -533,32 +534,63 @@ final class FaceIJK {
 
         // if res is Class III we need to add a cw aperture 7 to get to
         // icosahedral Class II
-        int adjRes = res;
-        if (H3Index.isResolutionClassIII(res)) {
-            this.coord.downAp7r();
-            adjRes += 1;
-        }
+        final int adjRes = adjustRes(this.coord, res);
 
-        // If we're returning the entire loop, we need one more iteration in case
-        // of a distortion vertex on the last edge
-        final int additionalIteration = length == Constants.NUM_HEX_VERTS ? 1 : 0;
-        final boolean isResolutionClassIII = H3Index.isResolutionClassIII(res);
         // convert each vertex to lat/lng
         // adjust the face of each vertex as appropriate and introduce
         // edge-crossing vertices as needed
+        if (H3Index.isResolutionClassIII(res)) {
+            return faceIjkToCellBoundaryClassIII(adjRes);
+        } else {
+            return faceIjkToCellBoundaryClassII(adjRes);
+        }
+    }
+
+    private static int adjustRes(CoordIJK coord, int res) {
+        if (H3Index.isResolutionClassIII(res)) {
+            coord.downAp7r();
+            res += 1;
+        }
+        return res;
+    }
+
+    private CellBoundary faceIjkToCellBoundaryClassII(int adjRes) {
+        final LatLng[] points = new LatLng[Constants.NUM_HEX_VERTS];
+        final FaceIJK fijk = new FaceIJK(this.face, new CoordIJK(0, 0, 0));
+        for (int vert = 0; vert < Constants.NUM_HEX_VERTS; vert++) {
+            fijk.coord.reset(
+                VERTEX_CLASSII[vert][0] + this.coord.i,
+                VERTEX_CLASSII[vert][1] + this.coord.j,
+                VERTEX_CLASSII[vert][2] + this.coord.k
+            );
+            fijk.coord.ijkNormalize();
+            fijk.face = this.face;
+
+            fijk.adjustOverageClassII(adjRes, false, true);
+
+            // convert vertex to lat/lng and add to the result
+            // vert == start + NUM_HEX_VERTS is only used to test for possible
+            // intersection on last edge
+            points[vert] = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
+        }
+        return new CellBoundary(points, Constants.NUM_HEX_VERTS);
+    }
+
+    private CellBoundary faceIjkToCellBoundaryClassIII(int adjRes) {
         final LatLng[] points = new LatLng[CellBoundary.MAX_CELL_BNDRY_VERTS];
         int numPoints = 0;
-        final CoordIJK scratch1 = new CoordIJK(0, 0, 0);
-        final FaceIJK fijk = new FaceIJK(this.face, scratch1);
-        final CoordIJK scratch2 = isResolutionClassIII ? new CoordIJK(0, 0, 0) : null;
-        final int[][] verts = isResolutionClassIII ? VERTEX_CLASSIII : VERTEX_CLASSII;
+        final FaceIJK fijk = new FaceIJK(this.face, new CoordIJK(0, 0, 0));
+        final CoordIJK scratch = new CoordIJK(0, 0, 0);
         int lastFace = -1;
         Overage lastOverage = Overage.NO_OVERAGE;
-        for (int vert = start; vert < start + length + additionalIteration; vert++) {
-            int v = vert % Constants.NUM_HEX_VERTS;
-            scratch1.reset(verts[v][0], verts[v][1], verts[v][2]);
-            scratch1.ijkAdd(this.coord.i, this.coord.j, this.coord.k);
-            scratch1.ijkNormalize();
+        for (int vert = 0; vert < Constants.NUM_HEX_VERTS + 1; vert++) {
+            final int v = vert % Constants.NUM_HEX_VERTS;
+            fijk.coord.reset(
+                VERTEX_CLASSIII[v][0] + this.coord.i,
+                VERTEX_CLASSIII[v][1] + this.coord.j,
+                VERTEX_CLASSIII[v][2] + this.coord.k
+            );
+            fijk.coord.ijkNormalize();
             fijk.face = this.face;
 
             final Overage overage = fijk.adjustOverageClassII(adjRes, false, true);
@@ -572,50 +604,20 @@ final class FaceIJK {
             projection. Note that Class II cell edges have vertices on the face
             edge, with no edge line intersections.
             */
-            if (isResolutionClassIII && vert > start && fijk.face != lastFace && lastOverage != Overage.FACE_EDGE) {
+            if (vert > 0 && fijk.face != lastFace && lastOverage != Overage.FACE_EDGE) {
                 // find hex2d of the two vertexes on original face
                 final int lastV = (v + 5) % Constants.NUM_HEX_VERTS;
                 // The center point is now in the same substrate grid as the origin
                 // cell vertices. Add the center point substate coordinates
                 // to each vertex to translate the vertices to that cell.
-                final int[] vertexLast = verts[lastV];
-                final int[] vertexV = verts[v];
-                scratch2.reset(vertexLast[0] + this.coord.i, vertexLast[1] + this.coord.j, vertexLast[2] + this.coord.k);
-                scratch2.ijkNormalize();
-                final Vec2d orig2d0 = scratch2.ijkToHex2d();
-                scratch2.reset(vertexV[0] + this.coord.i, vertexV[1] + this.coord.j, vertexV[2] + this.coord.k);
-                scratch2.ijkNormalize();
-                final Vec2d orig2d1 = scratch2.ijkToHex2d();
+                final Vec2d orig2d0 = orig(scratch, VERTEX_CLASSIII[lastV]);
+                final Vec2d orig2d1 = orig(scratch, VERTEX_CLASSIII[v]);
 
                 // find the appropriate icosa face edge vertexes
                 final int face2 = ((lastFace == this.face) ? fijk.face : lastFace);
-                final Vec2d edge0;
-                final Vec2d edge1;
-                switch (adjacentFaceDir[this.face][face2]) {
-                    case IJ -> {
-                        edge0 = maxDimByCIIVec2d[adjRes][0];
-                        edge1 = maxDimByCIIVec2d[adjRes][1];
-                    }
-                    case JK -> {
-                        edge0 = maxDimByCIIVec2d[adjRes][1];
-                        edge1 = maxDimByCIIVec2d[adjRes][2];
-                    }
-                    // case KI:
-                    default -> {
-                        assert (adjacentFaceDir[this.face][face2] == KI);
-                        edge0 = maxDimByCIIVec2d[adjRes][2];
-                        edge1 = maxDimByCIIVec2d[adjRes][0];
-                    }
-                }
                 // find the intersection and add the lat/lng point to the result
-                final Vec2d inter = Vec2d.v2dIntersect(orig2d0, orig2d1, edge0, edge1);
-                /*
-                If a point of intersection occurs at a hexagon vertex, then each
-                adjacent hexagon edge will lie completely on a single icosahedron
-                face, and no additional vertex is required.
-                */
-                final boolean isIntersectionAtVertex = orig2d0.numericallyIdentical(inter) || orig2d1.numericallyIdentical(inter);
-                if (isIntersectionAtVertex == false) {
+                final Vec2d inter = findIntersectionPoint(orig2d0, orig2d1, adjRes, adjacentFaceDir[this.face][face2]);
+                if (inter != null) {
                     points[numPoints++] = inter.hex2dToGeo(this.face, adjRes, true);
                 }
             }
@@ -623,13 +625,49 @@ final class FaceIJK {
             // convert vertex to lat/lng and add to the result
             // vert == start + NUM_HEX_VERTS is only used to test for possible
             // intersection on last edge
-            if (vert < start + Constants.NUM_HEX_VERTS) {
+            if (vert < Constants.NUM_HEX_VERTS) {
                 points[numPoints++] = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
             }
             lastFace = fijk.face;
             lastOverage = overage;
         }
         return new CellBoundary(points, numPoints);
+    }
+
+    private Vec2d orig(CoordIJK scratch, int[] vertexLast) {
+        scratch.reset(vertexLast[0] + this.coord.i, vertexLast[1] + this.coord.j, vertexLast[2] + this.coord.k);
+        scratch.ijkNormalize();
+        return scratch.ijkToHex2d();
+    }
+
+    private Vec2d findIntersectionPoint(Vec2d orig2d0, Vec2d orig2d1, int adjRes, int faceDir) {
+        // find the appropriate icosa face edge vertexes
+        final Vec2d edge0;
+        final Vec2d edge1;
+        switch (faceDir) {
+            case IJ -> {
+                edge0 = maxDimByCIIVec2d[adjRes][0];
+                edge1 = maxDimByCIIVec2d[adjRes][1];
+            }
+            case JK -> {
+                edge0 = maxDimByCIIVec2d[adjRes][1];
+                edge1 = maxDimByCIIVec2d[adjRes][2];
+            }
+            // case KI:
+            default -> {
+                assert (faceDir == KI);
+                edge0 = maxDimByCIIVec2d[adjRes][2];
+                edge1 = maxDimByCIIVec2d[adjRes][0];
+            }
+        }
+        // find the intersection and add the lat/lng point to the result
+        final Vec2d inter = Vec2d.v2dIntersect(orig2d0, orig2d1, edge0, edge1);
+        /*
+        If a point of intersection occurs at a hexagon vertex, then each
+        adjacent hexagon edge will lie completely on a single icosahedron
+        face, and no additional vertex is required.
+        */
+        return orig2d0.numericallyIdentical(inter) || orig2d1.numericallyIdentical(inter) ? null : inter;
     }
 
     /**
@@ -651,7 +689,6 @@ final class FaceIJK {
                 // out of range input
                 throw new IllegalArgumentException(" out of range input");
             }
-
             return H3Index.H3_set_base_cell(h, BaseCells.getBaseCell(face, coord));
         }
 

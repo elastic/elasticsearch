@@ -1,0 +1,5 @@
+pr: 117865
+summary: Fix BWC for ES|QL cluster request
+area: ES|QL
+type: bug
+issues: []

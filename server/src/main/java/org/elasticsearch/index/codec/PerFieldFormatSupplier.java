@@ -20,10 +20,15 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
+
+import java.util.ServiceLoader;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -53,13 +58,26 @@ public class PerFieldFormatSupplier {
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
         if (mapperService != null) {
-            final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-            if (format != null) {
-                return format;
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper instanceof CompletionFieldMapper) {
+                return PostingsFormatHolder.POSTINGS_FORMAT;
             }
         }
         // return our own posting format using PFOR
         return es812PostingsFormat;
+    }
+
+    private static class PostingsFormatHolder {
+        private static final PostingsFormat POSTINGS_FORMAT = getPostingsFormat();
+
+        private static PostingsFormat getPostingsFormat() {
+            String defaultName = "Completion912"; // Caution: changing this name will result in exceptions if a field is created during a
+            // rolling upgrade and the new codec (specified by the name) is not available on all nodes in the cluster.
+            String codecName = ExtensionLoader.loadSingleton(ServiceLoader.load(CompletionsPostingsFormatExtension.class))
+                .map(CompletionsPostingsFormatExtension::getFormatName)
+                .orElse(defaultName);
+            return PostingsFormat.forName(codecName);
+        }
     }
 
     boolean useBloomFilter(String field) {

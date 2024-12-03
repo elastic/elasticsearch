@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -28,7 +30,11 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -39,7 +45,9 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
@@ -48,6 +56,7 @@ import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
@@ -56,7 +65,16 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private final Page testData;
     private final List<String> columnNames;
 
-    public TestPhysicalOperationProviders(Page testData, List<String> columnNames) {
+    public TestPhysicalOperationProviders(Page testData, List<String> columnNames) throws IOException {
+        super(
+            new AnalysisModule(
+                TestEnvironment.newEnvironment(
+                    Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+                ),
+                List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
+                new StablePluginsRegistry()
+            ).getAnalysisRegistry()
+        );
         this.testData = testData;
         this.columnNames = columnNames;
     }

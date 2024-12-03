@@ -676,3 +676,20 @@ Ahmedabad     | 9                 | 72
 Bangalore     | 9                 | 72
 // end::bitLength-result[]
 ;
+
+docsCategorize
+required_capability: categorize_v5
+// tag::docsCategorize[]
+FROM sample_data
+| STATS count=COUNT() BY category=CATEGORIZE(message)
+// end::docsCategorize[]
+| SORT category
+;
+
+// tag::docsCategorize-result[]
+count:long | category:keyword
+         3 | .*?Connected.+?to.*?
+         3 | .*?Connection.+?error.*?
+         1 | .*?Disconnected.*?
+// end::docsCategorize-result[]
+;

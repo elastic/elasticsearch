@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider.NodeAllocationAndClusterBalanceStats;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -41,6 +41,7 @@ public class DesiredBalanceMetrics {
     public static final String DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME =
         "es.allocator.desired_balance.allocations.node_disk_usage_bytes.current";
 
+    public static final String CURRENT_NODE_WEIGHT_METRIC_NAME = "es.allocator.allocations.node.weight.current";
     public static final String CURRENT_NODE_SHARD_COUNT_METRIC_NAME = "es.allocator.allocations.node.shard_count.current";
     public static final String CURRENT_NODE_WRITE_LOAD_METRIC_NAME = "es.allocator.allocations.node.write_load.current";
     public static final String CURRENT_NODE_DISK_USAGE_METRIC_NAME = "es.allocator.allocations.node.disk_usage_bytes.current";
@@ -68,12 +69,13 @@ public class DesiredBalanceMetrics {
     private volatile long undesiredAllocations;
 
     private final AtomicReference<Map<DiscoveryNode, NodeWeightStats>> weightStatsPerNodeRef = new AtomicReference<>(Map.of());
-    private final AtomicReference<Map<DiscoveryNode, NodeAllocationStats>> allocationStatsPerNodeRef = new AtomicReference<>(Map.of());
+    private final AtomicReference<Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats>> allocationStatsPerNodeRef =
+        new AtomicReference<>(Map.of());
 
     public void updateMetrics(
         AllocationStats allocationStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
-        Map<DiscoveryNode, NodeAllocationStats> nodeAllocationStats
+        Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats> nodeAllocationStats
     ) {
         assert allocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
@@ -123,6 +125,12 @@ public class DesiredBalanceMetrics {
             "Disk usage of nodes in the computed desired balance",
             "bytes",
             this::getDesiredBalanceNodeDiskUsageMetrics
+        );
+        meterRegistry.registerDoublesGauge(
+            CURRENT_NODE_WEIGHT_METRIC_NAME,
+            "The weight of nodes based on the current allocation state",
+            "unit",
+            this::getCurrentNodeWeightMetrics
         );
         meterRegistry.registerLongsGauge(
             DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME,
@@ -289,6 +297,18 @@ public class DesiredBalanceMetrics {
             values.add(new LongWithAttributes(stats.get(node).undesiredShards(), getNodeAttributes(node)));
         }
         return values;
+    }
+
+    private List<DoubleWithAttributes> getCurrentNodeWeightMetrics() {
+        if (nodeIsMaster == false) {
+            return List.of();
+        }
+        var stats = allocationStatsPerNodeRef.get();
+        List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
+        for (var node : stats.keySet()) {
+            doubles.add(new DoubleWithAttributes(stats.get(node).currentNodeWeight(), getNodeAttributes(node)));
+        }
+        return doubles;
     }
 
     private Map<String, Object> getNodeAttributes(DiscoveryNode node) {

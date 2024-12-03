@@ -33,7 +33,7 @@ import java.util.Objects;
 
 public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpPrefix, InternalIpPrefix.Bucket> {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             IpPrefix.Bucket,
             KeyComparable<InternalIpPrefix.Bucket> {

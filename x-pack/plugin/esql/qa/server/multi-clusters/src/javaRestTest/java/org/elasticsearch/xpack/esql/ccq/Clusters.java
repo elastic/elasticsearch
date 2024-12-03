@@ -20,7 +20,7 @@ public class Clusters {
         return ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
+            .version(distributionVersion("tests.version.remote_cluster"))
             .nodes(2)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
@@ -34,7 +34,7 @@ public class Clusters {
         return ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(Version.CURRENT)
+            .version(distributionVersion("tests.version.local_cluster"))
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
@@ -46,7 +46,18 @@ public class Clusters {
             .build();
     }
 
-    public static org.elasticsearch.Version oldVersion() {
-        return org.elasticsearch.Version.fromString(System.getProperty("tests.old_cluster_version"));
+    public static org.elasticsearch.Version localClusterVersion() {
+        String prop = System.getProperty("tests.version.local_cluster");
+        return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
+    }
+
+    public static org.elasticsearch.Version remoteClusterVersion() {
+        String prop = System.getProperty("tests.version.remote_cluster");
+        return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
+    }
+
+    private static Version distributionVersion(String key) {
+        final String val = System.getProperty(key);
+        return val != null ? Version.fromString(val) : Version.CURRENT;
     }
 }

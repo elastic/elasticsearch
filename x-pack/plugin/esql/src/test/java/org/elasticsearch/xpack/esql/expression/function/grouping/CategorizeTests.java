@@ -23,6 +23,12 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Dummy test implementation for Categorize. Used just to generate documentation.
+ * <p>
+ *     Most test cases are currently skipped as this function can't build an evaluator.
+ * </p>
+ */
 public class CategorizeTests extends AbstractScalarFunctionTestCase {
     public CategorizeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -37,11 +43,11 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
                     "text with " + dataType.typeName(),
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
-                        List.of(new TestCaseSupplier.TypedData(new BytesRef("blah blah blah"), dataType, "f")),
-                        "CategorizeEvaluator[v=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(0)
-                    )
+                        List.of(new TestCaseSupplier.TypedData(new BytesRef(""), dataType, "field")),
+                        "",
+                        DataType.KEYWORD,
+                        equalTo(new BytesRef(""))
+                    ).withoutEvaluator()
                 )
             );
         }

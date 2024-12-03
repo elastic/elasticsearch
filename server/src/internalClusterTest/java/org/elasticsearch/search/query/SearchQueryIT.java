@@ -589,19 +589,19 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh("test").get();
         builder = multiMatchQuery("value1", "field1", "field2").operator(Operator.AND); // Operator only applies on terms inside a field!
-                                                                                        // Fields are always OR-ed together.
+        // Fields are always OR-ed together.
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(builder), "1");
 
         refresh();
         builder = multiMatchQuery("value1", "field1").field("field3", 1.5f).operator(Operator.AND); // Operator only applies on terms inside
-                                                                                                    // a field! Fields are always OR-ed
-                                                                                                    // together.
+        // a field! Fields are always OR-ed
+        // together.
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(builder), "3", "1");
 
         indicesAdmin().prepareRefresh("test").get();
         builder = multiMatchQuery("value1").field("field1").field("field3", 1.5f).operator(Operator.AND); // Operator only applies on terms
-                                                                                                          // inside a field! Fields are
-                                                                                                          // always OR-ed together.
+        // inside a field! Fields are
+        // always OR-ed together.
         assertResponse(prepareSearch().setQuery(builder), response -> {
             assertHitCount(response, 2L);
             assertSearchHits(response, "3", "1");
@@ -726,25 +726,27 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("2").setSource("field2", "value1").get();
         refresh();
 
-        BoolQueryBuilder boolQuery = boolQuery().must(termQuery("field1", "value1"))
-            .should(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(3));
-        assertResponse(prepareSearch().setQuery(boolQuery), response -> {
+        assertResponses(response -> {
             assertHitCount(response, 1L);
             assertFirstHit(response, hasId("1"));
-        });
-        boolQuery = boolQuery().must(termQuery("field1", "value1"))
+        },
+            prepareSearch().setQuery(
+                boolQuery().must(termQuery("field1", "value1"))
+                    .should(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(3))
+            ),
+            prepareSearch().setQuery(
+                boolQuery().should(termQuery("field1", "value1"))
+                    .should(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(3))
+                    .minimumShouldMatch(1)
+            )
+        );
+
+        BoolQueryBuilder boolQuery = boolQuery().must(termQuery("field1", "value1"))
             .should(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(1))
             // Only one should clause is defined, returns no docs.
             .minimumShouldMatch(2);
         assertHitCount(prepareSearch().setQuery(boolQuery), 0L);
 
-        boolQuery = boolQuery().should(termQuery("field1", "value1"))
-            .should(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(3))
-            .minimumShouldMatch(1);
-        assertResponse(prepareSearch().setQuery(boolQuery), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
         boolQuery = boolQuery().must(termQuery("field1", "value1"))
             .must(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(3));
         assertHitCount(prepareSearch().setQuery(boolQuery), 0L);
@@ -1449,73 +1451,40 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .setSource("date", Instant.now().atZone(ZoneOffset.ofHours(1)).toInstant().toEpochMilli(), "num", 4)
         );
 
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getId(), is("1"));
+        },
             prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00")),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("1"));
-            }
-        );
-        assertResponse(
-            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00").to("2013-12-31T23:59:00")),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("2"));
-            }
-        );
-        assertResponse(
-            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00").to("2014-01-01T01:59:00")),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("3"));
-            }
-        );
-        // We explicitly define a time zone in the from/to dates so whatever the time zone is, it won't be used
-        assertResponse(
+            // We explicitly define a time zone in the from/to dates so whatever the time zone is, it won't be used
             prepareSearch("test").setQuery(
                 QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00Z").to("2014-01-01T00:59:00Z").timeZone("+10:00")
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("1"));
-            }
+            // We define a time zone to be applied to the filter and from/to have no time zone
+            prepareSearch("test").setQuery(
+                QueryBuilders.rangeQuery("date").from("2014-01-01T03:00:00").to("2014-01-01T03:59:00").timeZone("+03:00")
+            )
         );
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getId(), is("2"));
+        },
+            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00").to("2013-12-31T23:59:00")),
             prepareSearch("test").setQuery(
                 QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00Z").to("2013-12-31T23:59:00Z").timeZone("+10:00")
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("2"));
-            }
-        );
-        assertResponse(
-            prepareSearch("test").setQuery(
-                QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00Z").to("2014-01-01T01:59:00Z").timeZone("+10:00")
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("3"));
-            }
-        );
-        // We define a time zone to be applied to the filter and from/to have no time zone
-        assertResponse(
-            prepareSearch("test").setQuery(
-                QueryBuilders.rangeQuery("date").from("2014-01-01T03:00:00").to("2014-01-01T03:59:00").timeZone("+03:00")
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("1"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 QueryBuilders.rangeQuery("date").from("2014-01-01T02:00:00").to("2014-01-01T02:59:00").timeZone("+03:00")
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("2"));
-            }
+            )
+        );
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getId(), is("3"));
+        },
+            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00").to("2014-01-01T01:59:00")),
+            prepareSearch("test").setQuery(
+                QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00Z").to("2014-01-01T01:59:00Z").timeZone("+10:00")
+            )
         );
         assertResponses(response -> {
             assertHitCount(response, 1L);
@@ -1713,8 +1682,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     /**
-    * Test that wildcard queries on keyword fields get normalized
-    */
+     * Test that wildcard queries on keyword fields get normalized
+     */
     public void testWildcardQueryNormalizationOnKeywordField() {
         assertAcked(
             prepareCreate("test").setSettings(

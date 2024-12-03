@@ -102,10 +102,39 @@ If `adaptive_allocations` is enabled, do not set this value, because it's automa
 Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
+[discrete]
+[[inference-example-elser-adaptive-allocation]]
+==== ELSER service example with adaptive allocations
+
+When adaptive allocations are enabled, the number of allocations of the model is set automatically based on the current load.
+
+NOTE: For more information on how to optimize your ELSER endpoints, refer to {ml-docs}/ml-nlp-elser.html#elser-recommendations[the ELSER recommendations] section in the model documentation.
+To learn more about model autoscaling, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] page.
+
+The following example shows how to create an {infer} endpoint called `my-elser-model` to perform a `sparse_embedding` task type and configure adaptive allocations.
+
+The request below will automatically download the ELSER model if it isn't already downloaded and then deploy the model.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/my-elser-model
+{
+  "service": "elser",
+  "service_settings": {
+    "adaptive_allocations": {
+      "enabled": true,
+      "min_number_of_allocations": 3,
+      "max_number_of_allocations": 10
+    },
+    "num_threads": 1
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
 
 [discrete]
 [[inference-example-elser]]
-==== ELSER service example
+==== ELSER service example without adaptive allocations
 
 The following example shows how to create an {infer} endpoint called `my-elser-model` to perform a `sparse_embedding` task type.
 Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more info.
@@ -152,31 +181,3 @@ This error usually just reflects a timeout, while the model downloads in the bac
 You can check the download progress in the {ml-app} UI.
 If using the Python client, you can set the `timeout` parameter to a higher value.
 ====
-
-[discrete]
-[[inference-example-elser-adaptive-allocation]]
-==== Setting adaptive allocations for the ELSER service
-
-NOTE: For more information on how to optimize your ELSER endpoints, refer to {ml-docs}/ml-nlp-elser.html#elser-recommendations[the ELSER recommendations] section in the model documentation.
-To learn more about model autoscaling, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] page.
-
-The following example shows how to create an {infer} endpoint called `my-elser-model` to perform a `sparse_embedding` task type and configure adaptive allocations.
-
-The request below will automatically download the ELSER model if it isn't already downloaded and then deploy the model.
-
-[source,console]
-------------------------------------------------------------
-PUT _inference/sparse_embedding/my-elser-model
-{
-  "service": "elser",
-  "service_settings": {
-    "adaptive_allocations": {
-      "enabled": true,
-      "min_number_of_allocations": 3,
-      "max_number_of_allocations": 10
-    },
-    "num_threads": 1
-  }
-}
-------------------------------------------------------------
-// TEST[skip:TBD]

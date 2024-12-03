@@ -10,6 +10,7 @@ package fixture.url;
 
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
@@ -21,15 +22,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * This {@link URLFixture} exposes a filesystem directory over HTTP. It is used in repository-url
  * integration tests to expose a directory created by a regular FS repository.
  */
 public class URLFixture extends AbstractHttpFixture implements TestRule {
-    private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d+)$");
     private final TemporaryFolder temporaryFolder;
     private Path repositoryDir;
 
@@ -60,19 +58,19 @@ public class URLFixture extends AbstractHttpFixture implements TestRule {
 
         if (normalizedPath.startsWith(normalizedRepositoryDir)) {
             if (Files.exists(normalizedPath) && Files.isReadable(normalizedPath) && Files.isRegularFile(normalizedPath)) {
-                final String range = request.getHeader("Range");
+                final String rangeHeader = request.getHeader("Range");
                 final Map<String, String> headers = new HashMap<>(contentType("application/octet-stream"));
-                if (range == null) {
+                if (rangeHeader == null) {
                     byte[] content = Files.readAllBytes(normalizedPath);
                     headers.put("Content-Length", String.valueOf(content.length));
                     return new Response(RestStatus.OK.getStatus(), headers, content);
                 } else {
-                    final Matcher matcher = RANGE_PATTERN.matcher(range);
-                    if (matcher.matches() == false) {
+                    final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                    if (range == null) {
                         return new Response(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
                     } else {
-                        long start = Long.parseLong(matcher.group(1));
-                        long end = Long.parseLong(matcher.group(2));
+                        long start = range.start();
+                        long end = range.end();
                         long rangeLength = end - start + 1;
                         final long fileSize = Files.size(normalizedPath);
                         if (start >= fileSize || start > end || rangeLength > fileSize) {

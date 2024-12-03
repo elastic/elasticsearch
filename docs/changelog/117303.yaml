@@ -1,0 +1,5 @@
+pr: 117303
+summary: Remove HTTP content copies
+area: Network
+type: enhancement
+issues: []

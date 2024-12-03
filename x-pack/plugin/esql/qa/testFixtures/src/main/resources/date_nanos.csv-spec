@@ -459,3 +459,404 @@ yr:date_nanos                  | mo:date_nanos                  | mn:date_nanos 
 2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T12:10:00.000000000Z | 2023-10-23T12:15:03.360000000Z
 2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T12:10:00.000000000Z | 2023-10-23T12:15:03.360000000Z
 ;
+
+Add date nanos
+required_capability: date_nanos_add_subtract
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| EVAL mo = nanos + 1 month, hr = nanos + 1 hour, dy = nanos - 4 days, mn = nanos - 2 minutes
+| SORT millis DESC
+| KEEP mo, hr, dy, mn;
+
+mo:date_nanos                  | hr:date_nanos                  | dy:date_nanos                  | mn:date_nanos                  
+2023-11-23T13:55:01.543123456Z | 2023-10-23T14:55:01.543123456Z | 2023-10-19T13:55:01.543123456Z | 2023-10-23T13:53:01.543123456Z
+2023-11-23T13:53:55.832987654Z | 2023-10-23T14:53:55.832987654Z | 2023-10-19T13:53:55.832987654Z | 2023-10-23T13:51:55.832987654Z
+2023-11-23T13:52:55.015787878Z | 2023-10-23T14:52:55.015787878Z | 2023-10-19T13:52:55.015787878Z | 2023-10-23T13:50:55.015787878Z
+2023-11-23T13:51:54.732102837Z | 2023-10-23T14:51:54.732102837Z | 2023-10-19T13:51:54.732102837Z | 2023-10-23T13:49:54.732102837Z
+2023-11-23T13:33:34.937193000Z | 2023-10-23T14:33:34.937193000Z | 2023-10-19T13:33:34.937193000Z | 2023-10-23T13:31:34.937193000Z
+2023-11-23T12:27:28.948000000Z | 2023-10-23T13:27:28.948000000Z | 2023-10-19T12:27:28.948000000Z | 2023-10-23T12:25:28.948000000Z
+2023-11-23T12:15:03.360103847Z | 2023-10-23T13:15:03.360103847Z | 2023-10-19T12:15:03.360103847Z | 2023-10-23T12:13:03.360103847Z
+2023-11-23T12:15:03.360103847Z | 2023-10-23T13:15:03.360103847Z | 2023-10-19T12:15:03.360103847Z | 2023-10-23T12:13:03.360103847Z
+;
+
+datePlusPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.000123456Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T01:01:01.000123456Z | 2104-04-16T01:01:01.000123456Z
+;
+
+datePlusPeriodFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = 4 years + 3 months + 2 weeks + 1 day + n | keep then;
+
+then:date_nanos
+2057-07-19T00:00:00.000123456Z
+;
+
+datePlusMixedPeriodsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-01T00:00:00.000123456Z")
+| eval then = 4 years + 3 months + 1 year + 2 weeks + 1 month + 1 day + 1 week + 1 day + n
+| keep then;
+
+then:date_nanos
+2058-08-24T00:00:00.000123456Z
+;
+
+datePlusSumOfPeriodsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = (4 years + 3 months + 2 weeks + 1 day) + n | keep then;
+
+then:date_nanos
+2057-07-19T00:00:00.000123456Z
+;
+
+datePlusNegatedPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T01:01:01.000123456Z")
+| eval plus = dt + (-(4 years + 3 months + 2 weeks + 1 day));
+
+dt:date_nanos                  | plus:date_nanos
+2104-04-16T01:01:01.000123456Z | 2100-01-01T01:01:01.000123456Z
+;
+
+dateMinusPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T01:01:01.000123456Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day;
+
+dt:date_nanos                  | minus:date_nanos
+2104-04-16T01:01:01.000123456Z | 2100-01-01T01:01:01.000123456Z
+;
+
+dateMinusPeriodFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2057-07-19T00:00:00.000123456Z") | eval then = -4 years - 3 months - 2 weeks - 1 day + n | keep then;
+
+then:date_nanos
+2053-04-04T00:00:00.000123456Z
+;
+
+dateMinusSumOfNegativePeriods
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = n - (-4 years - 3 months - 2 weeks - 1 day)| keep then;
+
+then:date_nanos
+2057-07-19T00:00:00.000123456Z
+;
+
+dateMinusPeriodsFromLeftMultipleEvals
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z")
+| eval x = -4 years + n
+| eval y = -3 months + x, then = y + (-2 weeks - 1 day)
+| keep then;
+
+then:date_nanos
+2048-12-20T00:00:00.000123456Z
+;
+
+datePlusDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plus = dt + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T00:00:00.000123456Z | 2100-01-01T01:01:01.001123456Z
+;
+
+datePlusDurationFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = 1 hour + 1 minute + 1 second + 1 milliseconds + n  | keep then;
+
+then:date_nanos
+2053-04-04T01:01:01.001123456Z
+;
+
+datePlusMixedDurationsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z")
+| eval then = 1 hour + 1 minute + 2 hour + 1 second + 2 minute + 1 milliseconds + 2 second + 2 millisecond + n
+| keep then;
+
+then:date_nanos
+2053-04-04T03:03:03.003123456Z
+;
+
+datePlusSumOfDurationsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = (1 hour + 1 minute + 1 second + 1 milliseconds) + n | keep then;
+
+then:date_nanos
+2053-04-04T01:01:01.001123456Z
+;
+
+datePlusNegatedDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus = dt + (-(1 hour + 1 minute + 1 second + 1 milliseconds));
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T01:01:01.001123456Z | 2100-01-01T00:00:00.000123456Z
+;
+
+datePlusNull
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus_post = dt + null, plus_pre = null + dt;
+
+dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
+2100-01-01T01:01:01.001123456Z | null                 | null
+;
+
+datePlusNullAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
+
+dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
+2100-01-01T01:01:01.001123456Z | null                 | null
+;
+
+datePlusNullAndPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
+
+dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
+2100-01-01T01:01:01.001123456Z | null                 | null
+;
+
+datePlusQuarter
+required_capability: date_nanos_add_subtract
+
+required_capability: timespan_abbreviations
+row dt = to_date_nanos("2100-01-01T01:01:01.000123456Z")
+| eval plusQuarter = dt + 2 quarters
+;
+
+dt:date_nanos                  | plusQuarter:date_nanos
+2100-01-01T01:01:01.000123456Z | 2100-07-01T01:01:01.000123456Z
+;
+
+datePlusAbbreviatedDurations
+required_capability: timespan_abbreviations
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plusDurations = dt + 1 h + 2 min + 2 sec + 1 s + 4 ms
+;
+
+dt:date_nanos              | plusDurations:date_nanos
+2100-01-01T00:00:00.000123456Z | 2100-01-01T01:02:03.004123456Z
+;
+
+datePlusAbbreviatedPeriods
+required_capability: timespan_abbreviations
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plusDurations = dt + 0 yr + 1y + 2 q + 3 mo + 4 w + 3 d
+;
+
+dt:date_nanos                  | plusDurations:date_nanos
+2100-01-01T00:00:00.000123456Z | 2101-11-01T00:00:00.000123456Z
+;
+
+
+dateMinusDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:date_nanos                  | minus:date_nanos
+2100-01-01T01:01:01.001123456Z | 2100-01-01T00:00:00.000123456Z
+;
+
+dateMinusDurationFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T01:01:01.001123456Z") | eval then = -1 hour - 1 minute - 1 second - 1 milliseconds + n | keep then;
+
+then:date_nanos
+2053-04-04T00:00:00.000123456Z
+;
+
+dateMinusSumOfNegativeDurations
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = n - (-1 hour - 1 minute - 1 second - 1 milliseconds) | keep then;
+
+then:date_nanos
+2053-04-04T01:01:01.001123456Z
+;
+
+dateMinusDurationsFromLeftMultipleEvals
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval x = -4 hour + n
+| eval y = -3 minute + x, then = y + (-2 second - 1 millisecond)
+| keep then
+;
+
+then:date_nanos
+2053-04-04T00:00:00.000123456Z
+;
+
+dateMinusNull
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval minus = dt - null
+;
+
+dt:date_nanos                  | minus:date_nanos
+2053-04-04T04:03:02.001123456Z | null
+;
+
+dateMinusNullAndPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval minus = dt - null - 4 minutes
+;
+
+dt:date_nanos                  | minus:date_nanos
+2053-04-04T04:03:02.001123456Z | null
+;
+
+dateMinusNullAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval minus = dt - 6 days - null
+;
+
+dt:date_nanos                  | minus:date_nanos
+2053-04-04T04:03:02.001123456Z | null
+;
+
+datePlusPeriodAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T00:00:00.000123456Z | 2104-04-16T01:01:01.001123456Z
+;
+
+dateMinusPeriodAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T01:01:01.001123456Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:date_nanos              |minus:date_nanos
+2104-04-16T01:01:01.001123456Z |2100-01-01T00:00:00.000123456Z
+;
+
+datePlusPeriodMinusDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T01:01:01.001123456Z | 2104-04-16T00:00:00.000123456Z
+;
+
+datePlusDurationMinusPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T00:00:00.000123456Z")
+| eval plus = dt - 4 years - 3 months - 2 weeks - 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2104-04-16T00:00:00.000123456Z | 2100-01-01T01:01:01.001123456Z
+;
+
+dateMathArithmeticOverflow from addition
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(9223372036854775807)
+| eval plus = dt + 1 day
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.time.DateTimeException: Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807
+plus:date_nanos
+null
+;
+
+date nanos subtraction before 1970
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval minus = dt - 1 day
+| keep minus;
+
+warning:Line 2:16: evaluation of [dt - 1 day] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:16: java.time.DateTimeException: Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807
+minus:date_nanos
+null
+;
+
+dateMathDateException
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval plus = dt + 2147483647 years
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
+
+plus:date_nanos
+null
+;
+
+dateMathNegatedPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval plus = -(-1 year) + dt
+| keep plus;
+
+plus:date_nanos
+1971-01-01T00:00:00.000Z
+;
+
+dateMathNegatedDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval plus = -(-1 second) + dt
+| keep plus;
+
+plus:date_nanos
+1970-01-01T00:00:01.000Z
+;

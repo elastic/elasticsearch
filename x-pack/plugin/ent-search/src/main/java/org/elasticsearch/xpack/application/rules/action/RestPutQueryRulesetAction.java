@@ -42,7 +42,7 @@ public class RestPutQueryRulesetAction extends EnterpriseSearchBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutQueryRulesetAction.Request request = new PutQueryRulesetAction.Request(
             restRequest.param("ruleset_id"),
-            restRequest.content(),
+            restRequest.requiredContent(),
             restRequest.getXContentType()
         );
         return channel -> client.execute(

@@ -21,6 +21,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Objects;
+import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
 public class S3HttpFixture extends ExternalResource {
 
@@ -29,21 +31,17 @@ public class S3HttpFixture extends ExternalResource {
     private final boolean enabled;
     private final String bucket;
     private final String basePath;
-    protected volatile String accessKey;
-
-    public S3HttpFixture() {
-        this(true);
-    }
+    private final BiPredicate<String, String> authorizationPredicate;
 
     public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", "s3_test_access_key");
+        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key"));
     }
 
-    public S3HttpFixture(boolean enabled, String bucket, String basePath, String accessKey) {
+    public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {
         this.enabled = enabled;
         this.bucket = bucket;
         this.basePath = basePath;
-        this.accessKey = accessKey;
+        this.authorizationPredicate = authorizationPredicate;
     }
 
     protected HttpHandler createHandler() {
@@ -51,9 +49,11 @@ public class S3HttpFixture extends ExternalResource {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
-                    final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-                    if (authorization == null || authorization.contains(accessKey) == false) {
-                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
+                    if (authorizationPredicate.test(
+                        exchange.getRequestHeaders().getFirst("Authorization"),
+                        exchange.getRequestHeaders().getFirst("x-amz-security-token")
+                    ) == false) {
+                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Access denied by " + authorizationPredicate);
                         return;
                     }
                     super.handle(exchange);
@@ -76,7 +76,7 @@ public class S3HttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         if (enabled) {
-            InetSocketAddress inetSocketAddress = resolveAddress("localhost", 0);
+            InetSocketAddress inetSocketAddress = resolveAddress();
             this.server = HttpServer.create(inetSocketAddress, 0);
             HttpHandler handler = createHandler();
             this.server.createContext("/", Objects.requireNonNull(handler));
@@ -91,15 +91,27 @@ public class S3HttpFixture extends ExternalResource {
         }
     }
 
-    private static InetSocketAddress resolveAddress(String address, int port) {
+    private static InetSocketAddress resolveAddress() {
         try {
-            return new InetSocketAddress(InetAddress.getByName(address), port);
+            return new InetSocketAddress(InetAddress.getByName("localhost"), 0);
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public void setAccessKey(String accessKey) {
-        this.accessKey = accessKey;
+    public static BiPredicate<String, String> fixedAccessKey(String accessKey) {
+        return mutableAccessKey(() -> accessKey);
+    }
+
+    public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier) {
+        return (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
+            && authorizationHeader.contains(accessKeySupplier.get());
+    }
+
+    public static BiPredicate<String, String> fixedAccessKeyAndToken(String accessKey, String sessionToken) {
+        Objects.requireNonNull(sessionToken);
+        final var accessKeyPredicate = fixedAccessKey(accessKey);
+        return (authorizationHeader, sessionTokenHeader) -> accessKeyPredicate.test(authorizationHeader, sessionTokenHeader)
+            && sessionToken.equals(sessionTokenHeader);
     }
 }

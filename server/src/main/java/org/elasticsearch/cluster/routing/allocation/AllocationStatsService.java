@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class AllocationStatsService {
     private final ClusterService clusterService;
@@ -39,6 +40,26 @@ public class AllocationStatsService {
     }
 
     public Map<String, NodeAllocationStats> stats() {
-        return nodeAllocationStatsProvider.stats(clusterService.state(), clusterInfoService.getClusterInfo(), desiredBalanceSupplier.get());
+        var state = clusterService.state();
+        var stats = nodeAllocationStatsProvider.stats(
+            state.metadata(),
+            state.getRoutingNodes(),
+            clusterInfoService.getClusterInfo(),
+            desiredBalanceSupplier.get()
+        );
+        return stats.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> new NodeAllocationStats(
+                        e.getValue().shards(),
+                        e.getValue().undesiredShards(),
+                        e.getValue().forecastedIngestLoad(),
+                        e.getValue().forecastedDiskUsage(),
+                        e.getValue().currentDiskUsage()
+                    )
+                )
+            );
     }
 }

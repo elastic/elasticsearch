@@ -24,13 +24,18 @@ public final class WeightedTokensUtils {
 
     private WeightedTokensUtils() {}
 
-    public static Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
+    public static Query queryBuilderWithAllTokens(
+        String fieldName,
+        List<WeightedToken> tokens,
+        MappedFieldType ft,
+        SearchExecutionContext context
+    ) {
         var qb = new BooleanQuery.Builder();
 
         for (var token : tokens) {
             qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
         }
-        return qb.setMinimumNumberShouldMatch(1).build();
+        return new SparseVectorQueryWrapper(fieldName, qb.setMinimumNumberShouldMatch(1).build());
     }
 
     public static Query queryBuilderWithPrunedTokens(
@@ -64,7 +69,7 @@ public final class WeightedTokensUtils {
             }
         }
 
-        return qb.setMinimumNumberShouldMatch(1).build();
+        return new SparseVectorQueryWrapper(fieldName, qb.setMinimumNumberShouldMatch(1).build());
     }
 
     /**

@@ -281,7 +281,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Annotation for third-party integration tests.
      * <p>
-     * These are tests the require a third-party service in order to run. They
+     * These are tests, which require a third-party service in order to run. They
      * may require the user to manually configure an external process (such as rabbitmq),
      * or may additionally require some external configuration (e.g. AWS credentials)
      * via the {@code tests.config} system property.

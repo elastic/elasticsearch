@@ -59,7 +59,7 @@ public abstract class InternalMappedSignificantTerms<
         subsetSize = in.readVLong();
         supersetSize = in.readVLong();
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
-        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format));
     }
 
     @Override
@@ -91,12 +91,12 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected long getSubsetSize() {
+    public long getSubsetSize() {
         return subsetSize;
     }
 
     @Override
-    protected long getSupersetSize() {
+    public long getSupersetSize() {
         return supersetSize;
     }
 

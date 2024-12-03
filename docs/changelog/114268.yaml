@@ -1,5 +1,0 @@
-pr: 114268
-summary: Support more maxmind fields in the geoip processor
-area: Ingest Node
-type: enhancement
-issues: []

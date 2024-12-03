@@ -135,6 +135,9 @@
                 },
                 "config.present_cpu_cores": {
                   "type": "integer"
+                },
+                "config.sampling_frequency": {
+                  "type": "integer"
                 }
               }
             },

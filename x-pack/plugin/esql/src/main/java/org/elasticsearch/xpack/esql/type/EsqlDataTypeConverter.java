@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
@@ -378,9 +378,12 @@ public class EsqlDataTypeConverter {
         if (right == NULL) {
             return left;
         }
-        if (isDateTimeOrTemporal(left) || isDateTimeOrTemporal(right)) {
+        if (isDateTimeOrNanosOrTemporal(left) || isDateTimeOrNanosOrTemporal(right)) {
             if ((isDateTime(left) && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && isDateTime(right))) {
                 return DATETIME;
+            }
+            if ((left == DATE_NANOS && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && right == DATE_NANOS)) {
+                return DATE_NANOS;
             }
             if (isNullOrTimeDuration(left) && isNullOrTimeDuration(right)) {
                 return TIME_DURATION;

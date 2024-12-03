@@ -2053,6 +2053,38 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots.max"));
     }
 
+    public void testSubobjectsFalseWithInnerDottedObjectDynamicFalse() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics").field("type", "object").field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));
+            b.startObject("properties").startObject("service.test.with.dots").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("""
+            { "metrics": { "service": { "test.with.dots": "foo" }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service.test": { "with.dots": "foo" }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service": { "test": { "with.dots": "foo" }  }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service": { "test.other.dots": "foo" }  } }"""));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service.test": { "other.dots": "foo" }  } }"""));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service": { "test": { "other.dots": "foo" }  }  } }"""));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
+    }
+
     public void testSubobjectsFalseRoot() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(xContentBuilder -> {}));
         ParsedDocument doc = mapper.parse(source("""
@@ -2072,6 +2104,37 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.time"));
         assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+    }
+
+    public void testSubobjectsFalseRootWithInnerDottedObjectDynamicFalse() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));
+            b.startObject("properties").startObject("service.test.with.dots").field("type", "keyword").endObject().endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("""
+            { "service": { "test.with.dots": "foo" } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service.test": { "with.dots": "foo" } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service": { "test": { "with.dots": "foo" } } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service": { "test.other.dots": "foo" } }"""));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "service.test": { "other.dots": "foo" } }"""));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "service": { "test": { "other.dots": "foo" } } }"""));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
     }
 
     public void testSubobjectsFalseStructuredPath() throws Exception {
@@ -2625,7 +2688,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             newMapping,
             newMapping.toCompressedXContent(),
             IndexVersion.current(),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            "myIndex"
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {

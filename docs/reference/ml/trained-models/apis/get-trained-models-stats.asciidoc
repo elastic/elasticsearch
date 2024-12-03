@@ -235,7 +235,7 @@ The reason for the current state. Usually only populated when the `routing_state
 (string)
 The current routing state.
 --
-* `starting`: The model is attempting to allocate on this model, inference calls are not yet accepted.
+* `starting`: The model is attempting to allocate on this node, inference calls are not yet accepted.
 * `started`: The model is allocated and ready to accept inference requests.
 * `stopping`: The model is being deallocated from this node.
 * `stopped`: The model is fully deallocated from this node.

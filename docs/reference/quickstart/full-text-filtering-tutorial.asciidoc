@@ -511,8 +511,9 @@ In this tutorial scenario it's useful for when users have complex requirements f
 
 Let's create a query that addresses the following user needs:
 
-* Must be a vegetarian main course
+* Must be a vegetarian recipe
 * Should contain "curry" or "spicy" in the title or description
+* Should be a main course
 * Must not be a dessert
 * Must have a rating of at least 4.5
 * Should prefer recipes published in the last month
@@ -524,16 +525,7 @@ GET /cooking_blog/_search
   "query": {
     "bool": {
       "must": [
-        {
-          "term": {
-            "category.keyword": "Main Course"
-          }
-        },
-        {
-          "term": {
-            "tags": "vegetarian"
-          }
-        },
+        { "term": { "tags": "vegetarian" } },
         {
           "range": {
             "rating": {
@@ -544,9 +536,17 @@ GET /cooking_blog/_search
       ],
       "should": [
         {
+          "term": {
+            "category": "Main Course"
+          }
+        },
+        {
           "multi_match": {
             "query": "curry spicy",
-            "fields": ["title^2", "description"]
+            "fields": [
+              "title^2",
+              "description"
+            ]
           }
         },
         {
@@ -590,12 +590,12 @@ GET /cooking_blog/_search
       "value": 1,
       "relation": "eq"
     },
-    "max_score": 7.9835095,
+    "max_score": 7.444513,
     "hits": [
       {
         "_index": "cooking_blog",
         "_id": "2",
-        "_score": 7.9835095,
+        "_score": 7.444513,
         "_source": {
           "title": "Spicy Thai Green Curry: A Vegetarian Adventure", <1>
           "description": "Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.", <2>
@@ -619,8 +619,8 @@ GET /cooking_blog/_search
 <1> The title contains "Spicy" and "Curry", matching our should condition. With the default <<type-best-fields,best_fields>> behavior, this field contributes most to the relevance score.
 <2> While the description also contains matching terms, only the best matching field's score is used by default.
 <3> The recipe was published within the last month, satisfying our recency preference.
-<4> The "Main Course" category matches our `must` condition.
-<5> The "vegetarian" tag satisfies another `must` condition, while "curry" and "spicy" tags align with our `should` preferences.
+<4> The "Main Course" category satisfies another `should` condition.
+<5> The "vegetarian" tag satisfies a `must` condition, while "curry" and "spicy" tags align with our `should` preferences.
 <6> The rating of 4.6 meets our minimum rating requirement of 4.5.
 ==============
 

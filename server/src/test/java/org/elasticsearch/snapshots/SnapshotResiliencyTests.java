@@ -180,7 +180,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -2314,9 +2313,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
-                    responseCollectorService,
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP
@@ -2483,6 +2480,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new NoneCircuitBreakerService(),
                         transportService,
                         searchService,
+                        responseCollectorService,
                         searchTransportService,
                         searchPhaseController,
                         clusterService,

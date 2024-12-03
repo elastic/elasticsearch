@@ -167,5 +167,3 @@ org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(java.lang.Str
 @defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
 java.lang.Thread#<init>(java.lang.Runnable)
 java.lang.Thread#<init>(java.lang.ThreadGroup, java.lang.Runnable)
-
-org.elasticsearch.common.bytes.BytesReference#copyBytes(org.elasticsearch.common.bytes.BytesReference) @ This method is a subject for removal. Copying bytes is prone to performance regressions and unnecessary allocations.

@@ -565,6 +565,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(join.left(), context);
+        // TODO: The source builder includes incoming fields including the ones we're going to drop
         Layout.Builder layoutBuilder = source.layout.builder();
         for (Attribute f : join.addedFields()) {
             layoutBuilder.append(f);
@@ -583,8 +584,8 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.matchFields().size());
-        for (Attribute m : join.matchFields()) {
+        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
+        for (Attribute m : join.leftFields()) {
             Layout.ChannelAndType t = source.layout.get(m.id());
             if (t == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
@@ -604,7 +605,7 @@ public class LocalExecutionPlanner {
                 lookupFromIndexService,
                 matchFields.getFirst().type(),
                 localSourceExec.index().name(),
-                join.matchFields().getFirst().name(),
+                join.leftFields().getFirst().name(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),

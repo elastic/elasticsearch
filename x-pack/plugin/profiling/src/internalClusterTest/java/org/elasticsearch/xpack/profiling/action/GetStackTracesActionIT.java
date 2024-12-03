@@ -46,8 +46,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.length);
         assertEquals(18, stackTrace.frameIds.length);
         assertEquals(18, stackTrace.typeIds.length);
-        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
+        assertEquals(0.0000051026469d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.19825d, stackTrace.annualCostsUSD, 0.00001d);
         // not determined by default
         assertNull(stackTrace.subGroups);
 
@@ -91,8 +91,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.length);
         assertEquals(18, stackTrace.frameIds.length);
         assertEquals(18, stackTrace.typeIds.length);
-        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
+        assertEquals(0.0000051026469d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.19825d, stackTrace.annualCostsUSD, 0.00001d);
         assertEquals(Long.valueOf(2L), stackTrace.subGroups.getCount("basket"));
 
         assertNotNull(response.getStackFrames());

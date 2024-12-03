@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -62,12 +62,10 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -221,6 +219,7 @@ public class Verifier {
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -232,6 +231,13 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
+        // _score can only be set as metadata attribute
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
+            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+        }
     }
 
     private void checkSort(LogicalPlan p, Set<Failure> failures) {
@@ -355,35 +361,35 @@ public class Verifier {
                 );
         });
 
-        // Forbid CATEGORIZE being used in the aggregations
-        agg.aggregates().forEach(a -> {
-            a.forEachDown(
-                Categorize.class,
-                categorize -> failures.add(
-                    fail(categorize, "cannot use CATEGORIZE grouping function [{}] within the aggregations", categorize.sourceText())
+        // Forbid CATEGORIZE being used in the aggregations, unless it appears as a grouping
+        agg.aggregates()
+            .forEach(
+                a -> a.forEachDown(
+                    AggregateFunction.class,
+                    aggregateFunction -> aggregateFunction.forEachDown(
+                        Categorize.class,
+                        categorize -> failures.add(
+                            fail(categorize, "cannot use CATEGORIZE grouping function [{}] within an aggregation", categorize.sourceText())
+                        )
+                    )
                 )
             );
-        });
 
-        // Forbid CATEGORIZE being referenced in the aggregation functions
-        Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
+        // Forbid CATEGORIZE being referenced as a child of an aggregation function
+        AttributeMap<Categorize> categorizeByAttribute = new AttributeMap<>();
         agg.groupings().forEach(g -> {
             g.forEachDown(Alias.class, alias -> {
                 if (alias.child() instanceof Categorize categorize) {
-                    categorizeByAliasId.put(alias.id(), categorize);
+                    categorizeByAttribute.put(alias.toAttribute(), categorize);
                 }
             });
         });
         agg.aggregates()
             .forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
-                var categorize = categorizeByAliasId.get(attribute.id());
+                var categorize = categorizeByAttribute.get(attribute);
                 if (categorize != null) {
                     failures.add(
-                        fail(
-                            attribute,
-                            "cannot reference CATEGORIZE grouping function [{}] within the aggregations",
-                            attribute.sourceText()
-                        )
+                        fail(attribute, "cannot reference CATEGORIZE grouping function [{}] within an aggregation", attribute.sourceText())
                     );
                 }
             })));
@@ -440,7 +446,7 @@ public class Verifier {
                 // check the bucketing function against the group
                 else if (c instanceof GroupingFunction gf) {
                     if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                        failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                        failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }
             });
@@ -457,7 +463,7 @@ public class Verifier {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here
             if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
             } else if (level == 0) {
                 addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
             }

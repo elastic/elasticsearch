@@ -66,4 +66,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
   task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
   task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
+  task.skipTest("search/520_fetch_fields/fetch _seq_no via fields", "error code is changed from 5xx to 400 in 9.0")
 })

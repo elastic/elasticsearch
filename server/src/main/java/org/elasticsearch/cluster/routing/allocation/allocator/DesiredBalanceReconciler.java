@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider.NodeAllocationAndClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -159,8 +159,13 @@ public class DesiredBalanceReconciler {
         }
 
         private void updateDesireBalanceMetrics(AllocationStats allocationStats) {
-            var stats = nodeAllocationStatsProvider.stats(allocation.getClusterState(), allocation.clusterInfo(), desiredBalance);
-            Map<DiscoveryNode, NodeAllocationStats> nodeAllocationStats = new HashMap<>(stats.size());
+            var stats = nodeAllocationStatsProvider.stats(
+                allocation.metadata(),
+                allocation.routingNodes(),
+                allocation.clusterInfo(),
+                desiredBalance
+            );
+            Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats> nodeAllocationStats = new HashMap<>(stats.size());
             for (var entry : stats.entrySet()) {
                 var node = allocation.nodes().get(entry.getKey());
                 if (node != null) {

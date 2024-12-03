@@ -25,6 +25,12 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
+/**
+ * Implements the Lucene 7.0 index format. Loaded via SPI for indices created/written with Lucene 7.x (Elasticsearch 6.x) mounted
+ * as archive indices first in Elasticsearch 8.x. Lucene 9.12 retained Lucene70Codec in its classpath which required overriding the
+ * codec name and version in the segment infos. This codec is still needed after upgrading to Elasticsearch 9.x because its codec
+ * name has been written to disk.
+ */
 public class BWCLucene70Codec extends BWCCodec {
 
     private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
@@ -46,6 +52,8 @@ public class BWCLucene70Codec extends BWCCodec {
         }
     };
 
+    // Needed for SPI loading
+    @SuppressWarnings("unused")
     public BWCLucene70Codec() {
         this("BWCLucene70Codec");
     }

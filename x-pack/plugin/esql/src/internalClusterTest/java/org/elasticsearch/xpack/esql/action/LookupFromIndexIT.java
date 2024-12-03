@@ -148,7 +148,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 DataPartitioning.SEGMENT,
                 1,
                 10000,
-                DocIdSetIterator.NO_MORE_DOCS
+                DocIdSetIterator.NO_MORE_DOCS,
+                false // no scoring
             );
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 List.of(

@@ -129,7 +129,7 @@ killed by firewalls or load balancers in-between.
 | Name        | Description
 | `format`    | Attaches the watch data, equivalent to specifying `attach_data`
                 in the watch configuration. Possible values are `json` or `yaml`.
-                Defaults to `json` if not specified.
+                Defaults to `yaml` if not specified.
 |======
 
 

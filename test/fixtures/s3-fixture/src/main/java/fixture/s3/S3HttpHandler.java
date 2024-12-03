@@ -28,6 +28,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -269,8 +270,8 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
-                final String range = exchange.getRequestHeaders().getFirst("Range");
-                if (range == null) {
+                final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
                     blob.writeTo(exchange.getResponseBody());
@@ -281,17 +282,12 @@ public class S3HttpHandler implements HttpHandler {
                 // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
                 // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
                 // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
-                final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                if (matcher.matches() == false) {
-                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
+                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                if (range == null) {
+                    throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
-                var groupStart = matcher.group(1);
-                var groupEnd = matcher.group(2);
-                if (groupStart == null || groupEnd == null) {
-                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
-                }
-                long start = Long.parseLong(groupStart);
-                long end = Long.parseLong(groupEnd);
+                long start = range.start();
+                long end = range.end();
                 if (end < start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());

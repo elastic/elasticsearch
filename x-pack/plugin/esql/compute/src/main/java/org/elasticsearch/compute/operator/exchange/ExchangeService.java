@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -292,6 +293,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Executor responseExecutor;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
+        final AtomicBoolean finished = new AtomicBoolean(false);
 
         TransportRemoteSink(
             TransportService transportService,
@@ -311,6 +313,24 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
+            if (allSourcesFinished) {
+                close(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                return;
+            }
+            // already finished
+            if (finished.get()) {
+                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                return;
+            }
+            doFetchPageAsync(false, ActionListener.wrap(r -> {
+                if (r.finished()) {
+                    finished.set(true);
+                }
+                listener.onResponse(r);
+            }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
+        }
+
+        private void doFetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
@@ -332,6 +352,15 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     }
                 }, responseExecutor)
             );
+        }
+
+        @Override
+        public void close(ActionListener<Void> listener) {
+            if (finished.compareAndSet(false, true)) {
+                doFetchPageAsync(true, listener.delegateFailure((l, unused) -> l.onResponse(null)));
+            } else {
+                listener.onResponse(null);
+            }
         }
     }
 

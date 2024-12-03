@@ -219,8 +219,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
             when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
 
-            RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
-            rankFeatureShardPhase.prepareForFetch(searchContext, request);
+            RankFeatureShardPhase.prepareForFetch(searchContext, request);
 
             assertNotNull(searchContext.fetchFieldsContext());
             assertEquals(searchContext.fetchFieldsContext().fields().size(), 1);
@@ -248,8 +247,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
             when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
 
-            RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
-            rankFeatureShardPhase.prepareForFetch(searchContext, request);
+            RankFeatureShardPhase.prepareForFetch(searchContext, request);
 
             assertNull(searchContext.fetchFieldsContext());
             assertNull(searchContext.fetchResult());
@@ -274,8 +272,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
             when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
 
-            RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
-            expectThrows(TaskCancelledException.class, () -> rankFeatureShardPhase.prepareForFetch(searchContext, request));
+            expectThrows(TaskCancelledException.class, () -> RankFeatureShardPhase.prepareForFetch(searchContext, request));
         }
     }
 
@@ -318,11 +315,10 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
             when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
 
-            RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
             // this is called as part of the search context initialization
             // with the ResultsType.RANK_FEATURE type
             searchContext.addRankFeatureResult();
-            rankFeatureShardPhase.processFetch(searchContext);
+            RankFeatureShardPhase.processFetch(searchContext);
 
             assertNotNull(searchContext.rankFeatureResult());
             assertNotNull(searchContext.rankFeatureResult().rankFeatureResult());
@@ -365,11 +361,10 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
             when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
 
-            RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
             // this is called as part of the search context initialization
             // with the ResultsType.RANK_FEATURE type
             searchContext.addRankFeatureResult();
-            rankFeatureShardPhase.processFetch(searchContext);
+            RankFeatureShardPhase.processFetch(searchContext);
 
             assertNotNull(searchContext.rankFeatureResult());
             assertNotNull(searchContext.rankFeatureResult().rankFeatureResult());
@@ -410,11 +405,10 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
             when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
 
-            RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
             // this is called as part of the search context initialization
             // with the ResultsType.RANK_FEATURE type
             searchContext.addRankFeatureResult();
-            expectThrows(TaskCancelledException.class, () -> rankFeatureShardPhase.processFetch(searchContext));
+            expectThrows(TaskCancelledException.class, () -> RankFeatureShardPhase.processFetch(searchContext));
         } finally {
             if (searchHits != null) {
                 searchHits.decRef();

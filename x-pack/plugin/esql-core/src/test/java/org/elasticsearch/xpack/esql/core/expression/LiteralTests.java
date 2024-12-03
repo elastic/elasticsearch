@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import joptsimple.internal.Strings;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -17,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -29,9 +33,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
+
     static class ValueAndCompatibleTypes {
+
         final Supplier<Object> valueSupplier;
         final List<DataType> validDataTypes;
 
@@ -118,6 +125,19 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     public void testReplaceChildren() {
         Exception e = expectThrows(UnsupportedOperationException.class, () -> randomInstance().replaceChildrenSameSize(emptyList()));
         assertEquals("this type of node doesn't have any children to replace", e.getMessage());
+    }
+
+    public void testToString() {
+        assertThat(new Literal(Source.EMPTY, 1, LONG).toString(), equalTo("1"));
+        assertThat(new Literal(Source.EMPTY, "short", KEYWORD).toString(), equalTo("short"));
+        // toString should limit it's length
+        String tooLong = Strings.repeat('a', 510);
+        assertThat(new Literal(Source.EMPTY, tooLong, KEYWORD).toString(), equalTo(Strings.repeat('a', 500) + "..."));
+
+        for (ValueAndCompatibleTypes g : GENERATORS) {
+            Literal lit = new Literal(Source.EMPTY, g.valueSupplier.get(), randomFrom(g.validDataTypes));
+            assertThat(lit.toString(), equalTo(Objects.toString(lit.value())));
+        }
     }
 
     private static Object randomValueOfTypeOtherThan(Object original, DataType type) {

@@ -396,7 +396,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V4(Build.current().isSnapshot()),
+        CATEGORIZE_V4,
 
         /**
          * QSTR function

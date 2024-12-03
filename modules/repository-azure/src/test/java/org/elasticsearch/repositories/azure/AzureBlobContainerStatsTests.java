@@ -57,7 +57,6 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         // Just a sample of the easy operations to test
         final List<AzureBlobStore.Operation> supportedOperations = Arrays.asList(PUT_BLOB, LIST_BLOBS, BLOB_BATCH);
         final Map<AzureBlobStore.Operation, BlobStoreActionStats> expectedActionStats = new HashMap<>();
-        supportedOperations.forEach(operation -> expectedActionStats.put(operation, BlobStoreActionStats.ZERO));
 
         for (int i = 0; i < randomIntBetween(10, 50); i++) {
             final boolean triggerRetry = randomBoolean();
@@ -78,15 +77,19 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
                     List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator()
                 );
             }
-            expectedActionStats.computeIfPresent(operation, (op, stats) -> stats.add(new BlobStoreActionStats(1, triggerRetry ? 2 : 1)));
+            expectedActionStats.compute(operation, (op, existing) -> {
+                BlobStoreActionStats currentStats = new BlobStoreActionStats(1, triggerRetry ? 2 : 1);
+                if (existing != null) {
+                    currentStats = existing.add(currentStats);
+                }
+                return currentStats;
+            });
         }
 
         final Map<String, BlobStoreActionStats> stats = blobStore.stats();
         expectedActionStats.forEach((operation, value) -> {
-            if (value.isZero() == false) {
-                String key = statsKey(purpose, operation);
-                assertEquals(key, stats.get(key), value);
-            }
+            String key = statsKey(purpose, operation);
+            assertEquals(key, stats.get(key), value);
         });
     }
 

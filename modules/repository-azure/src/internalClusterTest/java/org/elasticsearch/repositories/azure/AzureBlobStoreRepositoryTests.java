@@ -382,14 +382,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             final AzureBlobStore blobStore = (AzureBlobStore) blobStoreRepository.blobStore();
-            final Map<AzureBlobStore.StatsKey, AzureBlobStore.StatsCounter> statsCollectors = blobStore.getMetricsRecorder().statsCounters;
+            final Map<AzureBlobStore.StatsKey, AzureBlobStore.StatsCounter> statsCounters = blobStore.getMetricsRecorder().statsCounters;
 
             final List<Measurement> metrics = Measurement.combine(
                 getTelemetryPlugin(nodeName).getLongCounterMeasurement(METRIC_REQUESTS_TOTAL)
             );
 
             assertThat(
-                statsCollectors.keySet().stream().map(AzureBlobStore.StatsKey::operation).collect(Collectors.toSet()),
+                statsCounters.keySet().stream().map(AzureBlobStore.StatsKey::operation).collect(Collectors.toSet()),
                 equalTo(
                     metrics.stream()
                         .map(m -> AzureBlobStore.Operation.fromKey((String) m.attributes().get("operation")))
@@ -406,11 +406,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                     operation,
                     OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
-                assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
+                assertThat(nodeName + "/" + statsKey + " exists", statsCounters, hasKey(statsKey));
                 assertThat(
                     nodeName + "/" + statsKey + " has correct sum",
                     metric.getLong(),
-                    equalTo(statsCollectors.get(statsKey).requests().sum())
+                    equalTo(statsCounters.get(statsKey).requests().sum())
                 );
                 aggregatedMetrics.compute(statsKey.operation(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });

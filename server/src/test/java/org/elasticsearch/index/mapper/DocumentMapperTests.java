@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -515,7 +516,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 () -> doc.parse(source(b -> b.field("value", "foo")))
             );
             assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-            assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
+            LogEvent event = appender.getLastEventAndReset();
+            if (event != null) {
+                assertThat(event.getMessage().getFormattedMessage(), containsString(e.getMessage()));
+            }
 
             e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
             assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));

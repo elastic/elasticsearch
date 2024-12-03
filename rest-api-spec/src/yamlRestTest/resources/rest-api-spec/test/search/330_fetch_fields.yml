@@ -1221,6 +1221,7 @@ root with subobjects false and dynamic false:
           fields: [ "*" ]
 
   - match: { hits.hits.0.fields: { my.keyword.field: [ abc ] } }
+  - match: { hits.hits.1.fields: null }
 
   - do:
       search:
@@ -1277,6 +1278,7 @@ object with subobjects false and dynamic false:
           fields: [ "*" ]
 
   - match: { hits.hits.0.fields: { my.nested.keyword.field: [ abc ] } }
+  - match: { hits.hits.1.fields: null }
 
   - do:
       search:

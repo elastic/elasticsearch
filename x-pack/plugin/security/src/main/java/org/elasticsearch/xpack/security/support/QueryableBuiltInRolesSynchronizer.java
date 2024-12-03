@@ -70,7 +70,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  * attempting to create/update/delete roles, it’s still possible
  * that the master node changes in the middle of the syncing process.
  */
-public class QueryableBuiltInRolesSynchronizer implements ClusterStateListener {
+public final class QueryableBuiltInRolesSynchronizer implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(QueryableBuiltInRolesSynchronizer.class);
 

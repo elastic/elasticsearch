@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
@@ -26,6 +27,11 @@ public class QueryableReservedRolesIT extends SecurityInBasicRestTestCase {
     @BeforeClass
     public static void setup() {
         new ReservedRolesStore();
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
     public void testQueryDeleteOrUpdateReservedRoles() throws Exception {
@@ -51,6 +57,17 @@ public class QueryableReservedRolesIT extends SecurityInBasicRestTestCase {
 
         assertDeleteReservedRole(roleName);
         assertCreateOrUpdateReservedRole(roleName);
+    }
+
+    public void testGetReservedRoles() throws Exception {
+        final String[] allReservedRoles = ReservedRolesStore.names().toArray(new String[0]);
+        final String roleName = randomFrom(allReservedRoles);
+        Request request = new Request("GET", "/_security/role/" + roleName);
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        var responseMap = responseAsMap(response);
+        assertThat(responseMap.size(), equalTo(1));
+        assertThat(responseMap.containsKey(roleName), is(true));
     }
 
     private void assertDeleteReservedRole(String roleName) throws Exception {

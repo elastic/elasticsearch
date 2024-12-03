@@ -291,11 +291,9 @@ public class IndexNameExpressionResolver {
 
             // Resolve the selector when applicable
             Tuple<String, IndexComponentSelector> tuple = SelectorResolver.parseSelectorExpression(originalExpression);
-            String  baseExpression = tuple.v1();
+            String baseExpression = tuple.v1();
             IndexComponentSelector selector = tuple.v2();
-            if (context.getOptions().gatekeeperOptions().allowSelectors()) {
-                selector = selector == null ? context.getOptions().selectorOptions().defaultSelector() : selector;
-            } else {
+            if (context.getOptions().gatekeeperOptions().allowSelectors() == false) {
                 SelectorResolver.ensureNoSelectorsProvided(originalExpression, selector);
             }
 
@@ -316,6 +314,7 @@ public class IndexNameExpressionResolver {
             if (isWildcard) {
                 WildcardExpressionResolver.processWildcards(context, baseExpression, selector, data, failures, isExclusion);
             } else {
+                selector = getApplicableSelector(context, selector);
                 // TODO-PR exclusion is not tested yet
                 if (isExclusion) {
                     if (selector == null || selector.shouldIncludeData()) {
@@ -539,8 +538,7 @@ public class IndexNameExpressionResolver {
                         addFailureIndices(context, (DataStream) indexAbstraction, concreteIndicesResult);
                     } else if (indexAbstraction.getType() == Type.ALIAS
                         && indexAbstraction.isDataStreamRelated()
-                        && DataStream.isFailureStoreFeatureFlagEnabled()
-                        && context.getOptions().includeFailureIndices()) {
+                        && DataStream.isFailureStoreFeatureFlagEnabled()) {
                             // Collect the data streams involved
                             Set<DataStream> aliasDataStreams = new HashSet<>();
                             List<Index> indices = indexAbstraction.getIndices();
@@ -564,30 +562,19 @@ public class IndexNameExpressionResolver {
         return resultArray;
     }
 
-    private static void resolveIndicesForDataStream(Context context, DataStream dataStream, Set<Index> concreteIndicesResult) {
-        if (shouldIncludeRegularIndices(context.getOptions())) {
-            List<Index> indices = dataStream.getIndices();
-            for (int i = 0, n = indices.size(); i < n; i++) {
-                Index index = indices.get(i);
-                if (shouldTrackConcreteIndex(context, index)) {
-                    concreteIndicesResult.add(index);
-                }
-            }
-        }
-        if (shouldIncludeFailureIndices(context.getOptions())) {
-            addFailureIndices(context, dataStream, concreteIndicesResult);
-        }
-    }
-
     private static void addFailureIndices(Context context, DataStream dataStream, Set<Index> concreteIndicesResult) {
         // We short-circuit here, if failure indices are not allowed and they can be skipped
-        if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
-            List<Index> failureIndices = dataStream.getFailureIndices().getIndices();
-            for (int i = 0, n = failureIndices.size(); i < n; i++) {
-                Index index = failureIndices.get(i);
-                if (shouldTrackConcreteIndex(context, index)) {
-                    concreteIndicesResult.add(index);
+        if (context.getOptions().allowFailureIndices() == false && context.getOptions().ignoreUnavailable()) {
+            return;
+        }
+        List<Index> failureIndices = dataStream.getFailureIndices().getIndices();
+        for (int i = 0, n = failureIndices.size(); i < n; i++) {
+            Index index = failureIndices.get(i);
+            if (shouldTrackConcreteIndex(context, index)) {
+                if (context.getOptions().allowFailureIndices() == false) {
+                    throw new FailureIndexNotSupportedException(index);
                 }
+                concreteIndicesResult.add(index);
             }
         }
     }
@@ -1205,6 +1192,16 @@ public class IndexNameExpressionResolver {
                         throw aliasesNotSupportedException(name);
                     }
                 }
+                if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
+                    if (ignoreUnavailable) {
+                        return;
+                    } else {
+                        IndexNotFoundException infe = notFoundException(name);
+                        // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+                        infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+                        throw infe;
+                    }
+                }
                 if (selector == null || selector.shouldIncludeData()) {
                     data.add(name);
                 }
@@ -1488,7 +1485,7 @@ public class IndexNameExpressionResolver {
         static void processWildcards(
             Context context,
             String wildcardExpression,
-            IndexComponentSelector selector,
+            IndexComponentSelector expressionSelector,
             Collection<String> data,
             Collection<String> failures,
             boolean isExclusion
@@ -1496,29 +1493,39 @@ public class IndexNameExpressionResolver {
             assert isWildcard(wildcardExpression);
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             boolean hasExpanded = false;
+            IndexComponentSelector applicableSelector = getApplicableSelector(context, expressionSelector);
             // this applies an initial pre-filtering in the case where the expression is a common suffix wildcard, eg "test*"
             if (Regex.isSuffixMatchPattern(wildcardExpression)) {
                 for (IndexAbstraction ia : filterIndicesLookupForSuffixWildcard(indicesLookup, wildcardExpression).values()) {
-                    hasExpanded = maybeAddToResult(context, wildcardExpression, ia, selector, data, failures, isExclusion) || hasExpanded;
+                    hasExpanded = maybeAddToResult(context, wildcardExpression, ia, applicableSelector, data, failures, isExclusion)
+                        || hasExpanded;
                 }
-                verifyExpandedExpression(context, wildcardExpression, selector, hasExpanded);
+                verifyExpandedExpression(context, wildcardExpression, expressionSelector, hasExpanded);
                 return;
             }
             // In case of match all it fetches all index abstractions
             if (Regex.isMatchAllPattern(wildcardExpression)) {
                 for (IndexAbstraction ia : indicesLookup.values()) {
-                    hasExpanded = maybeAddToResult(context, wildcardExpression, ia, selector, data, failures, isExclusion) || hasExpanded;
+                    hasExpanded = maybeAddToResult(context, wildcardExpression, ia, applicableSelector, data, failures, isExclusion)
+                        || hasExpanded;
                 }
-                verifyExpandedExpression(context, wildcardExpression, selector, hasExpanded);
+                verifyExpandedExpression(context, wildcardExpression, expressionSelector, hasExpanded);
                 return;
             }
             for (IndexAbstraction indexAbstraction : indicesLookup.values()) {
                 if (Regex.simpleMatch(wildcardExpression, indexAbstraction.getName())) {
-                    hasExpanded = maybeAddToResult(context, wildcardExpression, indexAbstraction, selector, data, failures, isExclusion)
-                        || hasExpanded;
+                    hasExpanded = maybeAddToResult(
+                        context,
+                        wildcardExpression,
+                        indexAbstraction,
+                        applicableSelector,
+                        data,
+                        failures,
+                        isExclusion
+                    ) || hasExpanded;
                 }
             }
-            verifyExpandedExpression(context, wildcardExpression, selector, hasExpanded);
+            verifyExpandedExpression(context, wildcardExpression, expressionSelector, hasExpanded);
         }
 
         /**
@@ -1799,6 +1806,12 @@ public class IndexNameExpressionResolver {
             }
             return false;
         }
+    }
+
+    private static IndexComponentSelector getApplicableSelector(Context context, IndexComponentSelector expressionSelector) {
+        return context.getOptions().allowSelectors() && expressionSelector == null
+            ? context.getOptions().selectorOptions().defaultSelector()
+            : expressionSelector;
     }
 
     /**

@@ -153,7 +153,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
         }
 
-        // Propagate any renames from the lower projection in the upper groupings.
+        // Propagate any renames from the lower projection into the upper groupings.
         // This can lead to duplicates: e.g.
         // | EVAL x = y | STATS ... BY x, y
         // All substitutions happen before; groupings must be attributes at this point except for CATEGORIZE which will be an alias like

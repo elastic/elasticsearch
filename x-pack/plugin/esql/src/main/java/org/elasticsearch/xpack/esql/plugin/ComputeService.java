@@ -64,12 +64,14 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -82,6 +84,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -169,9 +172,11 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
         QueryPragmas queryPragmas = configuration.pragmas();
+        Set<String> lookupIndexNames = findLookupIndexNames(physicalPlan);
+        Set<String> concreteIndexNames = selectConcreteIndices(clusterToConcreteIndices, lookupIndexNames);
         if (dataNodePlan == null) {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
-                String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
+            if (concreteIndexNames.isEmpty() == false) {
+                String error = "expected no concrete indices without data node plan; got " + concreteIndexNames;
                 assert false : error;
                 listener.onFailure(new IllegalStateException(error));
                 return;
@@ -194,7 +199,7 @@ public class ComputeService {
                 return;
             }
         } else {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
+            if (concreteIndexNames.isEmpty()) {
                 var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
                 assert false : error;
                 listener.onFailure(new IllegalStateException(error));
@@ -266,6 +271,42 @@ public class ComputeService {
                 );
             }
         }
+    }
+
+    private Set<String> selectConcreteIndices(Map<String, OriginalIndices> clusterToConcreteIndices, Set<String> indexesToIgnore) {
+        Set<String> concreteIndexNames = new HashSet<>();
+        clusterToConcreteIndices.forEach((clusterAlias, concreteIndices) -> {
+            for (String index : concreteIndices.indices()) {
+                if (indexesToIgnore.contains(index) == false) {
+                    concreteIndexNames.add(index);
+                }
+            }
+        });
+        return concreteIndexNames;
+    }
+
+    private Set<String> findLookupIndexNames(PhysicalPlan physicalPlan) {
+        Set<String> lookupIndexNames = new HashSet<>();
+        // When planning JOIN on the coordinator node: "LookupJoinExec.lookup()->FragmentExec.fragment()->EsRelation.index()"
+        physicalPlan.forEachDown(
+            LookupJoinExec.class,
+            lookupJoinExec -> lookupJoinExec.lookup()
+                .forEachDown(
+                    FragmentExec.class,
+                    frag -> frag.fragment().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
+                )
+        );
+        // When planning JOIN on the data node: "FragmentExec.fragment()->Join.right()->EsRelation.index()"
+        // TODO this only works for LEFT join, so we still need to support RIGHT join
+        physicalPlan.forEachDown(
+            FragmentExec.class,
+            fragmentExec -> fragmentExec.fragment()
+                .forEachDown(
+                    Join.class,
+                    join -> join.right().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
+                )
+        );
+        return lookupIndexNames;
     }
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
@@ -661,8 +702,9 @@ public class ComputeService {
     /**
      * Result from lookupDataNodes where can_match is performed to determine what shards can be skipped
      * and which target nodes are needed for running the ES|QL query
-     * @param dataNodes list of DataNode to perform the ES|QL query on
-     * @param totalShards Total number of shards (from can_match phase), including skipped shards
+     *
+     * @param dataNodes     list of DataNode to perform the ES|QL query on
+     * @param totalShards   Total number of shards (from can_match phase), including skipped shards
      * @param skippedShards Number of skipped shards (from can_match phase)
      */
     record DataNodeResult(List<DataNode> dataNodes, int totalShards, int skippedShards) {}
@@ -877,35 +919,24 @@ public class ComputeService {
         }
     }
 
+    private static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {
+        PhysicalPlan reducePlan = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        if (enable) {
+            PhysicalPlan p = PlannerUtils.reductionPlan(plan);
+            if (p != null) {
+                reducePlan = p.replaceChildren(List.of(reducePlan));
+            }
+        }
+        return new ExchangeSinkExec(plan.source(), plan.output(), plan.isIntermediateAgg(), reducePlan);
+    }
+
     private class DataNodeRequestHandler implements TransportRequestHandler<DataNodeRequest> {
         @Override
         public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
-            final ExchangeSinkExec reducePlan;
+            final PhysicalPlan reductionPlan;
             if (request.plan() instanceof ExchangeSinkExec plan) {
-                var fragments = plan.collectFirstChildren(FragmentExec.class::isInstance);
-                if (fragments.isEmpty()) {
-                    listener.onFailure(new IllegalStateException("expected a fragment plan for a remote compute; got " + request.plan()));
-                    return;
-                }
-                var localExchangeSource = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-                Holder<PhysicalPlan> reducePlanHolder = new Holder<>();
-                if (request.pragmas().nodeLevelReduction()) {
-                    PhysicalPlan dataNodePlan = request.plan();
-                    request.plan()
-                        .forEachUp(
-                            FragmentExec.class,
-                            f -> { reducePlanHolder.set(PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan)); }
-                        );
-                }
-                reducePlan = new ExchangeSinkExec(
-                    plan.source(),
-                    plan.output(),
-                    plan.isIntermediateAgg(),
-                    reducePlanHolder.get() != null
-                        ? reducePlanHolder.get().replaceChildren(List.of(localExchangeSource))
-                        : localExchangeSource
-                );
+                reductionPlan = reductionPlan(plan, request.pragmas().nodeLevelReduction());
             } else {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
                 return;
@@ -922,7 +953,7 @@ public class ComputeService {
                 request.indicesOptions()
             );
             try (var computeListener = ComputeListener.create(transportService, (CancellableTask) task, listener)) {
-                runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
+                runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, computeListener);
             }
         }
     }
@@ -968,10 +999,10 @@ public class ComputeService {
      * Performs a compute on a remote cluster. The output pages are placed in an exchange sink specified by
      * {@code globalSessionId}. The coordinator on the main cluster will poll pages from there.
      * <p>
-     * Currently, the coordinator on the remote cluster simply collects pages from data nodes in the remote cluster
-     * and places them in the exchange sink. We can achieve this by using a single exchange buffer to minimize overhead.
-     * However, here we use two exchange buffers so that we can run an actual plan on this coordinator to perform partial
-     * reduce operations, such as limit, topN, and partial-to-partial aggregation in the future.
+     * Currently, the coordinator on the remote cluster polls pages from data nodes within the remote cluster
+     * and performs cluster-level reduction before sending pages to the querying cluster. This reduction aims
+     * to minimize data transfers across clusters but may require additional CPU resources for operations like
+     * aggregations.
      */
     void runComputeOnRemoteCluster(
         String clusterAlias,
@@ -989,6 +1020,7 @@ public class ComputeService {
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
+        final PhysicalPlan coordinatorPlan = reductionPlan(plan, true);
         var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
@@ -996,12 +1028,6 @@ public class ComputeService {
         );
         try (Releasable ignored = exchangeSource.addEmptySink()) {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
-            PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
-                plan.source(),
-                plan.output(),
-                plan.isIntermediateAgg(),
-                new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg())
-            );
             runCompute(
                 parentTask,
                 new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),

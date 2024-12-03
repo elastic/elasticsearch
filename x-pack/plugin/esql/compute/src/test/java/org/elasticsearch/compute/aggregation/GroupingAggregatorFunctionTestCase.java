@@ -54,7 +54,6 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.data.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -105,8 +104,10 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            mode,
             List.of(supplier.groupingAggregatorFactory(mode)),
-            randomPageSize()
+            randomPageSize(),
+            null
         );
     }
 

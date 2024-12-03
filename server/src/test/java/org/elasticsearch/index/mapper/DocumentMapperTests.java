@@ -64,7 +64,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         appender.start();
         Loggers.addAppender(testLogger, appender);
         Loggers.setLevel(testLogger, Level.ERROR);
-        DocumentMapper.setErrorThrottlingIntervalSecondsForTesting();
     }
 
     @AfterClass
@@ -72,7 +71,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         Loggers.removeAppender(testLogger, appender);
         appender.stop();
         Loggers.setLevel(testLogger, originalLogLevel);
-        DocumentMapper.resetErrorThrottlingIntervalSeconds();
     }
 
     public void testAddFields() throws Exception {
@@ -526,16 +524,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
 
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
-        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-        assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
-
-        e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
-        assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-        assertThat(appender.getLastEventAndReset(), nullValue());
-
-        Thread.sleep(1000);  // Wait for throttling to back off.
-
-        e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
         assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
         assertThat(appender.getLastEventAndReset().getMessage().getFormattedMessage(), containsString(e.getMessage()));
 

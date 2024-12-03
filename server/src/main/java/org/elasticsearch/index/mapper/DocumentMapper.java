@@ -18,17 +18,10 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DocumentMapper {
     static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
-    static final long ERROR_THROTTLING_INTERVAL_SECONDS = 60;
-
-    private static final AtomicBoolean lastErrorLogLock = new AtomicBoolean(false);
-    private static volatile long lastErrorLogEpochSecond = 0;
-    private static long errorThrottlingIntervalSeconds = ERROR_THROTTLING_INTERVAL_SECONDS;
 
     private final String type;
     private final CompressedXContent mappingSource;
@@ -37,15 +30,6 @@ public class DocumentMapper {
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
     private final Logger logger;
-
-    // For testing.
-    static void setErrorThrottlingIntervalSecondsForTesting() {
-        DocumentMapper.errorThrottlingIntervalSeconds = 0;
-    }
-
-    static void resetErrorThrottlingIntervalSeconds() {
-        DocumentMapper.errorThrottlingIntervalSeconds = ERROR_THROTTLING_INTERVAL_SECONDS;
-    }
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -91,25 +75,8 @@ public class DocumentMapper {
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document: " + ex.getMessage(), ex);
-        } else {
-            final long now = Instant.now().getEpochSecond();
-            // Check without locking first, to reduce lock contention.
-            if (now - lastErrorLogEpochSecond > errorThrottlingIntervalSeconds) {
-                boolean shouldLog = false;
-                // Acquire spinlock.
-                while (lastErrorLogLock.compareAndSet(false, true)) {
-                }
-                // Repeat check under lock, so that only one message gets written per interval.
-                if (now - lastErrorLogEpochSecond > errorThrottlingIntervalSeconds) {
-                    shouldLog = true;
-                    lastErrorLogEpochSecond = now;
-                }
-                // Release spinlock before logging.
-                lastErrorLogLock.set(false);
-                if (shouldLog) {
-                    logger.error("Error while parsing document: " + ex.getMessage(), ex);
-                }
-            }
+        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
+            logger.error("Error while parsing document: " + ex.getMessage(), ex);
         }
     }
 

@@ -148,6 +148,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         AttributeMap<Attribute> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {
             // record the alias
+            // Projections are just aliases for attributes, so casting is safe.
             aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
         }
 

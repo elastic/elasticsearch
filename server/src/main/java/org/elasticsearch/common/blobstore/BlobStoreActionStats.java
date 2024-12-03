@@ -33,7 +33,7 @@ public record BlobStoreActionStats(long operations, long requests) implements Wr
 
     public BlobStoreActionStats {
         assert operations >= 0 && requests >= 0 : "Requests (" + requests + ") and operations (" + operations + ") must be non-negative";
-        assert requests >= operations : "Requests (" + requests + ") must be >= operations (" + operations + ")";
+        // TODO: assert that requests >= operations once https://elasticco.atlassian.net/browse/ES-10223 is played
     }
 
     @Override

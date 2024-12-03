@@ -1,5 +1,5 @@
 pr: 117572
 summary: Address and remove any references of RestApiVersion version 7
-area: search
+area: Search
 type: enhancement
 issues: []

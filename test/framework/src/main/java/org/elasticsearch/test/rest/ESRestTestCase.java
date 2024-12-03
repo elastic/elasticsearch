@@ -1120,17 +1120,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             // If system index warning, ignore but log
             // See: https://github.com/elastic/elasticsearch/issues/117099
             // and: https://github.com/elastic/elasticsearch/issues/115809
-            deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-                for (String warning : warnings) {
-                    if (warning.startsWith("this request accesses system indices:")) {
-                        SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
-                    } else {
-                        return true;
-                    }
-                }
-
-                return false;
-            }));
+            deleteRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
+            );
 
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
@@ -1142,6 +1134,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+        for (String warning : warnings) {
+            if (warning.startsWith("this request accesses system indices:")) {
+                SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
+            } else {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected static void wipeDataStreams() throws IOException {

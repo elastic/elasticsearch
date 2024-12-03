@@ -81,8 +81,6 @@ public record UnifiedCompletionRequest(
             new NamedWriteableRegistry.Entry(Content.class, ContentString.NAME, ContentString::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
-            // new NamedWriteableRegistry.Entry(Stop.class, StopValues.NAME, StopValues::new),
-            // new NamedWriteableRegistry.Entry(Stop.class, StopString.NAME, StopString::new)
         );
     }
 

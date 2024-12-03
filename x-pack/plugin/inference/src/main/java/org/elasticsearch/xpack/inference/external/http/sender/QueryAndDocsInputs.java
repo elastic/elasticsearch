@@ -22,17 +22,15 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     private final String query;
     private final List<String> chunks;
-    private final boolean stream;
 
     public QueryAndDocsInputs(String query, List<String> chunks) {
         this(query, chunks, false);
     }
 
     public QueryAndDocsInputs(String query, List<String> chunks, boolean stream) {
-        super();
+        super(stream);
         this.query = Objects.requireNonNull(query);
         this.chunks = Objects.requireNonNull(chunks);
-        this.stream = stream;
     }
 
     public String getQuery() {
@@ -41,10 +39,6 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     public List<String> getChunks() {
         return chunks;
-    }
-
-    public boolean stream() {
-        return stream;
     }
 
     public int inputSize() {

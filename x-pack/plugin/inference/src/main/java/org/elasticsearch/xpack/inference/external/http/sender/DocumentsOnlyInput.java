@@ -21,24 +21,18 @@ public class DocumentsOnlyInput extends InferenceInputs {
     }
 
     private final List<String> input;
-    private final boolean stream;
 
     public DocumentsOnlyInput(List<String> input) {
         this(input, false);
     }
 
     public DocumentsOnlyInput(List<String> input, boolean stream) {
-        super();
+        super(stream);
         this.input = Objects.requireNonNull(input);
-        this.stream = stream;
     }
 
     public List<String> getInputs() {
         return this.input;
-    }
-
-    public boolean stream() {
-        return stream;
     }
 
     public int inputSize() {

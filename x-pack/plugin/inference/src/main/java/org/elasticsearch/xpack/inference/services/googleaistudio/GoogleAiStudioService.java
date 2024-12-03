@@ -284,9 +284,8 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         if (model instanceof GoogleAiStudioCompletionModel completionModel) {
             var requestManager = new GoogleAiStudioCompletionRequestManager(completionModel, getServiceComponents().threadPool());
-            var docsOnly = DocumentsOnlyInput.of(inputs);
             var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-                completionModel.uri(docsOnly.stream()),
+                completionModel.uri(inputs.stream()),
                 "Google AI Studio completion"
             );
             var action = new SingleInputSenderExecutableAction(

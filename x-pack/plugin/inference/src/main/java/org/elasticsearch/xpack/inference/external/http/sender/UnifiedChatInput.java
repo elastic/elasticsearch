@@ -14,11 +14,10 @@ import java.util.Objects;
 
 public class UnifiedChatInput extends InferenceInputs {
     private final UnifiedCompletionRequest request;
-    private final boolean stream;
 
     public UnifiedChatInput(UnifiedCompletionRequest request, boolean stream) {
+        super(stream);
         this.request = Objects.requireNonNull(request);
-        this.stream = stream;
     }
 
     public UnifiedChatInput(ChatCompletionInput completionInput, String roleValue) {
@@ -45,10 +44,6 @@ public class UnifiedChatInput extends InferenceInputs {
 
     public UnifiedCompletionRequest getRequest() {
         return request;
-    }
-
-    public boolean stream() {
-        return stream;
     }
 
     public int inputSize() {

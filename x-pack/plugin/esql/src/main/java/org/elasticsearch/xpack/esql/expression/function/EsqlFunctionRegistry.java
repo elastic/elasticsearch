@@ -270,7 +270,9 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },
+            new FunctionDefinition[] {
+                def(Bucket.class, Bucket::new, "bucket", "bin"),
+                def(Categorize.class, Categorize::new, "categorize") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -421,7 +423,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(Categorize.class, Categorize::new, "categorize"),
                 def(Kql.class, Kql::new, "kql"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }

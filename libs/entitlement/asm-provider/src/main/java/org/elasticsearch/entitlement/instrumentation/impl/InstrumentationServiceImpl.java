@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -20,37 +20,23 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
 
     @Override
-    public Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
-        return new InstrumenterImpl(classNameSuffix, instrumentationMethods);
-    }
-
-    /**
-     * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
-     */
-    public MethodKey methodKeyForTarget(Method targetMethod) {
-        Type actualType = Type.getMethodType(Type.getMethodDescriptor(targetMethod));
-        return new MethodKey(
-            Type.getInternalName(targetMethod.getDeclaringClass()),
-            targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
-        );
+    public Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods) {
+        return InstrumenterImpl.create(checkMethods);
     }
 
     @Override
-    public Map<MethodKey, CheckerMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
+    public Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
         IOException {
-        var methodsToInstrument = new HashMap<MethodKey, CheckerMethod>();
+        var methodsToInstrument = new HashMap<MethodKey, CheckMethod>();
         var checkerClass = Class.forName(entitlementCheckerClassName);
         var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
         ClassReader reader = new ClassReader(classFileInfo.bytecodes());
@@ -69,9 +55,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
 
                 var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                var checkerMethod = new CheckerMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
+                var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
 
-                methodsToInstrument.put(methodToInstrument, checkerMethod);
+                methodsToInstrument.put(methodToInstrument, checkMethod);
 
                 return mv;
             }
@@ -91,15 +77,18 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 String.format(
                     Locale.ROOT,
                     "Checker method %s has incorrect name format. "
-                        + "It should be either check$$methodName (instance) or check$package_ClassName$methodName (static)",
+                        + "It should be either check$$methodName (instance), check$package_ClassName$methodName (static) or "
+                        + "check$package_ClassName$ (ctor)",
                     checkerMethodName
                 )
             );
         }
 
-        // No "className" (check$$methodName) -> method is static, and we'll get the class from the actual typed argument
+        // No "className" (check$$methodName) -> method is instance, and we'll get the class from the actual typed argument
         final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
-        final String targetMethodName = checkerMethodName.substring(classNameEndIndex + 1);
+        // No "methodName" (check$package_ClassName$) -> method is ctor
+        final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();
+        final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(classNameEndIndex + 1);
 
         final String targetClassName;
         final List<String> targetParameterTypes;

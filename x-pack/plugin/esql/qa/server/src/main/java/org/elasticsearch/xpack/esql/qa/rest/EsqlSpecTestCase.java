@@ -172,7 +172,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")
+            || testCase.requiredCapabilities.contains("semantic_text_aggregations")) {
             assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);

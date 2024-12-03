@@ -199,7 +199,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
         if (synchronizationInProgress.compareAndSet(false, true)) {
             executor.execute(() -> doSyncBuiltinRoles(indexedRolesDigests, roles, ActionListener.wrap(v -> {
-                logger.info("Successfully synced built-in roles to .security index");
+                logger.info("Successfully synced [" + roles.roleDescriptors().size() + "] built-in roles to .security index");
                 synchronizationInProgress.set(false);
             }, e -> {
                 if (isExpectedFailure(e)) {

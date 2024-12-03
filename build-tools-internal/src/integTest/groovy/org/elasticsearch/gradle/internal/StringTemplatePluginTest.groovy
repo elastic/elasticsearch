@@ -75,6 +75,40 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
           """.stripIndent().stripTrailing()
     }
 
+    def "test custom generated directory"() {
+        given:
+        internalBuild()
+        file('src/main/src/X-SomeFile.txt.st') << """
+          Just some random data
+        """
+        file('src/main/generated/leftover.txt') << """
+          Just some random data
+        """
+
+        buildFile << """
+          apply plugin: 'elasticsearch.build'
+          apply plugin: 'elasticsearch.string-templates'
+
+          tasks.named("stringTemplates").configure {
+            it.outputFolder = file("src/main/generated")
+            template {
+              it.properties = [:]
+              it.inputFile = file("src/main/src/X-SomeFile.txt.st")
+              it.outputFile = "SomeFile.txt"
+            }
+          }
+        """
+
+        when:
+        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+
+        then:
+        result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
+        file("src/main/generated/SomeFile.txt").exists()
+        file("src/main/generated-src/SomeFile.txt").exists() == false
+        file("src/main/generated/leftover.txt").exists() == false
+    }
+
     def "test basic conditional"() {
         given:
         internalBuild()

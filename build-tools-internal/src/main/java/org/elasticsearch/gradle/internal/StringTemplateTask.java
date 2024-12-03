@@ -42,8 +42,8 @@ public abstract class StringTemplateTask extends DefaultTask {
 
     @Inject
     public StringTemplateTask(ObjectFactory objectFactory, FileSystemOperations fileSystemOperations) {
-        templateSpecListProperty = objectFactory.listProperty(TemplateSpec.class);
-        outputFolder = objectFactory.directoryProperty();
+        this.templateSpecListProperty = objectFactory.listProperty(TemplateSpec.class);
+        this.outputFolder = objectFactory.directoryProperty();
         this.fileSystemOperations = fileSystemOperations;
     }
 

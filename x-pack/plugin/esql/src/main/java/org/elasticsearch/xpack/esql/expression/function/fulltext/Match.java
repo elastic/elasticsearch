@@ -21,12 +21,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -44,6 +46,8 @@ public class Match extends FullTextFunction implements Validatable {
 
     private transient Boolean isOperator;
 
+    private final Map<String, String> options;
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -57,17 +61,20 @@ public class Match extends FullTextFunction implements Validatable {
             name = "query",
             type = { "keyword", "text" },
             description = "Text you wish to find in the provided field."
-        ) Expression matchQuery
+        ) Expression matchQuery,
+        @MapParam(name = "options", optional = true) Map<String, String> options
     ) {
         super(source, matchQuery, List.of(field, matchQuery));
         this.field = field;
+        this.options = options;
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Match(source, field, query);
+        Map<String, String> options = in.readMap(StreamInput::readString, StreamInput::readString);
+        return new Match(source, field, query, options);
     }
 
     @Override
@@ -75,6 +82,7 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        out.writeMap(options(), StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
@@ -104,12 +112,12 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), options());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query(), options());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
@@ -118,6 +126,10 @@ public class Match extends FullTextFunction implements Validatable {
 
     public Expression field() {
         return field;
+    }
+
+    public Map<String, String> options() {
+        return options;
     }
 
     @Override

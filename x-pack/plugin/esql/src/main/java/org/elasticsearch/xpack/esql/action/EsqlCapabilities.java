@@ -536,7 +536,12 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
          */
-        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,;
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

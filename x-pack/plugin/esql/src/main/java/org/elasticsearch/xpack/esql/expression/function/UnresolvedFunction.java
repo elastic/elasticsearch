@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,8 +38,19 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      */
     private final boolean analyzed;
 
-    public UnresolvedFunction(Source source, String name, FunctionResolutionStrategy resolutionStrategy, List<Expression> children) {
-        this(source, name, resolutionStrategy, children, false, null);
+    /**
+     * The options that are set by parser.
+     */
+    private final Map<String, String> options;
+
+    public UnresolvedFunction(
+        Source source,
+        String name,
+        FunctionResolutionStrategy resolutionStrategy,
+        List<Expression> children,
+        Map<String, String> options
+    ) {
+        this(source, name, resolutionStrategy, children, false, null, options);
     }
 
     @Override
@@ -63,27 +75,44 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         FunctionResolutionStrategy resolutionStrategy,
         List<Expression> children,
         boolean analyzed,
-        String unresolvedMessage
+        String unresolvedMessage,
+        Map<String, String> options
     ) {
         super(source, children);
         this.name = name;
         this.resolution = resolutionStrategy;
         this.analyzed = analyzed;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown " + resolutionStrategy.kind() + " [" + name + "]" : unresolvedMessage;
+        this.options = options;
+    }
+
+    public UnresolvedFunction(Source source, String name, FunctionResolutionStrategy resolutionStrategy, List<Expression> children) {
+        this(source, name, resolutionStrategy, children, false, null, Map.of());
+    }
+
+    public UnresolvedFunction(
+        Source source,
+        String name,
+        FunctionResolutionStrategy resolutionStrategy,
+        List<Expression> children,
+        boolean analyzed,
+        String unresolvedMessage
+    ) {
+        this(source, name, resolutionStrategy, children, analyzed, unresolvedMessage, Map.of());
     }
 
     @Override
     protected NodeInfo<UnresolvedFunction> info() {
-        return NodeInfo.create(this, UnresolvedFunction::new, name, resolution, children(), analyzed, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedFunction::new, name, resolution, children(), analyzed, unresolvedMsg, options);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new UnresolvedFunction(source(), name, resolution, newChildren, analyzed, unresolvedMsg);
+        return new UnresolvedFunction(source(), name, resolution, newChildren, analyzed, unresolvedMsg, options);
     }
 
     public UnresolvedFunction withMessage(String message) {
-        return new UnresolvedFunction(source(), name(), resolution, children(), true, message);
+        return new UnresolvedFunction(source(), name(), resolution, children(), true, message, options);
     }
 
     /**
@@ -152,6 +181,10 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         return unresolvedMsg;
     }
 
+    public Map<String, String> options() {
+        return options;
+    }
+
     @Override
     public String toString() {
         return UNRESOLVED_PREFIX + name + children();
@@ -172,11 +205,12 @@ public class UnresolvedFunction extends Function implements Unresolvable {
             && resolution.equals(other.resolution)
             && children().equals(other.children())
             && analyzed == other.analyzed
-            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg)
+            && Objects.equals(options, other.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, resolution, children(), analyzed, unresolvedMsg);
+        return Objects.hash(name, resolution, children(), analyzed, unresolvedMsg, options);
     }
 }

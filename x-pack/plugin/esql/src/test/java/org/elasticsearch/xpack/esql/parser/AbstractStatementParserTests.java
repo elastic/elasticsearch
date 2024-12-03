@@ -24,6 +24,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -67,6 +68,10 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     static UnresolvedFunction function(String name, List<Expression> args) {
         return new UnresolvedFunction(EMPTY, name, DEFAULT, args);
+    }
+
+    static UnresolvedFunction function(String name, List<Expression> args, Map<String, String> options) {
+        return new UnresolvedFunction(EMPTY, name, DEFAULT, args, options);
     }
 
     static UnresolvedRelation relation(String name) {

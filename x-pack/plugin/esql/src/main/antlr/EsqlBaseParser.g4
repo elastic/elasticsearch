@@ -102,11 +102,24 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (functionArgument (COMMA functionArgument)*))? RP
     ;
 
 functionName
     : identifierOrParameter
+    ;
+
+functionArgument
+    : booleanExpression                                                                 #functionArgumentDefault
+    | {this.isDevVersion()}? LEFT_BRACES namedConstants RIGHT_BRACES                    #functionArgumentWithName
+    ;
+
+namedConstants
+    : namedConstant (COMMA namedConstant)*
+    ;
+
+namedConstant
+    : key=string COLON value=constant
     ;
 
 dataType

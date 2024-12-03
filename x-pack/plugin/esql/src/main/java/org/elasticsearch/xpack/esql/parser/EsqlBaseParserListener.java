@@ -324,6 +324,50 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
   /**
+   * Enter a parse tree produced by the {@code functionArgumentDefault}
+   * labeled alternative in {@link EsqlBaseParser#functionArgument}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionArgumentDefault(EsqlBaseParser.FunctionArgumentDefaultContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code functionArgumentDefault}
+   * labeled alternative in {@link EsqlBaseParser#functionArgument}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionArgumentDefault(EsqlBaseParser.FunctionArgumentDefaultContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code functionArgumentWithName}
+   * labeled alternative in {@link EsqlBaseParser#functionArgument}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code functionArgumentWithName}
+   * labeled alternative in {@link EsqlBaseParser#functionArgument}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#namedConstants}.
+   * @param ctx the parse tree
+   */
+  void enterNamedConstants(EsqlBaseParser.NamedConstantsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#namedConstants}.
+   * @param ctx the parse tree
+   */
+  void exitNamedConstants(EsqlBaseParser.NamedConstantsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#namedConstant}.
+   * @param ctx the parse tree
+   */
+  void enterNamedConstant(EsqlBaseParser.NamedConstantContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#namedConstant}.
+   * @param ctx the parse tree
+   */
+  void exitNamedConstant(EsqlBaseParser.NamedConstantContext ctx);
+  /**
    * Enter a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.
    * @param ctx the parse tree

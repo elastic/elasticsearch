@@ -44,7 +44,7 @@ public class CheckLicenseTests extends ESTestCase {
             final LicensedFeature functionLicenseFeature = random().nextBoolean()
                 ? LicensedFeature.momentary("test", "license", functionLicense)
                 : LicensedFeature.persistent("test", "license", functionLicense);
-            final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg) -> {
+            final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg, options) -> {
                 final LicensedFunction licensedFunction = new LicensedFunction(source);
                 licensedFunction.setLicensedFeature(functionLicenseFeature);
                 return licensedFunction;

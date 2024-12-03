@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -127,6 +128,6 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1));
+        return new Match(source, args.get(0), args.get(1), Map.of());
     }
 }

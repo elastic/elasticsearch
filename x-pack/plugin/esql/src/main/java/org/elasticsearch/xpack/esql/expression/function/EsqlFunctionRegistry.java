@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -146,6 +147,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -402,7 +404,6 @@ public class EsqlFunctionRegistry {
                 def(Split.class, Split::new, "split") },
             // fulltext functions
             new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr") } };
-
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -413,6 +414,7 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 def(Kql.class, Kql::new, "kql"),
+                def(MapCount.class, MapCount::new, "map_count"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }
 
@@ -508,7 +510,7 @@ public class EsqlFunctionRegistry {
 
         return types.stream()
             .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
-            .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
+            .min(Comparator.comparing(DATA_TYPE_CASTING_PRIORITY::get))
             .orElse(UNSUPPORTED);
     }
 
@@ -524,17 +526,27 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
+        boolean isAggregation = functionInfo != null && functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String name = paramInfo == null ? params[i].getName() : paramInfo.name();
-                variadic |= List.class.isAssignableFrom(params[i].getType());
-                String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
+                if (mapParamInfo != null) {
+                    String name = mapParamInfo.name();
+                    String[] valueType = removeUnderConstruction(mapParamInfo.valueType());
+                    String desc = mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo.optional();
+                    DataType targetDataType = getTargetType(valueType);
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, targetDataType));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String name = paramInfo == null ? params[i].getName() : paramInfo.name();
+                    variadic |= List.class.isAssignableFrom(params[i].getType());
+                    String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
+                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                    boolean optional = paramInfo != null && paramInfo.optional();
+                    DataType targetDataType = getTargetType(type);
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                }
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
@@ -655,7 +667,7 @@ public class EsqlFunctionRegistry {
     }
 
     protected interface FunctionBuilder {
-        Function build(Source source, List<Expression> children, Configuration cfg);
+        Function build(Source source, List<Expression> children, Configuration cfg, Map<String, String> options);
     }
 
     /**
@@ -668,7 +680,7 @@ public class EsqlFunctionRegistry {
         Check.isTrue(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
-        FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {
+        FunctionDefinition.Builder realBuilder = (uf, cfg, options, extras) -> {
             if (CollectionUtils.isEmpty(extras) == false) {
                 throw new ParsingException(
                     uf.source(),
@@ -678,7 +690,7 @@ public class EsqlFunctionRegistry {
                 );
             }
             try {
-                return builder.build(uf.source(), uf.children(), cfg);
+                return builder.build(uf.source(), uf.children(), cfg, options);
             } catch (QlIllegalArgumentException e) {
                 throw new ParsingException(e, uf.source(), "error building [{}]: {}", primaryName, e.getMessage());
             }
@@ -694,7 +706,7 @@ public class EsqlFunctionRegistry {
         java.util.function.Function<Source, T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
             }
@@ -712,7 +724,7 @@ public class EsqlFunctionRegistry {
         BiFunction<Source, Expression, T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
             }
@@ -726,7 +738,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     protected <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
+        FunctionBuilder builder = (source, children, cfg, options) -> { return ctorRef.build(source, children); };
         return def(function, builder, names);
     }
 
@@ -739,7 +751,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new QlIllegalArgumentException("expects one or two arguments");
@@ -761,7 +773,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
@@ -782,7 +794,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, QuaternaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             if (OptionalArgument.class.isAssignableFrom(function)) {
                 if (children.size() > 4 || children.size() < 3) {
                     throw new QlIllegalArgumentException("expects three or four arguments");
@@ -819,7 +831,7 @@ public class EsqlFunctionRegistry {
         int numOptionalParams,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             final int NUM_TOTAL_PARAMS = 5;
             boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
             if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
@@ -854,7 +866,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, UnaryVariadicBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumOne && children.size() < 1) {
                 throw new QlIllegalArgumentException("expects at least one argument");
@@ -875,7 +887,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")
     protected static <T extends Function> FunctionDefinition def(Class<T> function, ConfigurationAwareBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
             }
@@ -897,7 +909,7 @@ public class EsqlFunctionRegistry {
         UnaryConfigurationAwareBuilder<T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             if (children.size() > 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
             }
@@ -920,7 +932,7 @@ public class EsqlFunctionRegistry {
         BinaryConfigurationAwareBuilder<T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new QlIllegalArgumentException("expects one or two arguments");
@@ -941,7 +953,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected <T extends Function> FunctionDefinition def(Class<T> function, TernaryConfigurationAwareBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
@@ -955,6 +967,63 @@ public class EsqlFunctionRegistry {
 
     protected interface TernaryConfigurationAwareBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a no-argument function that is map aware.
+     */
+    public static <T extends Function> FunctionDefinition def(Class<T> function, MapAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
+            if (false == children.isEmpty()) {
+                throw new QlIllegalArgumentException("expects no arguments");
+            }
+            return ctorRef.build(source, options);
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface MapAwareBuilder<T> {
+        T build(Source source, Map<String, String> options);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a one-argument function that is map aware.
+     */
+    @SuppressWarnings("overloads")
+    public static <T extends Function> FunctionDefinition def(Class<T> function, UnaryMapAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
+            if (children.size() > 1) {
+                throw new QlIllegalArgumentException("expects exactly one argument");
+            }
+            Expression ex = children.size() == 1 ? children.get(0) : null;
+            return ctorRef.build(source, ex, options);
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface UnaryMapAwareBuilder<T> {
+        T build(Source source, Expression exp, Map<String, String> options);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that is map aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, BinaryMapAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg, options) -> {
+            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new QlIllegalArgumentException("expects one or two arguments");
+            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null, options);
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface BinaryMapAwareBuilder<T> {
+        T build(Source source, Expression left, Expression right, Map<String, String> options);
     }
 
     //

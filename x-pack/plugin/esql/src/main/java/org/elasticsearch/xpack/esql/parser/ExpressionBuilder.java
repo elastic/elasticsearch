@@ -17,6 +17,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -67,8 +68,10 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -595,7 +598,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Object> children = visitList(this, ctx.functionArgument(), Object.class);
+        List<Expression> args = new ArrayList<>();
+        Map<String, String> options = new LinkedHashMap<>();
+        for (Object child : children) {
+            if (child instanceof Expression e) {
+                args.add(e);
+            } else if (child instanceof Map<?, ?> m) {
+                // TODO is it better to throw ParsingException if there are multiple maps?
+                for (Map.Entry<?, ?> entry : m.entrySet()) {
+                    options.put(entry.getKey().toString(), entry.getValue().toString());
+                }
+            }
+        }
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
                 source(ctx),
@@ -608,7 +623,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 args = singletonList(new Literal(source(ctx), "*", DataType.KEYWORD));
             }
         }
-        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args, options);
     }
 
     @Override
@@ -623,6 +638,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
+    }
+
+    @Override
+    public Map<String, String> visitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) {
+        Map<String, String> namedArgs = Maps.newLinkedHashMapWithExpectedSize(ctx.namedConstants().namedConstant().size());
+        List<EsqlBaseParser.NamedConstantContext> kvCtx = ctx.namedConstants().namedConstant();
+        for (EsqlBaseParser.NamedConstantContext entry : kvCtx) {
+            String key = visitString(entry.string()).fold().toString();
+            Expression value = expression(entry.constant());
+            if ((value instanceof Literal) == false) {
+                throw new ParsingException(source(ctx), "Invalid named function argument [{}], only constant value is supported", value);
+            }
+            namedArgs.put(key, value.fold().toString());
+        }
+        return namedArgs;
     }
 
     @Override
@@ -923,6 +953,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
+        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString), Map.of());
     }
 }

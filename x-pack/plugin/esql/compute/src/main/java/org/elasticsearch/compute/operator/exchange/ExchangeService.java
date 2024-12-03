@@ -314,28 +314,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             if (allSourcesFinished) {
-                if (finished.compareAndSet(false, true)) {
-                    doFetchPageAsync(true, listener);
-                } else {
-                    // already finished or promised
-                    listener.onResponse(new ExchangeResponse(blockFactory, null, true));
-                }
-            } else {
-                // already finished
-                if (finished.get()) {
-                    listener.onResponse(new ExchangeResponse(blockFactory, null, true));
-                    return;
-                }
-                doFetchPageAsync(false, ActionListener.wrap(r -> {
-                    if (r.finished()) {
-                        finished.set(true);
-                    }
-                    listener.onResponse(r);
-                }, e -> {
-                    finished.set(true);
-                    listener.onFailure(e);
-                }));
+                close(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                return;
             }
+            // already finished
+            if (finished.get()) {
+                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                return;
+            }
+            doFetchPageAsync(false, ActionListener.wrap(r -> {
+                if (r.finished()) {
+                    finished.set(true);
+                }
+                listener.onResponse(r);
+            }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
         }
 
         private void doFetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
@@ -360,6 +352,15 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     }
                 }, responseExecutor)
             );
+        }
+
+        @Override
+        public void close(ActionListener<Void> listener) {
+            if (finished.compareAndSet(false, true)) {
+                doFetchPageAsync(true, listener.delegateFailure((l, unused) -> l.onResponse(null)));
+            } else {
+                listener.onResponse(null);
+            }
         }
     }
 

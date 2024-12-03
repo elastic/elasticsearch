@@ -139,8 +139,8 @@ public class UserAgentProcessor extends AbstractProcessor {
         return ingestDocument;
     }
 
-    private static String versionToString(UserAgentParser.VersionedName versionedName) {
-        StringBuilder version = new StringBuilder();
+    private static String versionToString(final UserAgentParser.VersionedName versionedName) {
+        final StringBuilder version = new StringBuilder();
         if (versionedName.major() != null) {
             version.append(versionedName.major());
             if (versionedName.minor() != null && versionedName.minor().length() > 0) {

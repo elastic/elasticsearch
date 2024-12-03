@@ -407,7 +407,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V4,
+        CATEGORIZE_V5,
 
         /**
          * QSTR function

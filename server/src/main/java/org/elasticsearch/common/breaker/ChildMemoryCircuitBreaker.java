@@ -103,7 +103,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-        assert bytes > 0;
         final LimitAndOverhead limitAndOverhead = this.limitAndOverhead;
         final long memoryBytesLimit = limitAndOverhead.limit;
         final double overheadConstant = limitAndOverhead.overhead;

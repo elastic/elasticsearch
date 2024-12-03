@@ -244,6 +244,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
+- class: org.elasticsearch.xpack.esql.qa.single_node.RequestIndexFilteringIT
+  method: testFieldExistsFilter_KeepWildcard
+  issue: https://github.com/elastic/elasticsearch/issues/117935
 
 # Examples:
 #

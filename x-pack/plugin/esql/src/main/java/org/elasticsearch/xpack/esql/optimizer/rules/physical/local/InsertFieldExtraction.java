@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -101,7 +100,7 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
     private static Set<Attribute> missingAttributes(PhysicalPlan p) {
         var missing = new LinkedHashSet<Attribute>();
-        var input = new AttributeSet(p.inputSet());
+        var input = p.inputSet();
 
         // For LOOKUP JOIN we only need field-extraction on left fields used to match, since the right side is always materialized
         if (p instanceof LookupJoinExec join) {

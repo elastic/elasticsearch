@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -659,52 +660,64 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testMissingInferenceId() throws IOException {
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        final MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        final IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+        final boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(
-                source(
-                    b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD)
-                        .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
-                        .field(CHUNKS_FIELD, List.of())
-                        .endObject()
-                        .endObject()
+            () -> mapperService.documentMapper()
+                .parse(
+                    semanticTextInferenceSource(
+                        indexVersion,
+                        b -> b.startObject("field")
+                            .startObject(INFERENCE_FIELD)
+                            .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
+                            .field(CHUNKS_FIELD, useInferenceMetadataFieldsFormat ? Map.of() : List.of())
+                            .endObject()
+                            .endObject()
+                    )
                 )
-            )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [inference_id]"));
     }
 
     public void testMissingModelSettings() throws IOException {
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(
-                source(b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject())
-            )
+            () -> mapperService.documentMapper()
+                .parse(
+                    semanticTextInferenceSource(
+                        mapperService.getIndexSettings().getIndexVersionCreated(),
+                        b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject()
+                    )
+                )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [model_settings, chunks]"));
     }
 
     public void testMissingTaskType() throws IOException {
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(
-                source(
-                    b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD)
-                        .field(INFERENCE_ID_FIELD, "my_id")
-                        .startObject(MODEL_SETTINGS_FIELD)
-                        .endObject()
-                        .endObject()
-                        .endObject()
+            () -> mapperService.documentMapper()
+                .parse(
+                    semanticTextInferenceSource(
+                        mapperService.getIndexSettings().getIndexVersionCreated(),
+                        b -> b.startObject("field")
+                            .startObject(INFERENCE_FIELD)
+                            .field(INFERENCE_ID_FIELD, "my_id")
+                            .startObject(MODEL_SETTINGS_FIELD)
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                    )
                 )
-            )
         );
         assertThat(ex.getCause().getMessage(), containsString("failed to parse field [model_settings]"));
     }
@@ -915,6 +928,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
 
         return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, null);
+    }
+
+    private static SourceToParse semanticTextInferenceSource(IndexVersion indexVersion, CheckedConsumer<XContentBuilder, IOException> build)
+        throws IOException {
+        final boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+
+        return source(b -> {
+            if (useInferenceMetadataFieldsFormat) {
+                b.startObject(InferenceMetadataFieldsMapper.NAME);
+            }
+            build.accept(b);
+            if (useInferenceMetadataFieldsFormat) {
+                b.endObject();
+            }
+        });
     }
 
     private static void assertChildLeafNestedDocument(

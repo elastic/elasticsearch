@@ -142,7 +142,7 @@ public class UserAgentProcessor extends AbstractProcessor {
 
     private static String versionToString(final UserAgentParser.VersionedName version) {
         final StringBuilder versionString = new StringBuilder();
-        if (version.major() != null) {
+        if (Strings.hasLength(version.major())) {
             versionString.append(version.major());
             if (Strings.hasLength(version.minor())) {
                 versionString.append(".").append(version.minor());

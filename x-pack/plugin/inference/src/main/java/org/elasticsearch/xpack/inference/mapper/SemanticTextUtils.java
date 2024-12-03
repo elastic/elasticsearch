@@ -30,6 +30,7 @@ public interface SemanticTextUtils {
         } else if (valueObj instanceof String value) {
             return value;
         } else if (valueObj instanceof Collection<?> values) {
+            // TODO: Define separator char someplace common to semantic text & chunking code
             return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
         }
         throw new ElasticsearchStatusException(

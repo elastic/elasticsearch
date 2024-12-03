@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.hamcrest.Matchers.containsString;
@@ -232,6 +234,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         final boolean useInferenceMetadataFields = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
             && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
 
+        // TODO: Define separator char someplace common to semantic text & chunking code
         return new SemanticTextField(
             indexVersion,
             fieldName,
@@ -239,7 +242,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),
-                Map.of(fieldName, toSemanticTextFieldChunks(inputs.get(0), List.of(results), contentType, useInferenceMetadataFields))
+                Map.of(
+                    fieldName,
+                    toSemanticTextFieldChunks(
+                        Strings.collectionToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR)),
+                        List.of(results),
+                        contentType,
+                        useInferenceMetadataFields
+                    )
+                )
             ),
             contentType
         );

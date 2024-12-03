@@ -405,6 +405,7 @@ public record SemanticTextField(
         XContentType contentType,
         boolean withOffsets
     ) {
+        // TODO: Use offsets from ChunkedInferenceServiceResults
         List<Chunk> chunks = new ArrayList<>();
         for (var result : results) {
             for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it

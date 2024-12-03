@@ -103,7 +103,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.size());
         if (IndexVersion.current().luceneVersion().major == 10) {
-            // will fail when upgrading to Lucene 10.1 which requires to switch back to FeatureField
+            // TODO: Update to use Lucene's FeatureField after upgrading to Lucene 10.1.
             assertThat(IndexVersion.current().luceneVersion().minor, equalTo(0));
         }
         assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));

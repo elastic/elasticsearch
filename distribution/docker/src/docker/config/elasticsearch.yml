@@ -1,2 +1,8 @@
 cluster.name: "docker-cluster"
 network.host: 0.0.0.0
+#xpack.security.fips_mode.enabled: true
+#xpack.security.autoconfiguration.enabled: false
+## xpack.security.fips_mode.required_providers: ["BCFIPS"]
+#xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
+#xpack.security.authc.password_hashing.algorithm: "pbkdf2_stretch"
+## xpack.security.transport.ssl.enabled: true

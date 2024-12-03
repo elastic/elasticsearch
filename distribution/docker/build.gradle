@@ -21,18 +21,6 @@ apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.repositories'
 
-//// Setup FIPS image jdk
-//project.jdks {
-//  ['x64', 'aarch64'].each { architecture ->
-//    "fips_linux_${architecture}" {
-//      it.platform = "linux"
-//      it.version = "17.0.12"
-//      it.vendor = VersionProperties.bundledJdkVendor
-//      it.architecture = architecture
-//    }
-//  }
-//}
-
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
@@ -125,10 +113,8 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
-//  fips "org.bouncycastle:bcpg-fips:1.0.7.1"
-//  fips "org.bouncycastle:bc-fips:1.0.2.4"
-  fips "org.bouncycastle:bcprov-jdk18on:1.78.1"
-
+  fips "org.bouncycastle:bctls-fips:1.0.17"
+  fips "org.bouncycastle:bc-fips:1.0.2.4"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -468,27 +454,9 @@ void addBuildFipsDockerImageTasks(Architecture architecture) {
         into("resources") {
           from tasks.named('fipsResources')
         }
-        into('jdk') {
-//          from(files("jdk-17.0.12"))
-          eachFile { FileCopyDetails details ->
-            if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
-              details.permissions {
-                unix(0755)
-              }
-            } else {
-              details.permissions {
-                unix(0644)
-              }
-            }
-            if (details.name == 'src.zip') {
-              details.exclude()
-            }
-          }
-        }
       }
 
-
-      String baseSuffix = DockerBase.WOLFI.suffix
+      String baseSuffix = DockerBase.CLOUD_ESS.suffix
       from(projectDir.resolve("src/docker/Dockerfile.fips")) {
         expand(
           [
@@ -602,18 +570,19 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
-String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+//String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+String javaSecurityFilename = 'fips_java.security'
 File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
 File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
 File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')
-File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
+//File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
 
 TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {
   outputDir = fipsResourcesDir
   copy javaSecurityFilename
   copy 'fips_java.policy'
-  copy 'cacerts.bcfks'
+//  copy 'cacerts.bcfks'
 }
 
 for (final Architecture architecture : Architecture.values()) {

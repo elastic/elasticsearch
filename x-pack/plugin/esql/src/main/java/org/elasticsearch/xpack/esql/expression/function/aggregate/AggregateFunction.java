@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
  */
 public abstract class AggregateFunction extends Function {
+
     private final Expression field;
     private final List<? extends Expression> parameters;
     private final Expression filter;

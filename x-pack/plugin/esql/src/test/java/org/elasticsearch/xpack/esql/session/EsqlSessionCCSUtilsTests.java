@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
@@ -20,9 +23,11 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.ArrayList;
@@ -34,9 +39,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 
 public class EsqlSessionCCSUtilsTests extends ESTestCase {
 
@@ -627,4 +634,35 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         }
 
     }
+
+    public void testCheckForCcsLicense() {
+        // local only search does not require an enterprise license
+        {
+            List<TableInfo> indices = new ArrayList<>();
+            indices.add(new TableInfo(new TableIdentifier(EMPTY, null, "idx")));
+
+
+        }
+    }
+
+    static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
+
+        @Override
+        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions) {
+            final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+
+            for (String expr : indexExpressions) {
+                String[] split = expr.split(":", 2);
+                assertTrue("Bad index expression: " + expr, split.length < 3);
+                if (split.length == 1) {
+                    // MP TODO: LEFTOFF
+                } else {
+
+                }
+            }
+
+            return null;
+        }
+    }
+
 }

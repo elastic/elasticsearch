@@ -9,17 +9,23 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -285,6 +291,27 @@ class EsqlSessionCCSUtils {
                             .build()
                     );
                 }
+            }
+        }
+    }
+
+    /**
+     * Checks the index expression the presence of remote clusters
+     *      * MP TODO: test this with a cluster pattern that does NOT match anything - what happens?
+     * @param indices
+     * @param indicesGrouper
+     * @param licenseState
+     */
+    public static void checkForCcsLicense(List<TableInfo> indices, IndicesExpressionGrouper indicesGrouper, XPackLicenseState licenseState) {
+        for (TableInfo tableInfo : indices) {
+            Map<String, OriginalIndices> groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().index());
+            groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            if (groupedIndices.size() > 0) {
+                System.err.println(">>> WOULD NOW CHECK FOR ENTERPRISE LICENSE");
+                if (licenseState == null || licenseState.isAllowedByLicense(License.OperationMode.ENTERPRISE) == false) {
+                    throw new VerificationException("An Enterprise license is required to run ES|QL cross-cluster searches.");
+                }
+
             }
         }
     }

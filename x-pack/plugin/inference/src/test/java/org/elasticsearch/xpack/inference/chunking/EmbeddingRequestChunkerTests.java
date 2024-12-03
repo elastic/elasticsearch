@@ -45,6 +45,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches, empty());
     }
 
+    public void testWhitespaceInput_SentenceChunker() {
+        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
+        var batches = new EmbeddingRequestChunker(List.of("   "), 10, embeddingType, new SentenceBoundaryChunkingSettings(250, 1))
+            .batchRequestsWithListeners(testListener());
+        assertThat(batches, hasSize(1));
+        assertThat(batches.get(0).batch().inputs(), hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("   "));
+    }
+
     public void testBlankInput_WordChunker() {
         var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
         var batches = new EmbeddingRequestChunker(List.of(""), 100, 100, 10, embeddingType).batchRequestsWithListeners(testListener());
@@ -60,6 +69,25 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
         assertThat(batches.get(0).batch().inputs().get(0), Matchers.is(""));
+    }
+
+    public void testInputThatDoesNotChunk_WordChunker() {
+        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
+        var batches = new EmbeddingRequestChunker(List.of("ABBAABBA"), 100, 100, 10, embeddingType).batchRequestsWithListeners(
+            testListener()
+        );
+        assertThat(batches, hasSize(1));
+        assertThat(batches.get(0).batch().inputs(), hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("ABBAABBA"));
+    }
+
+    public void testInputThatDoesNotChunk_SentenceChunker() {
+        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
+        var batches = new EmbeddingRequestChunker(List.of("ABBAABBA"), 10, embeddingType, new SentenceBoundaryChunkingSettings(250, 1))
+            .batchRequestsWithListeners(testListener());
+        assertThat(batches, hasSize(1));
+        assertThat(batches.get(0).batch().inputs(), hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("ABBAABBA"));
     }
 
     public void testShortInputsAreSingleBatch() {

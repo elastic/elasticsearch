@@ -542,11 +542,11 @@ public class EsqlSession {
                     // to try and make the index resolution work without any index filtering. In the next step... to be continued
                     l.onResponse(listenerResult);
                 }
-                return;
             } else {
                 // if the query failed with any other type of exception, then just pass the exception back to the user
                 logicalPlanListener.onFailure(e);
             }
+            return;
         }
         LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
         // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning

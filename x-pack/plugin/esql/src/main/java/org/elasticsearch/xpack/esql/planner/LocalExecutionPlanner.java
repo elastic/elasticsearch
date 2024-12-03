@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.CompletionInferenceOperator;
+import org.elasticsearch.xpack.esql.inference.InferenceExecutionService;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -131,6 +133,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
+    private final InferenceExecutionService inferenceExecutionService;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -144,7 +147,8 @@ public class LocalExecutionPlanner {
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        PhysicalOperationProviders physicalOperationProviders
+        PhysicalOperationProviders physicalOperationProviders,
+        InferenceExecutionService inferenceExecutionService
     ) {
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
@@ -158,6 +162,7 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
+        this.inferenceExecutionService = inferenceExecutionService;
     }
 
     /**
@@ -432,7 +437,10 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = source.layout.builder();
         layout.append(completion.target());
 
-        return source.with(new CompletionInferenceOperator.Factory(promptEvaluatorSupplier), layout.build());
+        // Need to check that this is always foldable in the verifier?
+        String inferenceId = ((BytesRef) completion.inferenceId().fold()).utf8ToString();
+
+        return source.with(new CompletionInferenceOperator.Factory(inferenceExecutionService, promptEvaluatorSupplier, inferenceId), layout.build());
     }
 
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {

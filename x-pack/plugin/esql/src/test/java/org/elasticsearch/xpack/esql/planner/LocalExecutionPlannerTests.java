@@ -147,7 +147,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            esPhysicalOperationProviders()
+            esPhysicalOperationProviders(),
+            null
         );
     }
 

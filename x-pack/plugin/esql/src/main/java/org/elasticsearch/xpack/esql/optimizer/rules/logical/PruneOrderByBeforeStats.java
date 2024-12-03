@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 
 public final class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggregate> {
 
@@ -38,7 +39,9 @@ public final class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<
             || plan instanceof Filter
             || plan instanceof Project
             || plan instanceof RegexExtract
-            || plan instanceof Enrich) {
+            || plan instanceof Enrich
+            || plan instanceof Completion
+        ) {
                 pullable = findPullableOrderBy(((UnaryPlan) plan).child());
             }
         return pullable;

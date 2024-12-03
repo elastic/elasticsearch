@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -476,6 +477,11 @@ public class EsqlSession {
                 }
                 // but keep the inputs needed by Grok/Dissect
                 references.addAll(re.input().references());
+            } else if (p instanceof Completion completion) {
+                for (Attribute generatedAttribute : completion.generatedAttributes()) {
+                    references.removeIf(attr -> matchByName(attr, generatedAttribute.name(), false));
+                }
+                references.addAll(completion.prompt().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
                 enrichRefs = enrichRefs.combine(enrich.matchField().references());

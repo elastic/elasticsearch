@@ -85,6 +85,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return builder;
         }
 
+        public static Builder builder(String inferenceEntityId, TaskType taskType) {
+            Builder builder = new Builder();
+            builder.setInferenceEntityId(inferenceEntityId);
+            builder.setTaskType(taskType);
+            builder.setInputType(InputType.UNSPECIFIED);
+            return builder;
+        }
+
         private final TaskType taskType;
         private final String inferenceEntityId;
         private final String query;

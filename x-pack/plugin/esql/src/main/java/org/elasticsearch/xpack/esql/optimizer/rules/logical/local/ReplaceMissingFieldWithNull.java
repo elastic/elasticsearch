@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -86,6 +87,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
+            || plan instanceof Completion
             || plan instanceof TopN) {
                 plan = plan.transformExpressionsOnlyUp(
                     FieldAttribute.class,

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
@@ -25,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class CompletionExec extends UnaryExec {
+public class CompletionExec extends UnaryExec implements EstimatesRowSize {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -80,6 +82,11 @@ public class CompletionExec extends UnaryExec {
     }
 
     @Override
+    protected AttributeSet computeReferences() {
+        return prompt.references();
+    }
+
+    @Override
     public List<Attribute> output() {
         return NamedExpressions.mergeOutputAttributes(List.of(target), child().output());
     }
@@ -106,5 +113,11 @@ public class CompletionExec extends UnaryExec {
         }
         CompletionExec other = ((CompletionExec) obj);
         return Objects.equals(target, other.target) && Objects.equals(prompt, other.prompt) && Objects.equals(inferenceId, other.inferenceId);
+    }
+
+    @Override
+    public PhysicalPlan estimateRowSize(State state) {
+        state.add(false, List.of(target));
+        return this;
     }
 }

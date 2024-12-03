@@ -48,6 +48,12 @@ public class Categorize extends GroupingFunction implements Validatable {
     @FunctionInfo(
         returnType = "keyword",
         description = "Groups text messages into categories of similarly formatted text values.",
+        detailedDescription = """
+            `CATEGORIZE` has the following limitations:
+
+            * can't be used within other expressions
+            * can't be used with multiple groupings
+            * can't be used or referenced within aggregations""",
         examples = {
             @Example(
                 file = "docs",

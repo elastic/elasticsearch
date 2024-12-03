@@ -84,13 +84,13 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
 
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
-        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.actionStats.keySet());
+        repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
     }
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
-        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.actionStats.keySet());
+        repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
     }
 }

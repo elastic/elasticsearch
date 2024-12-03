@@ -165,24 +165,24 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        assertTrue(EXPECTED_MAIN_STORE_REQUEST_NAMES.containsAll(repositoryStats.requestCounts.keySet()));
-        repositoryStats.requestCounts.forEach((metricName, count) -> {
+        assertTrue(EXPECTED_MAIN_STORE_REQUEST_NAMES.containsAll(repositoryStats.actionStats.keySet()));
+        repositoryStats.actionStats.forEach((metricName, count) -> {
             if (metricName.endsWith("_AbortMultipartObject") || metricName.endsWith("_HeadObject")) {
-                assertThat(metricName, count, greaterThanOrEqualTo(0L));
+                assertThat(metricName, count.operations(), greaterThanOrEqualTo(0L));
             } else {
-                assertThat(metricName, count, greaterThan(0L));
+                assertThat(metricName, count.operations(), greaterThan(0L));
             }
         });
     }
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertTrue(EXPECTED_OBS_REQUEST_NAMES.containsAll(repositoryStats.requestCounts.keySet()));
-        repositoryStats.requestCounts.forEach((metricName, count) -> {
+        assertTrue(EXPECTED_OBS_REQUEST_NAMES.containsAll(repositoryStats.actionStats.keySet()));
+        repositoryStats.actionStats.forEach((metricName, count) -> {
             if (metricName.endsWith("_AbortMultipartObject") || metricName.endsWith("_PutMultipartObject")) {
-                assertThat(count, greaterThanOrEqualTo(0L));
+                assertThat(count.operations(), greaterThanOrEqualTo(0L));
             } else {
-                assertThat(count, greaterThan(0L));
+                assertThat(count.operations(), greaterThan(0L));
             }
         });
     }

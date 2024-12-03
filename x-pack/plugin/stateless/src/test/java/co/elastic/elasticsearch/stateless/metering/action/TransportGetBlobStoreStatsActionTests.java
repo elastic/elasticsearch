@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryInfo;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -49,17 +50,17 @@ public class TransportGetBlobStoreStatsActionTests extends ESTestCase {
         final RepositoryStats repositoryStats = TransportGetBlobStoreStatsAction.computeObsRepositoryStats(repositoriesService);
 
         if (repositoryStatsSnapshots.isEmpty()) {
-            assertThat(repositoryStats.requestCounts, anEmptyMap());
+            assertThat(repositoryStats.actionStats, anEmptyMap());
         } else {
-            assertThat(repositoryStats.requestCounts.keySet(), equalTo(requestNames));
+            assertThat(repositoryStats.actionStats.keySet(), equalTo(requestNames));
         }
 
-        repositoryStats.requestCounts.forEach((k, v) -> {
-            long expectedCount = 0;
+        repositoryStats.actionStats.forEach((k, v) -> {
+            BlobStoreActionStats expectedStats = BlobStoreActionStats.ZERO;
             for (var repositoryStatsSnapshot : repositoryStatsSnapshots) {
-                expectedCount += repositoryStatsSnapshot.getRepositoryStats().requestCounts.get(k);
+                expectedStats = repositoryStatsSnapshot.getRepositoryStats().actionStats.get(k).add(expectedStats);
             }
-            assertThat("incorrect count for " + k, v, equalTo(expectedCount));
+            assertThat("incorrect count for " + k, v, equalTo(expectedStats));
         });
     }
 

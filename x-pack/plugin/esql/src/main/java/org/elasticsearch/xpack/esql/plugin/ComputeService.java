@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -281,10 +280,7 @@ public class ComputeService {
 
     private Set<String> findLookupIndexNames(PhysicalPlan physicalPlan) {
         Set<String> lookupIndexNames = new HashSet<>();
-        physicalPlan.forEachDown(
-            LookupJoinExec.class,
-            lookupJoinExec -> lookupJoinExec.lookup().forEachDown(EsQueryExec.class, es -> lookupIndexNames.add(es.index().name()))
-        );
+        // When planning JOIN on the coordinator node: "LookupJoinExec.lookup()->FragmentExec.fragment()->EsRelation.index()"
         physicalPlan.forEachDown(
             LookupJoinExec.class,
             lookupJoinExec -> lookupJoinExec.lookup()
@@ -293,6 +289,7 @@ public class ComputeService {
                     frag -> frag.fragment().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
                 )
         );
+        // When planning JOIN on the data node: "FragmentExec.fragment()->Join.right()->EsRelation.index()"
         // TODO this only works for LEFT join, so we still need to support RIGHT join
         physicalPlan.forEachDown(
             FragmentExec.class,

@@ -1,0 +1,5 @@
+pr: 117231
+summary: Inject SP config for SAML Realm to allow custom impl
+area: Authentication
+type: enhancement
+issues: []

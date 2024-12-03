@@ -157,10 +157,11 @@ public class MultiBucketConsumerService {
         }
 
         @Override
+        @SuppressForbidden(reason = "Lack of memory accounting when reducing InternalAggregations")
         public void accept(int value) {
             // check parent circuit breaker every 1024 calls
             if ((++callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+                breaker.checkRealMemoryUsage("allocated_buckets");
             }
         }
     }

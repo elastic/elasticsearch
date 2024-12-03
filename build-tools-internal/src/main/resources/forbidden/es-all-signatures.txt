@@ -62,5 +62,5 @@ org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, j
 @defaultMessage Use WriteLoadForecaster#getForecastedWriteLoad instead
 org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()
 
-@defaultMessage CircuitBreaker#checkRealMemoryUsage is unreliable, use a consistent strategy for memory accounting.
+@defaultMessage CircuitBreaker#checkRealMemoryUsage is a temporary solution and it will be removed, use a counter based strategy for memory accounting.
 org.elasticsearch.common.breaker.CircuitBreaker#checkRealMemoryUsage(java.lang.String)

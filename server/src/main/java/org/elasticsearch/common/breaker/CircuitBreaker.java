@@ -87,7 +87,7 @@ public interface CircuitBreaker {
     /**
      * Check the real memory circuit breaker. It is a NOOP if
      * {@link org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService#USE_REAL_MEMORY_USAGE_SETTING} is set to false,
-     * otherwise it trips if the current memory usage cannot be lowered below thw limit.
+     * otherwise it trips if the current memory usage cannot be lowered below the limit.
      *
      * @param label thing requesting to check the rela memory circuit breaker that is included in
      *              the exception if the breaker is tripped

@@ -25,6 +25,7 @@ public class MapperFeatures implements FeatureSpecification {
     // Used to avoid noise in mixed cluster and rest compatibility tests. Must not be backported to 8.x branch.
     // This label gets added to tests with such failures before merging with main, then removed when backported to 8.x.
     public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0");
+    public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -75,7 +76,8 @@ public class MapperFeatures implements FeatureSpecification {
             MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
             DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
-            META_FETCH_FIELDS_ERROR_CODE_CHANGED
+            META_FETCH_FIELDS_ERROR_CODE_CHANGED,
+            SPARSE_VECTOR_STORE_SUPPORT
         );
     }
 }

@@ -105,8 +105,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType(String name, boolean stored, Map<String, String> meta) {
-            super(name, true, stored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta) {
+            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         @Override
@@ -122,7 +122,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (isStored()) {
-                return new TermVectorsValueFetcher(name());
+                return new SparseVectorValueFetcher(name());
             }
             return SourceValueFetcher.identity(name(), context, format);
         }
@@ -248,11 +248,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    private static class TermVectorsValueFetcher implements ValueFetcher {
+    private static class SparseVectorValueFetcher implements ValueFetcher {
         private final String fieldName;
         private TermVectors termVectors;
 
-        private TermVectorsValueFetcher(String fieldName) {
+        private SparseVectorValueFetcher(String fieldName) {
             this.fieldName = fieldName;
         }
 

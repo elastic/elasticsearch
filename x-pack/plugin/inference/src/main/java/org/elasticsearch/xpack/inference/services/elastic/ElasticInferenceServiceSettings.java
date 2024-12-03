@@ -35,7 +35,6 @@ public class ElasticInferenceServiceSettings {
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
         elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
-
     }
 
     public static final SSLConfigurationSettings ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(

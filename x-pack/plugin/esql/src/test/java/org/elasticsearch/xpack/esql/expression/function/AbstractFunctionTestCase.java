@@ -1077,22 +1077,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                    MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
-                    if (mapParamInfo != null) {
-                        String paramName = mapParamInfo.name();
-                        String[] valueType = mapParamInfo.valueType();
-                        String desc = mapParamInfo.description().replace('\n', ' ');
-                        boolean optional = mapParamInfo.optional();
-                        args.add(new EsqlFunctionRegistry.ArgSignature(paramName, valueType, desc, optional));
-                    } else {
-                        Param paramInfo = params[i].getAnnotation(Param.class);
-                        String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
-                        String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                        String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                        boolean optional = paramInfo != null && paramInfo.optional();
-                        args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
-                    }
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
+                if (mapParamInfo != null) {
+                    String paramName = mapParamInfo.name();
+                    String[] valueType = mapParamInfo.valueType();
+                    String desc = mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo.optional();
+                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, valueType, desc, optional));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
+                    String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                    boolean optional = paramInfo != null && paramInfo.optional();
+                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
                 }
             }
         }

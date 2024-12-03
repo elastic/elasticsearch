@@ -415,6 +415,14 @@ public enum DataType {
         return isDateTime(t) || isTemporalAmount(t);
     }
 
+    public static boolean isDateTimeOrNanosOrTemporal(DataType t) {
+        return isDateTime(t) || isTemporalAmount(t) || t == DATE_NANOS;
+    }
+
+    public static boolean isMillisOrNanos(DataType t) {
+        return t == DATETIME || t == DATE_NANOS;
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;

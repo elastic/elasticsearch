@@ -1096,11 +1096,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    protected static void wipeAllIndices() throws IOException {
-        wipeAllIndices(false);
+    protected void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
+        wipeAllIndices(adminClient(), preserveSecurityIndices);
     }
 
-    protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
+    protected static void wipeAllIndices() throws IOException {
+        wipeAllIndices(adminClient(), false);
+    }
+
+    protected static void wipeAllIndices(RestClient adminClient, boolean preserveSecurityIndices) throws IOException {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
@@ -1112,7 +1116,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             deleteRequest.setOptions(deleteRequest.getOptions().toBuilder().setWarningsHandler(ignoreAsyncSearchWarning()).build());
-            final Response response = adminClient().performRequest(deleteRequest);
+            final Response response = adminClient.performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }

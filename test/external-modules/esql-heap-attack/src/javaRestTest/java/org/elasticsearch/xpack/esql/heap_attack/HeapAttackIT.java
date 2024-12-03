@@ -33,8 +33,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -61,19 +64,33 @@ import static org.hamcrest.Matchers.matchesRegex;
  * crash Elasticsearch.
  */
 public class HeapAttackIT extends ESRestTestCase {
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
+    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    static RestClient remoteClient = null;
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.buildCluster();
+    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
     static volatile boolean SUITE_ABORTED = false;
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return localCluster.getHttpAddresses();
     }
 
     @Before
     public void skipOnAborted() {
         assumeFalse("skip on aborted", SUITE_ABORTED);
+    }
+
+    @Override
+    protected void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
+        super.wipeAllIndices(preserveSecurityIndices);
+        try {
+            ESRestTestCase.wipeAllIndices(remoteClusterClient(), preserveSecurityIndices);
+        } finally {
+            closeRemoteClient();
+        }
     }
 
     /**
@@ -248,7 +265,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private StringBuilder makeManyLongs(int count) {
         StringBuilder query = startQuery();
-        query.append("FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
+        String from = randomFrom("FROM manylongs", "FROM *:manylongs");
+        query.append(from).append("\\n| EVAL i0 = a + b, i1 = b + i0");
         for (int i = 2; i < count; i++) {
             query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
         }
@@ -281,7 +299,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private Response concat(int evals) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM single | EVAL str = TO_STRING(a)");
+        String from = randomFrom("FROM single ", "FROM *:single ");
+        query.append(from).append(" | EVAL str = TO_STRING(a)");
         for (int e = 0; e < evals; e++) {
             query.append("\n| EVAL str=CONCAT(")
                 .append(IntStream.range(0, 10).mapToObj(i -> "str").collect(Collectors.joining(", ")))
@@ -297,8 +316,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testManyConcat() throws IOException {
         int strings = 300;
         initManyLongs();
-        Response resp = manyConcat("FROM manylongs", strings);
-        assertManyStrings(resp, strings);
+        for (String from : List.of("FROM manylongs", "FROM *:manylongs")) {
+            Response resp = manyConcat(from, strings);
+            assertManyStrings(resp, strings);
+        }
     }
 
     /**
@@ -306,7 +327,9 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyConcat("FROM manylongs", 2000));
+        for (String from : List.of("FROM manylongs", "FROM *:manylongs", "FROM *:manylongs,manylongs")) {
+            assertCircuitBreaks(() -> manyConcat(from, 2000));
+        }
     }
 
     /**
@@ -357,8 +380,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testManyRepeat() throws IOException {
         int strings = 30;
         initManyLongs();
-        Response resp = manyRepeat("FROM manylongs", strings);
-        assertManyStrings(resp, 30);
+        for (String from : List.of("FROM manylongs", "FROM *:manylongs")) {
+            Response resp = manyRepeat(from, strings);
+            assertManyStrings(resp, 30);
+        }
     }
 
     /**
@@ -366,7 +391,9 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testHugeManyRepeat() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyRepeat("FROM manylongs", 75));
+        for (String from : List.of("FROM manylongs", "FROM *:manylongs", "FROM manylongs,*:manylongs")) {
+            assertCircuitBreaks(() -> manyRepeat(from, 75));
+        }
     }
 
     /**
@@ -410,29 +437,33 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testManyEval() throws IOException {
         initManyLongs();
-        Response resp = manyEval(1);
-        Map<?, ?> map = responseAsMap(resp);
-        ListMatcher columns = matchesList();
-        columns = columns.item(matchesMap().entry("name", "a").entry("type", "long"));
-        columns = columns.item(matchesMap().entry("name", "b").entry("type", "long"));
-        columns = columns.item(matchesMap().entry("name", "c").entry("type", "long"));
-        columns = columns.item(matchesMap().entry("name", "d").entry("type", "long"));
-        columns = columns.item(matchesMap().entry("name", "e").entry("type", "long"));
-        for (int i = 0; i < 20; i++) {
-            columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
+        for (String from : List.of("FROM manylongs", "FROM *:manylongs")) {
+            Response resp = manyEval(from, 1);
+            Map<?, ?> map = responseAsMap(resp);
+            ListMatcher columns = matchesList();
+            columns = columns.item(matchesMap().entry("name", "a").entry("type", "long"));
+            columns = columns.item(matchesMap().entry("name", "b").entry("type", "long"));
+            columns = columns.item(matchesMap().entry("name", "c").entry("type", "long"));
+            columns = columns.item(matchesMap().entry("name", "d").entry("type", "long"));
+            columns = columns.item(matchesMap().entry("name", "e").entry("type", "long"));
+            for (int i = 0; i < 20; i++) {
+                columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
+            }
+            MapMatcher mapMatcher = matchesMap();
+            assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
         }
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
     }
 
     public void testTooManyEval() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyEval(490));
+        for (String from : List.of("FROM manylongs", "FROM *:manylongs", "FROM *:manylongs,manylongs")) {
+            assertCircuitBreaks(() -> manyEval(from, 490));
+        }
     }
 
-    private Response manyEval(int evalLines) throws IOException {
+    private Response manyEval(String init, int evalLines) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM manylongs");
+        query.append(init);
         for (int e = 0; e < evalLines; e++) {
             query.append("\n| EVAL ");
             for (int i = 0; i < 20; i++) {
@@ -480,6 +511,7 @@ public class HeapAttackIT extends ESRestTestCase {
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
                     client().performRequest(triggerOOM);
+                    remoteClusterClient().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
             Response resp = run.get();
@@ -514,7 +546,8 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     private void fetchManyBigFields(int docs) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM manybigfields | SORT f000 | LIMIT " + docs + "\"}");
+        String from = randomFrom("FROM manybigfields", "FROM *:manybigfields");
+        query.append(from).append(" | SORT f000 | LIMIT ").append(docs).append("\"}");
         Response response = query(query.toString(), "columns");
         Map<?, ?> map = responseAsMap(response);
         ListMatcher columns = matchesList();
@@ -570,7 +603,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private Response fetchMvLongs() throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM mv_longs\"}");
+        String from = randomFrom("FROM mv_longs", "FROM *:mv_longs");
+        query.append(from).append("\"}");
         return query(query.toString(), "columns");
     }
 
@@ -593,15 +627,17 @@ public class HeapAttackIT extends ESRestTestCase {
             bulk("manylongs", bulk.toString());
             bulk.setLength(0);
         }
-        initIndex("manylongs", bulk.toString());
+        bulk("manylongs", bulk.toString());
+        forceMerge("manylongs");
     }
 
     private void initSingleDocIndex() throws IOException {
         logger.info("loading many documents with a single document");
-        initIndex("single", """
+        bulk("single", """
             {"create":{}}
             {"a":1}
             """);
+        forceMerge("single");
     }
 
     private void initManyBigFieldsIndex(int docs) throws IOException {
@@ -609,22 +645,22 @@ public class HeapAttackIT extends ESRestTestCase {
         int docsPerBulk = 5;
         int fields = 1000;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofKb(1).getBytes());
-
-        Request request = new Request("PUT", "/manybigfields");
-        XContentBuilder config = JsonXContent.contentBuilder().startObject();
-        config.startObject("settings").field("index.mapping.total_fields.limit", 10000).endObject();
-        config.startObject("mappings").startObject("properties");
-        for (int f = 0; f < fields; f++) {
-            config.startObject("f" + String.format(Locale.ROOT, "%03d", f)).field("type", "keyword").endObject();
+        for (RestClient client : List.of(client(), remoteClusterClient())) {
+            Request request = new Request("PUT", "/manybigfields");
+            XContentBuilder config = JsonXContent.contentBuilder().startObject();
+            config.startObject("settings").field("index.mapping.total_fields.limit", 10000).endObject();
+            config.startObject("mappings").startObject("properties");
+            for (int f = 0; f < fields; f++) {
+                config.startObject("f" + String.format(Locale.ROOT, "%03d", f)).field("type", "keyword").endObject();
+            }
+            config.endObject().endObject();
+            request.setJsonEntity(Strings.toString(config.endObject()));
+            Response response = client.performRequest(request);
+            assertThat(
+                EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
+                equalTo("{\"acknowledged\":true,\"shards_acknowledged\":true,\"index\":\"manybigfields\"}")
+            );
         }
-        config.endObject().endObject();
-        request.setJsonEntity(Strings.toString(config.endObject()));
-        Response response = client().performRequest(request);
-        assertThat(
-            EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
-            equalTo("{\"acknowledged\":true,\"shards_acknowledged\":true,\"index\":\"manybigfields\"}")
-        );
-
         StringBuilder bulk = new StringBuilder();
         for (int d = 0; d < docs; d++) {
             bulk.append("{\"create\":{}}\n");
@@ -644,7 +680,8 @@ public class HeapAttackIT extends ESRestTestCase {
                 bulk.setLength(0);
             }
         }
-        initIndex("manybigfields", bulk.toString());
+        bulk("manybigfields", bulk.toString());
+        forceMerge("manybigfields");
     }
 
     private void initMvLongsIndex(int docs, int fields, int fieldValues) throws IOException {
@@ -677,40 +714,59 @@ public class HeapAttackIT extends ESRestTestCase {
                 bulk.setLength(0);
             }
         }
-        initIndex("mv_longs", bulk.toString());
+        bulk("mv_longs", bulk.toString());
+        forceMerge("mv_longs");
     }
 
     private void bulk(String name, String bulk) throws IOException {
-        Request request = new Request("POST", "/" + name + "/_bulk");
-        request.setJsonEntity(bulk);
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
-        );
-        Response response = client().performRequest(request);
-        assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
+        if (hasText(bulk) == false) {
+            return;
+        }
+        for (RestClient client : List.of(client(), remoteClusterClient())) {
+            Request request = new Request("POST", "/" + name + "/_bulk");
+            request.setJsonEntity(bulk);
+            request.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .setRequestConfig(
+                        RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build()
+                    )
+            );
+            Response response = client.performRequest(request);
+            assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
+        }
     }
 
-    private void initIndex(String name, String bulk) throws IOException {
-        if (indexExists(name) == false) {
-            // not strictly required, but this can help isolate failure from bulk indexing.
-            createIndex(name);
+    private RestClient remoteClusterClient() throws IOException {
+        if (remoteClient == null) {
+            var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
+            remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
-        if (hasText(bulk)) {
-            bulk(name, bulk);
-        }
-        Request request = new Request("POST", "/" + name + "/_forcemerge");
-        request.addParameter("max_num_segments", "1");
-        RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build());
-        request.setOptions(requestOptions);
-        Response response = client().performRequest(request);
-        assertWriteResponse(response);
+        return remoteClient;
+    }
 
-        request = new Request("POST", "/" + name + "/_refresh");
-        response = client().performRequest(request);
-        request.setOptions(requestOptions);
-        assertWriteResponse(response);
+    @AfterClass
+    public static void closeRemoteClient() throws IOException {
+        if (remoteClient != null) {
+            remoteClient.close();
+            remoteClient = null;
+        }
+    }
+
+    private void forceMerge(String name) throws IOException {
+        for (RestClient client : List.of(client(), remoteClusterClient())) {
+            Request request = new Request("POST", "/" + name + "/_forcemerge");
+            request.addParameter("max_num_segments", "1");
+            RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build());
+            request.setOptions(requestOptions);
+            Response response = client.performRequest(request);
+            assertWriteResponse(response);
+
+            request = new Request("POST", "/" + name + "/_refresh");
+            response = client.performRequest(request);
+            request.setOptions(requestOptions);
+            assertWriteResponse(response);
+        }
     }
 
     @SuppressWarnings("unchecked")

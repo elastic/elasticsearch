@@ -1,5 +1,5 @@
 pr: 117572
-summary: Address and remove any references to org.elasticsearch.core.RestApiVersion V_7
+summary: Address and remove any references RestApiVersion version 7
 area: search
 type: enhancement
-issues: [ES-9453]
+issues: []

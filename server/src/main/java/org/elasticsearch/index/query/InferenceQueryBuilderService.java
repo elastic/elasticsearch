@@ -13,7 +13,7 @@ import org.elasticsearch.common.TriFunction;
 public class InferenceQueryBuilderService {
     private final TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder;
 
-    InferenceQueryBuilderService(TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
+    public InferenceQueryBuilderService(TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
         this.defaultInferenceQueryBuilder = defaultInferenceQueryBuilder;
     }
 

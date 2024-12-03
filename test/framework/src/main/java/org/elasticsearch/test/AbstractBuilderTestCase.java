@@ -54,6 +54,9 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
+import org.elasticsearch.index.query.InferenceQueryBuilderService;
+import org.elasticsearch.test.index.query.MockInferenceQueryBuilderService;
+import org.elasticsearch.test.index.query.MockDefaultInferenceQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -630,7 +633,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 scriptService,
                 createMockResolvedIndices(),
                 null,
-                null // TODO: Create real query builder service here
+                createMockInferenceQueryBuilderService()
             );
         }
 
@@ -670,6 +673,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
                 Map.of(index, indexMetadata)
             );
+        }
+
+        private InferenceQueryBuilderService createMockInferenceQueryBuilderService() {
+            return new MockInferenceQueryBuilderService(MockDefaultInferenceQueryBuilder::new);
         }
     }
 }

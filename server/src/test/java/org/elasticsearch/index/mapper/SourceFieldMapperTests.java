@@ -65,7 +65,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             dm -> {
                 assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic());
-                assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
             }
         );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
@@ -74,7 +73,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             "mode",
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
-            dm -> assertWarnings(SourceFieldMapper.DEPRECATION_WARNING)
+            d -> {}
         );
     }
 
@@ -211,14 +210,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
     }
 
     public void testSyntheticUpdates() throws Exception {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
             """);
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
         assertTrue(mapper.isSynthetic());
@@ -226,7 +223,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
             """);
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
         assertTrue(mapper.isSynthetic());
@@ -239,12 +235,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             """));
 
         assertThat(e.getMessage(), containsString("Cannot update parameter [mode] from [synthetic] to [stored]"));
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
 
         merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "disabled" } } }
             """);
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
 
         mapper = mapperService.documentMapper().sourceMapper();
         assertFalse(mapper.enabled());
@@ -281,7 +275,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject("_source").field("mode", randomBoolean() ? "synthetic" : "stored").endObject())
             ).documentMapper().sourceMapper();
             assertThat(sourceFieldMapper, notNullValue());
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -313,8 +306,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 .documentMapper()
                 .sourceMapper()
         );
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
-
         assertThat(e.getMessage(), containsString("Parameter [mode=disabled] is not allowed in source"));
 
         e = expectThrows(
@@ -423,7 +414,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("field1", "value1"); }));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         {
             Settings settings = Settings.builder().put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
@@ -434,7 +424,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 
@@ -629,7 +618,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         {
             Settings settings = Settings.builder()
@@ -640,7 +628,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 
@@ -709,7 +696,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 doc.rootDoc().getField("_recovery_source").binaryValue(),
                 equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
             );
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         {
             Settings settings = Settings.builder()
@@ -723,7 +709,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 source("123", b -> b.field("@timestamp", "2012-02-13").field("field", randomAlphaOfLength(5)), null)
             );
             assertNull(doc.rootDoc().getField("_recovery_source"));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 }

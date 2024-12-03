@@ -179,19 +179,22 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         });
         var cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTasks.get(0).taskId()).setReason("proxy timeout");
         client().execute(TransportCancelTasksAction.TYPE, cancelRequest);
-        assertBusy(() -> {
-            List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .get()
-                .getTasks();
-            assertThat(drivers.size(), greaterThanOrEqualTo(1));
-            for (TaskInfo driver : drivers) {
-                assertTrue(driver.cancellable());
-            }
-        });
-        PauseFieldPlugin.allowEmitting.countDown();
+        try {
+            assertBusy(() -> {
+                List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .get()
+                    .getTasks();
+                assertThat(drivers.size(), greaterThanOrEqualTo(1));
+                for (TaskInfo driver : drivers) {
+                    assertTrue(driver.cancelled());
+                }
+            });
+        } finally {
+            PauseFieldPlugin.allowEmitting.countDown();
+        }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
         assertThat(error.getMessage(), containsString("proxy timeout"));
     }
@@ -234,5 +237,42 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
                 removeRemoteCluster(clusterAlias);
             }
         }
+    }
+
+    public void testTasks() throws Exception {
+        createRemoteIndex(between(10, 100));
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        request.pragmas(randomPragmas());
+        ActionFuture<EsqlQueryResponse> requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
+        assertTrue(PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        try {
+            assertBusy(() -> {
+                List<TaskInfo> clusterTasks = client(REMOTE_CLUSTER).admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(ComputeService.CLUSTER_ACTION_NAME)
+                    .get()
+                    .getTasks();
+                assertThat(clusterTasks.size(), equalTo(1));
+                List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setTargetParentTaskId(clusterTasks.getFirst().taskId())
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks();
+                assertThat(drivers.size(), equalTo(1));
+                TaskInfo driver = drivers.getFirst();
+                assertThat(driver.description(), equalTo("""
+                    \\_ExchangeSourceOperator[]
+                    \\_AggregationOperator[mode = INTERMEDIATE, aggs = sum of longs]
+                    \\_ExchangeSinkOperator"""));
+            });
+        } finally {
+            PauseFieldPlugin.allowEmitting.countDown();
+        }
+        requestFuture.actionGet(30, TimeUnit.SECONDS).close();
     }
 }

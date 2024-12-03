@@ -994,7 +994,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms.Bucket buildEmptyTemporaryBucket() {
-            return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
+            return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, null, format, 0);
         }
 
         private long subsetSize(long owningBucketOrd) {
@@ -1009,15 +1009,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 spare.bucketOrd = bucketOrd;
                 oversizedCopy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
                 spare.subsetDf = docCount;
-                spare.subsetSize = subsetSize;
                 spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
-                spare.supersetSize = supersetSize;
                 /*
                  * During shard-local down-selection we use subset/superset stats
                  * that are for this shard only. Back at the central reducer these
                  * properties will be updated with global stats.
                  */
-                spare.updateScore(significanceHeuristic);
+                spare.updateScore(significanceHeuristic, subsetSize, supersetSize);
             };
         }
 

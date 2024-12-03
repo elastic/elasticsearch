@@ -1,0 +1,5 @@
+pr: 113120
+summary: ESQL - enabling scoring with METADATA `_score`
+area: ES|QL
+type: enhancement
+issues: []

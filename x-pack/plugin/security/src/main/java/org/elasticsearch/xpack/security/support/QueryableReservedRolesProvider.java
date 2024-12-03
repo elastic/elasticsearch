@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -34,9 +35,10 @@ public final class QueryableReservedRolesProvider implements QueryableBuiltInRol
      */
     public QueryableReservedRolesProvider(ReservedRolesStore reservedRolesStore) {
         this.reservedRolesSupplier = CachedSupplier.wrap(() -> {
-            final Collection<RoleDescriptor> roleDescriptors = ReservedRolesStore.roleDescriptors();
+            final Collection<RoleDescriptor> roleDescriptors = Collections.unmodifiableCollection(ReservedRolesStore.roleDescriptors());
             return new QueryableBuiltInRoles(
-                roleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, QueryableBuiltInRolesUtils::calculateHash)),
+                roleDescriptors.stream()
+                    .collect(Collectors.toUnmodifiableMap(RoleDescriptor::getName, QueryableBuiltInRolesUtils::calculateHash)),
                 roleDescriptors
             );
         });

@@ -112,6 +112,7 @@ final class ComputeListener implements Releasable {
             if (runningOnRemoteCluster()) {
                 // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized and
                 // received by the acquireCompute method callback on the coordinating cluster
+                setFinalStatusAndShardCounts(clusterAlias, executionInfo);
                 EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
                 result = new ComputeResponse(
                     collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
@@ -126,17 +127,31 @@ final class ComputeListener implements Releasable {
                 if (coordinatingClusterIsSearchedInCCS()) {
                     // if not already marked as SKIPPED, mark the local cluster as finished once the coordinator and all
                     // data nodes have finished processing
-                    executionInfo.swapCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, (k, v) -> {
-                        if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
-                        } else {
-                            return v;
-                        }
-                    });
+                    setFinalStatusAndShardCounts(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, executionInfo);
                 }
             }
             delegate.onResponse(result);
         }, e -> delegate.onFailure(failureCollector.getFailure())));
+    }
+
+    private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            // TODO: once PARTIAL status is supported (partial results work to come), modify this code as needed
+            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
+                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    /*
+                     * Total and skipped shard counts are set early in execution (after can-match).
+                     * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
+                     * as successful and none are failed.
+                     */
+                    .setSuccessfulShards(v.getTotalShards())
+                    .setFailedShards(0)
+                    .build();
+            } else {
+                return v;
+            }
+        });
     }
 
     /**

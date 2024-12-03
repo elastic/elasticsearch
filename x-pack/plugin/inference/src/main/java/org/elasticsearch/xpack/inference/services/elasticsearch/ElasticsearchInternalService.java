@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceResults;
@@ -688,11 +687,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+        chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
     }
 
     @Override
@@ -702,7 +700,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {

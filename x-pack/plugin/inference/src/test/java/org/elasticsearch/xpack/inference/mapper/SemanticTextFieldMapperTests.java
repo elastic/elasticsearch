@@ -163,11 +163,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        // This test suite uses the new sparse vector field type
         return randomFrom(
             IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersions.NEW_SPARSE_VECTOR,
+                IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
             ),
             IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())

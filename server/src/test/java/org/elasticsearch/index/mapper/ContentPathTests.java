@@ -26,9 +26,12 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("foo");
         String[] path = contentPath.getPath();
         assertEquals("foo", path[0]);
+
         contentPath.remove();
+        path = contentPath.getPath();
         assertNull(path[0]);
         assertEquals(0, contentPath.length());
+
         String pathAsText = contentPath.pathAsText("bar");
         assertEquals("bar", pathAsText);
     }
@@ -100,5 +103,23 @@ public class ContentPathTests extends ESTestCase {
         contentPath.remove();
         contentPath.add("baz");
         assertEquals("foo.baz.qux", contentPath.pathAsText("qux"));
+    }
+
+    public void testSetPath() {
+        ContentPath contentPath = new ContentPath();
+        contentPath.add("foo");
+        contentPath.add("bar");
+        assertEquals("foo.bar.baz", contentPath.pathAsText("baz"));
+        assertEquals(2, contentPath.length());
+
+        String[] newPath = {"x", "y", "z", null, "a"};
+        contentPath.setPath(newPath);
+        assertEquals("x.y.z.baz", contentPath.pathAsText("baz"));
+        assertEquals(3, contentPath.length());
+
+        String[] emptyPath = {};
+        contentPath.setPath(emptyPath);
+        assertEquals("baz", contentPath.pathAsText("baz"));
+        assertEquals(0, contentPath.length());
     }
 }

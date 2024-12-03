@@ -25,17 +25,17 @@ import static java.util.Collections.emptyList;
  * select the best one.
  */
 public abstract class SpatialAggregateFunction extends AggregateFunction {
-    protected final FieldExtractPreference preference;
+    protected final FieldExtractPreference fieldExtractPreference;
 
-    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, FieldExtractPreference values) {
+    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, FieldExtractPreference fieldExtractPreference) {
         super(source, field, filter, emptyList());
-        this.preference = values;
+        this.fieldExtractPreference = fieldExtractPreference;
     }
 
-    protected SpatialAggregateFunction(StreamInput in, FieldExtractPreference preference) throws IOException {
+    protected SpatialAggregateFunction(StreamInput in, FieldExtractPreference fieldExtractPreference) throws IOException {
         super(in);
-        // The useDocValues field is only used on data nodes local planning, and therefor never serialized
-        this.preference = preference;
+        // The fieldExtractPreference field is only used on data nodes local planning, and therefore never serialized
+        this.fieldExtractPreference = fieldExtractPreference;
     }
 
     public abstract SpatialAggregateFunction withDocValues();
@@ -52,7 +52,7 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
         // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), preference);
+        return Objects.hash(getClass(), children(), fieldExtractPreference);
     }
 
     @Override
@@ -61,12 +61,12 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
             SpatialAggregateFunction other = (SpatialAggregateFunction) obj;
             return Objects.equals(other.field(), field())
                 && Objects.equals(other.parameters(), parameters())
-                && Objects.equals(other.preference, preference);
+                && Objects.equals(other.fieldExtractPreference, fieldExtractPreference);
         }
         return false;
     }
 
     public FieldExtractPreference fieldExtractPreference() {
-        return preference;
+        return fieldExtractPreference;
     }
 }

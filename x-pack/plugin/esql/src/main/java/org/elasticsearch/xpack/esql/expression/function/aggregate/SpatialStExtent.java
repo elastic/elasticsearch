@@ -69,7 +69,7 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @Override
     public SpatialStExtent withFilter(Expression filter) {
-        return new SpatialStExtent(source(), field(), filter, preference);
+        return new SpatialStExtent(source(), field(), filter, fieldExtractPreference);
     }
 
     @Override
@@ -100,11 +100,11 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         return switch (field().dataType()) {
-            case DataType.GEO_POINT -> switch (preference) {
+            case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
-            case DataType.CARTESIAN_POINT -> switch (preference) {
+            case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };

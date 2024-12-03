@@ -67,7 +67,7 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @Override
     public SpatialCentroid withFilter(Expression filter) {
-        return new SpatialCentroid(source(), field(), filter, preference);
+        return new SpatialCentroid(source(), field(), filter, fieldExtractPreference);
     }
 
     @Override
@@ -101,11 +101,11 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
         return switch (type) {
-            case DataType.GEO_POINT -> switch (preference) {
+            case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
-            case DataType.CARTESIAN_POINT -> switch (preference) {
+            case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };

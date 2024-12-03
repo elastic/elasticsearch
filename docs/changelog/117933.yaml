@@ -2,4 +2,4 @@ pr: 117933
 summary: Change `deprecation.elasticsearch` keyword to `elasticsearch.deprecation`
 area: Infra/Logging
 type: bug
-issues: []
+issues: [83251]

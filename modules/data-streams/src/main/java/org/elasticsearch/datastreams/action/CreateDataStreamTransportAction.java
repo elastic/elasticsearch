@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -31,6 +32,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
 
     private final MetadataCreateDataStreamService metadataCreateDataStreamService;
     private final SystemIndices systemIndices;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public CreateDataStreamTransportAction(
@@ -38,6 +40,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataCreateDataStreamService metadataCreateDataStreamService,
         SystemIndices systemIndices
@@ -52,6 +55,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
         this.metadataCreateDataStreamService = metadataCreateDataStreamService;
         this.systemIndices = systemIndices;
     }
@@ -69,6 +73,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         );
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
                 request.getName(),
                 request.getStartTime(),
                 systemDataStreamDescriptor,

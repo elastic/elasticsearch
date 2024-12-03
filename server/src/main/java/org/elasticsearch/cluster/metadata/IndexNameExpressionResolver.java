@@ -246,7 +246,6 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, request.indices());
     }
 
-    @Deprecated
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         return dataStreamNames(projectResolver.getProjectMetadata(state), options, indexExpressions);
     }

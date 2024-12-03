@@ -44,6 +44,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.FAILURE_STORE_ENABLED)
+        .nodes(2)
         .build();
 
     public CoreWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

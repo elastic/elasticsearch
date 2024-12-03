@@ -344,6 +344,7 @@ public class MetadataRolloverService {
             newState = MetadataCreateDataStreamService.createFailureStoreIndex(
                 createIndexService,
                 "rollover_failure_store",
+                Metadata.DEFAULT_PROJECT_ID,
                 clusterService.getSettings(),
                 currentState,
                 now.toEpochMilli(),

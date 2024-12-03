@@ -192,9 +192,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         @Override
         public SecureString get(Settings settings) {
             if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
-                throw new IllegalArgumentException(
-                    "Setting [" + name + "] is insecure, " + "but property [allow_insecure_settings] is not set"
-                );
+                throw new IllegalArgumentException("Setting [" + name + "] is insecure, use the elasticsearch keystore instead");
             }
             return super.get(settings);
         }

@@ -67,6 +67,9 @@ The following SharePoint Server versions are compatible:
 
 The following configuration fields are required to set up the connector:
 
+`authentication`::
+Authentication mode, either *Basic* or *NTLM*.
+
 `username`::
 The username of the account for the SharePoint Server instance.
 
@@ -133,7 +136,7 @@ The connector syncs the following SharePoint object types:
 [NOTE]
 ====
 * Content from files bigger than 10 MB won't be extracted by default. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
-* Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.
+* Permissions are not synced by default. Enable <<es-dls, document-level security (DLS)>> to sync permissions.
 ====
 
 [discrete#es-connectors-sharepoint-sync-types]
@@ -191,7 +194,7 @@ This connector is written in Python using the {connectors-python}[Elastic connec
 
 View the {connectors-python}/connectors/sources/sharepoint_server.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============
 
 
@@ -253,6 +256,9 @@ Once connected, you'll be able to update these values in Kibana.
 ====
 
 The following configuration fields are required to set up the connector:
+
+`authentication`::
+Authentication mode, either *Basic* or *NTLM*.
 
 `username`::
 The username of the account for the SharePoint Server instance.
@@ -408,5 +414,5 @@ This connector is written in Python using the {connectors-python}[Elastic connec
 
 View the {connectors-python}/connectors/sources/sharepoint_server.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============

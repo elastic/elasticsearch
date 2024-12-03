@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -15,9 +18,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -37,9 +43,16 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         super.tearDown();
     }
 
+    public void testGet() throws IOException {
+        var elserModel = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
+        assertDefaultElserConfig(elserModel);
+
+        var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
+        assertDefaultE5Config(e5Model);
+    }
+
     @SuppressWarnings("unchecked")
     public void testInferDeploysDefaultElser() throws IOException {
-        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         var model = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
         assertDefaultElserConfig(model);
 
@@ -66,11 +79,11 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             adaptiveAllocations,
             Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
         );
+        assertDefaultChunkingSettings(modelConfig);
     }
 
     @SuppressWarnings("unchecked")
     public void testInferDeploysDefaultE5() throws IOException {
-        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         var model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
         assertDefaultE5Config(model);
 
@@ -101,5 +114,49 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             adaptiveAllocations,
             Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
         );
+        assertDefaultChunkingSettings(modelConfig);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDefaultChunkingSettings(Map<String, Object> modelConfig) {
+        var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
+        assertThat(
+            modelConfig.toString(),
+            chunkingSettings,
+            Matchers.is(Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1))
+        );
+    }
+
+    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException {
+        int numParallelRequests = 4;
+        var latch = new CountDownLatch(numParallelRequests);
+        var errors = new ArrayList<Exception>();
+
+        var listener = new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                errors.add(exception);
+                latch.countDown();
+            }
+        };
+
+        var inputs = List.of("Hello World", "Goodnight moon");
+        var queryParams = Map.of("timeout", "120s");
+        for (int i = 0; i < numParallelRequests; i++) {
+            var request = createInferenceRequest(
+                Strings.format("_inference/%s", ElasticsearchInternalService.DEFAULT_ELSER_ID),
+                inputs,
+                queryParams
+            );
+            client().performRequestAsync(request, listener);
+        }
+
+        latch.await();
+        assertThat(errors.toString(), errors, empty());
     }
 }

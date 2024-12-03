@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -105,7 +106,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
         NodeInfo nodeInfo = new NodeInfo(
             Build.current().version(),
-            TransportVersion.current(),
+            new CompatibilityVersions(TransportVersion.current(), Map.of()),
             IndexVersion.current(),
             Map.of(),
             Build.current(),

@@ -248,4 +248,11 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("tsdb/20_mapping/stored source is supported", "no longer serialize source_mode")
+  task.skipTest("tsdb/20_mapping/Synthetic source", "no longer serialize source_mode")
+  task.skipTest("logsdb/10_settings/create logs index", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
+  task.skipTest("search/520_fetch_fields/fetch _seq_no via fields", "error code is changed from 5xx to 400 in 9.0")
 })

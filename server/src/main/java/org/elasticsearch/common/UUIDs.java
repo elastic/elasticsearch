@@ -16,6 +16,8 @@ import java.util.Random;
 public class UUIDs {
 
     private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
+
+    private static final UUIDGenerator TIME_BASED_K_ORDERED_GENERATOR = new TimeBasedKOrderedUUIDGenerator();
     private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
 
     /**
@@ -30,6 +32,14 @@ public class UUIDs {
      * The resulting string has length {@link #TIME_BASED_UUID_STRING_LENGTH}.
      */
     public static String base64UUID() {
+        return TIME_UUID_GENERATOR.getBase64UUID();
+    }
+
+    public static String base64TimeBasedKOrderedUUID() {
+        return TIME_BASED_K_ORDERED_GENERATOR.getBase64UUID();
+    }
+
+    public static String base64TimeBasedUUID() {
         return TIME_UUID_GENERATOR.getBase64UUID();
     }
 

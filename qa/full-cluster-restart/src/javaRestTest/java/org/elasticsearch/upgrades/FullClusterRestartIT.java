@@ -82,6 +82,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -91,6 +92,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -1285,12 +1287,16 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
         // the format can change depending on the ES node version running & this test code running
+        // and if there's an in-progress release that hasn't been published yet,
+        // which could affect the top range of the index release version
+        String firstReleaseVersion = tookOnIndexVersion.toReleaseVersion().split("-")[0];
         assertThat(
-            XContentMapValues.extractValue("snapshots.version", snapResponse),
+            (Iterable<String>) XContentMapValues.extractValue("snapshots.version", snapResponse),
             anyOf(
-                equalTo(List.of(tookOnVersion)),
-                equalTo(List.of(tookOnIndexVersion.toString())),
-                equalTo(List.of(tookOnIndexVersion.toReleaseVersion()))
+                contains(tookOnVersion),
+                contains(tookOnIndexVersion.toString()),
+                contains(firstReleaseVersion),
+                contains(startsWith(firstReleaseVersion + "-"))
             )
         );
 

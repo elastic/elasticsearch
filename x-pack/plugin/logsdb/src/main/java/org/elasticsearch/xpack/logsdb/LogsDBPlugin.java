@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -46,7 +49,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
+        licenseService.setLicenseService(getLicenseService());
+        licenseService.setLicenseState(getLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(FALLBACK_SETTING, licenseService::setSyntheticSourceFallback);
         clusterSettings.addSettingsUpdateConsumer(
@@ -62,10 +66,16 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of(logsdbIndexModeSettingsProvider);
         }
-        return List.of(
-            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory(), logsdbIndexModeSettingsProvider),
-            logsdbIndexModeSettingsProvider
+        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
+            licenseService,
+            parameters.mapperServiceFactory(),
+            logsdbIndexModeSettingsProvider,
+            () -> IndexVersion.min(
+                IndexVersion.current(),
+                parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
+            )
         );
+        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
     }
 
     @Override
@@ -79,5 +89,13 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
         actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected LicenseService getLicenseService() {
+        return XPackPlugin.getSharedLicenseService();
     }
 }

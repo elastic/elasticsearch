@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
@@ -44,6 +43,7 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
@@ -57,6 +57,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Base plugin used for wiring up build tasks to REST testing tasks using new JUnit rule-based test clusters framework.
@@ -91,6 +93,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+        var bwcVersions = loadBuildParams(project).get().getBwcVersions();
 
         // Register integ-test and default distributions
         ElasticsearchDistribution defaultDistro = createDistribution(
@@ -219,7 +222,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = BuildParams.getBwcVersions().unreleasedInfo(version) == null;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 
@@ -231,9 +234,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.getMajor() > 0 && version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
+                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
-                        this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
+                        this.call(bwcVersions.getMinimumWireCompatibleVersion());
                     }
                     return null;
                 }
@@ -245,7 +248,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         configuration.getDependencies()
             .stream()
             .filter(d -> d instanceof ProjectDependency)
-            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependency) d).getDependencyProject().getPath())))
+            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependencyInternal) d).getPath())))
             .forEach(dependencies::add);
     }
 
@@ -322,8 +325,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     Collection<Dependency> additionalDependencies = new LinkedHashSet<>();
                     for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                         Dependency dependency = iterator.next();
+                        // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = projectDependency.getDependencyProject();
+                            Project dependencyProject = project.project(projectDependency.getPath());
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();
@@ -333,8 +337,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
                                 iterator.remove();
                                 additionalDependencies.add(
                                     useExploded
-                                        ? getExplodedBundleDependency(project, dependencyProject.getPath())
-                                        : getBundleZipTaskDependency(project, dependencyProject.getPath())
+                                        ? getExplodedBundleDependency(project, projectDependency.getPath())
+                                        : getBundleZipTaskDependency(project, projectDependency.getPath())
                                 );
                             }
 

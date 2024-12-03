@@ -1797,6 +1797,15 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, List.of(), Function.identity(), validator, properties);
     }
 
+    public static Setting<List<String>> stringListSetting(
+        final String key,
+        final List<String> defaultStringValue,
+        final Validator<List<String>> validator,
+        final Property... properties
+    ) {
+        return listSetting(key, null, Function.identity(), s -> defaultStringValue, validator, properties);
+    }
+
     public static <T> Setting<List<T>> listSetting(
         final String key,
         final List<String> defaultStringValue,

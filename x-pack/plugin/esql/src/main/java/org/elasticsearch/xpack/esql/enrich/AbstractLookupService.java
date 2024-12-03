@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -40,7 +41,12 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
+import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -73,6 +79,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -161,6 +168,10 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         );
     }
 
+    public ThreadContext getThreadContext() {
+        return transportService.getThreadPool().getThreadContext();
+    }
+
     /**
      * Convert a request as sent to {@link #lookupAsync} into a transport request after
      * preflight checks have been performed.
@@ -171,6 +182,22 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
      * Build a list of queries to perform inside the actual lookup.
      */
     protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+
+    protected static QueryList termQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        Block block,
+        DataType inputDataType
+    ) {
+        if (inputDataType == null) {
+            return QueryList.rawTermQueryList(field, searchExecutionContext, block);
+        }
+        return switch (inputDataType) {
+            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);
+            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, (LongBlock) block);
+            default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
+        };
+    }
 
     /**
      * Perform the actual lookup.
@@ -309,11 +336,18 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             releasables.add(mergePositionsOperator);
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             QueryList queryList = queryList(request, searchExecutionContext, inputBlock, request.inputDataType);
+            var warnings = Warnings.createWarnings(
+                DriverContext.WarningsMode.COLLECT,
+                request.source.source().getLineNumber(),
+                request.source.source().getColumnNumber(),
+                request.source.text()
+            );
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                searchExecutionContext.getIndexReader()
+                searchExecutionContext.getIndexReader(),
+                warnings
             );
             releasables.add(queryOperator);
             var extractFieldsOperator = extractFieldsOperator(searchContext, driverContext, request.extractFields);
@@ -429,22 +463,36 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
+        final Source source;
 
-        Request(String sessionId, String index, DataType inputDataType, Page inputPage, List<NamedExpression> extractFields) {
+        Request(
+            String sessionId,
+            String index,
+            DataType inputDataType,
+            Page inputPage,
+            List<NamedExpression> extractFields,
+            Source source
+        ) {
             this.sessionId = sessionId;
             this.index = index;
             this.inputDataType = inputDataType;
             this.inputPage = inputPage;
             this.extractFields = extractFields;
+            this.source = source;
         }
     }
 
     abstract static class TransportRequest extends org.elasticsearch.transport.TransportRequest implements IndicesRequest {
         final String sessionId;
         final ShardId shardId;
+        /**
+         * For mixed clusters with nodes &lt;8.14, this will be null.
+         */
+        @Nullable
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
+        final Source source;
         // TODO: Remove this workaround once we have Block RefCount
         final Page toRelease;
         final RefCounted refs = AbstractRefCounted.of(this::releasePage);
@@ -455,7 +503,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             DataType inputDataType,
             Page inputPage,
             Page toRelease,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
@@ -463,6 +512,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             this.inputPage = inputPage;
             this.toRelease = toRelease;
             this.extractFields = extractFields;
+            this.source = source;
         }
 
         @Override

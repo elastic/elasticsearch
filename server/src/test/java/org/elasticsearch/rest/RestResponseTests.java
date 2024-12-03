@@ -93,6 +93,7 @@ public class RestResponseTests extends ESTestCase {
         assertThat(response.getHeaders().get("n1"), contains("v11", "v12"));
         assertThat(response.getHeaders().get("n2"), notNullValue());
         assertThat(response.getHeaders().get("n2"), contains("v21", "v22"));
+        assertChannelWarnings(channel);
     }
 
     public void testEmptyChunkedBody() {
@@ -117,6 +118,7 @@ public class RestResponseTests extends ESTestCase {
         assertThat(text, not(containsString("FileNotFoundException")));
         assertThat(text, not(containsString("/foo/bar")));
         assertThat(text, not(containsString("error_trace")));
+        assertChannelWarnings(channel);
     }
 
     public void testDetailedExceptionMessage() throws Exception {
@@ -143,6 +145,7 @@ public class RestResponseTests extends ESTestCase {
         assertThat(text, not(containsString("FileNotFoundException[/foo/bar]")));
         assertThat(text, not(containsString("error_trace")));
         assertThat(text, containsString("\"error\":\"No ElasticsearchException found\""));
+        assertChannelWarnings(channel);
     }
 
     public void testErrorTrace() throws Exception {
@@ -174,6 +177,7 @@ public class RestResponseTests extends ESTestCase {
                     RestResponse response = new RestResponse(channel, authnException);
                     assertThat(response.status(), is(RestStatus.UNAUTHORIZED));
                     assertThat(response.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
+                    assertChannelWarnings(channel);
                 }
             }
         }
@@ -198,6 +202,7 @@ public class RestResponseTests extends ESTestCase {
                     } else {
                         assertThat(response.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
                     }
+                    assertChannelWarnings(channel);
                 }
             }
         }
@@ -229,6 +234,7 @@ public class RestResponseTests extends ESTestCase {
         String text = response.content().utf8ToString();
         assertThat(text, containsString("\"error\":\"unknown\""));
         assertThat(text, not(containsString("error_trace")));
+        assertChannelWarnings(channel);
     }
 
     public void testConvert() throws IOException {
@@ -429,6 +435,7 @@ public class RestResponseTests extends ESTestCase {
 
         assertEquals(expected.status(), parsedError.status());
         assertDeepEquals(expected, parsedError);
+        assertChannelWarnings(channel);
     }
 
     public void testNoErrorFromXContent() throws IOException {
@@ -495,6 +502,7 @@ public class RestResponseTests extends ESTestCase {
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         RestResponse response = new RestResponse(channel, t);
         assertThat(response.contentType(), equalTo(mediaType));
+        assertChannelWarnings(channel);
     }
 
     public void testSupressedLogging() throws IOException {
@@ -526,6 +534,7 @@ public class RestResponseTests extends ESTestCase {
             "401",
             "unauthorized"
         );
+        assertChannelWarnings(channel);
     }
 
     private void assertLogging(
@@ -548,6 +557,15 @@ public class RestResponseTests extends ESTestCase {
             assertThat(logEvent.getLoggerName(), is("rest.suppressed"));
         } else {
             assertNull(logEvent);
+        }
+    }
+
+    private void assertChannelWarnings(RestChannel channel) {
+        if (channel.detailedErrorsEnabled() == false) {
+            assertWarnings(
+                "The JSON format of non-detailed errors will change in Elasticsearch 9.0"
+                    + " to match the JSON structure used for detailed errors. To keep using the existing format, use the V8 REST API."
+            );
         }
     }
 

@@ -31,6 +31,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.entitlement;
 
     requires hppc;
     requires HdrHistogram;
@@ -433,7 +434,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures;
+            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -452,8 +454,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with
@@ -469,5 +471,6 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.monitor.metrics;
 
 }

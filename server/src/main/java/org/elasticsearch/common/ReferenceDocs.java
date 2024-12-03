@@ -82,6 +82,7 @@ public enum ReferenceDocs {
     FORMING_SINGLE_NODE_CLUSTERS,
     JDK_LOCALE_DIFFERENCES,
     ALLOCATION_EXPLAIN_MAX_RETRY,
+    SECURE_SETTINGS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

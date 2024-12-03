@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -39,11 +40,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -136,7 +135,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -163,48 +162,52 @@ public final class NumericTermsAggregator extends TermsAggregator {
     abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         implements
             Releasable {
-        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCounts = new long[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx], excludeDeletedDocs);
-                long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+            try (
+                LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
+                ObjectArray<B[]> topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.size())
+            ) {
+                for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
+                    final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                    collectZeroDocEntriesIfNeeded(owningBucketOrd, excludeDeletedDocs);
+                    long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
 
-                int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-                try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
-                    B spare = null;
-                    BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                    Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts[ordIdx] += docCount;
-                        if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                            continue;
+                    int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+                    try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
+                        B spare = null;
+                        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+                        BucketUpdater<B> bucketUpdater = bucketUpdater(owningBucketOrd);
+                        while (ordsEnum.next()) {
+                            long docCount = bucketDocCount(ordsEnum.ord());
+                            otherDocCounts.increment(ordIdx, docCount);
+                            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                                continue;
+                            }
+                            if (spare == null) {
+                                checkRealMemoryCBForInternalBucket();
+                                spare = buildEmptyBucket();
+                            }
+                            bucketUpdater.updateBucket(spare, ordsEnum, docCount);
+                            spare = ordered.insertWithOverflow(spare);
                         }
-                        if (spare == null) {
-                            spare = emptyBucketBuilder.get();
-                        }
-                        updateBucket(spare, ordsEnum, docCount);
-                        spare = ordered.insertWithOverflow(spare);
-                    }
 
-                    // Get the top buckets
-                    B[] bucketsForOrd = buildBuckets((int) ordered.size());
-                    topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                    for (int b = (int) ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        // Get the top buckets
+                        B[] bucketsForOrd = buildBuckets((int) ordered.size());
+                        topBucketsPerOrd.set(ordIdx, bucketsForOrd);
+                        for (int b = (int) ordered.size() - 1; b >= 0; --b) {
+                            topBucketsPerOrd.get(ordIdx)[b] = ordered.pop();
+                            otherDocCounts.increment(ordIdx, -topBucketsPerOrd.get(ordIdx)[b].getDocCount());
+                        }
                     }
                 }
-            }
 
-            buildSubAggs(topBucketsPerOrd);
+                buildSubAggs(topBucketsPerOrd);
 
-            InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
+                return NumericTermsAggregator.this.buildAggregations(
+                    Math.toIntExact(owningBucketOrds.size()),
+                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
+                );
             }
-            return result;
         }
 
         /**
@@ -227,7 +230,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         /**
          * Build an array to hold the "top" buckets for each ordinal.
          */
-        abstract B[][] buildTopBucketsPerOrd(int size);
+        abstract ObjectArray<B[]> buildTopBucketsPerOrd(long size);
 
         /**
          * Build an array of buckets for a particular ordinal. These arrays
@@ -236,17 +239,16 @@ public final class NumericTermsAggregator extends TermsAggregator {
         abstract B[] buildBuckets(int size);
 
         /**
-         * Build a {@linkplain Supplier} that can be used to build "empty"
-         * buckets. Those buckets will then be {@link #updateBucket updated}
+         * Build an empty bucket. Those buckets will then be {@link #bucketUpdater(long)}  updated}
          * for each collected bucket.
          */
-        abstract Supplier<B> emptyBucketBuilder(long owningBucketOrd);
+        abstract B buildEmptyBucket();
 
         /**
          * Update fields in {@code spare} to reflect information collected for
          * this bucket ordinal.
          */
-        abstract void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
+        abstract BucketUpdater<B> bucketUpdater(long owningBucketOrd);
 
         /**
          * Build a {@link ObjectArrayPriorityQueue} to sort the buckets. After we've
@@ -258,7 +260,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
          * Build the sub-aggregations into the buckets. This will usually
          * delegate to {@link #buildSubAggsForAllBuckets}.
          */
-        abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
+        abstract void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd) throws IOException;
 
         /**
          * Collect extra entries for "zero" hit documents if they were requested
@@ -276,6 +278,10 @@ public final class NumericTermsAggregator extends TermsAggregator {
          * shard.
          */
         abstract R buildEmptyResult();
+    }
+
+    interface BucketUpdater<B extends InternalMultiBucketAggregation.InternalBucket> {
+        void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
     }
 
     abstract class StandardTermsResultStrategy<R extends InternalMappedTerms<R, B>, B extends InternalTerms.Bucket<B>> extends
@@ -297,16 +303,9 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        final void buildSubAggs(B[][] topBucketsPerOrd) throws IOException {
+        final void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
-
-        @Override
-        Supplier<B> emptyBucketBuilder(long owningBucketOrd) {
-            return this::buildEmptyBucket;
-        }
-
-        abstract B buildEmptyBucket();
 
         @Override
         final void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException {
@@ -356,8 +355,8 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        LongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new LongTerms.Bucket[size][];
+        ObjectArray<LongTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -371,10 +370,12 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void updateBucket(LongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
-            spare.term = ordsEnum.value();
-            spare.docCount = docCount;
-            spare.bucketOrd = ordsEnum.ord();
+        BucketUpdater<LongTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            return (LongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) -> {
+                spare.term = ordsEnum.value();
+                spare.docCount = docCount;
+                spare.bucketOrd = ordsEnum.ord();
+            };
         }
 
         @Override
@@ -397,7 +398,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
-                List.of(topBuckets),
+                Arrays.asList(topBuckets),
                 null
             );
         }
@@ -438,8 +439,8 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        DoubleTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new DoubleTerms.Bucket[size][];
+        ObjectArray<DoubleTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -453,10 +454,12 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void updateBucket(DoubleTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
-            spare.term = NumericUtils.sortableLongToDouble(ordsEnum.value());
-            spare.docCount = docCount;
-            spare.bucketOrd = ordsEnum.ord();
+        BucketUpdater<DoubleTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            return (DoubleTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) -> {
+                spare.term = NumericUtils.sortableLongToDouble(ordsEnum.value());
+                spare.docCount = docCount;
+                spare.bucketOrd = ordsEnum.ord();
+            };
         }
 
         @Override
@@ -479,7 +482,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
-                List.of(topBuckets),
+                Arrays.asList(topBuckets),
                 null
             );
         }
@@ -551,8 +554,8 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        SignificantLongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new SignificantLongTerms.Bucket[size][];
+        ObjectArray<SignificantLongTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -561,20 +564,22 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        Supplier<SignificantLongTerms.Bucket> emptyBucketBuilder(long owningBucketOrd) {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
-            return () -> new SignificantLongTerms.Bucket(0, subsetSize, 0, supersetSize, 0, null, format, 0);
+        SignificantLongTerms.Bucket buildEmptyBucket() {
+            return new SignificantLongTerms.Bucket(0, 0, 0, null, format, 0);
         }
 
         @Override
-        void updateBucket(SignificantLongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException {
-            spare.term = ordsEnum.value();
-            spare.subsetDf = docCount;
-            spare.supersetDf = backgroundFrequencies.freq(spare.term);
-            spare.bucketOrd = ordsEnum.ord();
-            // During shard-local down-selection we use subset/superset stats that are for this shard only
-            // Back at the central reducer these properties will be updated with global stats
-            spare.updateScore(significanceHeuristic);
+        BucketUpdater<SignificantLongTerms.Bucket> bucketUpdater(long owningBucketOrd) {
+            long subsetSize = subsetSizes.get(owningBucketOrd);
+            return (spare, ordsEnum, docCount) -> {
+                spare.term = ordsEnum.value();
+                spare.subsetDf = docCount;
+                spare.supersetDf = backgroundFrequencies.freq(spare.term);
+                spare.bucketOrd = ordsEnum.ord();
+                // During shard-local down-selection we use subset/superset stats that are for this shard only
+                // Back at the central reducer these properties will be updated with global stats
+                spare.updateScore(significanceHeuristic, subsetSize, supersetSize);
+            };
         }
 
         @Override
@@ -583,7 +588,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+        void buildSubAggs(ObjectArray<SignificantLongTerms.Bucket[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 
@@ -601,7 +606,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 subsetSizes.get(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
-                List.of(topBuckets)
+                Arrays.asList(topBuckets)
             );
         }
 

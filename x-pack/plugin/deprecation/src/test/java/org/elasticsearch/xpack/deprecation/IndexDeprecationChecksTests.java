@@ -7,8 +7,15 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -19,31 +26,78 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
-        IndexVersion createdWith = IndexVersion.fromId(1000099);
+        IndexVersion createdWith = IndexVersion.fromId(7170099);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old index with a compatibility version < 7.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
+            "Old index with a compatibility version < 8.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
             "This index has version: " + createdWith.toReleaseVersion(),
             false,
             null
         );
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testOldIndicesCheckDataStreamIndex() {
+        IndexVersion createdWith = IndexVersion.fromId(7170099);
+        IndexMetadata indexMetadata = IndexMetadata.builder(".ds-test")
+            .settings(settings(createdWith).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            List.of(indexMetadata.getIndex()),
+            randomNonNegativeLong(),
+            Map.of(),
+            randomBoolean(),
+            false,
+            false,
+            randomBoolean(),
+            randomFrom(IndexMode.values()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+                    .customs(
+                        Map.of(
+                            DataStreamMetadata.TYPE,
+                            new DataStreamMetadata(
+                                ImmutableOpenMap.builder(Map.of("my-data-stream", dataStream)).build(),
+                                ImmutableOpenMap.of()
+                            )
+                        )
+                    )
+            )
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+        assertThat(issues.size(), equalTo(0));
     }
 
     public void testTranslogRetentionSettings() {
@@ -51,7 +105,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(indexMetadata, ClusterState.EMPTY_STATE)
+        );
         assertThat(
             issues,
             contains(
@@ -81,7 +138,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
         }
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(indexMetadata, ClusterState.EMPTY_STATE)
+        );
         assertThat(issues, empty());
     }
 
@@ -89,7 +149,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), createTempDir());
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(indexMetadata, ClusterState.EMPTY_STATE)
+        );
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
         assertThat(
@@ -111,7 +174,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(indexMetadata, ClusterState.EMPTY_STATE)
+        );
         assertThat(
             issues,
             contains(
@@ -133,7 +199,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(indexMetadata, ClusterState.EMPTY_STATE)
+        );
         assertThat(
             issues,
             contains(
@@ -165,6 +234,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfReplicas(1)
             .putMapping(simpleMapping)
             .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(simpleIndex, true))
+            .build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -175,7 +247,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             false,
             null
         );
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, clusterState));
         assertThat(issues, hasItem(expected));
     }
 }

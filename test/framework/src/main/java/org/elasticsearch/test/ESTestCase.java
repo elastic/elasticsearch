@@ -63,6 +63,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1353,6 +1354,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Generate a random string of at least 112 bits to satisfy minimum entropy requirement when running in FIPS mode.
+     */
+    public static String randomSecretKey() {
+        return randomAlphaOfLengthBetween(14, 20);
+    }
+
+    /**
      * Randomly choose between {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} (which does not fork), {@link ThreadPool#generic}, and one of the
      * other named threadpool executors.
      */
@@ -1830,7 +1838,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
-    protected static <T> T copyInstance(
+    protected static <T extends Writeable> T copyInstance(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Writer<T> writer,
@@ -1840,9 +1848,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(version);
             writer.write(output, original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setTransportVersion(version);
-                return reader.read(in);
+            if (randomBoolean()) {
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    in.setTransportVersion(version);
+                    return reader.read(in);
+                }
+            } else {
+                BytesReference bytesReference = output.copyBytes();
+                output.reset();
+                output.writeBytesReference(bytesReference);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    in.setTransportVersion(version);
+                    DelayableWriteable<T> delayableWriteable = DelayableWriteable.delayed(reader, in);
+                    return delayableWriteable.expand();
+                }
             }
         }
     }
@@ -2289,10 +2308,18 @@ public abstract class ESTestCase extends LuceneTestCase {
      * flag and asserting that the latch is indeed completed before the timeout.
      */
     public static void safeAwait(CountDownLatch countDownLatch) {
+        safeAwait(countDownLatch, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
+    public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
         try {
             assertTrue(
                 "safeAwait: CountDownLatch did not reach zero within the timeout",
-                countDownLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+                countDownLatch.await(timeout.millis(), TimeUnit.MILLISECONDS)
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -526,6 +526,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                             new ExpectedCluster(
                                 REMOTE_CLUSTER_1,
                                 "nomatch," + remote1Index + "*",
+                                // The nomatch index handling happens at runtime, hence we get PARTIAL instead of SUCCESSFUL
                                 EsqlExecutionInfo.Cluster.Status.PARTIAL,
                                 0
                             )
@@ -547,7 +548,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                             new ExpectedCluster(
                                 REMOTE_CLUSTER_1,
                                 "nomatch," + remote1Index + "*",
-                                // TODO: this probably should be PARTIAL instead
+                                // TODO: this probably should be PARTIAL instead, matching the above case
                                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                                 0
                             )

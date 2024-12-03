@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterNoShards;
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:
@@ -227,7 +227,7 @@ final class ComputeListener implements Releasable {
         // We use PARTIAL here because we can not know whether the cluster has already sent any data.
         if (status != EsqlExecutionInfo.Cluster.Status.PARTIAL) {
             LOGGER.debug("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
-            markClusterNoShards(esqlExecutionInfo, computeClusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+            markClusterWithFinalStateAndNoShards(esqlExecutionInfo, computeClusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
         }
     }
 

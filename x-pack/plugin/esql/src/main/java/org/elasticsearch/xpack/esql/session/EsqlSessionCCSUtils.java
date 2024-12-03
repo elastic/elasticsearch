@@ -165,7 +165,7 @@ public class EsqlSessionCCSUtils {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
-                markClusterNoShards(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
+                markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
             } else {
                 throw e;
             }
@@ -218,7 +218,7 @@ public class EsqlSessionCCSUtils {
                     status = Cluster.Status.SKIPPED;
                     failureException = new VerificationException("Unknown index [" + indexExpression + "]");
                 }
-                markClusterNoShards(executionInfo, c, status, failureException);
+                markClusterWithFinalStateAndNoShards(executionInfo, c, status, failureException);
             }
         }
         if (fatalErrorMessage != null) {
@@ -229,13 +229,15 @@ public class EsqlSessionCCSUtils {
     /**
      * Mark cluster with a default cluster state with the given status and potentially failure from exception.
      * Most metrics are set to 0 except for "took" which is set to the total time taken so far.
+     * The status must be the final state of the cluster, not RUNNING.
      */
-    public static void markClusterNoShards(
+    public static void markClusterWithFinalStateAndNoShards(
         EsqlExecutionInfo executionInfo,
         String clusterAlias,
         Cluster.Status status,
         @Nullable Exception ex
     ) {
+        assert status != Cluster.Status.RUNNING : "status must be a final state, not RUNNING";
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
                 .setTook(executionInfo.tookSoFar())

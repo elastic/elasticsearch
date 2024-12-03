@@ -166,7 +166,12 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             Exception ex = new NoSeedNodeLeftException("unable to connect");
             var unvailableClusters = Map.of(remote1Alias, ex, remote2Alias, ex);
             unvailableClusters.forEach(
-                (c, f) -> EsqlSessionCCSUtils.markClusterNoShards(executionInfo, c, EsqlExecutionInfo.Cluster.Status.PARTIAL, ex)
+                (c, f) -> EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards(
+                    executionInfo,
+                    c,
+                    EsqlExecutionInfo.Cluster.Status.PARTIAL,
+                    ex
+                )
             );
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));

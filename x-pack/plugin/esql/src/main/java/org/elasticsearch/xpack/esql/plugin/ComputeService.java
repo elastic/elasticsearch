@@ -60,12 +60,10 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -452,7 +450,7 @@ public class ComputeService {
                 context.exchangeSink(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(contexts)
+                new EsPhysicalOperationProviders(contexts, searchService.getIndicesService().getAnalysis())
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
@@ -780,35 +778,24 @@ public class ComputeService {
         }
     }
 
+    private static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {
+        PhysicalPlan reducePlan = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        if (enable) {
+            PhysicalPlan p = PlannerUtils.reductionPlan(plan);
+            if (p != null) {
+                reducePlan = p.replaceChildren(List.of(reducePlan));
+            }
+        }
+        return new ExchangeSinkExec(plan.source(), plan.output(), plan.isIntermediateAgg(), reducePlan);
+    }
+
     private class DataNodeRequestHandler implements TransportRequestHandler<DataNodeRequest> {
         @Override
         public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
-            final ExchangeSinkExec reducePlan;
+            final PhysicalPlan reductionPlan;
             if (request.plan() instanceof ExchangeSinkExec plan) {
-                var fragments = plan.collectFirstChildren(FragmentExec.class::isInstance);
-                if (fragments.isEmpty()) {
-                    listener.onFailure(new IllegalStateException("expected a fragment plan for a remote compute; got " + request.plan()));
-                    return;
-                }
-                var localExchangeSource = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-                Holder<PhysicalPlan> reducePlanHolder = new Holder<>();
-                if (request.pragmas().nodeLevelReduction()) {
-                    PhysicalPlan dataNodePlan = request.plan();
-                    request.plan()
-                        .forEachUp(
-                            FragmentExec.class,
-                            f -> { reducePlanHolder.set(PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan)); }
-                        );
-                }
-                reducePlan = new ExchangeSinkExec(
-                    plan.source(),
-                    plan.output(),
-                    plan.isIntermediateAgg(),
-                    reducePlanHolder.get() != null
-                        ? reducePlanHolder.get().replaceChildren(List.of(localExchangeSource))
-                        : localExchangeSource
-                );
+                reductionPlan = reductionPlan(plan, request.pragmas().nodeLevelReduction());
             } else {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
                 return;
@@ -825,7 +812,7 @@ public class ComputeService {
                 request.indicesOptions()
             );
             try (var computeListener = ComputeListener.create(transportService, (CancellableTask) task, listener)) {
-                runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
+                runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, computeListener);
             }
         }
     }
@@ -871,10 +858,10 @@ public class ComputeService {
      * Performs a compute on a remote cluster. The output pages are placed in an exchange sink specified by
      * {@code globalSessionId}. The coordinator on the main cluster will poll pages from there.
      * <p>
-     * Currently, the coordinator on the remote cluster simply collects pages from data nodes in the remote cluster
-     * and places them in the exchange sink. We can achieve this by using a single exchange buffer to minimize overhead.
-     * However, here we use two exchange buffers so that we can run an actual plan on this coordinator to perform partial
-     * reduce operations, such as limit, topN, and partial-to-partial aggregation in the future.
+     * Currently, the coordinator on the remote cluster polls pages from data nodes within the remote cluster
+     * and performs cluster-level reduction before sending pages to the querying cluster. This reduction aims
+     * to minimize data transfers across clusters but may require additional CPU resources for operations like
+     * aggregations.
      */
     void runComputeOnRemoteCluster(
         String clusterAlias,
@@ -892,6 +879,7 @@ public class ComputeService {
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
+        final PhysicalPlan coordinatorPlan = reductionPlan(plan, true);
         var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
@@ -899,12 +887,6 @@ public class ComputeService {
         );
         try (Releasable ignored = exchangeSource.addEmptySink()) {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
-            PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
-                plan.source(),
-                plan.output(),
-                plan.isIntermediateAgg(),
-                new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg())
-            );
             runCompute(
                 parentTask,
                 new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1096,6 +1097,119 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
     }
 
+    public void testTimestampAsAlias() throws Exception {
+        doTestCoordRewriteWithAliasField("@timestamp");
+    }
+
+    public void testEventIngestedAsAlias() throws Exception {
+        doTestCoordRewriteWithAliasField("event.ingested");
+    }
+
+    private void doTestCoordRewriteWithAliasField(String aliasFieldName) throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
+        final String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
+
+        String timestampFieldName = randomAlphaOfLengthBetween(3, 10);
+        String[] indices = new String[] { "index-0001", "index-0002" };
+        for (String index : indices) {
+            Settings extraSettings = Settings.builder()
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
+                .build();
+
+            assertAcked(
+                indicesAdmin().prepareCreate(index)
+                    .setMapping(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("properties")
+
+                            .startObject(timestampFieldName)
+                            .field("type", "date")
+                            .endObject()
+
+                            .startObject(aliasFieldName)
+                            .field("type", "alias")
+                            .field("path", timestampFieldName)
+                            .endObject()
+
+                            .endObject()
+                            .endObject()
+                    )
+                    .setSettings(indexSettingsNoReplicas(1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).put(extraSettings))
+            );
+        }
+        ensureGreen(indices);
+
+        for (String index : indices) {
+            final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                indexRequestBuilders.add(prepareIndex(index).setSource(timestampFieldName, "2024-11-19T08:08:08Z"));
+            }
+            indexRandom(true, false, indexRequestBuilders);
+
+            assertThat(
+                indicesAdmin().prepareForceMerge(index).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                equalTo(0)
+            );
+            refresh(index);
+            forceMerge();
+        }
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "mock");
+
+        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indices[0])).snapshotId();
+        assertAcked(indicesAdmin().prepareDelete(indices[0]));
+
+        // Block the repository for the node holding the searchable snapshot shards
+        // to delay its restore
+        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+
+        // Force the searchable snapshot to be allocated in a particular node
+        Settings restoredIndexSettings = Settings.builder()
+            .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingSearchableSnapshot)
+            .build();
+
+        String mountedIndex = indices[0] + "-mounted";
+        final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            mountedIndex,
+            repositoryName,
+            snapshotId.getName(),
+            indices[0],
+            restoredIndexSettings,
+            Strings.EMPTY_ARRAY,
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
+        );
+        client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
+
+        // Allow the searchable snapshots to be finally mounted
+        unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+        waitUntilRecoveryIsDone(mountedIndex);
+        ensureGreen(mountedIndex);
+
+        String[] fieldsToQuery = new String[] { timestampFieldName, aliasFieldName };
+        for (String fieldName : fieldsToQuery) {
+            RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(fieldName).from("2024-11-01T00:00:00.000000000Z", true);
+            SearchRequest request = new SearchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(new SearchSourceBuilder().query(rangeQuery));
+            if (randomBoolean()) {
+                // pre_filter_shard_size default to 1 because there are read-only indices in the mix. It does not hurt to force it though.
+                request.setPreFilterShardSize(1);
+            }
+            assertResponse(client().search(request), searchResponse -> {
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                assertThat(searchResponse.getSkippedShards(), equalTo(0));
+                assertThat(searchResponse.getTotalShards(), equalTo(2));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(20L));
+            });
+        }
+    }
+
     private void createIndexWithTimestampAndEventIngested(String indexName, int numShards, Settings extraSettings) throws IOException {
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
@@ -1144,8 +1258,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         ensureGreen(index);
     }
 
-    private void indexDocumentsWithOnlyOneTimestampField(String timestampField, String index, int docCount, String timestampTemplate)
-        throws Exception {
+    private void indexDocumentsWithOnlyOneTimestampField(String timestampField, String index, int docCount, String timestampTemplate) {
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(
@@ -1169,8 +1282,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         forceMerge();
     }
 
-    private void indexDocumentsWithTimestampAndEventIngestedDates(String indexName, int docCount, String timestampTemplate)
-        throws Exception {
+    private void indexDocumentsWithTimestampAndEventIngestedDates(String indexName, int docCount, String timestampTemplate) {
 
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
@@ -1207,7 +1319,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         forceMerge();
     }
 
-    private IndexMetadata getIndexMetadata(String indexName) {
+    private static IndexMetadata getIndexMetadata(String indexName) {
         return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
@@ -1218,7 +1330,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .index(indexName);
     }
 
-    private void waitUntilRecoveryIsDone(String index) throws Exception {
+    private static void waitUntilRecoveryIsDone(String index) throws Exception {
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));

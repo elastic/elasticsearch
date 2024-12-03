@@ -346,6 +346,10 @@ public class EsqlCapabilities {
         LEAST_GREATEST_FOR_DATENANOS(),
 
         /**
+         * Support add and subtract on date nanos
+         */
+        DATE_NANOS_ADD_SUBTRACT(),
+        /**
          * Support for date_trunc function on date nanos type
          */
         DATE_TRUNC_DATE_NANOS(),
@@ -403,7 +407,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V4(Build.current().isSnapshot()),
+        CATEGORIZE_V4,
 
         /**
          * QSTR function

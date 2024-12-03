@@ -747,10 +747,6 @@ public class AzureBlobStore implements BlobStore {
         BlobStoreActionStats getEndpointStats() {
             return new BlobStoreActionStats(operations.sum(), requests.sum());
         }
-
-        BlobStoreActionStats addTo(BlobStoreActionStats other) {
-            return new BlobStoreActionStats(operations.sum(), requests.sum()).add(other);
-        }
     }
 
     // visible for testing
@@ -774,7 +770,7 @@ public class AzureBlobStore implements BlobStore {
                 statsCounters.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
-                        (k, current) -> value.addTo(Objects.requireNonNull(current))
+                        (k, current) -> value.getEndpointStats().add(Objects.requireNonNull(current))
                     )
                 );
                 return Map.copyOf(normalisedStats);

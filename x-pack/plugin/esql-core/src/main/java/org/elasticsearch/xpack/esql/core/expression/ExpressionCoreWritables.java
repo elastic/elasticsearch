@@ -29,6 +29,7 @@ public class ExpressionCoreWritables {
             entries.add(new NamedWriteableRegistry.Entry(Expression.class, e.name, in -> (Expression) e.reader.read(in)));
         }
         entries.add(Literal.ENTRY);
+        entries.add(NamedLiterals.ENTRY);
         return entries;
     }
 

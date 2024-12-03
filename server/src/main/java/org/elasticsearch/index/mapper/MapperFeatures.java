@@ -61,6 +61,8 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
 
+    public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(

@@ -386,7 +386,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = super.doRewrite(queryRewriteContext);
 
-        if (rewritten == this && inferenceFieldsIdentified == false && queryRewriteContext.getClass() == QueryRewriteContext.class) {
+        if (queryRewriteContext.convertToQueryRewriteContext() != null && rewritten == this && inferenceFieldsIdentified == false) {
             ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
             if (resolvedIndices != null) {
                 Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();

@@ -150,6 +150,11 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     @Override
+    public QueryRewriteContext convertToQueryRewriteContext() {
+        return null;
+    }
+
+    @Override
     public String getTierPreference() {
         // dominant branch first (tier preference is configured)
         return tier.isEmpty() == false ? tier : null;

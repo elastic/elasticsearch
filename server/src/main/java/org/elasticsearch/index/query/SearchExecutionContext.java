@@ -662,6 +662,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return this;
     }
 
+    @Override
+    public QueryRewriteContext convertToQueryRewriteContext() {
+        return null;
+    }
+
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
      *  for instance if this rewrite context is used to index queries (percolation).
      */

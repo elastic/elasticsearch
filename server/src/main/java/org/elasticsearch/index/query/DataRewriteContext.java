@@ -29,4 +29,9 @@ public class DataRewriteContext extends QueryRewriteContext {
     public DataRewriteContext convertToDataRewriteContext() {
         return this;
     }
+
+    @Override
+    public QueryRewriteContext convertToQueryRewriteContext() {
+        return null;
+    }
 }

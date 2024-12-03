@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
@@ -41,6 +41,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.IOException;
 import java.util.Locale;

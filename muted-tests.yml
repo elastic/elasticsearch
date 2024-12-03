@@ -235,6 +235,9 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilderTests
   method: testToQuery
   issue: https://github.com/elastic/elasticsearch/issues/117904
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test20NoAutoGenerationWhenAutoConfigurationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/117891
 
 # Examples:
 #

@@ -99,49 +99,8 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         Task task,
         SetUpgradeModeActionRequest request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
+        ActionListener<AcknowledgedResponse> wrappedListener
     ) {
-
-        // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
-        if (isRunning.compareAndSet(false, true) == false) {
-            String msg = "Attempted to set [upgrade_mode] to ["
-                + request.isEnabled()
-                + "] from ["
-                + MlMetadata.getMlMetadata(state).isUpgradeMode()
-                + "] while previous request was processing.";
-            logger.info(msg);
-            Exception detail = new IllegalStateException(msg);
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot change [upgrade_mode]. Previous request is still being processed.",
-                    RestStatus.TOO_MANY_REQUESTS,
-                    detail
-                )
-            );
-            return;
-        }
-
-        // Noop, nothing for us to do, simply return fast to the caller
-        if (request.isEnabled() == MlMetadata.getMlMetadata(state).isUpgradeMode()) {
-            logger.info("Upgrade mode noop");
-            isRunning.set(false);
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
-        logger.info(
-            "Starting to set [upgrade_mode] to [" + request.isEnabled() + "] from [" + MlMetadata.getMlMetadata(state).isUpgradeMode() + "]"
-        );
-
-        ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
-            logger.info("Completed upgrade mode request");
-            isRunning.set(false);
-            listener.onResponse(r);
-        }, e -> {
-            logger.info("Completed upgrade mode request but with failure", e);
-            isRunning.set(false);
-            listener.onFailure(e);
-        });
         final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.

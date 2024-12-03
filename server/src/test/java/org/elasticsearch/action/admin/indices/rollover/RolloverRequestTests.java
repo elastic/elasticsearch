@@ -175,7 +175,9 @@ public class RolloverRequestTests extends ESTestCase {
         );
         originalRequest.lazy(randomBoolean());
         originalRequest.setIndicesOptions(
-            IndicesOptions.builder(originalRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE).build()
+            IndicesOptions.builder(originalRequest.indicesOptions())
+                .selectorOptions(randomFrom(IndicesOptions.SelectorOptions.DATA, IndicesOptions.SelectorOptions.FAILURES))
+                .build()
         );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {

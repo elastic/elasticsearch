@@ -41,7 +41,24 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         IndicesRequest.Replaceable,
         ToXContentObject {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .allowEmptyExpressions(false)
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowFailureIndices(false)
+                .allowSelectors(false)
+        )
+        .build();
 
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;

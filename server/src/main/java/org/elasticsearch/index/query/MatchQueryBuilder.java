@@ -91,12 +91,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
-    private final boolean inferenceFieldsIdentified;
+    private final boolean inferenceFieldsChecked;
 
     /**
      * Constructs a new match query.
      */
-    public MatchQueryBuilder(String fieldName, Object value, boolean inferenceFieldsIdentified) {
+    public MatchQueryBuilder(String fieldName, Object value, boolean inferenceFieldsChecked) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires fieldName");
         }
@@ -105,7 +105,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         }
         this.fieldName = fieldName;
         this.value = value;
-        this.inferenceFieldsIdentified = inferenceFieldsIdentified;
+        this.inferenceFieldsChecked = inferenceFieldsChecked;
     }
 
     public MatchQueryBuilder(String fieldName, Object value) {
@@ -135,7 +135,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        inferenceFieldsIdentified = false;
+        inferenceFieldsChecked = false;
     }
 
     @Override
@@ -386,7 +386,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = super.doRewrite(queryRewriteContext);
 
-        if (queryRewriteContext.convertToQueryRewriteContext() != null && rewritten == this && inferenceFieldsIdentified == false) {
+        if (queryRewriteContext.convertToQueryRewriteContext() != null && rewritten == this && inferenceFieldsChecked == false) {
             ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
             if (resolvedIndices != null) {
                 Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();

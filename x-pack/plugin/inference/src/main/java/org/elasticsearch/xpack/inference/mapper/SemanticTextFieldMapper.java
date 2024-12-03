@@ -442,7 +442,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.inferenceId = inferenceId;
             this.searchInferenceId = searchInferenceId;
-            ;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;

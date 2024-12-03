@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Response;
@@ -125,6 +126,13 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Cannot stop any Transform while the Transform feature is upgrading.", RestStatus.CONFLICT)
+            );
+            return;
+        }
+
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster() == false) {

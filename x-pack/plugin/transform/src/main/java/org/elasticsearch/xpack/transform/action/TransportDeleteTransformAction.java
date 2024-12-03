@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
@@ -80,6 +81,15 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot delete any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
         if (transformIsRunning && request.isForce() == false) {

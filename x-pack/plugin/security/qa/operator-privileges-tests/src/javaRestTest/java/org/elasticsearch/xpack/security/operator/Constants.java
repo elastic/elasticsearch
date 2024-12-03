@@ -114,6 +114,7 @@ public class Constants {
         "cluster:admin/transform/schedule_now",
         "cluster:admin/transform/update",
         "cluster:admin/transform/upgrade",
+        "cluster:admin/transform/upgrade_mode",
         "cluster:admin/transform/validate",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",

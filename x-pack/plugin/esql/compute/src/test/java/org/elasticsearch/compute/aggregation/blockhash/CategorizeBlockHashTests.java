@@ -230,14 +230,14 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
-                    Set<Integer> values = IntStream.range(0, groupIds.getPositionCount())
+                    List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                         .map(groupIds::getInt)
                         .boxed()
-                        .collect(Collectors.toSet());
+                        .collect(Collectors.toList());
                     if (withNull) {
-                        assertEquals(Set.of(0, 1, 2), values);
+                        assertEquals(List.of(0, 1, 2), values);
                     } else {
-                        assertEquals(Set.of(1, 2), values);
+                        assertEquals(List.of(1, 2), values);
                     }
                 }
 
@@ -255,13 +255,13 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
-                    Set<Integer> values = IntStream.range(0, groupIds.getPositionCount())
+                    List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                         .map(groupIds::getInt)
                         .boxed()
-                        .collect(Collectors.toSet());
-                    // The category IDs {0, 1, 2} should map to groups {0, 2, 3}, because
-                    // 0 matches an existing category (Connected to ...), and the others are new.
-                    assertEquals(Set.of(1, 3, 4), values);
+                        .collect(Collectors.toList());
+                    // The category IDs {1, 2, 3} should map to groups {1, 3, 4}, because
+                    // 1 matches an existing category (Connected to ...), and the others are new.
+                    assertEquals(List.of(3, 1, 4), values);
                 }
 
                 @Override

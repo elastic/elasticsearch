@@ -214,7 +214,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
-    public T systemProperty(SystemPropertyProvider systemPropertyProvider) {
+    public T systemProperties(SystemPropertyProvider systemPropertyProvider) {
         this.systemPropertyProviders.add(systemPropertyProvider);
         return cast(this);
     }

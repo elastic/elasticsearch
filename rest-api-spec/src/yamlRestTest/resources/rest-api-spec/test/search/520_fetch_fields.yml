@@ -129,7 +129,7 @@ fetch _seq_no via stored_fields:
 ---
 fetch _seq_no via fields:
   - requires:
-      cluster_features: ["error_code_changed"]
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
       reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
@@ -146,7 +146,7 @@ fetch _seq_no via fields:
 ---
 fetch _source via fields:
   - requires:
-      cluster_features: ["error_code_changed"]
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
       reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
@@ -163,7 +163,7 @@ fetch _source via fields:
 ---
 fetch _feature via fields:
   - requires:
-      cluster_features: ["error_code_changed"]
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
       reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
@@ -180,7 +180,7 @@ fetch _feature via fields:
 ---
 fetch _nested_path via fields:
   - requires:
-      cluster_features: ["error_code_changed"]
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
       reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
@@ -197,7 +197,7 @@ fetch _nested_path via fields:
 ---
 fetch _field_names via fields:
   - requires:
-      cluster_features: ["error_code_changed"]
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
       reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:

@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -26,6 +26,8 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -35,10 +37,10 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Vector scorer over binarized vector values */
-public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
+class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     private final FlatVectorsScorer nonQuantizedDelegate;
 
-    public ES816BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate) {
+    ES816BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate) {
         this.nonQuantizedDelegate = nonQuantizedDelegate;
     }
 
@@ -144,10 +146,10 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     }
 
     /** A binarized query representing its quantized form along with factors */
-    public record BinaryQueryVector(byte[] vector, BinaryQuantizer.QueryFactors factors) {}
+    record BinaryQueryVector(byte[] vector, BinaryQuantizer.QueryFactors factors) {}
 
     /** Vector scorer over binarized vector values */
-    public static class BinarizedRandomVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+    static class BinarizedRandomVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final BinaryQueryVector queryVector;
         private final RandomAccessBinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
@@ -155,7 +157,7 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
         private final float sqrtDimensions;
         private final float maxX1;
 
-        public BinarizedRandomVectorScorer(
+        BinarizedRandomVectorScorer(
             BinaryQueryVector queryVectors,
             RandomAccessBinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction

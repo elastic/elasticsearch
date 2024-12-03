@@ -32,7 +32,7 @@ public class StoredValueFetcher implements ValueFetcher {
     public StoredValueFetcher(SearchLookup lookup, String fieldname) {
         this.lookup = lookup;
         this.fieldname = fieldname;
-        this.storedFieldsSpec = new StoredFieldsSpec(false, false, Set.of(fieldname), false);
+        this.storedFieldsSpec = new StoredFieldsSpec(false, false, Set.of(fieldname));
     }
 
     @Override

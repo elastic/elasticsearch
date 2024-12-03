@@ -1423,7 +1423,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     StoredFieldsSpec storedFieldsSpec = loader.rowStrideStoredFieldSpec();
                     if (storedFieldsSpec.requiresSource()) {
                         storedFieldsSpec = storedFieldsSpec.merge(
-                            new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields(), false)
+                            new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                         );
                     }
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(

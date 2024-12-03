@@ -22,6 +22,10 @@ import java.util.function.Function;
  */
 public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields, boolean hasScript) {
 
+    public StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
+        this(requiresSource, requiresMetadata, requiredStoredFields, false);
+    }
+
     public boolean noRequirements() {
         return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty();
     }
@@ -29,7 +33,7 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
     /**
      * Use when no stored fields are required
      */
-    public static final StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of(), false);
+    public static final StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of());
 
     /**
      * Use when scripts / runtime fields are used and no stored fields are required
@@ -39,7 +43,7 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
     /**
      * Use when the source should be loaded but no other stored fields are required
      */
-    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of(), false);
+    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
     /**
      * Combine these stored field requirements with those from another StoredFieldsSpec

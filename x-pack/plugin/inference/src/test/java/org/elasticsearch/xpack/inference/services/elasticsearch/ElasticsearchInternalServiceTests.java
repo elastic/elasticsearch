@@ -1528,20 +1528,30 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             )
         );
 
-        var e = expectThrows(
+        var e1 = expectThrows(
             ElasticsearchStatusException.class,
             () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.COMPLETION,
                 new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
             )
         );
-        assertThat(e.getMessage(), containsString("Chunking is not supported for task type [completion]"));
+        assertThat(e1.getMessage(), containsString("Chunking is not supported for task type [completion]"));
+
+        var e2 = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
+                TaskType.RERANK,
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+            )
+        );
+        assertThat(e2.getMessage(), containsString("Chunking is not supported for task type [rerank]"));
     }
 
     public void testIsDefaultId() {
         var service = createService(mock(Client.class));
         assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
         assertTrue(service.isDefaultId(".multilingual-e5-small-elasticsearch"));
+        assertTrue(service.isDefaultId(".rerank-v1-elasticsearch"));
         assertFalse(service.isDefaultId("foo"));
     }
 

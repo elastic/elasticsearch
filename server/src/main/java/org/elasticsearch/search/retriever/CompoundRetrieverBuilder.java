@@ -47,7 +47,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
 
-    public static final NodeFeature CHILD_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("child_retrievers_filter_support");
+    public static final NodeFeature INNER_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("inner_retrievers_filter_support");
 
     public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
 
@@ -67,7 +67,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     /**
      * Returns a clone of the original retriever, replacing the sub-retrievers with
-     * the provided {@code newChildRetrievers}.
+     * the provided {@code newChildRetrievers} and the filters with the {@code newPreFilterQueryBuilders}.
      */
     protected abstract T clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders);
 

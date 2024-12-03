@@ -1076,7 +1076,7 @@ setup:
 ---
 "rrf retriever with filters to be passed to nested rrf retrievers":
   - requires:
-      cluster_features: 'child_retrievers_filter_support'
+      cluster_features: 'inner_retrievers_filter_support'
       reason: 'requires fix for properly propagating filters to nested sub-retrievers'
 
   - do:
@@ -1138,7 +1138,7 @@ setup:
                   rank_constant: 10
                 }
             }
-          size: 3
+          size: 10
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "5" }

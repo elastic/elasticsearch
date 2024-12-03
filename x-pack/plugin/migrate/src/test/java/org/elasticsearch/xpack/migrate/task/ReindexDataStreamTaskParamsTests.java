@@ -45,7 +45,7 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
         int totalIndices = instance.totalIndices();
         int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
         Map<String, String> headers = instance.headers();
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> sourceDataStream = randomAlphaOfLength(50);
             case 1 -> startTime = randomLong();
             case 2 -> totalIndices = totalIndices + 1;

@@ -1217,7 +1217,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
             from test
             | eval k = first_name, k1 = k
-            | stats s = sum(salary) by cat = CATEGORIZE(k)
+            | stats s = sum(salary) by cat = CATEGORIZE(k1)
             | keep s, cat
             """);
 

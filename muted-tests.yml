@@ -239,6 +239,8 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/117862
+- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/117893
 
 # Examples:
 #

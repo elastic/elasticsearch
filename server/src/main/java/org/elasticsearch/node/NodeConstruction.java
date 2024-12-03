@@ -110,7 +110,9 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
@@ -800,6 +802,30 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
+        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
+        // because the responses may change dynamically at runtime
+        SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
+            @Override
+            public void init(IndexSettings indexSettings) {
+                slowLogFieldProviders.forEach(provider -> provider.init(indexSettings));
+            }
+
+            @Override
+            public Map<String, String> indexSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.indexSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+
+            @Override
+            public Map<String, String> searchSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.searchSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+        };
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -821,6 +847,7 @@ class NodeConstruction {
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
             .searchOperationListeners(searchOperationListeners)
+            .slowLogFieldProvider(slowLogFieldProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);

@@ -803,7 +803,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.loadSlowLogFieldProvider();
+        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
 
         // The map of fields from the two providers are merged to a single map of fields
         assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.searchSlowLogFields());

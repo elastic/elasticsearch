@@ -23,6 +23,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -76,6 +77,20 @@ public class IndicesServiceBuilder {
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
+    SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
+        @Override
+        public void init(IndexSettings indexSettings) {}
+
+        @Override
+        public Map<String, String> indexSlowLogFields() {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, String> searchSlowLogFields() {
+            return Map.of();
+        }
+    };
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -188,6 +203,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder slowLogFieldProvider(SlowLogFieldProvider slowLogFieldProvider) {
+        this.slowLogFieldProvider = slowLogFieldProvider;
+        return this;
+    }
+
     public IndicesService build() {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(pluginsService);
@@ -213,6 +233,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
         Objects.requireNonNull(searchOperationListener);
+        Objects.requireNonNull(slowLogFieldProvider);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

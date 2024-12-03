@@ -1013,6 +1013,55 @@ Now the result will contain the nearest found paragraph when searching.
 
 
 [discrete]
+[[knn-quantized-vector-rescoring]]
+==== Rescoring results for quantized vectors
+
+When using <<dense-vector-quantization,quantized vectors>> for kNN search, you can optionally rescore results to balance performance and accuracy.
+Rescoring works by retrieving more results per shard using approximate kNN, and then use the original vector values for rescoring these results.
+As the non-quantized, original vectors are used to calculate the final score on the top results, rescoring combines:
+- The performance and memory gains of approximate retrieval using quantized vectors on the top candidates.
+- The accuracy of using the original vectors for rescoring the top candidates.
+
+Rescoring won't be as accurate as an <<exact-knn,exact kNN search>>, as some of the top results may not be retrieved using approximate kNN search.
+But the results retrieved by rescoring from the top candidates will have the same score and relative ordering as would be retrieved using exact kNN search.
+
+You can use the `rescore` option to specify an `oversample` parameter.
+When `oversample` is specified, the approximate kNN search will retrieve the top `k * oversample` candidates per shard.
+It will then use the original vectors to rescore them, and return the top `k` results.
+
+`num_candidates` will not be affected by oversample, besides ensuring that there are at least `k * oversample` candidates per shard.
+
+Here is an example of using the `rescore` option with the `oversample` parameter:
+
+[source,console]
+----
+POST image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector": [-5, 9, -12],
+    "k": 10,
+    "num_candidates": 100,
+    "rescore": {
+      "oversample": 2.0
+    }
+  },
+  "fields": [ "title", "file-type" ]
+}
+----
+//TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
+This example will effectively:
+- Search using approximate kNN with `num_candidates` set to 100.
+- Rescore the top 20 (`k * oversample`) candidates per shard using the original vectors.
+- Return the top 10 (`k`) results from the rescored candidates.
+
+NOTE: Rescoring only makes sense for quantized vectors; when <<dense-vector-quantization,quantization>> is not used, the original vectors are used for scoring.
+Rescore option will be ignored for non-quantized `dense_vector` fields.
+
+[discrete]
 [[knn-indexing-considerations]]
 ==== Indexing considerations
 

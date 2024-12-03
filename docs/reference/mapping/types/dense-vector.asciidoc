@@ -127,6 +127,8 @@ When using a quantized format, you may want to oversample and rescore the result
 To use a quantized index, you can set your index type to `int8_hnsw`, `int4_hnsw`, or `bbq_hnsw`. When indexing `float` vectors, the current default
 index type is `int8_hnsw`.
 
+Quantized vectors can use <<knn-quantized-vector-rescoring,rescoring>> to improve accuracy on approximate kNN search results.
+
 NOTE: Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data.
 This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
 

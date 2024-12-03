@@ -16,17 +16,22 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 
 class OptimizedScalarQuantizer {
-    private static final float[][] MINIMUM_MSE_GRID =
-        new float[][] {{-0.798f, 0.798f}, {-1.493f, 1.493f}, {-2.051f, 2.051f}, {-2.514f, 2.514f},
-            {-2.916f, 2.916f}, {-3.278f, 3.278f}, {-3.611f, 3.611f}, {-3.922f, 3.922f}};
+    static final float[][] MINIMUM_MSE_GRID = new float[][] {
+        { -0.798f, 0.798f },
+        { -1.493f, 1.493f },
+        { -2.051f, 2.051f },
+        { -2.514f, 2.514f },
+        { -2.916f, 2.916f },
+        { -3.278f, 3.278f },
+        { -3.611f, 3.611f },
+        { -3.922f, 3.922f } };
     private static final float DEFAULT_LAMBDA = 0.1f;
     private static final int DEFAULT_ITERS = 5;
     private final VectorSimilarityFunction similarityFunction;
     private final float lambda;
     private final int iters;
 
-    OptimizedScalarQuantizer(
-        VectorSimilarityFunction similarityFunction, float lambda, int iters) {
+    OptimizedScalarQuantizer(VectorSimilarityFunction similarityFunction, float lambda, int iters) {
         this.similarityFunction = similarityFunction;
         this.lambda = lambda;
         this.iters = iters;
@@ -36,14 +41,9 @@ class OptimizedScalarQuantizer {
         this(similarityFunction, DEFAULT_LAMBDA, DEFAULT_ITERS);
     }
 
-    public record QuantizationResult(
-        float lowerInterval,
-        float upperInterval,
-        float additionalCorrection,
-        int quantizedComponentSum) {}
+    public record QuantizationResult(float lowerInterval, float upperInterval, float additionalCorrection, int quantizedComponentSum) {}
 
-    public QuantizationResult[] multiScalarQuantize(
-        float[] vector, byte[][] destinations, byte[] bits, float[] centroid) {
+    public QuantizationResult[] multiScalarQuantize(float[] vector, byte[][] destinations, byte[] bits, float[] centroid) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert bits.length == destinations.length;
@@ -70,11 +70,10 @@ class OptimizedScalarQuantizer {
         double vecStd = Math.sqrt(vecVar);
         QuantizationResult[] results = new QuantizationResult[bits.length];
         for (int i = 0; i < bits.length; ++i) {
+            assert bits[i] > 0 && bits[i] <= 8;
             int points = (1 << bits[i]);
-            intervalScratch[0] =
-                (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][0] + vecMean) * vecStd, min, max);
-            intervalScratch[1] =
-                (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][1] + vecMean) * vecStd, min, max);
+            intervalScratch[0] = (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][0] + vecMean) * vecStd, min, max);
+            intervalScratch[1] = (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][1] + vecMean) * vecStd, min, max);
             optimizeIntervals(intervalScratch, vector, norm2, points);
             float nSteps = ((1 << bits[i]) - 1);
             float a = intervalScratch[0];
@@ -87,21 +86,21 @@ class OptimizedScalarQuantizer {
                 sumQuery += assignment;
                 destinations[i][h] = (byte) assignment;
             }
-            results[i] =
-                new QuantizationResult(
-                    intervalScratch[0],
-                    intervalScratch[1],
-                    similarityFunction == EUCLIDEAN ? norm2 : centroidDot,
-                    sumQuery);
+            results[i] = new QuantizationResult(
+                intervalScratch[0],
+                intervalScratch[1],
+                similarityFunction == EUCLIDEAN ? norm2 : centroidDot,
+                sumQuery
+            );
         }
         return results;
     }
 
-    public QuantizationResult scalarQuantize(
-        float[] vector, byte[] destination, byte bits, float[] centroid) {
+    public QuantizationResult scalarQuantize(float[] vector, byte[] destination, byte bits, float[] centroid) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert vector.length <= destination.length;
+        assert bits > 0 && bits <= 8;
         float[] intervalScratch = new float[2];
         int points = 1 << bits;
         double vecMean = 0;
@@ -124,10 +123,8 @@ class OptimizedScalarQuantizer {
         }
         vecVar /= vector.length;
         double vecStd = Math.sqrt(vecVar);
-        intervalScratch[0] =
-            (float) clamp((MINIMUM_MSE_GRID[bits - 1][0] + vecMean) * vecStd, min, max);
-        intervalScratch[1] =
-            (float) clamp((MINIMUM_MSE_GRID[bits - 1][1] + vecMean) * vecStd, min, max);
+        intervalScratch[0] = (float) clamp((MINIMUM_MSE_GRID[bits - 1][0] + vecMean) * vecStd, min, max);
+        intervalScratch[1] = (float) clamp((MINIMUM_MSE_GRID[bits - 1][1] + vecMean) * vecStd, min, max);
         optimizeIntervals(intervalScratch, vector, norm2, points);
         float nSteps = ((1 << bits) - 1);
         float a = intervalScratch[0];
@@ -144,7 +141,8 @@ class OptimizedScalarQuantizer {
             intervalScratch[0],
             intervalScratch[1],
             similarityFunction == EUCLIDEAN ? norm2 : centroidDot,
-            sumQuery);
+            sumQuery
+        );
     }
 
     private double loss(float[] vector, float[] interval, int points, float norm2) {
@@ -165,6 +163,9 @@ class OptimizedScalarQuantizer {
     private void optimizeIntervals(float[] initInterval, float[] vector, float norm2, int points) {
         double initialLoss = loss(vector, initInterval, points, norm2);
         float scale = (1.0f - lambda) / norm2;
+        if (Float.isFinite(scale) == false) {
+            return;
+        }
         for (int i = 0; i < iters; ++i) {
             float a = initInterval[0];
             float b = initInterval[1];
@@ -196,7 +197,7 @@ class OptimizedScalarQuantizer {
             if ((Math.abs(initInterval[0] - aOpt) < 1e-8 && Math.abs(initInterval[1] - bOpt) < 1e-8)) {
                 return;
             }
-            double newLoss = loss(vector, new float[] {aOpt, bOpt}, points, norm2);
+            double newLoss = loss(vector, new float[] { aOpt, bOpt }, points, norm2);
             // If the new loss is worse, don't update the interval and exit
             // This optimization, unlike kMeans, does not always converge to better loss
             // So exit if we are getting worse

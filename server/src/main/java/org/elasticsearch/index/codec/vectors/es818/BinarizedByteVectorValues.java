@@ -1,13 +1,4 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
-
-/*
  * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -32,16 +23,13 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.BinarizedByteVectorValues;
 
 import java.io.IOException;
 
 /**
- * A version of {@link ByteVectorValues}, but additionally retrieving score correction values offset
- * for binarization quantization scores.
- * Copied from Lucene
+ * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-abstract class OptimizedBinarizedByteVectorValues extends ByteVectorValues {
+abstract class BinarizedByteVectorValues extends ByteVectorValues {
 
     /**
      * Retrieve the corrective terms for the given vector ordinal. For the dot-product family of
@@ -67,8 +55,7 @@ abstract class OptimizedBinarizedByteVectorValues extends ByteVectorValues {
      * @return the corrective terms
      * @throws IOException if an I/O error occurs
      */
-    public abstract OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int vectorOrd)
-        throws IOException;
+    public abstract OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int vectorOrd) throws IOException;
 
     /**
      * @return the quantizer used to quantize the vectors

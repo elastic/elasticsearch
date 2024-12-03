@@ -1,13 +1,4 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
-
-/*
  * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -53,11 +44,6 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.BinarizedByteVectorValues;
-import org.elasticsearch.index.codec.vectors.BinaryQuantizer;
-import org.elasticsearch.index.codec.vectors.ES816BinaryFlatVectorsScorer;
-import org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.OffHeapBinarizedVectorValues;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -70,19 +56,19 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVe
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
+class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES818BinaryQuantizedVectorsReader.class);
 
     private final Map<String, FieldEntry> fields = new HashMap<>();
     private final IndexInput quantizedVectorData;
     private final FlatVectorsReader rawVectorsReader;
-    private final ES816BinaryFlatVectorsScorer vectorScorer;
+    private final ES818BinaryFlatVectorsScorer vectorScorer;
 
-    public ES818BinaryQuantizedVectorsReader(
+    ES818BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
-        ES816BinaryFlatVectorsScorer vectorsScorer
+        ES818BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
         super(vectorsScorer);
         this.vectorScorer = vectorsScorer;
@@ -91,7 +77,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ES816BinaryQuantizedVectorsFormat.META_EXTENSION
+            org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.META_EXTENSION
         );
         boolean success = false;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
@@ -99,9 +85,9 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     meta,
-                    ES816BinaryQuantizedVectorsFormat.META_CODEC_NAME,
-                    ES816BinaryQuantizedVectorsFormat.VERSION_START,
-                    ES816BinaryQuantizedVectorsFormat.VERSION_CURRENT,
+                    ES818BinaryQuantizedVectorsFormat.META_CODEC_NAME,
+                    ES818BinaryQuantizedVectorsFormat.VERSION_START,
+                    ES818BinaryQuantizedVectorsFormat.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -114,8 +100,8 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             quantizedVectorData = openDataInput(
                 state,
                 versionMeta,
-                ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION,
-                ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION,
+                ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 // Quantized vectors are accessed randomly from their node ID stored in the HNSW
                 // graph.
                 state.context.withReadAdvice(ReadAdvice.RANDOM)
@@ -149,8 +135,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         }
 
         int binaryDims = BQVectorUtils.discretize(dimension, 64) / 8;
-        int correctionsCount = fieldEntry.similarityFunction != VectorSimilarityFunction.EUCLIDEAN ? 3 : 2;
-        long numQuantizedVectorBytes = Math.multiplyExact((binaryDims + (Float.BYTES * correctionsCount)), (long) fieldEntry.size);
+        long numQuantizedVectorBytes = Math.multiplyExact((binaryDims + (Float.BYTES * 3) + Short.BYTES), (long) fieldEntry.size);
         if (numQuantizedVectorBytes != fieldEntry.vectorDataLength) {
             throw new IllegalStateException(
                 "Binarized vector data length "
@@ -159,7 +144,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                     + fieldEntry.size
                     + " * (binaryBytes="
                     + binaryDims
-                    + " + 8"
+                    + " + 14"
                     + ") = "
                     + numQuantizedVectorBytes
             );
@@ -178,7 +163,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 fi.ordToDocDISIReaderConfiguration,
                 fi.dimension,
                 fi.size,
-                new BinaryQuantizer(fi.dimension, fi.descritizedDimension, fi.similarityFunction),
+                new OptimizedScalarQuantizer(fi.similarityFunction),
                 fi.similarityFunction,
                 vectorScorer,
                 fi.centroid,
@@ -217,7 +202,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             fi.ordToDocDISIReaderConfiguration,
             fi.dimension,
             fi.size,
-            new BinaryQuantizer(fi.dimension, fi.descritizedDimension, fi.similarityFunction),
+            new OptimizedScalarQuantizer(fi.similarityFunction),
             fi.similarityFunction,
             vectorScorer,
             fi.centroid,
@@ -289,8 +274,8 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
                 codecName,
-                ES816BinaryQuantizedVectorsFormat.VERSION_START,
-                ES816BinaryQuantizedVectorsFormat.VERSION_CURRENT,
+                ES818BinaryQuantizedVectorsFormat.VERSION_START,
+                ES818BinaryQuantizedVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -420,7 +405,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             return quantizedVectorValues.scorer(query);
         }
 
-        protected BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
+        BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
             return quantizedVectorValues;
         }
     }

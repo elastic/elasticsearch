@@ -50,14 +50,14 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
      * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
      * {@link Lucene99HnswVectorsFormat#DEFAULT_MAX_CONN}. See {@link HnswGraph} for more details.
      */
-    private final int maxConn;
+    protected final int maxConn;
 
     /**
      * The number of candidate neighbors to track while searching the graph for each newly inserted
      * node. Defaults to {@link Lucene99HnswVectorsFormat#DEFAULT_BEAM_WIDTH}. See {@link HnswGraph}
      * for details.
      */
-    private final int beamWidth;
+    protected final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
     private static final FlatVectorsFormat flatVectorsFormat = new ES816BinaryQuantizedVectorsFormat();

@@ -39,7 +39,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.HnswGraph;
-import org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -56,7 +55,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  */
 public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
 
-    public static final String NAME = "ES816HnswBinaryQuantizedVectorsFormat";
+    public static final String NAME = "ES818HnswBinaryQuantizedVectorsFormat";
 
     /**
      * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
@@ -72,7 +71,7 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
     private final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
-    private static final FlatVectorsFormat flatVectorsFormat = new ES816BinaryQuantizedVectorsFormat();
+    private static final FlatVectorsFormat flatVectorsFormat = new ES818BinaryQuantizedVectorsFormat();
 
     private final int numMergeWorkers;
     private final TaskExecutor mergeExec;
@@ -144,7 +143,7 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ES816HnswBinaryQuantizedVectorsFormat(name=ES816HnswBinaryQuantizedVectorsFormat, maxConn="
+        return "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn="
             + maxConn
             + ", beamWidth="
             + beamWidth

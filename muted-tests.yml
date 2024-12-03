@@ -235,6 +235,24 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilderTests
   method: testToQuery
   issue: https://github.com/elastic/elasticsearch/issues/117904
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test20NoAutoGenerationWhenAutoConfigurationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/117891
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/117890
+- class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
+  method: testFallbackIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/117937
+- class: org.elasticsearch.xpack.esql.qa.single_node.RequestIndexFilteringIT
+  method: testFieldExistsFilter_KeepWildcard
+  issue: https://github.com/elastic/elasticsearch/issues/117935
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RequestIndexFilteringIT
+  method: testFieldExistsFilter_KeepWildcard
+  issue: https://github.com/elastic/elasticsearch/issues/117935
+- class: org.elasticsearch.xpack.ml.integration.RegressionIT
+  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
+  issue: https://github.com/elastic/elasticsearch/issues/117805
 
 # Examples:
 #

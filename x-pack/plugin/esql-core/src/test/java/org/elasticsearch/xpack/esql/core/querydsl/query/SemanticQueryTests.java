@@ -119,7 +119,7 @@ public class SemanticQueryTests extends ESTestCase {
         return randomMlTextEmbeddingsResults();
     }
 
-    private static TextExpansionResults randomTextExpansionResults() {
+    public static TextExpansionResults randomTextExpansionResults() {
         int numTokens = randomIntBetween(5, 50);
         List<WeightedToken> tokenList = new ArrayList<>();
         for (int i = 0; i < numTokens; i++) {

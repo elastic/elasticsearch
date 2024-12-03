@@ -145,15 +145,24 @@ public class InferenceResolver {
                             match.functionType()
                         )
                     );
+                    return;
                 }
 
                 EsField esField = field.field();
                 Set<String> inferenceIds = inferenceIdsForField(esField.getName(), indexNames);
                 if (inferenceIds.size() == 1) {
                     result.add(new SemanticQuery(field.sourceText(), match.query().sourceText(), inferenceIds.iterator().next()));
+                } else if (inferenceIds.size() == 0) {
+                    failures.add(
+                        Failure.fail(
+                            match.field(),
+                            "[{}] {} needs a configured inference ID but none could be found for [{}]",
+                            match.functionName(),
+                            match.functionType(),
+                            match.field().sourceText()
+                        )
+                    );
                 } else {
-                    assert inferenceIds.size() == 0 : "Should never have a semantic_text field with no inference ID attached";
-
                     failures.add(
                         Failure.fail(
                             match.field(),
@@ -189,7 +198,7 @@ public class InferenceResolver {
         for (String indexName : indexNames) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.get(indexName).getInferenceFields().get(name);
             if (inferenceFieldMetadata != null) {
-                inferenceIds.add(inferenceFieldMetadata.getInferenceId());
+                inferenceIds.add(inferenceFieldMetadata.getSearchInferenceId());
             }
         }
         return inferenceIds;

@@ -42,10 +42,10 @@ public abstract class DocumentParserContext {
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
-    public static class Wrapper extends DocumentParserContext {
+    private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
-        public Wrapper(ObjectMapper parent, DocumentParserContext in) {
+        private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
         }

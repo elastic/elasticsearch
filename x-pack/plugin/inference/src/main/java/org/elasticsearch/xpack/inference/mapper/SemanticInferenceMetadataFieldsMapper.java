@@ -131,6 +131,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final boolean isWithinLeaf = context.path().isWithinLeafObject();
+        final String[] originalPath = context.path().getPath();
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
@@ -139,46 +140,31 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 String fieldName = parser.currentName();
+
+                // Set the path to that of semantic text field so the parser acts as if we are parsing the semantic text field value
+                // directly
+                String[] fieldNameParts = fieldName.split("\\."); // TODO: Need to handle this differently when subobjects == false?
+                context.path().setPath(fieldNameParts);
+
                 var parent = context.parent().findParentMapper(fieldName);
                 if (parent == null) {
-                    throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
+                    throw new IllegalArgumentException("Field [" + fieldName + "] does not have a parent mapper");
                 }
                 String suffix = parent != context.parent() ? fieldName.substring(parent.fullPath().length() + 1) : fieldName;
                 var mapper = parent.getMapper(suffix);
-                if (mapper != null && mapper instanceof SemanticTextFieldMapper fieldMapper) {
+                if (mapper instanceof SemanticTextFieldMapper fieldMapper) {
                     XContentLocation xContentLocation = context.parser().getTokenLocation();
                     var input = fieldMapper.parseSemanticTextField(context);
                     if (input != null) {
-                        fieldMapper.parseCreateFieldFromContext(
-                            new SemanticInferenceMetadataFieldsParserContext(parent, context, fieldName),
-                            input,
-                            xContentLocation
-                        );
+                        fieldMapper.parseCreateFieldFromContext(context, input, xContentLocation);
                     }
                 } else {
-                    throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
+                    throw new IllegalArgumentException("Field [" + fieldName + "] is not a [" + SemanticTextFieldMapper.CONTENT_TYPE + "] field");
                 }
             }
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
-        }
-    }
-
-    private static class SemanticInferenceMetadataFieldsParserContext extends DocumentParserContext.Wrapper {
-        private final ContentPath path = new ContentPath();
-
-        SemanticInferenceMetadataFieldsParserContext(ObjectMapper parent, DocumentParserContext in, String semanticTextFieldName) {
-            super(parent, in);
-
-            // Set the path as if we are parsing the semantic text field value directly
-            for (String fieldNamePart : semanticTextFieldName.split("\\.")) {
-                path.add(fieldNamePart);
-            }
-        }
-
-        @Override
-        public ContentPath path() {
-            return path;
+            context.path().setPath(originalPath);
         }
     }
 }

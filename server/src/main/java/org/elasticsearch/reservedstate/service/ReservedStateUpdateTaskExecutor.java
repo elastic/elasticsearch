@@ -55,8 +55,10 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
         // if multiple tasks have the same version number, their ReservedStateVersionCheck fields
         // will be used to break the tie.
         //
-        // One wrinkle is: if the tasks fails, then we will know retroactively that it was
-        // not the task that actually took effect, and we must eliminate that one and try again.
+        // One wrinkle is: if the task fails, then we will know retroactively that it was
+        // not the task that actually took effect, and we must then identify which of the
+        // remaining tasks would have taken effect. We achieve this by sorting the tasks
+        // using the SUPERSEDING_FIRST comparator.
 
         var candidates = new ArrayList<>(taskContexts);
         candidates.sort(comparing(TaskContext::getTask, SUPERSEDING_FIRST));

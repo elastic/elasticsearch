@@ -412,8 +412,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }).submitTask("block", ESTestCase::fail, null);
 
         safeAwait(barrier);
-        writeJSONFile(masterNode, testJSON, versionCounter, logger);      // Valid but skipped
-        writeJSONFile(masterNode, testJSON43mb, versionCounter, logger);  // The last valid setting
+        writeJSONFile(masterNode, testJSON, logger, versionCounter.incrementAndGet());      // Valid but skipped
+        writeJSONFile(masterNode, testJSON43mb, logger, versionCounter.incrementAndGet());  // The last valid setting
         safeAwait(barrier);
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }

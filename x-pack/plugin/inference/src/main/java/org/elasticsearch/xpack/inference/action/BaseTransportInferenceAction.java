@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -75,27 +76,43 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         var getModelListener = ActionListener.wrap((UnparsedModel unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
-            if (service.isEmpty()) {
-                var e = unknownServiceException(unparsedModel.service(), request.getInferenceEntityId());
+            try {
+                validationHelper(service::isEmpty, () -> unknownServiceException(unparsedModel.service(), request.getInferenceEntityId()));
+                validationHelper(
+                    () -> request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false,
+                    () -> requestModelTaskTypeMismatchException(request.getTaskType(), unparsedModel.taskType())
+                );
+                validationHelper(
+                    () -> isInvalidTaskTypeForInferenceEndpoint(request, unparsedModel),
+                    () -> createInvalidTaskTypeException(request, unparsedModel)
+                );
+            } catch (Exception e) {
                 recordMetrics(unparsedModel, timer, e);
                 listener.onFailure(e);
                 return;
             }
 
-            if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
-                // not the wildcard task type and not the model task type
-                var e = incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType());
-                recordMetrics(unparsedModel, timer, e);
-                listener.onFailure(e);
-                return;
-            }
+            // if (service.isEmpty()) {
+            // var e = unknownServiceException(unparsedModel.service(), request.getInferenceEntityId());
+            // recordMetrics(unparsedModel, timer, e);
+            // listener.onFailure(e);
+            // return;
+            // }
 
-            if (isInvalidTaskTypeForInferenceEndpoint(request, unparsedModel)) {
-                var e = createIncompatibleTaskTypeException(request, unparsedModel);
-                recordMetrics(unparsedModel, timer, e);
-                listener.onFailure(e);
-                return;
-            }
+            // if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
+            // // not the wildcard task type and not the model task type
+            // var e = incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType());
+            // recordMetrics(unparsedModel, timer, e);
+            // listener.onFailure(e);
+            // return;
+            // }
+
+            // if (isInvalidTaskTypeForInferenceEndpoint(request, unparsedModel)) {
+            // var e = createInvalidTaskTypeException(request, unparsedModel);
+            // recordMetrics(unparsedModel, timer, e);
+            // listener.onFailure(e);
+            // return;
+            // }
 
             var model = service.get()
                 .parsePersistedConfigWithSecrets(
@@ -117,9 +134,15 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
     }
 
+    private static void validationHelper(Supplier<Boolean> validationFailure, Supplier<ElasticsearchStatusException> exceptionCreator) {
+        if (validationFailure.get()) {
+            throw exceptionCreator.get();
+        }
+    }
+
     protected abstract boolean isInvalidTaskTypeForInferenceEndpoint(Request request, UnparsedModel unparsedModel);
 
-    protected abstract ElasticsearchStatusException createIncompatibleTaskTypeException(Request request, UnparsedModel unparsedModel);
+    protected abstract ElasticsearchStatusException createInvalidTaskTypeException(Request request, UnparsedModel unparsedModel);
 
     private void recordMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
         try {
@@ -225,7 +248,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
-    private static ElasticsearchStatusException incompatibleTaskTypeException(TaskType requested, TaskType expected) {
+    private static ElasticsearchStatusException requestModelTaskTypeMismatchException(TaskType requested, TaskType expected) {
         return new ElasticsearchStatusException(
             "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
             RestStatus.BAD_REQUEST,

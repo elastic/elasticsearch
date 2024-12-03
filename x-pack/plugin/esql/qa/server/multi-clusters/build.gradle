@@ -39,5 +39,6 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     dependsOn tasks.named("${baseName}#oldToNew")
     dependsOn tasks.named("${baseName}#newToOld")
+    maxParallelForks = 1
   }
 }

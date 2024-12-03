@@ -631,12 +631,12 @@ public class DeploymentManager {
             logger.debug(() -> format("[%s] Forcefully stopping process", task.getDeploymentId()));
             prepareInternalStateForShutdown();
 
-            if (priorityProcessWorker.isShutdown()) {
-                // most likely there was a crash or exception that caused the
-                // thread to stop. Notify any waiting requests in the work queue
-                handleAlreadyShuttingDownWorker();
-            } else {
-                priorityProcessWorker.shutdown();
+            priorityProcessWorker.shutdownNow();
+            try {
+                priorityProcessWorker.awaitTermination(30L, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info(Strings.format("[%s] Interrupted waiting for process worker after shutdownNow", PROCESS_NAME));
             }
 
             killProcessIfPresent();
@@ -647,12 +647,6 @@ public class DeploymentManager {
             isStopped = true;
             resultProcessor.stop();
             stateStreamer.cancel();
-        }
-
-        private void handleAlreadyShuttingDownWorker() {
-            logger.debug(() -> format("[%s] Process worker was already marked for shutdown", task.getDeploymentId()));
-
-            priorityProcessWorker.notifyQueueRunnables();
         }
 
         private void killProcessIfPresent() {
@@ -675,15 +669,7 @@ public class DeploymentManager {
         private synchronized void stopProcessAfterCompletingPendingWork() {
             logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
             prepareInternalStateForShutdown();
-
-            if (priorityProcessWorker.isShutdown()) {
-                // most likely there was a crash or exception that caused the
-                // thread to stop. Notify any waiting requests in the work queue
-                handleAlreadyShuttingDownWorker();
-            } else {
-                signalAndWaitForWorkerTermination();
-            }
-
+            signalAndWaitForWorkerTermination();
             stopProcessGracefully();
             closeNlpTaskProcessor();
         }

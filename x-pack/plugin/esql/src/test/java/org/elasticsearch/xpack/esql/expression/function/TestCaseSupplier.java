@@ -1912,11 +1912,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
-         * @return the data value being supplied, casting unsigned longs into BigIntegers correctly
+         * @return the data value being supplied, casting to java objects when appropriate
          */
         public Object getValue() {
-            if (type == DataType.UNSIGNED_LONG && data instanceof Long l) {
-                return NumericUtils.unsignedLongAsBigInteger(l);
+            if (data instanceof Long l) {
+                if (type == DataType.UNSIGNED_LONG) {
+                    return NumericUtils.unsignedLongAsBigInteger(l);
+                }
+                if (type == DataType.DATETIME) {
+                    return Instant.ofEpochMilli(l);
+                }
+                if (type == DataType.DATE_NANOS) {
+                    return DateUtils.toInstant(l);
+                }
             }
             return data;
         }

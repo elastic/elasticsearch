@@ -277,24 +277,24 @@ public class SubTests extends AbstractScalarFunctionTestCase {
         return new Sub(source, args.get(0), args.get(1));
     }
 
-    private static Object subtractDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Long, TemporalAmount> subtract) {
+    private static Object subtractDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> subtract) {
         // this weird casting dance makes the expected value lambda symmetric
-        Long date;
+        Instant date;
         TemporalAmount period;
-        if (lhs instanceof Long) {
-            date = (Long) lhs;
+        if (lhs instanceof Instant) {
+            date = (Instant) lhs;
             period = (TemporalAmount) rhs;
         } else {
-            date = (Long) rhs;
+            date = (Instant) rhs;
             period = (TemporalAmount) lhs;
         }
         return subtract.applyAsLong(date, period);
     }
 
-    private static long subtractNanos(Long date, TemporalAmount period) {
+    private static long subtractNanos(Instant date, TemporalAmount period) {
         return DateUtils.toLong(
             Instant.from(
-                ZonedDateTime.ofInstant(DateUtils.toInstant(date), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period)
+                ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period)
             )
         );
     }

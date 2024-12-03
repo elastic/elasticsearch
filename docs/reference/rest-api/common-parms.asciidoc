@@ -1360,5 +1360,5 @@ The approximate kNN search will retrieve the top `k * oversample` candidates per
 and then use the original vectors for rescoring.
 The top `k` rescored candidates will be returned as results.
 
-See <<knn-quantized-vector-rescoring,rescoring quantized vectors>> for details.
+See <<dense-vector-knn-search-reranking,oversampling and rescoring quantized vectors>> for details.
 end::knn-rescore[]

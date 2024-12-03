@@ -4,3 +4,6 @@
 
 `query`::
 Query string in Lucene query string format.
+
+`options`::
+

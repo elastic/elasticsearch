@@ -127,7 +127,16 @@ public record RepositoriesMetrics(
         OperationPurpose purpose,
         String operation
     ) {
-        return Map.of("repo_type", repositoryMetadata.type(), "operation", operation, "purpose", purpose.getKey());
+        return Map.of(
+            "repo_type",
+            repositoryMetadata.type(),
+            "repo_name",
+            repositoryMetadata.name(),
+            "operation",
+            operation,
+            "purpose",
+            purpose.getKey()
+        );
     }
 
 }

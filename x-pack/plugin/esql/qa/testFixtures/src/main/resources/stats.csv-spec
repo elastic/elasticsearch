@@ -2348,6 +2348,42 @@ v:integer | job_positions:keyword
     10094 | Accountant
 ;
 
+docsStatsWithSimpleFiltering
+required_capability: per_agg_filtering
+// tag::aggFiltering[]
+FROM employees
+| STATS avg50s = AVG(salary)::LONG WHERE birth_date < "1960-01-01",
+        avg60s = AVG(salary)::LONG WHERE birth_date >= "1960-01-01"
+        BY gender
+| SORT gender
+// end::aggFiltering[]
+| WHERE gender IS NOT NULL
+;
+
+// tag::aggFiltering-result[]
+avg50s:long    |avg60s:long    |gender:keyword
+55462          |46637          |F
+48279          |44879          |M
+// end::aggFiltering-result[]
+;
+
+docsStatsWithFilteringNoGroups
+required_capability: per_agg_filtering
+// tag::aggFilteringNoGroup[]
+FROM employees
+| EVAL Ks = salary / 1000 // thousands
+| STATS under_40K = COUNT(*) WHERE Ks < 40,
+        inbetween = COUNT(*) WHERE 40 <= Ks AND Ks < 60,
+        over_60K  = COUNT(*) WHERE 60 <= Ks,
+        total     = COUNT(*)
+// end::aggFilteringNoGroup[]
+;
+
+// tag::aggFilteringNoGroup-result[]
+under_40K:long |inbetween:long |over_60K:long  |total:long
+36             |39             |25             |100
+// end::aggFilteringNoGroup-result[]
+;
 
 statsWithFiltering
 required_capability: per_agg_filtering
@@ -2468,6 +2504,7 @@ count:long     |values:keyword        |job_positions:keyword
 ;
 
 prunedStatsFollowedByStats
+required_capability: per_agg_filtering
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count = count(my_length) where false,
@@ -2641,6 +2678,57 @@ c2:l |c2_f:l |m2:i |m2_f:i |c:l
 1    |1      |5    |5      |21
 ;
 
+simpleCountOnFieldWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(emp_no) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(hire_date) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnStarWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(*) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(birth_date) where emp_no <= 10050
+;
+
+c1:long
+40
+;
+
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(job_positions) where emp_no <= 10003
+;
+
+c1:long
+3
+;
+
 commonFilterExtractionWithAliasing
 required_capability: per_agg_filtering
 from employees
@@ -2719,6 +2807,18 @@ FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
 
 m:integer | y+1:integer
 11        | 12
+;
+
+statsByConstantExpressionWithAliasAndSort
+required_capability: fix_stats_by_foldable_expression_2
+FROM employees
+| EVAL y = "a"
+| STATS count = COUNT() BY x = y
+| SORT x
+;
+
+count:long | x:keyword
+100        | a
 ;
 
 filterIsAlwaysTrue
@@ -2845,4 +2945,144 @@ max:integer | job_positions:keyword
 62233       | Architect
 39878       | Business Analyst
 67492       | Data Scientist
+;
+
+stdDeviation
+required_capability: std_dev
+// tag::stdev[]
+FROM employees
+| STATS STD_DEV(height)
+// end::stdev[]
+;
+
+// tag::stdev-result[]
+STD_DEV(height):double
+0.20637044362020449
+// end::stdev-result[]
+;
+
+stdDeviationNested
+required_capability: std_dev
+// tag::docsStatsStdDevNestedExpression[]
+FROM employees
+| STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))
+// end::docsStatsStdDevNestedExpression[]
+;
+
+// tag::docsStatsStdDevNestedExpression-result[]
+stddev_salary_change:double
+6.875829592924112
+// end::docsStatsStdDevNestedExpression-result[]
+;
+
+
+stdDeviationWithLongs
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(avg_worked_seconds)
+;
+
+STD_DEV(avg_worked_seconds):double
+5.76010425971634E7
+;
+
+stdDeviationWithInts
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(salary)
+;
+
+STD_DEV(salary):double
+13765.12550278783
+;
+
+stdDeviationConstantValue
+required_capability: std_dev
+FROM employees
+| WHERE languages == 2
+| STATS STD_DEV(languages)
+;
+
+STD_DEV(languages):double
+0.0
+;
+
+stdDeviationGroupedDoublesOnly
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(height) BY languages
+| SORT languages asc
+;
+
+STD_DEV(height):double | languages:integer
+0.22106409327010415    | 1
+0.22797190865484734    | 2
+0.18893070075713295    | 3
+0.14656141004227627    | 4
+0.17733860152780256    | 5
+0.2486543786061287     | null
+;
+
+stdDeviationGroupedAllTypes
+required_capability: std_dev
+FROM employees
+| WHERE languages < 3
+| STATS
+    double_std_dev = STD_DEV(height),
+    int_std_dev = STD_DEV(salary),
+    long_std_dev = STD_DEV(avg_worked_seconds)
+  BY languages
+| SORT languages asc
+;
+
+double_std_dev:double | int_std_dev:double | long_std_dev:double  | languages:integer
+0.22106409327010415   | 15166.244178730898 | 5.1998715922156096E7 | 1
+0.22797190865484734   | 12139.61099378116  | 5.309085506583288E7  | 2
+;
+
+stdDeviationNoRows
+required_capability: std_dev
+FROM employees
+| WHERE languages IS null
+| STATS STD_DEV(languages)
+;
+
+STD_DEV(languages):double
+null
+;
+
+stdDevMultiValue
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(salary_change)
+;
+
+STD_DEV(salary_change):double
+7.062226788733394
+;
+
+stdDevFilter
+required_capability: std_dev
+FROM employees
+| STATS greater_than = STD_DEV(salary_change) WHERE languages > 3
+, less_than = STD_DEV(salary_change) WHERE languages <= 3
+, salary = STD_DEV(salary * 2)
+, count = COUNT(*) BY gender
+| SORT gender asc
+;
+
+greater_than:double | less_than:double  | salary:double      | count:long | gender:keyword
+6.4543266953142835  | 7.57786788789264  | 29045.770666969744 | 33         | F
+6.975232333891946   | 6.604807075547775 | 26171.331109641273 | 57         | M
+6.949207097931448   | 7.127229475750027 | 27921.220736207077 | 10         | null
+;
+
+stdDevRow
+required_capability: std_dev
+ROW a = [1,2,3], b = 5
+| STATS STD_DEV(a), STD_DEV(b)
+;
+
+STD_DEV(a):double | STD_DEV(b):double
+0.816496580927726 | 0.0
 ;

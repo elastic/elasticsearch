@@ -6,6 +6,9 @@ You can use AWS S3 as a repository for {ref}/snapshot-restore.html[Snapshot/Rest
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit
 https://www.elastic.co/cloud/.*
 
+See https://www.youtube.com/watch?v=ACqfyzWf-xs[this video]
+for a walkthrough of connecting an AWS S3 repository.
+
 [[repository-s3-usage]]
 ==== Getting started
 
@@ -35,7 +38,8 @@ PUT _snapshot/my_s3_repository
 The client that you use to connect to S3 has a number of settings available.
 The settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. By default,
 `s3` repositories use a client named `default`, but this can be modified using
-the <<repository-s3-repository,repository setting>> `client`. For example:
+the <<repository-s3-repository,repository setting>> `client`. For example, to
+use a client named `my-alternate-client`, register the repository as follows:
 
 [source,console]
 ----
@@ -66,10 +70,19 @@ bin/elasticsearch-keystore add s3.client.default.secret_key
 bin/elasticsearch-keystore add s3.client.default.session_token
 ----
 
-If instead you want to use the instance role or container role to access S3
-then you should leave these settings unset. You can switch from using specific
-credentials back to the default of using the instance role or container role by
-removing these settings from the keystore as follows:
+If you do not configure these settings then {es} will attempt to automatically
+obtain credentials from the environment in which it is running:
+
+* Nodes running on an instance in AWS EC2 will attempt to use the EC2 Instance
+  Metadata Service (IMDS) to obtain instance role credentials. {es} supports
+  both IMDS version 1 and IMDS version 2.
+
+* Nodes running in a container in AWS ECS and AWS EKS will attempt to obtain
+  container role credentials similarly.
+
+You can switch from using specific credentials back to the default of using the
+instance role or container role by removing these settings from the keystore as
+follows:
 
 [source,sh]
 ----
@@ -79,20 +92,14 @@ bin/elasticsearch-keystore remove s3.client.default.secret_key
 bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
-*All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable].
-You can define these settings before the node is started,
-or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>>
-after the settings are defined to apply them to a running node.
-
-After you reload the settings, the internal `s3` clients, used to transfer the snapshot
-contents, will utilize the latest settings from the keystore. Any existing `s3`
-repositories, as well as any newly created ones, will pick up the new values
-stored in the keystore.
-
-NOTE: In-progress snapshot/restore tasks will not be preempted by a *reload* of
-the client's secure settings. The task will complete using the client as it was
-built when the operation started.
+Define the relevant secure settings in each node's keystore before starting the
+node. The secure settings described here are all
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable] so you may
+update the keystore contents on each node while the node is running and then
+call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings
+API>> to apply the updated settings to the nodes in the cluster. After this API
+completes, {es} will use the updated setting values for all future snapshot
+operations, but ongoing operations may continue to use older setting values.
 
 The following list contains the available client settings. Those that must be
 stored in the keystore are marked as "secure" and are *reloadable*; the other

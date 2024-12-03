@@ -214,6 +214,7 @@ public class IndexComponentSelectorResolverTests extends ESTestCase {
         // Test throw an error when directly accessing the failure store when not supported
         {
             IndicesOptions noFailureIndices = IndicesOptions.builder(indicesOptions)
+                .selectorOptions(randomFrom(IndicesOptions.SelectorOptions.ALL_APPLICABLE, IndicesOptions.SelectorOptions.DATA))
                 .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder(indicesOptions.gatekeeperOptions()).allowFailureIndices(false))
                 .build();
             FailureIndexNotSupportedException exception = expectThrows(

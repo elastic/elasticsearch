@@ -698,7 +698,7 @@ public record IndicesOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
-                .allowFailureIndices(false)
+                .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
         .build();

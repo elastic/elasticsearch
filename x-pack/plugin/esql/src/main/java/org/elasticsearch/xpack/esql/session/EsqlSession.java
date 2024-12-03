@@ -178,7 +178,7 @@ public class EsqlSession {
         executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
     }
 
-    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {};
+    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}
 
     private void executeSubPlans(
         PhysicalPlan physicalPlan,
@@ -313,7 +313,7 @@ public class EsqlSession {
             // First resolve the lookup indices, then the main indices
             preAnalyzeLookupIndices(
                 preAnalysis.lookupIndices,
-                fieldNames,
+                Set.of("*"), // Current LOOKUP JOIN syntax does not allow for field selection
                 l.delegateFailureAndWrap(
                     (lx, lookupIndexResolution) -> preAnalyzeIndices(
                         indices,

@@ -2765,11 +2765,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 as(fAgg.child(), EsRelation.class);
 
                 // Now optimize the plan and assert the aggregation uses doc-values
-                System.out.println("before");
-                System.out.println(plan);
                 var optimized = optimizedPlan(plan, testData.stats);
-                System.out.println("after");
-                System.out.println(optimized);
                 limit = as(optimized, LimitExec.class);
                 agg = as(limit.child(), AggregateExec.class);
                 // Above the exchange (in coordinator) the aggregation is not using doc-values

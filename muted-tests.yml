@@ -235,6 +235,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117893
+- class: org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/117904
 
 # Examples:
 #

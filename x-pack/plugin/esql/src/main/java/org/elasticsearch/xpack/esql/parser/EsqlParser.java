@@ -40,7 +40,7 @@ public class EsqlParser {
      * fail at preventing antlr from slurping in the world. Instead, let's make sure
      * that the world just isn't that big.
      */
-    private static final int MAX_LENGTH = 1_000_000;
+    public static final int MAX_LENGTH = 1_000_000;
 
     private EsqlConfig config = new EsqlConfig();
 
@@ -70,7 +70,7 @@ public class EsqlParser {
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         if (query.length() > MAX_LENGTH) {
-            throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
+            throw new org.elasticsearch.xpack.esql.core.ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
         }
         try {
             EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));

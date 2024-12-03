@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -143,11 +144,11 @@ public class UserAgentProcessor extends AbstractProcessor {
         final StringBuilder versionString = new StringBuilder();
         if (version.major() != null) {
             versionString.append(version.major());
-            if (version.minor() != null && version.minor().length() > 0) {
+            if (Strings.hasLength(version.minor())) {
                 versionString.append(".").append(version.minor());
-                if (version.patch() != null && version.patch().length() > 0) {
+                if (Strings.hasLength(version.patch())) {
                     versionString.append(".").append(version.patch());
-                    if (version.build() != null && version.build().length() > 0) {
+                    if (Strings.hasLength(version.build())) {
                         versionString.append(".").append(version.build());
                     }
                 }

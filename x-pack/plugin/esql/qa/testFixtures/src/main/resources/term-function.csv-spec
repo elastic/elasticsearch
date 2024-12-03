@@ -5,10 +5,12 @@
 termWithTextField
 required_capability: term_function
 
+// tag::term-with-field[]
 from books 
 | where term(author, "gabriel")  
 | keep book_no, title
 | limit 3;
+// end::term-with-field[]
 ignoreOrder:true
 
 book_no:keyword | title:text
@@ -20,12 +22,10 @@ book_no:keyword | title:text
 termWithKeywordField
 required_capability: term_function
 
-// tag::term-with-keyword-field[]
 from employees
 | where term(gender, "F")
 | keep emp_no, gender 
 | limit 2;
-// end::term-with-keyword-field[]
 
 // tag::term-with-keyword-field-result[]
 emp_no:integer | gender:keyword

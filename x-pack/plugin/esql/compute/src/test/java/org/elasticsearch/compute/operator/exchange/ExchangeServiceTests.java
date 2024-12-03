@@ -491,7 +491,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
-    public void testFailToRespondPage() {
+    public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
@@ -558,7 +558,9 @@ public class ExchangeServiceTests extends ESTestCase {
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
-            sinkHandler.onFailure(new RuntimeException(cause));
+            PlainActionFuture<Void> sinkCompletionFuture = new PlainActionFuture<>();
+            sinkHandler.addCompletionListener(sinkCompletionFuture);
+            assertBusy(() -> assertTrue(sinkCompletionFuture.isDone()));
             expectThrows(Exception.class, () -> sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS));
         }
     }

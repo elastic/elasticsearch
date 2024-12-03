@@ -633,7 +633,8 @@ public class DeploymentManager {
 
             priorityProcessWorker.shutdownNow();
             try {
-                priorityProcessWorker.awaitTermination(30L, TimeUnit.SECONDS);
+                // wait for any currently executing work to finish
+                priorityProcessWorker.awaitTermination(10L, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.info(Strings.format("[%s] Interrupted waiting for process worker after shutdownNow", PROCESS_NAME));

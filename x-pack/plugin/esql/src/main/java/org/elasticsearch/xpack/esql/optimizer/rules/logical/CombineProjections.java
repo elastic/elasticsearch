@@ -145,6 +145,9 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         List<? extends NamedExpression> upperGroupings,
         List<? extends NamedExpression> lowerProjections
     ) {
+        assert upperGroupings.size() <= 1
+            || upperGroupings.stream().anyMatch(group -> group.anyMatch(expr -> expr instanceof Categorize)) == false
+            : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
         AttributeMap<Attribute> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {

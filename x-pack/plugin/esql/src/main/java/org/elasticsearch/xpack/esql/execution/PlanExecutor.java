@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.InferenceResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
@@ -40,8 +41,14 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanningMetricsManager planningMetricsManager;
+    private final InferenceResolver inferenceResolver;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        InferenceResolver inferenceResolver
+    ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -49,6 +56,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
+        this.inferenceResolver = inferenceResolver;
     }
 
     public void esql(
@@ -73,7 +81,8 @@ public class PlanExecutor {
             mapper,
             verifier,
             planningMetrics,
-            indicesExpressionGrouper
+            indicesExpressionGrouper,
+            inferenceResolver
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

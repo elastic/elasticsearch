@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.InferenceResolver;
 
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
@@ -111,7 +112,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
+            new PlanExecutor(
+                new IndexResolver(services.client()),
+                services.telemetryProvider().getMeterRegistry(),
+                getLicenseState(),
+                new InferenceResolver(services.client(), services.clusterService())
+            ),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );

@@ -45,6 +45,15 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
+    public static Analyzer analyzerWithSemanticTextMapping() {
+        IndexResolution indexResolution = loadMapping("mapping-semantic_text.json", "test");
+
+        return new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()),
+            TEST_VERIFIER
+        );
+    }
+
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()),

@@ -283,3 +283,42 @@ book_no:keyword | c_score:double
 7350            | 2.0
 7140            | 3.0
 ;
+
+semanticTextMatch
+required_capability: metadata_score
+required_capability: semantic_text_type
+required_capability: match_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+| sort _score desc
+| keep _id, _score
+;
+
+_id:keyword | _score:double
+2           | 1.2879333961116942E19
+3           | 4.955684723851526E18
+1           | 1.9332616743917978E18
+;
+
+semanticTextMatchWithAllTheTextFunctions
+
+required_capability: metadata_score
+required_capability: semantic_text_type
+required_capability: match_function
+required_capability: kql_function
+required_capability: qstr_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+        AND match(description, "some")
+        AND kql("description:some*")
+        AND NOT qstr("host:host1")
+| sort _score desc
+| keep _id, _score
+;
+
+_id:keyword | _score:double
+2           | 1.2879333961116942E19
+3           | 4.955684723851526E18
+;

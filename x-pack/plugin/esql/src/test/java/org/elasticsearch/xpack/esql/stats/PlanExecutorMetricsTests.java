@@ -15,6 +15,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.InferenceResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.junit.After;
 import org.junit.Before;
@@ -94,7 +98,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         Client esqlClient = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("name")).build());
+
         IndexResolver indexResolver = new IndexResolver(esqlClient);
+        InferenceResolver inferenceResolver = new InferenceResolver(esqlClient, clusterService);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[2];
@@ -103,7 +111,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L));
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), inferenceResolver);
+
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();

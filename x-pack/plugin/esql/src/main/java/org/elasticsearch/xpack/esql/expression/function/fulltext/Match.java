@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -41,7 +44,7 @@ public class Match extends FullTextFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
     private final Expression field;
-
+    private InferenceResults inferenceResults;
     private transient Boolean isOperator;
 
     @FunctionInfo(
@@ -63,11 +66,24 @@ public class Match extends FullTextFunction implements Validatable {
         this.field = field;
     }
 
+    private Match(Source source, Expression field, Expression matchQuery, InferenceResults inferenceResults) {
+        this(source, field, matchQuery);
+        this.inferenceResults = inferenceResults;
+    }
+
+    public static Match newWithInferenceResults(Match match, InferenceResults inferenceResults) {
+        return new Match(match.source(), match.field(), match.query(), inferenceResults);
+    }
+
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Match(source, field, query);
+        InferenceResults inferenceResults = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
+            inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
+        }
+        return new Match(source, field, query, inferenceResults);
     }
 
     @Override
@@ -75,6 +91,9 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
+            out.writeOptionalNamedWriteable(inferenceResults);
+        }
     }
 
     @Override
@@ -104,7 +123,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), inferenceResults);
     }
 
     @Override
@@ -118,6 +137,10 @@ public class Match extends FullTextFunction implements Validatable {
 
     public Expression field() {
         return field;
+    }
+
+    public InferenceResults inferenceResults() {
+        return inferenceResults;
     }
 
     @Override
@@ -135,5 +158,23 @@ public class Match extends FullTextFunction implements Validatable {
             isOperator = source().text().toUpperCase(Locale.ROOT).matches("^" + super.functionName() + "\\s*\\(.*\\)") == false;
         }
         return isOperator;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), inferenceResults);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+
+        Match other = (Match) obj;
+        return functionType().equals(other.functionType())
+            && field.equals(other.field)
+            && query().equals(other.query())
+            && Objects.equals(inferenceResults, other.inferenceResults);
     }
 }

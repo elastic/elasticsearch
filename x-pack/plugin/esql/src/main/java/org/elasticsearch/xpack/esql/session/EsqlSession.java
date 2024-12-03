@@ -112,6 +112,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private final InferenceResolver inferenceResolver;
 
     public EsqlSession(
         String sessionId,
@@ -124,7 +125,8 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanningMetrics planningMetrics,
-        IndicesExpressionGrouper indicesExpressionGrouper
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        InferenceResolver inferenceResolver
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -138,6 +140,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.inferenceResolver = inferenceResolver;
     }
 
     public String sessionId() {
@@ -157,7 +160,16 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                    try {
+                        inferenceResolver.setInferenceResults(
+                            analyzedPlan,
+                            executionInfo,
+                            listener,
+                            (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(newPlan), next)
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
             }
         );

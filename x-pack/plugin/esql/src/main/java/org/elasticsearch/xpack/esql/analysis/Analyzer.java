@@ -181,7 +181,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
-    public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
+    protected LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
         Collection<Failure> failures = verifier.verify(plan, partialMetrics);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);

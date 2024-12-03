@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.SemanticQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -531,6 +532,17 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
+            // This is only temporary until the MatchQueryBuilder has support for semantic_text.
+            // At that point we can simply remove SemanticQuery and rely on MatchQuery.
+            if (match.field().dataType() == DataType.SEMANTIC_TEXT) {
+                return new SemanticQuery(
+                    match.source(),
+                    ((FieldAttribute) match.field()).name(),
+                    match.queryAsText(),
+                    match.inferenceResults()
+                );
+            }
+
             return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
         }
     }

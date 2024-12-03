@@ -43,8 +43,7 @@ public class RepositoryStats implements Writeable {
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
-        final Map<String, BlobStoreActionStats> result = new HashMap<>();
-        result.putAll(actionStats);
+        final Map<String, BlobStoreActionStats> result = new HashMap<>(actionStats);
         for (Map.Entry<String, BlobStoreActionStats> entry : otherStats.actionStats.entrySet()) {
             result.merge(entry.getKey(), entry.getValue(), BlobStoreActionStats::add);
         }

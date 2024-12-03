@@ -79,7 +79,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
             assertThat(repoStatsBeforeRestore.size(), equalTo(1));
 
             RepositoryStatsSnapshot repositoryStatsBeforeRestore = repoStatsBeforeRestore.get(0);
-            Map<String, BlobStoreActionStats> requestCountsBeforeRestore = repositoryStatsBeforeRestore.getRepositoryStats().actionStats;
+            Map<String, BlobStoreActionStats> actionStatsBeforeRestore = repositoryStatsBeforeRestore.getRepositoryStats().actionStats;
             assertRepositoryStatsBelongToRepository(repositoryStatsBeforeRestore, repository);
             assertRequestCountersAccountedForReads(repositoryStatsBeforeRestore);
             assertRequestCountersAccountedForWrites(repositoryStatsBeforeRestore);
@@ -91,12 +91,12 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
             List<RepositoryStatsSnapshot> updatedRepoStats = getRepositoriesStats();
             assertThat(updatedRepoStats.size(), equalTo(1));
             RepositoryStatsSnapshot repoStatsAfterRestore = updatedRepoStats.get(0);
-            Map<String, BlobStoreActionStats> requestCountsAfterRestore = repoStatsAfterRestore.getRepositoryStats().actionStats;
+            Map<String, BlobStoreActionStats> actionStatsAfterRestore = repoStatsAfterRestore.getRepositoryStats().actionStats;
 
             for (String readCounterKey : readCounterKeys()) {
                 assertThat(
-                    requestCountsAfterRestore.get(readCounterKey).operations(),
-                    greaterThanOrEqualTo(requestCountsBeforeRestore.get(readCounterKey).operations())
+                    actionStatsAfterRestore.get(readCounterKey).operations(),
+                    greaterThanOrEqualTo(actionStatsBeforeRestore.get(readCounterKey).operations())
                 );
             }
         });
@@ -257,21 +257,21 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
 
     private void assertRequestCountersAccountedForReads(RepositoryStatsSnapshot statsSnapshot) {
         RepositoryStats repositoryStats = statsSnapshot.getRepositoryStats();
-        Map<String, BlobStoreActionStats> requestCounts = repositoryStats.actionStats;
+        Map<String, BlobStoreActionStats> actionStats = repositoryStats.actionStats;
         for (String readCounterKey : readCounterKeys()) {
-            assertThat(requestCounts.get(readCounterKey), is(notNullValue()));
-            assertThat(requestCounts.get(readCounterKey).operations(), is(greaterThan(0L)));
-            assertThat(requestCounts.get(readCounterKey).requests(), is(greaterThan(0L)));
+            assertThat(actionStats.get(readCounterKey), is(notNullValue()));
+            assertThat(actionStats.get(readCounterKey).operations(), is(greaterThan(0L)));
+            assertThat(actionStats.get(readCounterKey).requests(), is(greaterThan(0L)));
         }
     }
 
     private void assertRequestCountersAccountedForWrites(RepositoryStatsSnapshot statsSnapshot) {
         RepositoryStats repositoryStats = statsSnapshot.getRepositoryStats();
-        Map<String, BlobStoreActionStats> requestCounts = repositoryStats.actionStats;
+        Map<String, BlobStoreActionStats> actionStats = repositoryStats.actionStats;
         for (String writeCounterKey : writeCounterKeys()) {
-            assertThat(requestCounts.get(writeCounterKey), is(notNullValue()));
-            assertThat(requestCounts.get(writeCounterKey).operations(), is(greaterThan(0L)));
-            assertThat(requestCounts.get(writeCounterKey).requests(), is(greaterThan(0L)));
+            assertThat(actionStats.get(writeCounterKey), is(notNullValue()));
+            assertThat(actionStats.get(writeCounterKey).operations(), is(greaterThan(0L)));
+            assertThat(actionStats.get(writeCounterKey).requests(), is(greaterThan(0L)));
         }
     }
 
@@ -297,8 +297,8 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
 
     private void assertAllRequestCountsAreZero(RepositoryStatsSnapshot statsSnapshot) {
         RepositoryStats stats = statsSnapshot.getRepositoryStats();
-        for (BlobStoreActionStats requestCount : stats.actionStats.values()) {
-            assertThat(requestCount.requests(), equalTo(0));
+        for (BlobStoreActionStats actionStats : stats.actionStats.values()) {
+            assertThat(actionStats.requests(), equalTo(0));
         }
     }
 

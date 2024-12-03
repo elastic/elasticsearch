@@ -41,8 +41,7 @@ public class LocalCircuitBreakerTests extends ESTestCase {
 
         @Override
         public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
-            called.incrementAndGet();
-            breaker.checkRealMemoryUsage(label);
+            throw new UnsupportedOperationException("checkRealMemoryUsage is not supported by TrackingCircuitBreaker");
         }
 
         @Override

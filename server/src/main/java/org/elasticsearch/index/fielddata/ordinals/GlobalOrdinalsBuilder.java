@@ -19,6 +19,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -58,8 +59,10 @@ public enum GlobalOrdinalsBuilder {
         // we assume that TermsEnum are visited sequentially, so we can share the counter between them
         final long[] counter = new long[1];
         for (int i = 0; i < subs.length; ++i) {
+
             termsEnums[i] = new FilterLeafReader.FilterTermsEnum(subs[i].termsEnum()) {
                 @Override
+                @SuppressForbidden(reason = "Cannot control memory allocated by global ordinals")
                 public BytesRef next() throws IOException {
                     // check parent circuit breaker every 65536 calls
                     if ((counter[0]++ & 0xFFFF) == 0) {

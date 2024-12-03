@@ -10,6 +10,7 @@
 package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -127,6 +128,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
         }
 
         @Override
+        @SuppressForbidden(reason = "Wrapper of a forbidden method")
         public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
             next.checkRealMemoryUsage(label);
         }

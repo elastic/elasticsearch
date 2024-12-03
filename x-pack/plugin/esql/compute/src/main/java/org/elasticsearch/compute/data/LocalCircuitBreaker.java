@@ -68,7 +68,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
 
     @Override
     public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
-        breaker.checkRealMemoryUsage(label);
+        throw new UnsupportedOperationException("checkRealMemoryUsage is not supported by LocalCircuitBreaker");
     }
 
     @Override

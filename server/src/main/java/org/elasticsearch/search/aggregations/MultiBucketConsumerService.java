@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -113,6 +114,7 @@ public class MultiBucketConsumerService {
         }
 
         @Override
+        @SuppressForbidden(reason = "Lack of memory accounting when reducing InternalAggregations")
         public void accept(int value) {
             if (value != 0) {
                 count += value;

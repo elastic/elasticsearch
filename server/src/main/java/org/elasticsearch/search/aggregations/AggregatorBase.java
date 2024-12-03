@@ -18,6 +18,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
@@ -349,6 +350,7 @@ public abstract class AggregatorBase extends Aggregator {
      * This method calls the circuit breaker from time to time in order to give it a chance to check available
      * memory in the real memory breaker every 1024 calls and break the execution if we are running out.
      */
+    @SuppressForbidden(reason = "Lack of memory accounting when building InternalAggregations")
     protected final void checkRealMemoryCB(String label) {
         if ((++callCount & 0x3FF) == 0) {
             breaker.checkRealMemoryUsage(label);

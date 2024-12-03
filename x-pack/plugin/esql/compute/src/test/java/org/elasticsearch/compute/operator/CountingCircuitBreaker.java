@@ -42,7 +42,7 @@ public class CountingCircuitBreaker implements CircuitBreaker {
 
     @Override
     public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
-        delegate.checkRealMemoryUsage(label);
+        throw new UnsupportedOperationException("checkRealMemoryUsage is not supported by CountingCircuitBreaker");
     }
 
     @Override

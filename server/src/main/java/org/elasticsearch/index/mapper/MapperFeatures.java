@@ -61,7 +61,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
 
-    public static final NodeFeature ERROR_CODE_CHANGED = new NodeFeature("error_code_changed");
+    public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -74,7 +74,7 @@ public class MapperFeatures implements FeatureSpecification {
             IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
             MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
-            ERROR_CODE_CHANGED
+            META_FETCH_FIELDS_ERROR_CODE_CHANGED
         );
     }
 }

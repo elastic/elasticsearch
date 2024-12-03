@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -2334,7 +2335,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMatchFunctionCasting() {
+    public void testMatchFunctionQueryCasting() {
         var plan = statement("FROM test | WHERE match(field, \"value\"::IP)");
         var filter = as(plan, Filter.class);
         var function = (UnresolvedFunction) filter.condition();
@@ -2344,7 +2345,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(literal.value(), equalTo("value"));
     }
 
-    public void testMatchOperatorCasting() {
+    public void testMatchOperatorQueryCasting() {
         var plan = statement("FROM test | WHERE field:\"value\"::IP");
         var filter = as(plan, Filter.class);
         var match = (Match) filter.condition();
@@ -2353,5 +2354,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toIp = (ToIP) match.query();
         var literal = (Literal) toIp.field();
         assertThat(literal.value(), equalTo("value"));
+    }
+
+    public void testMatchFunctionFieldCasting() {
+        var plan = statement("FROM test | WHERE match(field::int, \"value\")");
+        var filter = as(plan, Filter.class);
+        var function = (UnresolvedFunction) filter.condition();
+        var toInteger = (ToInteger) function.children().get(0);
+        var matchField = (UnresolvedAttribute) toInteger.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(function.children().get(1).fold(), equalTo("value"));
+    }
+
+    public void testMatchOperatorFieldCasting() {
+        var plan = statement("FROM test | WHERE field::int : \"value\"");
+        var filter = as(plan, Filter.class);
+        var match = (Match) filter.condition();
+        var toInteger = (ToInteger) match.field();
+        var matchField = (UnresolvedAttribute) toInteger.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(match.query().fold(), equalTo("value"));
     }
 }

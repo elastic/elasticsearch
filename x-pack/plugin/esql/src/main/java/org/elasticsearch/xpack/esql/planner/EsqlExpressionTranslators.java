@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -531,7 +532,17 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
-            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsObject());
+            Expression field = match.field();
+            if (field instanceof FieldAttribute fieldAttribute) {
+                String fieldName = fieldAttribute.name();
+                if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+                    // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+                    fieldName = multiTypeEsField.getName();
+                }
+                return new MatchQuery(match.source(), fieldName, match.queryAsObject());
+            }
+
+            throw new IllegalArgumentException("Match must have a field attribute as the first argument");
         }
     }
 

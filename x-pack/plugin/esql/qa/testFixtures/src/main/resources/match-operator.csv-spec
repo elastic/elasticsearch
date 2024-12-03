@@ -469,3 +469,20 @@ emp_no:integer | height:double
 10048          | 2.0            
 10098          | 2.0     
 ;
+
+
+testMatchMultipleFieldTypes
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible 
+| where emp_no::int : 10005 
+| eval emp_as_int = emp_no::int 
+| eval name_as_kw = first_name::keyword 
+| keep emp_as_int, name_as_kw
+;
+
+emp_as_int:integer | name_as_kw:keyword
+10005              | Kyoichi        
+10005              | Kyoichi      
+;

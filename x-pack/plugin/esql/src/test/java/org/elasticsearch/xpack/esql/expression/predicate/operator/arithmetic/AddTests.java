@@ -159,7 +159,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         };
         BiFunction<TestCaseSupplier.TypedData, TestCaseSupplier.TypedData, List<String>> warnings = (lhs, rhs) -> {
             try {
-                addDatesAndTemporalAmount(lhs.data(), rhs.data(), AddTests::addMillis);
+                addDatesAndTemporalAmount(lhs.getValue(), rhs.getValue(), AddTests::addMillis);
                 return List.of();
             } catch (ArithmeticException e) {
                 return List.of(
@@ -332,6 +332,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         // this weird casting dance makes the expected value lambda symmetric
         Instant date;
         TemporalAmount period;
+        assert (lhs instanceof Instant) || (rhs instanceof Instant);
         if (lhs instanceof Instant) {
             date = (Instant) lhs;
             period = (TemporalAmount) rhs;

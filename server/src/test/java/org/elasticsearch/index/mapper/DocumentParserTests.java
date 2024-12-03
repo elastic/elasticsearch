@@ -2074,15 +2074,15 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         doc = mapper.parse(source("""
             { "metrics": { "service": { "test.other.dots": "foo" }  } }"""));
-        assertNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
 
         doc = mapper.parse(source("""
             { "metrics": { "service.test": { "other.dots": "foo" }  } }"""));
-        assertNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
 
         doc = mapper.parse(source("""
             { "metrics": { "service": { "test": { "other.dots": "foo" }  }  } }"""));
-        assertNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
@@ -2126,15 +2126,15 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         doc = mapper.parse(source("""
             { "service": { "test.other.dots": "foo" } }"""));
-        assertNull(doc.rootDoc().getField("service.test.with.dots"));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
 
         doc = mapper.parse(source("""
             { "service.test": { "other.dots": "foo" } }"""));
-        assertNull(doc.rootDoc().getField("service.test.with.dots"));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
 
         doc = mapper.parse(source("""
             { "service": { "test": { "other.dots": "foo" } } }"""));
-        assertNull(doc.rootDoc().getField("service.test.with.dots"));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
     }
 
     public void testSubobjectsFalseStructuredPath() throws Exception {

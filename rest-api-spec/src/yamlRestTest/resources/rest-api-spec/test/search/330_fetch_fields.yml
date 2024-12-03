@@ -1192,6 +1192,8 @@ root with subobjects false and dynamic false:
             subobjects: false
             dynamic: false
             properties:
+              id:
+                type: integer
               my.keyword.field:
                 type: keyword
 
@@ -1201,7 +1203,7 @@ root with subobjects false and dynamic false:
         refresh: true
         body:
           - '{ "index": { } }'
-          - '{ "my": { "keyword.field": "abc" } }'
+          - '{ "id": 1, "my": { "keyword.field": "abc" } }'
   - match: { errors: false }
 
   # indexing a dynamically-mapped field still fails (silently)
@@ -1211,17 +1213,18 @@ root with subobjects false and dynamic false:
         refresh: true
         body:
           - '{ "index": { } }'
-          - '{ "my": { "random.field": "abc" } }'
+          - '{ "id": 2, "my": { "random.field": "abc" } }'
   - match: { errors: false }
 
   - do:
       search:
         index: test
         body:
+          sort: id
           fields: [ "*" ]
 
-  - match: { hits.hits.0.fields: { my.keyword.field: [ abc ] } }
-  - match: { hits.hits.1.fields: null }
+  - match: { hits.hits.0.fields: { my.keyword.field: [ abc ], id: [ 1 ] } }
+  - match: { hits.hits.1.fields: { id: [ 2 ] } }
 
   - do:
       search:
@@ -1249,6 +1252,8 @@ object with subobjects false and dynamic false:
                 subobjects: false
                 dynamic: false
                 properties:
+                  id:
+                    type: integer
                   nested.keyword.field:
                     type: keyword
 
@@ -1258,7 +1263,7 @@ object with subobjects false and dynamic false:
         refresh: true
         body:
           - '{ "index": { } }'
-          - '{ "my": { "nested": { "keyword.field": "abc" } } }'
+          - '{ "id": 1, "my": { "nested": { "keyword.field": "abc" } } }'
   - match: { errors: false }
 
   # indexing a dynamically-mapped field still fails (silently)
@@ -1268,17 +1273,18 @@ object with subobjects false and dynamic false:
         refresh: true
         body:
           - '{ "index": { } }'
-          - '{ "my": { "nested": { "random.field": "abc" } } }'
+          - '{ "id": 2, "my": { "nested": { "random.field": "abc" } } }'
   - match: { errors: false }
 
   - do:
       search:
         index: test
         body:
+          sort: id
           fields: [ "*" ]
 
-  - match: { hits.hits.0.fields: { my.nested.keyword.field: [ abc ] } }
-  - match: { hits.hits.1.fields: null }
+  - match: { hits.hits.0.fields: { my.nested.keyword.field: [ abc ], id: [ 1 ] } }
+  - match: { hits.hits.1.fields: { id: [ 2 ] } }
 
   - do:
       search:

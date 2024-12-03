@@ -81,7 +81,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -154,13 +153,13 @@ public class EsqlSession {
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
+            request.filter(),
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
                     executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
                 }
-            },
-            request.filter()
+            }
         );
     }
 
@@ -275,8 +274,8 @@ public class EsqlSession {
     public void analyzedPlan(
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        QueryBuilder requestFilter
+        QueryBuilder requestFilter,
+        ActionListener<LogicalPlan> logicalPlanListener
     ) {
         if (parsed.analyzed()) {
             logicalPlanListener.onResponse(parsed);
@@ -327,7 +326,7 @@ public class EsqlSession {
                 // invalid index resolution to updateExecutionInfo
                 if (listenerResult.indices.isValid()) {
                     // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                    if (analyzeCCSIndices(executionInfo, logicalPlanListener, l, listenerResult, targetClusters, unresolvedPolicies))
+                    if (analyzeCCSIndices(executionInfo, targetClusters, unresolvedPolicies, listenerResult, logicalPlanListener, l))
                         return;
                 }
                 // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
@@ -335,7 +334,7 @@ public class EsqlSession {
             })
             .<ListenerResult>andThen((l, listenerResult) -> {
                 // first attempt (maybe the only one) at analyzing the plan
-                analyzeAndMaybeRetry(analyzeAction, requestFilter, listenerResult, l, logicalPlanListener);
+                analyzeAndMaybeRetry(analyzeAction, requestFilter, listenerResult, logicalPlanListener, l);
             })
             .<ListenerResult>andThen((l, listenerResult) -> {
                 assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
@@ -377,7 +376,7 @@ public class EsqlSession {
                 table.index(),
                 listenerResult.fieldNames(),
                 null,
-                new ListenerResultWrappingListener<>(listener, listenerResult, listenerResult::withLookupIndexResolution)
+                listener.map(indexResolution -> listenerResult.withLookupIndexResolution(indexResolution))
             );
         } else {
             try {
@@ -456,7 +455,7 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     listenerResult.fieldNames,
                     requestFilter,
-                    new ListenerResultWrappingListener<>(listener, listenerResult, listenerResult::withIndexResolution)
+                    listener.map(indexResolution -> listenerResult.withIndexResolution(indexResolution))
                 );
             }
         } else {
@@ -478,11 +477,11 @@ public class EsqlSession {
 
     private boolean analyzeCCSIndices(
         EsqlExecutionInfo executionInfo,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<ListenerResult> l,
-        ListenerResult listenerResult,
         Set<String> targetClusters,
-        Set<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies
+        Set<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies,
+        ListenerResult listenerResult,
+        ActionListener<LogicalPlan> logicalPlanListener,
+        ActionListener<ListenerResult> l
     ) {
         IndexResolution indexResolution = listenerResult.indices;
         EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
@@ -506,7 +505,7 @@ public class EsqlSession {
             enrichPolicyResolver.resolvePolicies(
                 newClusters,
                 unresolvedPolicies,
-                new ListenerResultWrappingListener<>(l, listenerResult, listenerResult::withEnrichResolution)
+                l.map(enrichResolution -> listenerResult.withEnrichResolution(enrichResolution))
             );
             return true;
         }
@@ -517,8 +516,8 @@ public class EsqlSession {
         TriFunction<IndexResolution, IndexResolution, EnrichResolution, LogicalPlan> analyzeAction,
         QueryBuilder requestFilter,
         ListenerResult listenerResult,
-        ActionListener<ListenerResult> l,
-        ActionListener<LogicalPlan> logicalPlanListener
+        ActionListener<LogicalPlan> logicalPlanListener,
+        ActionListener<ListenerResult> l
     ) {
         LogicalPlan plan = null;
         var filterPresentMessage = requestFilter == null ? "without" : "with";
@@ -538,16 +537,15 @@ public class EsqlSession {
                 if (requestFilter == null) {
                     // if the initial request didn't have a filter, then just pass the exception back to the user
                     logicalPlanListener.onFailure(ve);
-                    return;
                 } else {
                     // interested only in a VerificationException, but this time we are taking out the index filter
                     // to try and make the index resolution work without any index filtering. In the next step... to be continued
                     l.onResponse(listenerResult);
                 }
+                return;
             } else {
                 // if the query failed with any other type of exception, then just pass the exception back to the user
                 logicalPlanListener.onFailure(e);
-                return;
             }
         }
         LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
@@ -705,28 +703,6 @@ public class EsqlSession {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
-    }
-
-    class ListenerResultWrappingListener<T> implements ActionListener<T> {
-        private final ActionListener<ListenerResult> delegate;
-        private final ListenerResult result;
-        private final Function<T, ListenerResult> setter;
-
-        ListenerResultWrappingListener(ActionListener<ListenerResult> delegate, ListenerResult result, Function<T, ListenerResult> setter) {
-            this.delegate = delegate;
-            this.result = result;
-            this.setter = setter;
-        }
-
-        @Override
-        public void onResponse(T t) {
-            delegate.onResponse(setter.apply(t));
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            delegate.onFailure(e);
-        }
     }
 
     private record ListenerResult(

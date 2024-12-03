@@ -258,13 +258,13 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
                 List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
                     .cluster()
                     .prepareListTasks()
-                    .setTargetParentTaskId(clusterTasks.getFirst().taskId())
+                    .setTargetParentTaskId(clusterTasks.get(0).taskId())
                     .setActions(DriverTaskRunner.ACTION_NAME)
                     .setDetailed(true)
                     .get()
                     .getTasks();
                 assertThat(drivers.size(), equalTo(1));
-                TaskInfo driver = drivers.getFirst();
+                TaskInfo driver = drivers.get(0);
                 assertThat(driver.description(), equalTo("""
                     \\_ExchangeSourceOperator[]
                     \\_AggregationOperator[mode = INTERMEDIATE, aggs = sum of longs]

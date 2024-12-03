@@ -80,13 +80,13 @@ public class PlannerUtils {
         if (fragments.isEmpty()) {
             return null;
         }
-        final FragmentExec fragment = (FragmentExec) fragments.getFirst();
+        final FragmentExec fragment = (FragmentExec) fragments.get(0);
 
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(Mapper::isPipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
             return null;
         }
-        final var pipelineBreaker = pipelineBreakers.getFirst();
+        final var pipelineBreaker = pipelineBreakers.get(0);
         final LocalMapper mapper = new LocalMapper();
         PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
         if (reducePlan instanceof AggregateExec agg) {

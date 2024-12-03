@@ -33,7 +33,7 @@ public record UnifiedCompletionRequest(
     List<Message> messages,
     @Nullable String model,
     @Nullable Long maxCompletionTokens,
-    @Nullable Stop stop,
+    @Nullable List<String> stop,
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
@@ -49,7 +49,7 @@ public record UnifiedCompletionRequest(
             (List<Message>) args[0],
             (String) args[1],
             (Long) args[2],
-            (Stop) args[3],
+            (List<String>) args[3],
             (Float) args[4],
             (ToolChoice) args[5],
             (List<Tool>) args[6],
@@ -61,7 +61,9 @@ public record UnifiedCompletionRequest(
         PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"), ObjectParser.ValueType.VALUE_ARRAY);
+        // PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"),
+        // ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField("stop"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
         PARSER.declareField(
             optionalConstructorArg(),
@@ -78,9 +80,9 @@ public record UnifiedCompletionRequest(
             new NamedWriteableRegistry.Entry(Content.class, ContentObjects.NAME, ContentObjects::new),
             new NamedWriteableRegistry.Entry(Content.class, ContentString.NAME, ContentString::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
-            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
-            new NamedWriteableRegistry.Entry(Stop.class, StopValues.NAME, StopValues::new),
-            new NamedWriteableRegistry.Entry(Stop.class, StopString.NAME, StopString::new)
+            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
+            // new NamedWriteableRegistry.Entry(Stop.class, StopValues.NAME, StopValues::new),
+            // new NamedWriteableRegistry.Entry(Stop.class, StopString.NAME, StopString::new)
         );
     }
 
@@ -93,7 +95,7 @@ public record UnifiedCompletionRequest(
             in.readCollectionAsImmutableList(Message::new),
             in.readOptionalString(),
             in.readOptionalVLong(),
-            in.readOptionalNamedWriteable(Stop.class),
+            in.readOptionalStringCollectionAsList(),
             in.readOptionalFloat(),
             in.readOptionalNamedWriteable(ToolChoice.class),
             in.readOptionalCollectionAsList(Tool::new),
@@ -106,7 +108,7 @@ public record UnifiedCompletionRequest(
         out.writeCollection(messages);
         out.writeOptionalString(model);
         out.writeOptionalVLong(maxCompletionTokens);
-        out.writeOptionalNamedWriteable(stop);
+        out.writeOptionalStringCollection(stop);
         out.writeOptionalFloat(temperature);
         out.writeOptionalNamedWriteable(toolChoice);
         out.writeOptionalCollection(tools);
@@ -279,60 +281,60 @@ public record UnifiedCompletionRequest(
         }
     }
 
-    private static Stop parseStop(XContentParser parser) throws IOException {
-        var token = parser.currentToken();
-        if (token == XContentParser.Token.START_ARRAY) {
-            var parsedStopValues = XContentParserUtils.parseList(parser, XContentParser::text);
-            return new StopValues(parsedStopValues);
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            return StopString.of(parser);
-        }
+    // private static Stop parseStop(XContentParser parser) throws IOException {
+    // var token = parser.currentToken();
+    // if (token == XContentParser.Token.START_ARRAY) {
+    // var parsedStopValues = XContentParserUtils.parseList(parser, XContentParser::text);
+    // return new StopValues(parsedStopValues);
+    // } else if (token == XContentParser.Token.VALUE_STRING) {
+    // return StopString.of(parser);
+    // }
+    //
+    // throw new XContentParseException("Unsupported token [" + token + "]");
+    // }
 
-        throw new XContentParseException("Unsupported token [" + token + "]");
-    }
-
-    public sealed interface Stop extends NamedWriteable permits StopString, StopValues {}
-
-    public record StopString(String value) implements Stop, NamedWriteable {
-        public static final String NAME = "stop_string";
-
-        public static StopString of(XContentParser parser) throws IOException {
-            var content = parser.text();
-            return new StopString(content);
-        }
-
-        public StopString(StreamInput in) throws IOException {
-            this(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    public record StopValues(List<String> values) implements Stop, NamedWriteable {
-        public static final String NAME = "stop_values";
-
-        public StopValues(StreamInput in) throws IOException {
-            this(in.readStringCollectionAsImmutableList());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(values);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
+    // public sealed interface Stop extends NamedWriteable permits StopString, StopValues {}
+    //
+    // public record StopString(String value) implements Stop, NamedWriteable {
+    // public static final String NAME = "stop_string";
+    //
+    // public static StopString of(XContentParser parser) throws IOException {
+    // var content = parser.text();
+    // return new StopString(content);
+    // }
+    //
+    // public StopString(StreamInput in) throws IOException {
+    // this(in.readString());
+    // }
+    //
+    // @Override
+    // public void writeTo(StreamOutput out) throws IOException {
+    // out.writeString(value);
+    // }
+    //
+    // @Override
+    // public String getWriteableName() {
+    // return NAME;
+    // }
+    // }
+    //
+    // public record StopValues(List<String> values) implements Stop, NamedWriteable {
+    // public static final String NAME = "stop_values";
+    //
+    // public StopValues(StreamInput in) throws IOException {
+    // this(in.readStringCollectionAsImmutableList());
+    // }
+    //
+    // @Override
+    // public void writeTo(StreamOutput out) throws IOException {
+    // out.writeStringCollection(values);
+    // }
+    //
+    // @Override
+    // public String getWriteableName() {
+    // return NAME;
+    // }
+    // }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {
         var token = parser.currentToken();

@@ -115,10 +115,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);
 
         if (unifiedRequest.stop() != null) {
-            switch (unifiedRequest.stop()) {
-                case UnifiedCompletionRequest.StopString stopString -> builder.field(STOP_FIELD, stopString.value());
-                case UnifiedCompletionRequest.StopValues stopValues -> builder.field(STOP_FIELD, stopValues.values());
-            }
+            builder.field(STOP_FIELD, unifiedRequest.stop());
         }
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());

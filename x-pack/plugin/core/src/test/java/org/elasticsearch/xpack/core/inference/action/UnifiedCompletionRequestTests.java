@@ -96,7 +96,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ),
                 "gpt-4o",
                 100L,
-                new UnifiedCompletionRequest.StopValues(List.of("stop")),
+                List.of("stop"),
                 0.1F,
                 new UnifiedCompletionRequest.ToolChoiceObject(
                     "function",
@@ -161,7 +161,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ),
                 "gpt-4o",
                 null,
-                new UnifiedCompletionRequest.StopString("none"),
+                List.of("none"),
                 null,
                 new UnifiedCompletionRequest.ToolChoiceString("auto"),
                 List.of(
@@ -227,14 +227,12 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest.ToolCall.FunctionField(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
-    public static UnifiedCompletionRequest.Stop randomStopOrNull() {
+    public static List<String> randomStopOrNull() {
         return randomBoolean() ? randomStop() : null;
     }
 
-    public static UnifiedCompletionRequest.Stop randomStop() {
-        return randomBoolean()
-            ? new UnifiedCompletionRequest.StopString(randomAlphaOfLength(10))
-            : new UnifiedCompletionRequest.StopValues(randomList(5, () -> randomAlphaOfLength(10)));
+    public static List<String> randomStop() {
+        return randomList(5, () -> randomAlphaOfLength(10));
     }
 
     public static UnifiedCompletionRequest.ToolChoice randomToolChoiceOrNull() {

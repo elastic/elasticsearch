@@ -23,14 +23,12 @@ termWithKeywordField
 required_capability: term_function
 
 from employees
-| where term(gender, "F")
-| keep emp_no, gender 
-| limit 2;
+| where term(first_name, "Guoxiang")
+| keep emp_no, first_name;
 
 // tag::term-with-keyword-field-result[]
-emp_no:integer | gender:keyword
-10002            | F
-10006            | F
+emp_no:integer | first_name:keyword
+10015            | Guoxiang
 ;
 // end::term-with-keyword-field-result[]
 
@@ -155,6 +153,7 @@ required_capability: term_function
 from employees 
 | where term(job_positions, "Data Scientist") 
 | keep emp_no, first_name, last_name
+| sort emp_no asc
 | limit 2;
 ignoreOrder:true
 

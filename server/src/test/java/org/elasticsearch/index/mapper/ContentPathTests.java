@@ -112,7 +112,7 @@ public class ContentPathTests extends ESTestCase {
         assertEquals("foo.bar.baz", contentPath.pathAsText("baz"));
         assertEquals(2, contentPath.length());
 
-        String[] newPath = {"x", "y", "z", null, "a"};
+        String[] newPath = { "x", "y", "z", null, "a" };
         contentPath.setPath(newPath);
         assertEquals("x.y.z.baz", contentPath.pathAsText("baz"));
         assertEquals(3, contentPath.length());

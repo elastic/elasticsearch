@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -93,7 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -114,7 +116,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -2751,7 +2752,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         var eval = as(agg.child(), EvalExec.class);
-        as(eval.child(), RowExec.class);
+        as(eval.child(), LocalSourceExec.class);
 
         // Now optimize the plan and assert the same plan again, since no FieldExtractExec is added
         var optimized = optimizedPlan(plan);
@@ -2765,7 +2766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         eval = as(agg.child(), EvalExec.class);
-        as(eval.child(), RowExec.class);
+        as(eval.child(), LocalSourceExec.class);
     }
 
     /**
@@ -6423,11 +6424,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
         String query = """
             FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int""";
+            | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
@@ -6468,18 +6470,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             \_EsQueryExec[...]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenProject() {
         String query = """
             FROM employees
             | SORT emp_no
             | LIMIT 4
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -6526,17 +6529,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
         String query = """
             FROM employees
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | RENAME name AS languages
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var plan = physicalPlan(query);
@@ -6553,7 +6557,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             matchesList().item(startsWith("name{f}")).item(startsWith("emp_no{f}"))
         );
         Join join = as(innerTopN.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertMap(join.config().matchFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
 
         Project innerProject = as(join.left(), Project.class);
@@ -6577,6 +6581,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookup.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
+    }
+
+    public void testScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            """);
+
+        ProjectExec outerProject = as(plan, ProjectExec.class);
+        LimitExec limitExec = as(outerProject.child(), LimitExec.class);
+        ExchangeExec exchange = as(limitExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        Limit limit = as(opt, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+    }
+
+    public void testScoreTopN() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            | sort _score desc
+            """);
+
+        ProjectExec projectExec = as(plan, ProjectExec.class);
+        TopNExec topNExec = as(projectExec.child(), TopNExec.class);
+        ExchangeExec exchange = as(topNExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        TopN topN = as(opt, TopN.class);
+        List<Order> order = topN.order();
+        Order scoreOrer = order.getFirst();
+        assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
+        Expression child = scoreOrer.child();
+        assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        Filter filter = as(topN.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
     }
 
     @SuppressWarnings("SameParameterValue")

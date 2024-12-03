@@ -209,7 +209,6 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
         Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)
     );
 
@@ -416,6 +415,14 @@ public enum DataType {
         return isDateTime(t) || isTemporalAmount(t);
     }
 
+    public static boolean isDateTimeOrNanosOrTemporal(DataType t) {
+        return isDateTime(t) || isTemporalAmount(t) || t == DATE_NANOS;
+    }
+
+    public static boolean isMillisOrNanos(DataType t) {
+        return t == DATETIME || t == DATE_NANOS;
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;
@@ -589,6 +596,13 @@ public enum DataType {
 
     public DataType noText() {
         return isString(this) ? KEYWORD : this;
+    }
+
+    public boolean isDate() {
+        return switch (this) {
+            case DATETIME, DATE_NANOS -> true;
+            default -> false;
+        };
     }
 
     /**

@@ -9,7 +9,6 @@
 
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.TestUtil
 import org.jetbrains.gradle.ext.JUnit
 
@@ -143,12 +142,17 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Enables preview features on native library module'
     dependsOn tasks.named("enableExternalConfiguration")
 
-    doLast {
-      ['main', 'test'].each { sourceSet ->
-        modifyXml(".idea/modules/libs/native/elasticsearch.libs.${project.project(':libs:native').name}.${sourceSet}.iml") { xml ->
-          xml.component.find { it.'@name' == 'NewModuleRootManager' }?.'@LANGUAGE_LEVEL' = 'JDK_21_PREVIEW'
+    ext {
+      enablePreview = { moduleFile, languageLevel ->
+        modifyXml(moduleFile) { xml ->
+          xml.component.find { it.'@name' == 'NewModuleRootManager' }?.'@LANGUAGE_LEVEL' = languageLevel
         }
       }
+    }
+
+    doLast {
+      enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.test.iml', 'JDK_21_PREVIEW')
     }
   }
 

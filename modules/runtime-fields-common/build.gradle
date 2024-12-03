@@ -22,7 +22,3 @@ dependencies {
   api project(':libs:grok')
   api project(':libs:dissect')
 }
-
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTestsByFilePattern("**/runtime_fields/110_composite.yml", "warning does not exist for compatibility")
-})

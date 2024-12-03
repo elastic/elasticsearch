@@ -9,9 +9,6 @@
 
 package org.elasticsearch.features;
 
-import org.elasticsearch.Version;
-
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,13 +45,5 @@ public interface FeatureSpecification {
      */
     default Set<NodeFeature> getTestFeatures() {
         return Set.of();
-    }
-
-    /**
-     * Returns information on historical features that should be deemed to be present on all nodes
-     * on or above the {@link Version} specified.
-     */
-    default Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of();
     }
 }

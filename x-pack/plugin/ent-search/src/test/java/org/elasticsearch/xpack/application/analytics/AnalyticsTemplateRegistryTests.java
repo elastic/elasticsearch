@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -42,7 +40,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -78,13 +75,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new AnalyticsTemplateRegistry(
-            clusterService,
-            new FeatureService(List.of(new EnterpriseSearchFeatures())),
-            threadPool,
-            client,
-            NamedXContentRegistry.EMPTY
-        );
+        registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After
@@ -280,25 +271,6 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
-    }
-
-    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
-        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
-        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .localNodeId("updatedNode")
-            .masterNodeId("updatedNode")
-            .add(updatedNode)
-            .add(outdatedNode)
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("if some cluster mode are not updated to at least v.8.8.0 nothing should happen");
-            return null;
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
-        registry.clusterChanged(event);
     }
 
     // -------------

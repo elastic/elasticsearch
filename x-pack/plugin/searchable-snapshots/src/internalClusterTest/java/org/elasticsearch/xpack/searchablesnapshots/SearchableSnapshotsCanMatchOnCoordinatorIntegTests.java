@@ -1209,7 +1209,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 assertThat(searchResponse.getSkippedShards(), equalTo(0));
                 assertThat(searchResponse.getTotalShards(), equalTo(2));
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(20L));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(20L));
             });
         }
     }

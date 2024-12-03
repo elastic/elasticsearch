@@ -29,7 +29,13 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
 
     @Override
     protected ReindexDataStreamTaskParams createTestInstance() {
-        return new ReindexDataStreamTaskParams(randomAlphaOfLength(50), randomLong(), randomNonNegativeInt(), randomNonNegativeInt());
+        return new ReindexDataStreamTaskParams(
+            randomAlphaOfLength(50),
+            randomLong(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            getTestHeaders()
+        );
     }
 
     @Override
@@ -38,19 +44,33 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
         long startTime = instance.startTime();
         int totalIndices = instance.totalIndices();
         int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
+        Map<String, String> headers = instance.headers();
         switch (randomIntBetween(0, 3)) {
             case 0 -> sourceDataStream = randomAlphaOfLength(50);
             case 1 -> startTime = randomLong();
             case 2 -> totalIndices = totalIndices + 1;
             case 3 -> totalIndices = totalIndicesToBeUpgraded + 1;
+            case 4 -> headers = headers.isEmpty() ? getTestHeaders(false) : getTestHeaders();
             default -> throw new UnsupportedOperationException();
         }
-        return new ReindexDataStreamTaskParams(sourceDataStream, startTime, totalIndices, totalIndicesToBeUpgraded);
+        return new ReindexDataStreamTaskParams(sourceDataStream, startTime, totalIndices, totalIndicesToBeUpgraded, headers);
     }
 
     @Override
     protected ReindexDataStreamTaskParams doParseInstance(XContentParser parser) {
         return ReindexDataStreamTaskParams.fromXContent(parser);
+    }
+
+    private Map<String, String> getTestHeaders() {
+        return getTestHeaders(randomBoolean());
+    }
+
+    private Map<String, String> getTestHeaders(boolean empty) {
+        if (empty) {
+            return Map.of();
+        } else {
+            return Map.of(randomAlphaOfLength(20), randomAlphaOfLength(30));
+        }
     }
 
     public void testToXContent() throws IOException {

@@ -26,6 +26,19 @@ PUT my-index
 
 See <<semantic-search-elser, semantic search with ELSER>> for a complete example on adding documents to a `sparse_vector` mapped field using ELSER.
 
+[[sparse-vectors-params]]
+==== Parameters for `sparse_vector` fields
+
+The following parameters are accepted by `sparse_vector` fields:
+
+[horizontal]
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
 [[index-multi-value-sparse-vectors]]
 ==== Multi-value sparse vectors
 

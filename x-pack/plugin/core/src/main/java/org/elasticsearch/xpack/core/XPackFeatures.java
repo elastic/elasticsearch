@@ -20,6 +20,7 @@ import java.util.Set;
 public class XPackFeatures implements FeatureSpecification {
     public static final NodeFeature LOGSDB_TELEMETRY = new NodeFeature("logsdb_telemetry");
     public static final NodeFeature LOGSDB_TELMETRY_STATS = new NodeFeature("logsdb_telemetry_stats");
+    public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -29,5 +30,10 @@ public class XPackFeatures implements FeatureSpecification {
             LOGSDB_TELEMETRY,
             LOGSDB_TELMETRY_STATS
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(SPARSE_VECTOR_STORE_SUPPORT);
     }
 }

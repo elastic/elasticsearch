@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -1559,7 +1558,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     List.of("abc", "xyz"),
                     new HashMap<>(),
                     InputType.INGEST,
-                    new ChunkingOptions(null, null),
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );

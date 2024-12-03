@@ -141,9 +141,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
-  method: testThreadPoolMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/108320
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/114233
@@ -239,6 +236,11 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/117862
+- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/117893
+- class: org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/117904
 
 # Examples:
 #

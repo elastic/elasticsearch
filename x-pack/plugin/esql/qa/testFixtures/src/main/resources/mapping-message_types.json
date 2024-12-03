@@ -1,9 +1,9 @@
 {
   "properties": {
-    "client_ip": {
+    "message": {
       "type": "keyword"
     },
-    "env": {
+    "type": {
       "type": "keyword"
     }
   }

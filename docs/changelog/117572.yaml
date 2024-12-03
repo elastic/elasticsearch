@@ -1,0 +1,5 @@
+pr: 117572
+summary: Address and remove any references to org.elasticsearch.core.RestApiVersion#V_7
+area: search
+type: enhancement
+issues: [https://elasticco.atlassian.net/browse/ES-9453]

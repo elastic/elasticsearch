@@ -1,7 +1,7 @@
 {
     "properties" : {
         "language_code" : {
-            "type" : "keyword"
+            "type" : "integer"
         },
         "language_name" : {
             "type" : "keyword"

@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -24,7 +23,9 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -586,10 +587,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     public static Diff<Metadata> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(MetadataDiff.NOOP_METADATA_DIFF_VERSION) && in.readBoolean()) {
-            return SimpleDiffable.empty();
-        }
-        return new MetadataDiff(in);
+        return in.readBoolean() ? SimpleDiffable.empty() : new MetadataDiff(in);
     }
 
     public static Metadata fromXContent(XContentParser parser) throws IOException {
@@ -655,10 +653,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     );
 
     private static class MetadataDiff implements Diff<Metadata> {
-
-        private static final TransportVersion NOOP_METADATA_DIFF_VERSION = TransportVersions.V_8_5_0;
-        private static final TransportVersion NOOP_METADATA_DIFF_SAFE_VERSION =
-            PublicationTransportHandler.INCLUDES_LAST_COMMITTED_DATA_VERSION;
 
         private final long version;
         private final String clusterUUID;
@@ -729,11 +723,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
-            } else {
-                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
-            }
             if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
                 var indices = DiffableUtils.readImmutableOpenMapDiff(
                     in,
@@ -764,15 +754,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     ProjectMetadata.ProjectMetadataDiff::new
                 );
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
                     RESERVED_DIFF_VALUE_READER
                 );
-            } else {
-                reservedStateMetadata = DiffableUtils.emptyDiff();
-            }
         }
 
         @SuppressWarnings("unchecked")
@@ -794,15 +780,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(NOOP_METADATA_DIFF_SAFE_VERSION)) {
-                out.writeBoolean(empty);
-                if (empty) {
-                    // noop diff
-                    return;
-                }
-            } else if (out.getTransportVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
-                // noops are not safe with these versions, see #92259
-                out.writeBoolean(false);
+            out.writeBoolean(empty);
+            if (empty) {
+                // noop diff
+                return;
             }
             out.writeString(clusterUUID);
             out.writeBoolean(clusterUUIDCommitted);
@@ -810,9 +791,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             coordinationMetadata.writeTo(out);
             transientSettings.writeTo(out);
             persistentSettings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 hashesOfConsistentSettings.writeTo(out);
-            }
             if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
                 // there's only ever a single project with pre-multi-project
                 if (multiProject != null) {
@@ -833,9 +812,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 }
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
-            }
         }
 
         @SuppressWarnings("unchecked")
@@ -878,8 +855,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
     }
 
-    public static final TransportVersion MAPPINGS_AS_HASH_VERSION = TransportVersions.V_8_1_0;
-
     public static Metadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         builder.version(in.readLong());
@@ -888,21 +863,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
-        }
         if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
             final Function<String, MappingMetadata> mappingLookup;
-            if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
                 final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
                 if (mappingMetadataMap.isEmpty() == false) {
                     mappingLookup = mappingMetadataMap::get;
                 } else {
                     mappingLookup = null;
                 }
-            } else {
-                mappingLookup = null;
-            }
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
@@ -916,11 +885,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             readClusterCustoms(in, builder);
             builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            int reservedStateSize = in.readVInt();
-            for (int i = 0; i < reservedStateSize; i++) {
-                builder.put(ReservedStateMetadata.readFrom(in));
-            }
+        int reservedStateSize = in.readVInt();
+        for (int i = 0; i < reservedStateSize; i++) {
+            builder.put(ReservedStateMetadata.readFrom(in));
         }
         return builder.build();
     }
@@ -965,20 +932,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         coordinationMetadata.writeTo(out);
         transientSettings.writeTo(out);
         persistentSettings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
-        }
         if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
             ProjectMetadata singleProject = getSingleProject();
-            // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
-            // we avoid writing duplicate mappings twice
-            if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
                 out.writeMapValues(singleProject.getMappingsByHash());
-            }
             out.writeVInt(singleProject.size());
-            final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
             for (IndexMetadata indexMetadata : singleProject) {
-                indexMetadata.writeTo(out, writeMappingsHash);
+                indexMetadata.writeTo(out, true);
             }
             out.writeCollection(singleProject.templates().values());
             // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
@@ -991,9 +951,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
             out.writeMap(projectMetadata, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
-        }
     }
 
     public static Builder builder() {

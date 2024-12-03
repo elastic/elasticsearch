@@ -2009,14 +2009,14 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [datetime or numeric]")
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [date_nanos, datetime or numeric]")
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = to_string(null) - 1 day
             """));
 
-        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [datetime or numeric]"));
+        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [date_nanos, datetime or numeric]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = concat("2024", "-04", "-01") + "1 day"
@@ -2024,7 +2024,7 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [datetime or numeric]")
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [date_nanos, datetime or numeric]")
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""

@@ -18,9 +18,6 @@ import static java.util.Map.entry;
 public class DefaultSystemPropertyProvider implements SystemPropertyProvider {
     @Override
     public Map<String, String> get(LocalClusterSpec.LocalNodeSpec nodeSpec) {
-        return Map.ofEntries(
-            entry("ingest.geoip.downloader.enabled.default", "false"),
-            entry("tests.testfeatures.enabled", "true")
-        );
+        return Map.ofEntries(entry("ingest.geoip.downloader.enabled.default", "false"), entry("tests.testfeatures.enabled", "true"));
     }
 }

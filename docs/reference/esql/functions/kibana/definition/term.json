@@ -81,5 +81,5 @@
     "from books \n| where term(author, \"gabriel\")  \n| keep book_no, title\n| limit 3;"
   ],
   "preview" : true,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

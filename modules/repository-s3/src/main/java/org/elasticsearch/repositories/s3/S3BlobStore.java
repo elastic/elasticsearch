@@ -173,6 +173,7 @@ class S3BlobStore implements BlobStore {
             // For stats reported by API, do not collect stats for null response for BWC.
             // See https://github.com/elastic/elasticsearch/pull/71406
             // TODO Is this BWC really necessary?
+            // This behaviour needs to be updated, see https://elasticco.atlassian.net/browse/ES-10223
             if (response != null) {
                 requests.add(requestCount);
             }

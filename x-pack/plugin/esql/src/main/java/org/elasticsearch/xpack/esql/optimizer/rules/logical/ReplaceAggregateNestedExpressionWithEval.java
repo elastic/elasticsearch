@@ -51,6 +51,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             // Exception: Categorize is internal to the aggregation and remains in the groupings. We move its child expression into an eval.
             if (g instanceof Alias as) {
                 if (as.child() instanceof Categorize cat) {
+                    // For Categorize grouping function, we only move the child expression into an eval
                     if (cat.field() instanceof Attribute == false) {
                         groupingChanged = true;
                         var fieldAs = new Alias(as.source(), as.name(), cat.field(), null, true);
@@ -59,7 +60,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                         evalNames.put(fieldAs.name(), fieldAttr);
                         Categorize replacement = cat.replaceChildren(List.of(fieldAttr));
                         newGroupings.set(i, as.replaceChild(replacement));
-                        groupingAttributes.put(cat, fieldAttr);
                     }
                 } else {
                     groupingChanged = true;
@@ -135,6 +135,10 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 });
                 // replace any grouping functions with their references pointing to the added synthetic eval
                 replaced = replaced.transformDown(GroupingFunction.class, gf -> {
+                    // Categorize in aggs depends on the grouping result, not on an early eval
+                    if (gf instanceof Categorize) {
+                        return gf;
+                    }
                     aggsChanged.set(true);
                     // should never return null, as it's verified.
                     // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.

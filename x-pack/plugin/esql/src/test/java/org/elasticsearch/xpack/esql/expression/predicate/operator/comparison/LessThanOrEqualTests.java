@@ -107,43 +107,19 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
         // Datetime
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "LessThanOrEqualLongsEvaluator",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> {
-                    if (lhs instanceof Instant l && rhs instanceof Instant r) {
-                        return l.isBefore(r) || l.equals(r);
-                    }
-                    throw new UnsupportedOperationException("Got some weird types");
-                },
-                DataType.BOOLEAN,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.dateCases(),
-                List.of(),
-                false
-            )
-        );
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting("LessThanOrEqualLongsEvaluator", "lhs", "rhs", (lhs, rhs) -> {
+            if (lhs instanceof Instant l && rhs instanceof Instant r) {
+                return l.isBefore(r) || l.equals(r);
+            }
+            throw new UnsupportedOperationException("Got some weird types");
+        }, DataType.BOOLEAN, TestCaseSupplier.dateCases(), TestCaseSupplier.dateCases(), List.of(), false));
 
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "LessThanOrEqualLongsEvaluator",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> {
-                    if (lhs instanceof Instant l && rhs instanceof Instant r) {
-                        return l.isBefore(r) || l.equals(r);
-                    }
-                    throw new UnsupportedOperationException("Got some weird types");
-                },
-                DataType.BOOLEAN,
-                TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.dateNanosCases(),
-                List.of(),
-                false
-            )
-        );
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting("LessThanOrEqualLongsEvaluator", "lhs", "rhs", (lhs, rhs) -> {
+            if (lhs instanceof Instant l && rhs instanceof Instant r) {
+                return l.isBefore(r) || l.equals(r);
+            }
+            throw new UnsupportedOperationException("Got some weird types");
+        }, DataType.BOOLEAN, TestCaseSupplier.dateNanosCases(), TestCaseSupplier.dateNanosCases(), List.of(), false));
 
         suppliers.addAll(
             TestCaseSupplier.stringCases(

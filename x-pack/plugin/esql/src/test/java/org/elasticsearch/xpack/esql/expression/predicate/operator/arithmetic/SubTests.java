@@ -293,9 +293,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
 
     private static long subtractNanos(Instant date, TemporalAmount period) {
         return DateUtils.toLong(
-            Instant.from(
-                ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period)
-            )
+            Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period))
         );
     }
 }

@@ -139,21 +139,21 @@ public class UserAgentProcessor extends AbstractProcessor {
         return ingestDocument;
     }
 
-    private static String versionToString(final UserAgentParser.VersionedName versionedName) {
-        final StringBuilder version = new StringBuilder();
-        if (versionedName.major() != null) {
-            version.append(versionedName.major());
-            if (versionedName.minor() != null && versionedName.minor().length() > 0) {
-                version.append(".").append(versionedName.minor());
-                if (versionedName.patch() != null && versionedName.patch().length() > 0) {
-                    version.append(".").append(versionedName.patch());
-                    if (versionedName.build() != null && versionedName.build().length() > 0) {
-                        version.append(".").append(versionedName.build());
+    private static String versionToString(final UserAgentParser.VersionedName version) {
+        final StringBuilder versionString = new StringBuilder();
+        if (version.major() != null) {
+            versionString.append(version.major());
+            if (version.minor() != null && version.minor().length() > 0) {
+                versionString.append(".").append(version.minor());
+                if (version.patch() != null && version.patch().length() > 0) {
+                    versionString.append(".").append(version.patch());
+                    if (version.build() != null && version.build().length() > 0) {
+                        versionString.append(".").append(version.build());
                     }
                 }
             }
         }
-        return version.toString();
+        return versionString.toString();
     }
 
     @Override

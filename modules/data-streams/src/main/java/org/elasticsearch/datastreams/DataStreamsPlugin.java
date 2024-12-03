@@ -20,6 +20,7 @@ import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.datastreams.ReindexDataStreamAction;
+import org.elasticsearch.action.datastreams.ReindexDataStreamIndexAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
@@ -46,6 +47,7 @@ import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ReindexDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.TransportGetDataStreamsAction;
+import org.elasticsearch.datastreams.action.TransportReindexDataStreamIndexAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
@@ -262,6 +264,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
             actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
         }
+        actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, TransportReindexDataStreamIndexAction.class));
         actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
         return actions;
     }

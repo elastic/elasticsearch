@@ -2,19 +2,64 @@ FROM ${base_image} AS builder
 
 USER root
 
-# Add fips specific files (certified security providers, jdk, config files)
+# Add fips specific files (certified security providers, config files)
 RUN mkdir -p /opt/fips/
 RUN chmod -R 0555 /opt/fips
 COPY fips /opt/fips/
+COPY fips/resources/fips_java_oracle.security /usr/share/elasticsearch/config/fips_java.security
+COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
+
 RUN chown 1000:1000 /opt/fips/*
 RUN chmod 0444 /opt/fips/*
 
-FROM ${base_image}
-USER root
+WORKDIR /usr/share/elasticsearch
+RUN cat <<EOF > instance.yml
+instances:
+    - name: "node1"
+      dns:
+      - "node1.example.com"
+      cn:
+      - "node1.elasticsearch.cluster"
+EOF
+RUN bin/elasticsearch-certutil cert --in instance.yml --self-signed --pem --out certificate-bundle.zip
+RUN unzip certificate-bundle.zip
+RUN cp node1/node1.crt config
+RUN cp node1/node1.key config
 
-# COPY --from=builder --chown=0:0 /opt/fips/jdk /opt/jdk
-COPY --from=builder --chown=0:0 /opt/fips/libs/*.jar /usr/share/elasticsearch/lib
-COPY --from=builder --chown=0:0 /opt/fips/resources/fips_java_oracle.security /usr/share/elasticsearch/jdk/conf/security/java.security
-COPY --from=builder --chown=0:0 /opt/fips/resources/fips_java.policy /usr/share/elasticsearch/jdk/conf/security/java.policy
+WORKDIR /usr/share/elasticsearch/config
+# Add policies for FIPS
+RUN cat <<EOF > elasticsearch.yml
+xpack.security.fips_mode.enabled: true
+xpack.security.enabled: true
+xpack.security.http.ssl.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.enrollment.enabled: false
+xpack.security.autoconfiguration.enabled: false
+xpack.security.authc.reserved_realm.enabled: false
+xpack.security.http.ssl.key: node1.key
+xpack.security.http.ssl.certificate: node1.crt
+xpack.security.http.ssl.certificate_authorities: node1.crt
+xpack.security.transport.ssl.key: node1.key
+xpack.security.transport.ssl.certificate: node1.crt
+xpack.security.transport.ssl.certificate_authorities: node1.crt
+xpack.security.authc.password_hashing.algorithm: pbkdf2_stretch
+xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
+logger.org.elasticsearch.xpack.security: trace
+discovery.seed_hosts: []
+node.name: node1
+cluster.initial_master_nodes: ["node1"]
+EOF
+
+
+WORKDIR /usr/share/elasticsearch/config/jvm.options.d
+RUN cat <<EOF > fips.options
+-Djava.security.properties=/usr/share/elasticsearch/config/fips_java.security
+-Djava.security.policy=/usr/share/elasticsearch/config/fips_java.policy
+EOF
+
+FROM ${base_image}
+
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch/config/ /usr/share/elasticsearch/config
+COPY --from=builder --chown=0:0 /opt/fips/libs/*.jar /usr/share/elasticsearch/lib/
 
 USER 1000:0

@@ -9,6 +9,12 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 public class InferenceQueryBuilderService {
     private final TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder;
@@ -21,5 +27,31 @@ public class InferenceQueryBuilderService {
         return defaultInferenceQueryBuilder != null
             ? defaultInferenceQueryBuilder.apply(fieldName, query, throwOnUnsupportedQueries)
             : null;
+    }
+
+    public static InferenceQueryBuilderService build(PluginsService pluginsService) {
+        Objects.requireNonNull(pluginsService);
+
+        List<TriFunction<String, String, Boolean, AbstractQueryBuilder<?>>> definedInferenceQueryBuilders = new ArrayList<>();
+
+        List<SearchPlugin> searchPlugins = pluginsService.filterPlugins(SearchPlugin.class).toList();
+        for (SearchPlugin searchPlugin : searchPlugins) {
+            if (searchPlugin.getDefaultInferenceQueryBuilder() != null) {
+                definedInferenceQueryBuilders.add(searchPlugin.getDefaultInferenceQueryBuilder());
+            }
+        }
+
+        if (definedInferenceQueryBuilders.isEmpty()) {
+            // Backwards compatibility
+            return new InferenceQueryBuilderService(null);
+        }
+
+        if (definedInferenceQueryBuilders.size() != 1) {
+            throw new IllegalStateException(
+                "Expected a single default inference query builder, but found " + definedInferenceQueryBuilders.size()
+            );
+        }
+
+        return new InferenceQueryBuilderService(definedInferenceQueryBuilders.getFirst());
     }
 }

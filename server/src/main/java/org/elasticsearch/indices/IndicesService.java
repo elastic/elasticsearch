@@ -108,7 +108,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.InferenceQueryBuilderService;
-import org.elasticsearch.index.query.InferenceQueryBuilderServiceBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -382,7 +381,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
-        this.inferenceQueryBuilderService = new InferenceQueryBuilderServiceBuilder().pluginsService(pluginsService).build();
+        this.inferenceQueryBuilderService = InferenceQueryBuilderService.build(pluginsService);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";

@@ -43,7 +43,6 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 
 public class EsqlSessionCCSUtilsTests extends ESTestCase {
 
@@ -640,7 +639,6 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         {
             List<TableInfo> indices = new ArrayList<>();
             indices.add(new TableInfo(new TableIdentifier(EMPTY, null, "idx")));
-
 
         }
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -18,7 +19,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -35,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 class EsqlSessionCCSUtils {
 
@@ -301,18 +305,47 @@ class EsqlSessionCCSUtils {
      * @param indices
      * @param indicesGrouper
      * @param licenseState
+     * @throws org.elasticsearch.ElasticsearchSecurityException if the license is not valid (or present) for ES|QL CCS search.
      */
-    public static void checkForCcsLicense(List<TableInfo> indices, IndicesExpressionGrouper indicesGrouper, XPackLicenseState licenseState) {
+    public static void checkForCcsLicense(
+        List<TableInfo> indices,
+        IndicesExpressionGrouper indicesGrouper,
+        XPackLicenseState licenseState
+    ) {
         for (TableInfo tableInfo : indices) {
             Map<String, OriginalIndices> groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().index());
             groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            if (groupedIndices.size() > 0) {
-                System.err.println(">>> WOULD NOW CHECK FOR ENTERPRISE LICENSE");
-                if (licenseState == null || licenseState.isAllowedByLicense(License.OperationMode.ENTERPRISE) == false) {
-                    throw new VerificationException("An Enterprise license is required to run ES|QL cross-cluster searches.");
-                }
 
+            boolean aOrB = ThreadLocalRandom.current().nextBoolean();
+
+            if (groupedIndices.size() > 0 && aOrB) {
+                System.err.println(">>> PATH AAA CHECK FOR ENTERPRISE LICENSE");
+                if (licenseState == null) {
+                    throw new VerificationException(
+                        "An Enterprise license is required to run ES|QL cross-cluster searches. No license detected"
+                    );
+                } else if (licenseState == null || licenseState.isAllowedByLicense(License.OperationMode.ENTERPRISE) == false) {
+                    if (licenseState.getOperationMode() == License.OperationMode.ENTERPRISE && licenseState.isActive() == false) {
+                        // MP TODO: this should only be used if the license is expired apparently? Ask Jake/es-security
+                        throw LicenseUtils.newComplianceException("ES|QL cross-cluster search");
+                    } else {
+                        throw new VerificationException(
+                            "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: "
+                                + licenseState.statusDescription()
+                        );
+                    }
+                }
             }
+
+            if (groupedIndices.size() > 0 && aOrB == false) {
+                System.err.println(">>> PATH BBB CHECK FOR ENTERPRISE LICENSE - using EsqlLicenseChecker");
+                if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                    String message = "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: "
+                        + licenseState.statusDescription();
+                    throw new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+                }
+            }
+
         }
     }
 }

@@ -94,6 +94,7 @@ public class XPackLicenseState {
      */
     static final Map<String, BiFunction<OperationMode, OperationMode, String[]>> ACKNOWLEDGMENT_MESSAGES;
     static {
+        // MP TODO: do we need add an entry here for ES|QL CCS? Or is the entry in
         Map<String, BiFunction<OperationMode, OperationMode, String[]>> messages = new LinkedHashMap<>();
         messages.put(XPackField.SECURITY, XPackLicenseState::securityAcknowledgementMessages);
         messages.put(XPackField.WATCHER, XPackLicenseState::watcherAcknowledgementMessages);
@@ -106,6 +107,8 @@ public class XPackLicenseState {
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
         messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
         messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
+        // MP TODO: do we need this? What is this used for?
+        messages.put(XPackField.ESQL, XPackLicenseState::esqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -237,6 +240,23 @@ public class XPackLicenseState {
                             "Query rules will be disabled.",
                             "Elastic Web crawler will be disabled.",
                             "Connector clients require at least a platinum license." };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] esqlAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+            case STANDARD:
+            case GOLD:
+                switch (currentMode) {
+                    case PLATINUM:
+                        return new String[] {};
+                    case TRIAL:
+                    case ENTERPRISE:
+                        return new String[] { "ES|QL cross-cluster search requires an enterprise license." };
                 }
                 break;
         }

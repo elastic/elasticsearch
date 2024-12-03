@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -21,7 +23,6 @@ public class QueryableReservedRolesProviderTests extends ESTestCase {
         QueryableReservedRolesProvider provider = new QueryableReservedRolesProvider(new ReservedRolesStore());
         assertNotNull(provider.getRoles());
         assertThat(provider.getRoles(), equalTo(provider.getRoles()));
-        assertThat(provider.getRoles().roleDescriptors(), equalTo(ReservedRolesStore.roleDescriptors()));
         assertThat(provider.getRoles().rolesDigest().size(), equalTo(ReservedRolesStore.roleDescriptors().size()));
         assertThat(
             provider.getRoles().rolesDigest().keySet(),

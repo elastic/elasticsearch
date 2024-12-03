@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
@@ -144,30 +145,31 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         List<? extends NamedExpression> upperGroupings,
         List<? extends NamedExpression> lowerProjections
     ) {
+        assert upperGroupings.size() <= 1
+            || upperGroupings.stream().anyMatch(group -> group.anyMatch(expr -> expr instanceof Categorize)) == false
+            : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-        AttributeMap<Expression> aliases = new AttributeMap<>();
+        AttributeMap<Attribute> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {
-            // record the alias
-            aliases.put(ne.toAttribute(), Alias.unwrap(ne));
+            // Record the aliases.
+            // Projections are just aliases for attributes, so casting is safe.
+            aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
         }
-        // Replace any matching attribute directly with the aliased attribute from the projection.
-        AttributeSet seen = new AttributeSet();
-        List<Expression> replaced = new ArrayList<>();
+
+        // Propagate any renames from the lower projection into the upper groupings.
+        // This can lead to duplicates: e.g.
+        // | EVAL x = y | STATS ... BY x, y
+        // All substitutions happen before; groupings must be attributes at this point except for CATEGORIZE which will be an alias like
+        // `c = CATEGORIZE(attribute)`.
+        // Therefore, it is correct to deduplicate based on simple equality (based on names) instead of name ids (Set vs. AttributeSet).
+        // TODO: The deduplication based on simple equality will be insufficient in case of multiple CATEGORIZEs, e.g. for
+        // `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead.
+        LinkedHashSet<NamedExpression> resolvedGroupings = new LinkedHashSet<>();
         for (NamedExpression ne : upperGroupings) {
-            // Duplicated attributes are ignored.
-            if (ne instanceof Attribute attribute) {
-                var newExpression = aliases.resolve(attribute, attribute);
-                if (newExpression instanceof Attribute newAttribute && seen.add(newAttribute) == false) {
-                    // Already seen, skip
-                    continue;
-                }
-                replaced.add(newExpression);
-            } else {
-                // For grouping functions, this will replace nested properties too
-                replaced.add(ne.transformUp(Attribute.class, a -> aliases.resolve(a, a)));
-            }
+            NamedExpression transformed = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
+            resolvedGroupings.add(transformed);
         }
-        return replaced;
+        return new ArrayList<>(resolvedGroupings);
     }
 
     /**

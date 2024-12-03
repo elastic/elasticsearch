@@ -135,6 +135,34 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
         );
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "GreaterThanNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "GreaterThanMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
                 (lhsType, rhsType) -> "GreaterThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",

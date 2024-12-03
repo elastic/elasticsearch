@@ -16,6 +16,7 @@ dependencies {
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
+  restTestConfig project(path: ':modules:data-streams', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -43,6 +44,27 @@ tasks.named("yamlRestTest").configure {
     '^cluster.state/20_filtering/*',
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
+    // A lot of these data stream tests depend on rollover
+    '^data_stream/lifecycle/*/*',
+    '^data_stream/10_basic/Create data stream with failure store',
+    '^data_stream/10_basic/Delete data stream with failure store',
+    '^data_stream/10_basic/Get data stream and check DSL and ILM information',
+    '^data_stream/20_unsupported_apis/*',
+    '^data_stream/40_supported_apis/*',
+    '^data_stream/50_delete_backing_indices/*',
+    '^data_stream/70_rollover_data_streams/*',
+    '^data_stream/80_resolve_index_data_streams/*',
+    '^data_stream/90_reindex/*',
+    '^data_stream/100_delete_by_query/*',
+    '^data_stream/110_update_by_query/*',
+    '^data_stream/120_data_streams_stats/*',
+    '^data_stream/130_migrate_to_data_stream/*',
+    '^data_stream/140_data_stream_aliases/*',
+    '^data_stream/150_tsdb/*',
+    '^data_stream/170_modify_data_stream/*',
+    '^data_stream/180_simulate_existing_data_stream/*',
+    '^data_stream/190_failure_store_redirection/*',
+    '^data_stream/200_rollover_failure_store/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.blocks/*/*',

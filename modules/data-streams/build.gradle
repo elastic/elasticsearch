@@ -43,3 +43,15 @@ if (buildParams.isSnapshotBuild() == false) {
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
 })
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

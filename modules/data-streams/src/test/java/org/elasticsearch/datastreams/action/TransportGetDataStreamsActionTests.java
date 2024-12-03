@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -51,15 +51,18 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
+        final var projectId = randomProjectId();
+        ClusterState cs = getClusterStateWithDataStreams(projectId, List.of(new Tuple<>(dataStreamName, 1)), List.of());
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
-        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamName)));
     }
 
     public void testGetDataStreamsWithWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
+        final var projectId = randomProjectId();
         ClusterState cs = getClusterStateWithDataStreams(
+            projectId,
             List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
             List.of()
         );
@@ -68,25 +71,27 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             new String[] { dataStreamNames[1].substring(0, 5) + "*" }
         );
-        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, (String[]) null);
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "matches-none*" });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, empty());
     }
 
     public void testGetDataStreamsWithoutWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
+        final var projectId = randomProjectId();
         ClusterState cs = getClusterStateWithDataStreams(
+            projectId,
             List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
             List.of()
         );
@@ -95,32 +100,33 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             new String[] { dataStreamNames[0], dataStreamNames[1] }
         );
-        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[1] });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[0] });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[0])));
 
         GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "foo" });
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportGetDataStreamsAction.getDataStreams(cs, resolver, req2)
+            () -> TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req2)
         );
         assertThat(e.getMessage(), containsString("no such index [foo]"));
     }
 
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        final var projectId = randomProjectId();
+        ClusterState cs = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build();
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportGetDataStreamsAction.getDataStreams(cs, resolver, req)
+            () -> TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req)
         );
         assertThat(e.getMessage(), containsString("no such index [" + dataStreamName + "]"));
     }
@@ -134,9 +140,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
+        var projectId = randomProjectId();
         ClusterState state;
         {
-            var mBuilder = new Metadata.Builder();
+            var mBuilder = ProjectMetadata.builder(projectId);
             DataStreamTestHelper.getClusterStateWithDataStream(
                 mBuilder,
                 dataStream1,
@@ -155,12 +162,12 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     new Tuple<>(twoHoursAgo, twoHoursAhead)
                 )
             );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+            state = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(mBuilder.build()).build();
         }
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -184,14 +191,14 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
         // Remove the middle backing index first data stream, so that there is time gap in the data stream:
         {
-            Metadata.Builder mBuilder = Metadata.builder(state.getMetadata());
-            DataStream dataStream = state.getMetadata().getProject().dataStreams().get(dataStream1);
+            ProjectMetadata.Builder mBuilder = ProjectMetadata.builder(state.metadata().getProject(projectId));
+            DataStream dataStream = state.getMetadata().getProject(projectId).dataStreams().get(dataStream1);
             mBuilder.put(dataStream.removeBackingIndex(dataStream.getIndices().get(1)));
             mBuilder.remove(dataStream.getIndices().get(1).getName());
-            state = ClusterState.builder(state).metadata(mBuilder).build();
+            state = ClusterState.builder(state).putProjectMetadata(mBuilder.build()).build();
         }
         response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -225,9 +232,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
+        var projectId = randomProjectId();
         ClusterState state;
         {
-            var mBuilder = new Metadata.Builder();
+            var mBuilder = ProjectMetadata.builder(projectId);
             DataStreamTestHelper.getClusterStateWithDataStream(
                 mBuilder,
                 dataStream,
@@ -237,12 +245,12 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     new Tuple<>(twoHoursAgo, twoHoursAhead)
                 )
             );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+            state = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(mBuilder.build()).build();
         }
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -267,26 +275,22 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = instant.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = instant.plus(2, ChronoUnit.HOURS);
 
-        ClusterState state;
-        {
-            var mBuilder = new Metadata.Builder();
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                mBuilder,
-                List.of(Tuple.tuple(dataStream1, 2)),
-                List.of(),
-                instant.toEpochMilli(),
-                Settings.EMPTY,
-                0,
-                false,
-                false
-            );
-            DataStreamTestHelper.getClusterStateWithDataStream(mBuilder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
-        }
+        var projectId = randomProjectId();
+        ClusterState state = getClusterStateWithDataStreams(
+            projectId,
+            List.of(Tuple.tuple(dataStream1, 2)),
+            List.of(),
+            instant.toEpochMilli(),
+            Settings.EMPTY,
+            0
+        );
+        var builder = ProjectMetadata.builder(state.metadata().getProject(projectId));
+        DataStreamTestHelper.getClusterStateWithDataStream(builder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));
+        state = ClusterState.builder(state).putProjectMetadata(builder.build()).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -314,25 +318,12 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testPassingGlobalRetention() {
-        ClusterState state;
-        {
-            var mBuilder = new Metadata.Builder();
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                mBuilder,
-                List.of(Tuple.tuple("data-stream-1", 2)),
-                List.of(),
-                System.currentTimeMillis(),
-                Settings.EMPTY,
-                0,
-                false,
-                false
-            );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
-        }
+        var projectId = randomProjectId();
+        ClusterState state = getClusterStateWithDataStreams(projectId, List.of(Tuple.tuple("data-stream-1", 2)), List.of());
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -357,7 +348,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             )
         );
         response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,

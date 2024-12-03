@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -81,6 +82,7 @@ public class MetadataMigrateToDataStreamService {
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
+    @FixForMultiProject(description = "Don't use default project id")
     public void migrateToDataStream(
         MigrateToDataStreamClusterStateUpdateRequest request,
         ActionListener<AcknowledgedResponse> finalListener
@@ -167,7 +169,11 @@ public class MetadataMigrateToDataStreamService {
             .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
-        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
+        @FixForMultiProject(description = "Don't use default project id")
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(
+            Metadata.DEFAULT_PROJECT_ID,
+            request.aliasName
+        );
         return createDataStream(
             metadataCreateIndexService,
             settings,

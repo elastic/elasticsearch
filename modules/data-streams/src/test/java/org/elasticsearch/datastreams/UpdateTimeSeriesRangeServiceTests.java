@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -169,7 +170,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
         Instant start = now.minus(90, ChronoUnit.MINUTES);
-        Metadata.Builder mbBuilder = new Metadata.Builder();
+        ProjectMetadata.Builder mbBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
         for (String dataStreamName : List.of(dataStreamName1, dataStreamName2, dataStreamName3)) {
             Instant end = start.plus(30, ChronoUnit.MINUTES);
             DataStreamTestHelper.getClusterStateWithDataStream(mbBuilder, dataStreamName, List.of(new Tuple<>(start, end)));
@@ -177,7 +178,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         }
 
         now = now.minus(45, ChronoUnit.MINUTES);
-        ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(mbBuilder).build();
+        ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(mbBuilder.build()).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
         assertThat(

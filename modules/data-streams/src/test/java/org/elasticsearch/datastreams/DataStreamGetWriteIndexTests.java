@@ -309,6 +309,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
     private ClusterState createDataStream(ClusterState state, String name, Instant time) throws Exception {
         var request = new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
+            Metadata.DEFAULT_PROJECT_ID,
             name,
             time.toEpochMilli(),
             null,

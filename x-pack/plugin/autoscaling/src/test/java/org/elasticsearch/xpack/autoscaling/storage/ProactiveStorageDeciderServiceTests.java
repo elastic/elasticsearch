@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            Metadata.DEFAULT_PROJECT_ID,
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
             System.currentTimeMillis(),
@@ -170,6 +171,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public void testForecastNoDates() {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            Metadata.DEFAULT_PROJECT_ID,
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
             System.currentTimeMillis(),
@@ -201,6 +203,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
             between(0, 4)
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
@@ -238,6 +242,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         int indices = between(1, 10);
         int shardCopies = between(1, 2);
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            Metadata.DEFAULT_PROJECT_ID,
             List.of(Tuple.tuple("test", indices)),
             List.of(),
             System.currentTimeMillis(),

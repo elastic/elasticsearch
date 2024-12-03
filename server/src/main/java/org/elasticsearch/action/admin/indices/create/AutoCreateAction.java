@@ -44,7 +44,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -260,8 +259,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         );
                     }
 
-                    @FixForMultiProject(description = "create data stream needs to be aware of project")
                     CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
+                        projectId,
                         request.index(),
                         dataStreamDescriptor,
                         request.masterNodeTimeout(),

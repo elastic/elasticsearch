@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 
 // MP TODO: should this be limited to EsqlCcsLicenseChecker?
 public class EsqlLicenseChecker {
@@ -23,4 +25,13 @@ public class EsqlLicenseChecker {
         return ESQL_FEATURE.checkWithoutTracking(licenseState);
     }
 
+    public static ElasticsearchStatusException invalidLicenseForCcsException(XPackLicenseState licenseState) {
+        String message = "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: ";
+        if (licenseState == null) {
+            message += "none";
+        } else {
+            message += licenseState.statusDescription();
+        }
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
 }

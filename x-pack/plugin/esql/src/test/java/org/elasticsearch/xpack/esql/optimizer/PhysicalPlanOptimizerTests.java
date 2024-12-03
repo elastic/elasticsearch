@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialStExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -2682,7 +2683,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Also note that the type converting function is removed when it does not actually convert the type,
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
-    public void testSpatialTypesAndStatsUseDocValues() {
+    public void testSpatialTypesAndStatsCentroidUseDocValues() {
         for (String query : new String[] {
             "from airports | stats centroid = st_centroid_agg(location)",
             "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
@@ -2711,6 +2712,72 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 agg = as(exchange.child(), AggregateExec.class);
                 // below the exchange (in data node) the aggregation is using doc-values
                 assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, withDocValues);
+                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
+            }
+        }
+    }
+
+    /**
+     * Before local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     *   \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],FINAL,[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54,
+     * maxPosX{r}#55, maxY{r}#56, minY{r}#57],null]
+     *     \_ExchangeExec[[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54, maxPosX{r}#55, maxY{r}#56, minY{r}#57],true]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent]]
+     *         \_EsRelation[airports][abbrev{f}#44, city{f}#50, city_location{f}#51, coun..]]]
+     * </code>
+     * After local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     *   \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],FINAL,[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54,
+     * maxPosX{r}#55, maxY{r}#56, minY{r}#57],21]
+     *     \_ExchangeExec[[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54, maxPosX{r}#55, maxY{r}#56, minY{r}#57],true]
+     *       \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],INITIAL,[
+     * minNegX{r}#73, minPosX{r}#74, maxNegX{rb#75, maxPosX{r}#76, maxY{r}#77, minY{r}#78],21]
+     *         \_FieldExtractExec[location{f}#48][location{f}#48]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{"exists":{"field":"location","boost":1.0}}][
+     * _doc{f}#79], limit[], sort[] estimatedRowSize[25]
+     * </code>
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
+     */
+    public void testSpatialTypesAndStatsExtentUseDocValues() {
+        for (String query : new String[] {
+            "from airports | stats extent = st_extent(location)",
+            "from airports | stats extent = st_extent(to_geopoint(location))",
+            "from airports | eval location = to_geopoint(location) | stats extent = st_extent(location)" }) {
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query, testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "extent", SpatialStExtent.class, GEO_POINT, false);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                as(fAgg.child(), EsRelation.class);
+
+                // Now optimize the plan and assert the aggregation uses doc-values
+                System.out.println("before");
+                System.out.println(plan);
+                var optimized = optimizedPlan(plan, testData.stats);
+                System.out.println("after");
+                System.out.println(optimized);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "extent", SpatialStExtent.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "extent", SpatialStExtent.class, GEO_POINT, withDocValues);
                 assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
             }
         }

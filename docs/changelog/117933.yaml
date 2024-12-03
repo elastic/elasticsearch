@@ -5,8 +5,8 @@ type: "breaking"
 issues: [83251]
 breaking:
     title: Deprecation logging value change for "data_stream.dataset" and "event.dataset"
-    area: Logs
-    Details: |-
+    area: Logging
+    details: |-
         This change modifies the "data_stream.dataset" and "event.dataset" value for deprecation logging
         to use the value `elasticsearch.deprecation` instead of `deprecation.elasticsearch`. This is now
         consistent with other values where the name of the service is the first part of the key.

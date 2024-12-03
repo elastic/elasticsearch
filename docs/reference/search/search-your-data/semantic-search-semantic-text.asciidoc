@@ -6,13 +6,6 @@
 
 beta[]
 
-[WARNING]
-.Deprecated in 8.16
-====
-The elser service is deprecated and will be removed in a future release. 
-Use the <<infer-service-elasticsearch>> instead, with model_id included in the service_settings.
-====
-
 This tutorial shows you how to use the semantic text feature to perform semantic search on your data.
 
 Semantic text simplifies the {infer} workflow by providing {infer} at ingestion time and sensible default values automatically.
@@ -21,7 +14,7 @@ You don't need to define model related settings and parameters, or create {infer
 The recommended way to use <<semantic-search,semantic search>> in the {stack} is following the `semantic_text` workflow.
 When you need more control over indexing and query settings, you can still use the complete {infer} workflow (refer to  <<semantic-search-inference,this tutorial>> to review the process).
 
-This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration, but you can use any service and their supported models offered by the {infer-cap} API.
+This tutorial uses the <<inference-example-elasticsearch-elser,`elasticsearch` service>> for demonstration, but you can use any service and their supported models offered by the {infer-cap} API.
 
 
 [discrete]
@@ -41,14 +34,15 @@ Create an inference endpoint by using the <<put-inference-api>>:
 ------------------------------------------------------------
 PUT _inference/sparse_embedding/my-elser-endpoint <1>
 {
-  "service": "elser", <2>
+  "service": "elasticsearch", <2>
   "service_settings": {
     "adaptive_allocations": { <3>
       "enabled": true,
       "min_number_of_allocations": 3,
       "max_number_of_allocations": 10
     },
-    "num_threads": 1
+    "num_threads": 1,
+    "model_id": ".elser_model_2" <4>
   }
 }
 ------------------------------------------------------------
@@ -56,9 +50,12 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 <1> The task type is `sparse_embedding` in the path as the `elser` service will
 be used and ELSER creates sparse vectors. The `inference_id` is
 `my-elser-endpoint`.
-<2> The `elser` service is used in this example.
+<2> The `elasticsearch` service is used in this example.
 <3> This setting enables and configures {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations].
 Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
+<4> The `model_id` must be the ID of one of the built-in ELSER models.
+Valid values are `.elser_model_2` and `.elser_model_2_linux-x86_64`.
+For further details, refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation].
 
 [NOTE]
 ====

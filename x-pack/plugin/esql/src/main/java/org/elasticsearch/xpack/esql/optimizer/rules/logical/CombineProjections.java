@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
@@ -147,20 +148,25 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
         AttributeMap<Attribute> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {
-            // record the alias
+            // Record the aliases.
             // Projections are just aliases for attributes, so casting is safe.
             aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
         }
 
-        // Replace any matching attribute directly with the aliased attribute from the projection.
-        AttributeMap<NamedExpression> replaced = new AttributeMap<>();
+        // Propagate any renames from the lower projection in the upper groupings.
+        // This can lead to duplicates: e.g.
+        // | EVAL x = y | STATS ... BY x, y
+        // All substitutions happen before; groupings must be attributes at this point except for CATEGORIZE which will be an alias like
+        // `c = CATEGORIZE(attribute)`.
+        // Therefore, it is correct to deduplicate based on simple equality (based on names) instead of name ids (Set vs. AttributeSet).
+        // TODO: The deduplication based on simple equality will be insufficient in case of multiple CATEGORIZEs, e.g. for
+        // `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead.
+        LinkedHashSet<NamedExpression> resolvedGroupings = new LinkedHashSet<>();
         for (NamedExpression ne : upperGroupings) {
-            // All substitutions happen before; groupings must be attributes at this point
-            // except for CATEGORIZE which will be an alias like `c = CATEGORIZE(attribute)`
             NamedExpression transformed = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
-            replaced.add(transformed.toAttribute(), transformed);
+            resolvedGroupings.add(transformed);
         }
-        return new ArrayList<>(replaced.values());
+        return new ArrayList<>(resolvedGroupings);
     }
 
     /**

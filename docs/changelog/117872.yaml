@@ -1,0 +1,5 @@
+pr: 117872
+summary: "Optional named arguments for function in map - option #1"
+area: ES|QL
+type: enhancement
+issues: []

@@ -19,14 +19,17 @@ package co.elastic.elasticsearch.stateless.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements ToXContentFragment {
@@ -51,16 +54,20 @@ public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements T
         builder.startObject(getNode().getId());
         {
             builder.startObject("object_store_stats");
-            builder.field("request_counts", repositoryStats.requestCounts);
+            builder.field("request_counts", getRequestCounts(repositoryStats));
             builder.endObject();
         }
         {
             builder.startObject("operational_backup_service_stats");
-            builder.field("request_counts", obsRepositoryStats.requestCounts);
+            builder.field("request_counts", getRequestCounts(obsRepositoryStats));
             builder.endObject();
         }
         builder.endObject();
         return builder;
+    }
+
+    static Map<String, Long> getRequestCounts(RepositoryStats repositoryStats) {
+        return Maps.transformValues(repositoryStats.actionStats, BlobStoreActionStats::requests);
     }
 
     @Override

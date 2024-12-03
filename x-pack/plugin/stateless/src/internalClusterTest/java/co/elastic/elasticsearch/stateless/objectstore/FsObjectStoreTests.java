@@ -42,11 +42,11 @@ public class FsObjectStoreTests extends AbstractObjectStoreIntegTestCase {
 
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        assertThat(repositoryStats.requestCounts, anEmptyMap());
+        assertThat(repositoryStats.actionStats, anEmptyMap());
     }
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertThat(repositoryStats.requestCounts, anEmptyMap());
+        assertThat(repositoryStats.actionStats, anEmptyMap());
     }
 }

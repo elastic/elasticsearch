@@ -115,18 +115,18 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
         assertThat(
-            repositoryStats.requestCounts.keySet().stream().sorted().toList(),
+            repositoryStats.actionStats.keySet().stream().sorted().toList(),
             hasItems(EXPECTED_MAIN_STORE_REQUEST_NAMES.toArray(new String[] {}))
         );
-        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+        repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
     }
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
         assertThat(
-            repositoryStats.requestCounts.keySet().stream().sorted().toList(),
+            repositoryStats.actionStats.keySet().stream().sorted().toList(),
             hasItems(EXPECTED_OBS_REQUEST_NAMES.toArray(new String[] {}))
         );
-        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+        repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
     }
 }

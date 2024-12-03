@@ -17,11 +17,12 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.IOException;
 

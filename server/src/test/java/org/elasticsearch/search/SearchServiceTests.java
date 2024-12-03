@@ -20,7 +20,6 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;

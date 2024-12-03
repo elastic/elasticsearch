@@ -200,7 +200,10 @@ public final class ExchangeSourceHandler {
         void onSinkFailed(Exception e) {
             failure.unwrapAndCollect(e);
             buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
-            onSinkComplete();
+            if (finished == false) {
+                finished = true;
+                remoteSink.close(ActionListener.running(outstandingSinks::finishInstance));
+            }
         }
 
         void onSinkComplete() {

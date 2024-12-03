@@ -159,7 +159,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         var version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_14_0,
-            TransportVersions.ESQL_ORIGINAL_INDICES
+            TransportVersionUtils.getPreviousVersion(TransportVersions.ESQL_ORIGINAL_INDICES)
         );
         ClusterComputeRequest cloned = copyInstance(request, version);
         assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));

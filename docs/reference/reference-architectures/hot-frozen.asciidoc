@@ -1,7 +1,7 @@
 [[hot-frozen-architecture]]
 == Hot / Frozen - High Availability
 
-The Hot / Frozen high availability architecture is cost optimized for large time-series datasets. In this architecture, the hot tier is primarily used for indexing, searching, and continuity for automated processes. https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[Searchable snapshots] are taken from hot into the object store and then cached to any desired volume in the Frozen tier. Data in the Object Store is indexed for fast retrieval and accessed on-demand from the Frozen nodes. Index and Snapshot lifecycle management are used to automate this process. 
+The Hot / Frozen high availability architecture is cost optimized for large time-series datasets. In this architecture, the hot tier is primarily used for indexing, searching, and continuity for automated processes. https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[Searchable snapshots] are taken rom hot into a repository, such as a cloud Object Store or an on-premesis shared filesystem, and then cached to any desired volume on the local disks of the Frozen tier. Data in the repository is indexed for fast retrieval and accessed on-demand from the Frozen nodes. Index and Snapshot lifecycle management are used to automate this process. 
 
 This architecture is ideal for time-series use cases, such as Observability or Security, that do not require updating. All the necessary components of the Elastic Stack are included and this is not intended for sizing workloads, but rather as a basis to ensure your cluster is ready to handle any desired workload with resiliency. A very high level representation of data flow is included, and for more detail around ingest architecture see our https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[ingest architectures] documentation. 
 
@@ -11,14 +11,15 @@ This architecture is ideal for time-series use cases, such as Observability or S
 
 This Hot / Frozen – High Availability architecture is intended for organizations that:
 
-* Have a requirement for cost effective long term data storage (many months or years) – in particular ones that are leveraging Elastic as an archival system.
+* Have a requirement for cost effective long term data storage (many months or years)
 * Provide insights and alerts using logs, metrics, traces, or various event types to ensure optimal performance and quick issue resolution for applications.
-* Apply Machine Learning and Search AI to assist in dealing with the large amount of data.
+* Apply https://www.elastic.co/guide/en/kibana/current/xpack-ml-anomalies.html[machine learning anomaly detection] to help detect patterns in time series data to find root cause and resolve problems faster.
+* Use an AI assistant (https://www.elastic.co/guide/en/observability/current/obs-ai-assistant.html[Observability], https://www.elastic.co/guide/en/security/current/security-assistant.html[Security], or https://www.elastic.co/guide/en/kibana/current/playground.html[Playground]) for investigation, incident response, reporting, query generation, or query conversion from other languages using natural language.
 * Deploy an architecture model that allows for maximum flexibility between storage cost and performance.
 
 [IMPORTANT]
 ====
-**Operations that frequently read large data volumes require both high availability (replicas) and predictable low latency (hot, warm or cold tier).**
+**Automated operations that frequently read large data volumes require both high availability (replicas) and predictable low latency (hot, warm or cold tier).**
 
 * Common examples of these tasks include look-back windows on security detection/alert rules, transforms, machine learning jobs, or watches; and long running scroll queries or external extract processes.
 * These operations should be completed before moving the data into a frozen tier.
@@ -32,7 +33,7 @@ image::images/hot-frozen.png["A Hot/Frozen Highly available architecture"]
 
 TIP: We use an Availability Zone (AZ) concept in the architecture above.  When running in your own Data Center (DC) you can equate AZs to failure zones within a datacenter, racks, or even separate physical machines depending on your constraints.
 
-The diagram illustrates an Elasticsearch cluster deployed across 3 availability zones (AZ). For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for Production] for more details. A cluster that is running in Elastic Cloud that has data nodes in only two AZs will create a third master-eligible node in a third AZ. True real-time high availability cannot be achieved without three zones.
+The diagram illustrates an Elasticsearch cluster deployed across 3 availability zones (AZ). For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for Production] for more details. A cluster that is running in Elastic Cloud that has data nodes in only two AZs will create a third master-eligible node in a third AZ. True real-time high availability cannot be achieved without three zones for any distributed computing technology.
 
 The number of data nodes shown for each tier (hot and frozen) is illustrative and would be scaled up depending on ingest volume and retention period. Hot nodes contain both primary and replica shards. By default, primary and replica shards are always guaranteed to be in different availability zones in Elasticsearch Service, but when self-deploying https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] would need to be configured. Frozen nodes act as a large high-speed cache and retrieve data from the snapshot store as needed.
 

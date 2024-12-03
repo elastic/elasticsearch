@@ -250,6 +250,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.RequestIndexFilteringIT
   method: testFieldExistsFilter_KeepWildcard
   issue: https://github.com/elastic/elasticsearch/issues/117935
+- class: org.elasticsearch.xpack.ml.integration.RegressionIT
+  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
+  issue: https://github.com/elastic/elasticsearch/issues/117805
 
 # Examples:
 #

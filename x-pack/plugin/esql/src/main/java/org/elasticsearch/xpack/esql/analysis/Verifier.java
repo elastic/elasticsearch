@@ -379,17 +379,17 @@ public class Verifier {
             );
 
         // Forbid CATEGORIZE being referenced as a child of an aggregation function
-        Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
+        AttributeMap<Categorize> categorizeByAttribute = new AttributeMap<>();
         agg.groupings().forEach(g -> {
             g.forEachDown(Alias.class, alias -> {
                 if (alias.child() instanceof Categorize categorize) {
-                    categorizeByAliasId.put(alias.id(), categorize);
+                    categorizeByAttribute.put(alias.toAttribute(), categorize);
                 }
             });
         });
         agg.aggregates()
             .forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
-                var categorize = categorizeByAliasId.get(attribute.id());
+                var categorize = categorizeByAttribute.get(attribute);
                 if (categorize != null) {
                     failures.add(
                         fail(attribute, "cannot reference CATEGORIZE grouping function [{}] within an aggregation", attribute.sourceText())
@@ -449,7 +449,7 @@ public class Verifier {
                 // check the bucketing function against the group
                 else if (c instanceof GroupingFunction gf) {
                     if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                        failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                        failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }
             });
@@ -466,7 +466,7 @@ public class Verifier {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here
             if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
             } else if (level == 0) {
                 addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
             }

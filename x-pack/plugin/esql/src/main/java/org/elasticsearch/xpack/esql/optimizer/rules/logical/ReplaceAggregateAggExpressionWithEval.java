@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -54,10 +55,12 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
         AttributeMap<Expression> aliases = new AttributeMap<>();
         aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
 
-        // build grouping functions map
-        Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
+        // Build Categorize grouping functions map.
+        // Functions like BUCKET() shouldn't reach this point,
+        // as they are moved to an early EVAL by ReplaceAggregateNestedExpressionWithEval
+        Map<Categorize, Attribute> groupingAttributes = new HashMap<>();
         aggregate.forEachExpressionUp(Alias.class, a -> {
-            if (a.child() instanceof GroupingFunction groupingFunction) {
+            if (a.child() instanceof Categorize groupingFunction) {
                 groupingAttributes.put(groupingFunction, a.toAttribute());
             }
         });
@@ -121,7 +124,7 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                     });
 
                     // replace grouping functions with their references
-                    aggExpression = aggExpression.transformUp(GroupingFunction.class, groupingAttributes::get);
+                    aggExpression = aggExpression.transformUp(Categorize.class, groupingAttributes::get);
 
                     Alias alias = as.replaceChild(aggExpression);
                     newEvals.add(alias);

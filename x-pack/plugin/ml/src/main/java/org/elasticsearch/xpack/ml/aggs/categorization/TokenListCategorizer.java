@@ -115,6 +115,7 @@ public class TokenListCategorizer implements Accountable {
         cacheRamUsage(0);
     }
 
+    @Nullable
     public TokenListCategory computeCategory(String s, CategorizationAnalyzer analyzer) {
         try (TokenStream ts = analyzer.tokenStream("text", s)) {
             return computeCategory(ts, s.length(), 1);
@@ -123,6 +124,7 @@ public class TokenListCategorizer implements Accountable {
         }
     }
 
+    @Nullable
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {
         assert partOfSpeechDictionary != null
             : "This version of computeCategory should only be used when a part-of-speech dictionary is available";

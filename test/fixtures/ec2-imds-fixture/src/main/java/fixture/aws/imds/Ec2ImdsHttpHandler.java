@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
+import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 
 /**
  * Minimal HTTP handler that emulates the EC2 IMDS server
@@ -37,10 +38,18 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
 
     private static final String IMDS_SECURITY_CREDENTIALS_PATH = "/latest/meta-data/iam/security-credentials/";
 
+    private final Ec2ImdsVersion ec2ImdsVersion;
+    private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
+
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
 
-    public Ec2ImdsHttpHandler(BiConsumer<String, String> newCredentialsConsumer, Collection<String> alternativeCredentialsEndpoints) {
+    public Ec2ImdsHttpHandler(
+        Ec2ImdsVersion ec2ImdsVersion,
+        BiConsumer<String, String> newCredentialsConsumer,
+        Collection<String> alternativeCredentialsEndpoints
+    ) {
+        this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
     }
@@ -54,9 +63,30 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
             final var requestMethod = exchange.getRequestMethod();
 
             if ("PUT".equals(requestMethod) && "/latest/api/token".equals(path)) {
-                // Reject IMDSv2 probe
-                exchange.sendResponseHeaders(RestStatus.METHOD_NOT_ALLOWED.getStatus(), -1);
+                switch (ec2ImdsVersion) {
+                    case V1 -> exchange.sendResponseHeaders(RestStatus.METHOD_NOT_ALLOWED.getStatus(), -1);
+                    case V2 -> {
+                        final var token = randomSecretKey();
+                        validImdsTokens.add(token);
+                        final var responseBody = token.getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "text/plain");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
+                        exchange.getResponseBody().write(responseBody);
+                    }
+                }
                 return;
+            }
+
+            if (ec2ImdsVersion == Ec2ImdsVersion.V2) {
+                final var token = exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token");
+                if (token == null) {
+                    exchange.sendResponseHeaders(RestStatus.UNAUTHORIZED.getStatus(), -1);
+                    return;
+                }
+                if (validImdsTokens.contains(token) == false) {
+                    exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), -1);
+                    return;
+                }
             }
 
             if ("GET".equals(requestMethod)) {
@@ -84,7 +114,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
                         randomIdentifier(),
-                        randomIdentifier(),
+                        randomSecretKey(),
                         sessionToken
                     ).getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");

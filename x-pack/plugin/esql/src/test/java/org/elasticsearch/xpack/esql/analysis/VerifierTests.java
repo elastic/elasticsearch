@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -54,11 +56,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -405,12 +407,12 @@ public class VerifierTests extends ESTestCase {
 
         // but fails if it's different
         assertEquals(
-            "1:32: can only use grouping function [bucket(a, 3)] part of the BY clause",
+            "1:32: can only use grouping function [bucket(a, 3)] as part of the BY clause",
             error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
         );
 
         assertEquals(
-            "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
+            "1:40: can only use grouping function [bucket(salary, 10)] as part of the BY clause",
             error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
         );
 
@@ -442,19 +444,19 @@ public class VerifierTests extends ESTestCase {
 
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
-            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats bucket(emp_no, 5.) by emp_no")
         );
         assertEquals(
-            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats bucket(emp_no, 5.)")
         );
         assertEquals(
-            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
         assertEquals(
-            "1:22: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:22: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
     }
@@ -1754,6 +1756,29 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNonMetadataScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        assertEquals("1:12: `_score` is a reserved METADATA attribute", error("from foo | eval _score = 10"));
+
+        assertEquals(
+            "1:48: `_score` is a reserved METADATA attribute",
+            error("from foo metadata _score | where qstr(\"bar\") | eval _score = _score + 1")
+        );
+    }
+
+    public void testScoreRenaming() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        assertEquals("1:33: `_score` is a reserved METADATA attribute", error("from foo METADATA _id, _score | rename _id as _score"));
+
+        assertTrue(passes("from foo metadata _score | rename _score as foo").stream().anyMatch(a -> a.name().equals("foo")));
+    }
+
+    private List<Attribute> passes(String query) {
+        LogicalPlan logicalPlan = defaultAnalyzer.analyze(parser.createStatement(query));
+        assertTrue(logicalPlan.resolved());
+        return logicalPlan.output();
+    }
+
     public void testIntervalAsString() {
         // DateTrunc
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
@@ -1821,7 +1846,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeSingleGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V2.isEnabled());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
 
         query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
         query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
@@ -1850,7 +1875,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeNestedGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V2.isEnabled());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
 
         query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
 
@@ -1865,26 +1890,32 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeWithinAggregations() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V2.isEnabled());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
 
         query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY CATEGORIZE(first_name)");
 
         assertEquals(
-            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within the aggregations",
+            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within an aggregation",
             error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
         );
-
         assertEquals(
-            "1:25: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            "1:25: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
             error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
         );
         assertEquals(
-            "1:30: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            "1:30: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
             error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
         );
         assertEquals(
-            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within the aggregations",
+            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within an aggregation",
             error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
+        );
+
+        assertEquals(
+            "1:28: can only use grouping function [CATEGORIZE(last_name)] as part of the BY clause",
+            error("FROM test | STATS MV_COUNT(CATEGORIZE(last_name)) BY CATEGORIZE(first_name)")
         );
     }
 

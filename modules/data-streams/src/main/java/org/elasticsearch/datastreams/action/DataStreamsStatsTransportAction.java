@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
@@ -130,7 +131,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
             long maxTimestamp = 0L;
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
                 IndexReader indexReader = searcher.getIndexReader();
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {

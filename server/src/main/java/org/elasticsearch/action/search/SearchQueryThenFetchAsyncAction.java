@@ -202,9 +202,10 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         if (results.getNumShards() == 0) {
             // no search shards to search on, bail with empty response
             // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo();
+            var source = request.source();
+            int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+                : source.trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+                : source.trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             sendSearchResponse(
@@ -235,11 +236,10 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
+            var source = request.source();
             final BytesReference searchContextId;
-            if (request.source() != null
-                && request.source().pointInTimeBuilder() != null
-                && request.source().pointInTimeBuilder().singleSession() == false) {
-                searchContextId = request.source().pointInTimeBuilder().getEncodedId();
+            if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
+                searchContextId = source.pointInTimeBuilder().getEncodedId();
             } else {
                 searchContextId = null;
             }
@@ -534,11 +534,12 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                         queryPhaseResultConsumer.reduce(response.topDocsStats, response.mergeResult);
                                     } else {
                                         if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
+                                            var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
                                             countOnlyQueryPhaseResultConsumer.reduce(
                                                 false,
                                                 false,
-                                                response.mergeResult.reducedTopDocs().totalHits.value(),
-                                                response.mergeResult.reducedTopDocs().totalHits.relation()
+                                                reducedTotalHits.value(),
+                                                reducedTotalHits.relation()
                                             );
                                         }
                                     }

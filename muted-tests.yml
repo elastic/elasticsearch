@@ -256,6 +256,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test30NoAutogenerationWhenDaemonized
   issue: https://github.com/elastic/elasticsearch/issues/117956
+- class: org.elasticsearch.packaging.test.CertGenCliTests
+  method: test40RunWithCert
+  issue: https://github.com/elastic/elasticsearch/issues/117955
 
 # Examples:
 #

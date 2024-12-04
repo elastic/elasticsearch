@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -15,6 +16,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
@@ -37,9 +42,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.checkForCcsLicense;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -635,31 +643,145 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
     }
 
     public void testCheckForCcsLicense() {
+        final TestIndicesExpressionGrouper indicesGrouper = new TestIndicesExpressionGrouper();
+
+        // this seems to be used only for tracking usage of features, not for checking if a license is expired
+        final LongSupplier currTime = () -> System.currentTimeMillis();
+
+        XPackLicenseState enterpriseLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.ENTERPRISE));
+        XPackLicenseState trialLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.TRIAL));
+        XPackLicenseState platinumLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.PLATINUM));
+        XPackLicenseState goldLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.GOLD));
+        XPackLicenseState basicLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.BASIC));
+        XPackLicenseState standardLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.STANDARD));
+        XPackLicenseState missingLicense = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.MISSING));
+        XPackLicenseState nullLicense = null;
+
+        final XPackLicenseStatus enterpriseStatus = inactiveLicenseStatus(License.OperationMode.ENTERPRISE);
+        XPackLicenseState enterpriseLicenseInactive = new XPackLicenseState(currTime, enterpriseStatus);
+        XPackLicenseState trialLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.TRIAL));
+        XPackLicenseState platinumLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.PLATINUM));
+        XPackLicenseState goldLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.GOLD));
+        XPackLicenseState basicLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.BASIC));
+        XPackLicenseState standardLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.STANDARD));
+        XPackLicenseState missingLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.MISSING));
+
         // local only search does not require an enterprise license
         {
             List<TableInfo> indices = new ArrayList<>();
-            indices.add(new TableInfo(new TableIdentifier(EMPTY, null, "idx")));
+            indices.add(new TableInfo(new TableIdentifier(EMPTY, null, randomFrom("idx", "idx1,idx2*"))));
 
+            checkForCcsLicense(indices, indicesGrouper, enterpriseLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, platinumLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, goldLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, trialLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, basicLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, standardLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, missingLicense);
+            checkForCcsLicense(indices, indicesGrouper, nullLicense);
+
+            checkForCcsLicense(indices, indicesGrouper, enterpriseLicenseInactive);
+            checkForCcsLicense(indices, indicesGrouper, platinumLicenseInactive);
+            checkForCcsLicense(indices, indicesGrouper, goldLicenseInactive);
+            checkForCcsLicense(indices, indicesGrouper, trialLicenseInactive);
+            checkForCcsLicense(indices, indicesGrouper, basicLicenseInactive);
+            checkForCcsLicense(indices, indicesGrouper, standardLicenseInactive);
+            checkForCcsLicense(indices, indicesGrouper, missingLicenseInactive);
+        }
+
+        // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
+        {
+            List<TableInfo> indices = new ArrayList<>();
+            final String indexExprWithRemotes = randomFrom("remote:idx", "idx1,remote:idx2*,remote:logs,c*:idx4");
+            if (randomBoolean()) {
+                indices.add(new TableInfo(new TableIdentifier(EMPTY, null, indexExprWithRemotes)));
+            } else {
+                indices.add(new TableInfo(new TableIdentifier(EMPTY, null, randomFrom("idx", "idx1,idx2*"))));
+                indices.add(new TableInfo(new TableIdentifier(EMPTY, null, indexExprWithRemotes)));
+            }
+
+            // licenses that work
+            checkForCcsLicense(indices, indicesGrouper, enterpriseLicenseValid);
+            checkForCcsLicense(indices, indicesGrouper, trialLicenseValid);
+
+            // all others fail ---
+
+            // active non-expired non-Enterprise non-Trial licenses
+            assertLicenseCheckFails(indices, indicesGrouper, platinumLicenseValid, "active platinum license");
+            assertLicenseCheckFails(indices, indicesGrouper, goldLicenseValid, "active gold license");
+            assertLicenseCheckFails(indices, indicesGrouper, basicLicenseValid, "active basic license");
+            assertLicenseCheckFails(indices, indicesGrouper, standardLicenseValid, "active standard license");
+            assertLicenseCheckFails(indices, indicesGrouper, missingLicense, "active missing license");
+            assertLicenseCheckFails(indices, indicesGrouper, nullLicense, "none");
+
+            // inactive/expired licenses
+            assertLicenseCheckFails(indices, indicesGrouper, enterpriseLicenseInactive, "expired enterprise license");
+            assertLicenseCheckFails(indices, indicesGrouper, trialLicenseInactive, "expired trial license");
+            assertLicenseCheckFails(indices, indicesGrouper, platinumLicenseInactive, "expired platinum license");
+            assertLicenseCheckFails(indices, indicesGrouper, goldLicenseInactive, "expired gold license");
+            assertLicenseCheckFails(indices, indicesGrouper, basicLicenseInactive, "expired basic license");
+            assertLicenseCheckFails(indices, indicesGrouper, standardLicenseInactive, "expired standard license");
+            assertLicenseCheckFails(indices, indicesGrouper, missingLicenseInactive, "expired missing license");
         }
     }
 
-    static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
+    private XPackLicenseStatus activeLicenseStatus(License.OperationMode operationMode) {
+        return new XPackLicenseStatus(operationMode, true, "License Expired 123");
+    }
 
+    private XPackLicenseStatus inactiveLicenseStatus(License.OperationMode operationMode) {
+        return new XPackLicenseStatus(operationMode, false, "License Expired 123");
+    }
+
+    private void assertLicenseCheckFails(
+        List<TableInfo> indices,
+        TestIndicesExpressionGrouper indicesGrouper,
+        XPackLicenseState licenseState,
+        String expectedErrorMessageSuffix
+    ) {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> checkForCcsLicense(indices, indicesGrouper, licenseState)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
+            )
+        );
+    }
+
+    static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
         @Override
         public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+            final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
             for (String expr : indexExpressions) {
+                assertFalse(Strings.isNullOrBlank(expr));
                 String[] split = expr.split(":", 2);
                 assertTrue("Bad index expression: " + expr, split.length < 3);
+                String clusterAlias;
+                String indexExpr;
                 if (split.length == 1) {
-                    // MP TODO: LEFTOFF
+                    clusterAlias = localKey;
+                    indexExpr = expr;
                 } else {
+                    clusterAlias = split[0];
+                    indexExpr = split[1];
 
                 }
+                OriginalIndices currIndices = originalIndicesMap.get(clusterAlias);
+                if (currIndices == null) {
+                    originalIndicesMap.put(clusterAlias, new OriginalIndices(new String[] { indexExpr }, indicesOptions));
+                } else {
+                    List<String> indicesList = Arrays.stream(currIndices.indices()).collect(Collectors.toList());
+                    indicesList.add(indexExpr);
+                    originalIndicesMap.put(clusterAlias, new OriginalIndices(indicesList.toArray(new String[0]), indicesOptions));
+                }
             }
-
-            return null;
+            return originalIndicesMap;
         }
     }
 

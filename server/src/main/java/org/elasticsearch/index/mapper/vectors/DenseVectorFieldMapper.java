@@ -2042,7 +2042,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private boolean needsRescore(Float rescoreOversample) {
-            return rescoreOversample != null && (indexOptions == null || indexOptions.type == null || indexOptions.type.isQuantized());
+            return rescoreOversample != null && (indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized());
         }
 
         private Query createKnnBitQuery(

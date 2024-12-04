@@ -39,7 +39,7 @@ public interface BlobStore extends Closeable {
     /**
      * Returns statistics on the count of operations that have been performed on this blob store
      */
-    default Map<String, Long> stats() {
+    default Map<String, BlobStoreActionStats> stats() {
         return Collections.emptyMap();
     }
 }

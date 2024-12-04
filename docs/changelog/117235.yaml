@@ -1,5 +1,0 @@
-pr: 117235
-summary: "Deprecate `ChunkingOptions` parameter"
-area: ES|QL
-type: enhancement
-issues: []

@@ -208,7 +208,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
-
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
 
@@ -297,6 +296,17 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return geoFormatterFactory.getFormatter(format, Function.identity());
+        }
+
+        @Override
+        protected boolean isBoundsExtractionSupported() {
+            // Extracting bounds for geo shapes is not implemented yet.
+            return false;
+        }
+
+        @Override
+        protected CoordinateEncoder coordinateEncoder() {
+            return CoordinateEncoder.GEO;
         }
     }
 

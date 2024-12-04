@@ -390,7 +390,7 @@ public final class EsqlTestUtils {
     }
 
     public static <T> T as(Object node, Class<T> type) {
-        Assert.assertThat(node, instanceOf(type));
+        Assert.assertThat("Unexpected type: " + node.getClass(), node, instanceOf(type));
         return type.cast(node);
     }
 

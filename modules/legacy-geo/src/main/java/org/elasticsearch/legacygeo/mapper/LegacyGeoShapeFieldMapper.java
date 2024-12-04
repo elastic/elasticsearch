@@ -46,6 +46,7 @@ import org.elasticsearch.legacygeo.XShapeCollection;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.query.LegacyGeoShapeQueryProcessor;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.locationtech.spatial4j.shape.Point;
@@ -401,7 +402,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>> implements GeoShapeQueryable {
-
         private String tree = Defaults.TREE;
         private SpatialStrategy strategy = Defaults.STRATEGY;
         private boolean pointsOnly = Defaults.POINTS_ONLY;
@@ -529,6 +529,17 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         @Override
         protected Function<List<ShapeBuilder<?, ?, ?>>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, ShapeBuilder::buildGeometry);
+        }
+
+        @Override
+        protected boolean isBoundsExtractionSupported() {
+            // Extracting bounds for geo shapes is not implemented yet.
+            return false;
+        }
+
+        @Override
+        protected CoordinateEncoder coordinateEncoder() {
+            return CoordinateEncoder.GEO;
         }
     }
 

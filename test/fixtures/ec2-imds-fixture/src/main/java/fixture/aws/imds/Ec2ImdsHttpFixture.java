@@ -24,16 +24,22 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
 
     private HttpServer server;
 
+    private final Ec2ImdsVersion ec2ImdsVersion;
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final Set<String> alternativeCredentialsEndpoints;
 
-    public Ec2ImdsHttpFixture(BiConsumer<String, String> newCredentialsConsumer, Set<String> alternativeCredentialsEndpoints) {
+    public Ec2ImdsHttpFixture(
+        Ec2ImdsVersion ec2ImdsVersion,
+        BiConsumer<String, String> newCredentialsConsumer,
+        Set<String> alternativeCredentialsEndpoints
+    ) {
+        this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.alternativeCredentialsEndpoints = Objects.requireNonNull(alternativeCredentialsEndpoints);
     }
 
     protected HttpHandler createHandler() {
-        return new Ec2ImdsHttpHandler(newCredentialsConsumer, alternativeCredentialsEndpoints);
+        return new Ec2ImdsHttpHandler(ec2ImdsVersion, newCredentialsConsumer, alternativeCredentialsEndpoints);
     }
 
     public String getAddress() {

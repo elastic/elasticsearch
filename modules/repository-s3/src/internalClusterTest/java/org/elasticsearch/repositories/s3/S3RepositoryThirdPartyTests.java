@@ -109,7 +109,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
-            .put("base_path", System.getProperty("test.s3.base", "testpath"));
+            .put("base_path", System.getProperty("test.s3.base", "testpath"))
+            .put("buffer_size", S3Repository.MIN_PART_SIZE_USING_MULTIPART);
         final String endpoint = USE_FIXTURE ? minio.getAddress() : System.getProperty("test.s3.endpoint");
         if (endpoint != null) {
             settings.put("endpoint", endpoint);

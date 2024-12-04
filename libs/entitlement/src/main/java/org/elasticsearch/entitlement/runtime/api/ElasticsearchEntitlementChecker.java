@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.net.URL;
@@ -30,27 +29,27 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$exit(Class<?> callerClass, int status) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.SYSTEM_EXIT);
+        policyManager.checkExitVMEntitlement(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+        policyManager.checkCreateClassLoaderEntitlement(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+        policyManager.checkCreateClassLoaderEntitlement(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+        policyManager.checkCreateClassLoaderEntitlement(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+        policyManager.checkCreateClassLoaderEntitlement(callerClass);
     }
 
     @Override
@@ -61,6 +60,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         ClassLoader parent,
         URLStreamHandlerFactory factory
     ) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+        policyManager.checkCreateClassLoaderEntitlement(callerClass);
     }
 }

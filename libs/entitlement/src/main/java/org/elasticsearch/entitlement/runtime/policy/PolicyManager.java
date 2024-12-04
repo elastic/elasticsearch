@@ -20,6 +20,7 @@ import java.lang.module.ModuleReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,14 +28,30 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
     static class ModuleEntitlements {
-        public static final ModuleEntitlements NONE = new ModuleEntitlements();
-        final List<FlagEntitlement> flagEntitlements = new ArrayList<>();
-        final List<FileEntitlement> fileEntitlements = new ArrayList<>();
+        public static final ModuleEntitlements NONE = new ModuleEntitlements(List.of());
+        private final IdentityHashMap<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType;
+
+        ModuleEntitlements(List<Entitlement> entitlements) {
+            this.entitlementsByType = entitlements.stream()
+                .collect(Collectors.toMap(Entitlement::getClass, e -> new ArrayList<>(List.of(e)), (a, b) -> {
+                    a.addAll(b);
+                    return a;
+                }, IdentityHashMap::new));
+        }
+
+        public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
+            return entitlementsByType.containsKey(entitlementClass);
+        }
+
+        public <E extends Entitlement> Stream<E> getEntitlements(Class<E> entitlementClass) {
+            return entitlementsByType.get(entitlementClass).stream().map(entitlementClass::cast);
+        }
     }
 
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new HashMap<>();
@@ -77,19 +94,37 @@ public class PolicyManager {
         return null;
     }
 
-    public void checkFlagEntitlement(Class<?> callerClass, FlagEntitlementType type) {
+    public void checkExitVMEntitlement(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, ExitVMEntitlement.class);
+    }
+
+    public void checkCreateClassLoaderEntitlement(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, CreateClassLoaderEntitlement.class);
+    }
+
+    private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
 
         ModuleEntitlements entitlements = getEntitlementsOrThrow(callerClass, requestingModule);
-        if (entitlements.flagEntitlements.stream().anyMatch(t -> t.type().equals(type))) {
-            logger.debug("Allowed: caller [{}] in module [{}] has flag entitlement [{}]", callerClass, requestingModule.getName(), type);
+        if (entitlements.hasEntitlement(entitlementClass)) {
+            logger.debug(
+                "Allowed: caller [{}] in module [{}] has [{}]",
+                callerClass,
+                requestingModule.getName(),
+                entitlementClass.getSimpleName()
+            );
             return;
         }
         throw new NotEntitledException(
-            Strings.format("Caller [%s] in module [%s] does not have flag entitlement [%s]", callerClass, requestingModule.getName(), type)
+            Strings.format(
+                "Caller [%s] in module [%s] does not have [%s]",
+                callerClass,
+                requestingModule.getName(),
+                entitlementClass.getSimpleName()
+            )
         );
     }
 
@@ -160,20 +195,7 @@ public class PolicyManager {
     }
 
     private ModuleEntitlements createClassEntitlements(List<Entitlement> entitlements) {
-        var classEntitlements = new ModuleEntitlements();
-        for (Entitlement entitlement : entitlements) {
-            switch (entitlement) {
-                case FileEntitlement file:
-                    classEntitlements.fileEntitlements.add(file);
-                    break;
-                case FlagEntitlement flag:
-                    classEntitlements.flagEntitlements.add(flag);
-                    break;
-                default:
-                    throw new IllegalStateException("Unexpected entitlement type: " + entitlement.getClass().getName());
-            }
-        }
-        return classEntitlements;
+        return new ModuleEntitlements(entitlements);
     }
 
     private static Module requestingModule(Class<?> callerClass) {

@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ESTestCase.WithoutSecurityManager
@@ -111,10 +111,7 @@ public class PolicyManagerTests extends ESTestCase {
         var requestingModule = callerClass.getModule();
 
         var entitlements = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
-        assertThat(
-            entitlements.flagEntitlements,
-            contains(transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER)))
-        );
+        assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
@@ -151,13 +148,8 @@ public class PolicyManagerTests extends ESTestCase {
         var requestingModule = mockServerClass.getModule();
 
         var entitlements = policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule);
-        assertThat(
-            entitlements.flagEntitlements,
-            contains(
-                transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.SYSTEM_EXIT)),
-                transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER))
-            )
-        );
+        assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
+        assertThat(entitlements.hasEntitlement(ExitVMEntitlement.class), is(true));
     }
 
     public void testGetEntitlementsReturnsEntitlementsForPluginModule() throws IOException, ClassNotFoundException {
@@ -176,11 +168,11 @@ public class PolicyManagerTests extends ESTestCase {
         var requestingModule = mockPluginClass.getModule();
 
         var entitlements = policyManager.getEntitlementsOrThrow(mockPluginClass, requestingModule);
+        assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(
-            entitlements.flagEntitlements,
-            contains(transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER)))
+            entitlements.getEntitlements(FileEntitlement.class).toList(),
+            contains(transformedMatch(FileEntitlement::toString, containsString("/test/path")))
         );
-        assertThat(entitlements.fileEntitlements, contains(transformedMatch(FileEntitlement::toString, containsString("/test/path"))));
     }
 
     public void testGetEntitlementsResultIsCached() {
@@ -195,10 +187,7 @@ public class PolicyManagerTests extends ESTestCase {
         var requestingModule = callerClass.getModule();
 
         var entitlements = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
-        assertThat(
-            entitlements.flagEntitlements,
-            contains(transformedMatch(FlagEntitlement::type, equalTo(FlagEntitlementType.CREATE_CLASSLOADER)))
-        );
+        assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         var cachedResult = policyManager.moduleEntitlementsMap.values().stream().findFirst().get();
         var entitlementsAgain = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
@@ -213,18 +202,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     private static Policy createTestServerPolicy(String scopeName) {
-        return new Policy(
-            "server",
-            List.of(
-                new Scope(
-                    scopeName,
-                    List.of(
-                        new FlagEntitlement(FlagEntitlementType.SYSTEM_EXIT),
-                        new FlagEntitlement(FlagEntitlementType.CREATE_CLASSLOADER)
-                    )
-                )
-            )
-        );
+        return new Policy("server", List.of(new Scope(scopeName, List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement()))));
     }
 
     private static Policy createPluginPolicy(String... pluginModules) {
@@ -234,10 +212,7 @@ public class PolicyManagerTests extends ESTestCase {
                 .map(
                     name -> new Scope(
                         name,
-                        List.of(
-                            new FileEntitlement("/test/path", List.of(FileEntitlement.READ)),
-                            new FlagEntitlement(FlagEntitlementType.CREATE_CLASSLOADER)
-                        )
+                        List.of(new FileEntitlement("/test/path", List.of(FileEntitlement.READ)), new CreateClassLoaderEntitlement())
                     )
                 )
                 .toList()

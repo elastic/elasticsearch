@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.migrate.task;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +21,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     private final long persistentTaskStartTime;
     private final int totalIndices;
     private final int totalIndicesToBeUpgraded;
-    private final ThreadPool threadPool;
     private boolean complete = false;
     private Exception exception;
     private AtomicInteger inProgress = new AtomicInteger(0);
@@ -33,7 +31,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         long persistentTaskStartTime,
         int totalIndices,
         int totalIndicesToBeUpgraded,
-        ThreadPool threadPool,
         long id,
         String type,
         String action,
@@ -45,7 +42,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         this.persistentTaskStartTime = persistentTaskStartTime;
         this.totalIndices = totalIndices;
         this.totalIndicesToBeUpgraded = totalIndicesToBeUpgraded;
-        this.threadPool = threadPool;
     }
 
     @Override

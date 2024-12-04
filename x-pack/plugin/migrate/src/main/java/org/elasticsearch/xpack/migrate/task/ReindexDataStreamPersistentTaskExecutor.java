@@ -54,7 +54,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             params.startTime(),
             params.totalIndices(),
             params.totalIndicesToBeUpgraded(),
-            threadPool,
             id,
             type,
             action,
@@ -99,7 +98,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                                 reindexDataStreamTask.reindexFailed(index.getName(), exception);
                                 listener.onResponse(null);
                             }), reindexClient);
-
                         }, exception -> {
                             reindexDataStreamTask.reindexFailed(index.getName(), exception);
                             listener.onResponse(null);

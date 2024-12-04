@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -76,13 +77,30 @@ public class Hash extends EsqlScalarFunction {
 
     @Evaluator(warnExceptions = NoSuchAlgorithmException.class)
     static BytesRef process(BytesRef alg, BytesRef input) throws NoSuchAlgorithmException {
-        byte[] digest = MessageDigest.getInstance(alg.utf8ToString()).digest(input.utf8ToString().getBytes());
-        return new BytesRef(HexFormat.of().formatHex(digest));
+        return hash(MessageDigest.getInstance(alg.utf8ToString()), input);
+    }
+
+    @Evaluator(extraName = "Constant")
+    static BytesRef processConstant(@Fixed(build = true) MessageDigest alg, BytesRef input) {
+        return hash(alg, input);
+    }
+
+    private static BytesRef hash(MessageDigest alg, BytesRef input) {
+        return new BytesRef(HexFormat.of().formatHex(alg.digest(input.utf8ToString().getBytes())));
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new HashEvaluator.Factory(source(), toEvaluator.apply(alg), toEvaluator.apply(input));
+        if (alg.foldable() && alg.dataType() == DataType.KEYWORD) {
+            try {
+                var md = MessageDigest.getInstance(((BytesRef) alg.fold()).utf8ToString());
+                return new HashConstantEvaluator.Factory(source(), context -> md, toEvaluator.apply(input));
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalArgumentException(e);
+            }
+        } else {
+            return new HashEvaluator.Factory(source(), toEvaluator.apply(alg), toEvaluator.apply(input));
+        }
     }
 
     @Override

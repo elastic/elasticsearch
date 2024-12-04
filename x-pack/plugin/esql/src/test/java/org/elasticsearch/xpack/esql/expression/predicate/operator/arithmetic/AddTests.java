@@ -159,7 +159,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         };
         BiFunction<TestCaseSupplier.TypedData, TestCaseSupplier.TypedData, List<String>> warnings = (lhs, rhs) -> {
             try {
-                addDatesAndTemporalAmount(lhs.data(), rhs.data(), AddTests::addMillis);
+                addDatesAndTemporalAmount(lhs.getValue(), rhs.getValue(), AddTests::addMillis);
                 return List.of();
             } catch (ArithmeticException e) {
                 return List.of(
@@ -193,6 +193,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
 
         BinaryOperator<Object> nanosResult = (lhs, rhs) -> {
             try {
+                assert (lhs instanceof Instant) || (rhs instanceof Instant);
                 return addDatesAndTemporalAmount(lhs, rhs, AddTests::addNanos);
             } catch (ArithmeticException e) {
                 return null;
@@ -327,29 +328,28 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Long, TemporalAmount> adder) {
+    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> adder) {
         // this weird casting dance makes the expected value lambda symmetric
-        Long date;
+        Instant date;
         TemporalAmount period;
-        if (lhs instanceof Long) {
-            date = (Long) lhs;
+        assert (lhs instanceof Instant) || (rhs instanceof Instant);
+        if (lhs instanceof Instant) {
+            date = (Instant) lhs;
             period = (TemporalAmount) rhs;
         } else {
-            date = (Long) rhs;
+            date = (Instant) rhs;
             period = (TemporalAmount) lhs;
         }
         return adder.applyAsLong(date, period);
     }
 
-    private static long addMillis(Long date, TemporalAmount period) {
+    private static long addMillis(Instant date, TemporalAmount period) {
         return asMillis(asDateTime(date).plus(period));
     }
 
-    private static long addNanos(Long date, TemporalAmount period) {
+    private static long addNanos(Instant date, TemporalAmount period) {
         return DateUtils.toLong(
-            Instant.from(
-                ZonedDateTime.ofInstant(DateUtils.toInstant(date), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).plus(period)
-            )
+            Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).plus(period))
         );
     }
 

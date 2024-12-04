@@ -250,10 +250,10 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         @Override
         public Rectangle getResult() {
-            return Double.isInfinite(maxY) ? null : getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
+            return getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
         }
 
-        public static Rectangle getResult(
+        private static Rectangle getResult(
             double minNegX,
             double minPosX,
             double maxNegX,

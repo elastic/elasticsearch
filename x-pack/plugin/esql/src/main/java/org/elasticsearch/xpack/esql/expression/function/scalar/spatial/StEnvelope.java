@@ -39,7 +39,6 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  * The function `st_envelope` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_ENVELOPE.html">PostGIS:ST_ENVELOPE</a>.
- *
  */
 public class StEnvelope extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

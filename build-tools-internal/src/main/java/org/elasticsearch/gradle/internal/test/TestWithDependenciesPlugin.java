@@ -11,11 +11,14 @@ package org.elasticsearch.gradle.internal.test;
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin;
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.Copy;
@@ -60,30 +63,37 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
                 internalJavaRestTestPlugin -> processConfiguration(sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME))
             );
         sourceSets.matching(sourceSet -> sourceSet.getName().equals("test")).configureEach(sourceSet -> processConfiguration(sourceSet));
-
     }
 
     private void processConfiguration(SourceSet sourceSet) {
         String implementationConfigurationName = sourceSet.getImplementationConfigurationName();
-        Configuration implementationConfig = project.getConfigurations().getByName(implementationConfigurationName);
-        implementationConfig.getDependencies().all(dep -> {
-            if (dep instanceof ProjectDependency
-                && ((ProjectDependency) dep).getDependencyProject().getPlugins().hasPlugin(PluginBuildPlugin.class)) {
-                project.getGradle()
-                    .projectsEvaluated(gradle -> addPluginResources(sourceSet, project, ((ProjectDependency) dep).getDependencyProject()));
+        Configuration testImplementationConfig = project.getConfigurations().getByName(implementationConfigurationName);
+        testImplementationConfig.getDependencies().all(dep -> {
+            if (dep instanceof ProjectDependency && dep.getGroup().contains("plugin")) {
+                addPluginResources(sourceSet, project, ((ProjectDependency) dep));
             }
         });
     }
 
-    private static void addPluginResources(SourceSet sourceSet, final Project project, final Project pluginProject) {
-        final File outputDir = new File(project.getBuildDir(), "/generated-test-resources/" + pluginProject.getName());
-        String camelProjectName = stream(pluginProject.getName().split("-")).map(t -> StringUtils.capitalize(t))
+    private static void addPluginResources(final SourceSet sourceSet, final Project project, final ProjectDependency projectDependency) {
+        final File outputDir = new File(project.getBuildDir(), "/generated-test-resources/" + projectDependency.getName());
+        String camelProjectName = stream(projectDependency.getName().split("-")).map(t -> StringUtils.capitalize(t))
             .collect(Collectors.joining());
         String taskName = "copy" + camelProjectName + "Metadata";
+        String metadataConfiguration = "resolved" + camelProjectName + "Metadata";
+        Configuration pluginMetadata = project.getConfigurations().maybeCreate(metadataConfiguration);
+        pluginMetadata.getAttributes().attribute(Attribute.of("pluginMetadata", Boolean.class), true);
+        pluginMetadata.getAttributes()
+            .attribute(
+                LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                project.getObjects().named(LibraryElements.class, LibraryElements.RESOURCES)
+            );
+        DependencyHandler dependencyHandler = project.getDependencies();
+        Dependency pluginMetadataDependency = dependencyHandler.project(Map.of("path", projectDependency.getPath()));
+        dependencyHandler.add(metadataConfiguration, pluginMetadataDependency);
         project.getTasks().register(taskName, Copy.class, copy -> {
             copy.into(outputDir);
-            copy.from(pluginProject.getTasks().named("pluginProperties"));
-            copy.from(pluginProject.file("src/main/plugin-metadata"));
+            copy.from(pluginMetadata);
         });
 
         Map<String, Object> map = Map.of("builtBy", taskName);

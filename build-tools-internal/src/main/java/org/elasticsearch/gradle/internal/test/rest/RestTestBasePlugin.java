@@ -277,7 +277,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                     Dependency dependency = iterator.next();
                     if (dependency instanceof ProjectDependency projectDependency) {
-                        Project dependencyProject = projectDependency.getDependencyProject();
+                        Project dependencyProject = project.project(projectDependency.getPath());
                         List<String> extendedPlugins = dependencyProject.getExtensions()
                             .getByType(PluginPropertiesExtension.class)
                             .getExtendedPlugins();
@@ -287,7 +287,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         additionalDependencies.add(
                             project.getDependencies().create(project.files(dependencyProject.getTasks().named("bundlePlugin")))
                         );
-
                         for (String extendedPlugin : extendedPlugins) {
                             findModulePath(project, extendedPlugin).ifPresent(
                                 modulePath -> additionalDependencies.add(

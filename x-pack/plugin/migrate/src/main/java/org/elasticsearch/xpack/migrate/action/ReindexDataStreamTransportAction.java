@@ -56,6 +56,10 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
 
     @Override
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<ReindexDataStreamResponse> listener) {
+        if (request.getMode().equals("upgrade") == false) {
+            listener.onFailure(new IllegalArgumentException("Only mode 'upgrade' is supported"));
+            return;
+        }
         String sourceDataStreamName = request.getSourceDataStream();
         Metadata metadata = clusterService.state().metadata();
         DataStream dataStream = metadata.dataStreams().get(sourceDataStreamName);

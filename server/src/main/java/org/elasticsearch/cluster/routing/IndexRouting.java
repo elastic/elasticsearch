@@ -167,8 +167,7 @@ public abstract class IndexRouting {
             // generate id if not already provided
             final String id = indexRequest.id();
             if (id == null) {
-                if (creationVersion.between(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
-                    || creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID) && indexMode == IndexMode.LOGSDB) {
+                if (shouldUseTimeBasedId(indexMode, creationVersion)) {
                     indexRequest.autoGenerateTimeBasedId();
                 } else {
                     indexRequest.autoGenerateId();
@@ -176,6 +175,15 @@ public abstract class IndexRouting {
             } else if (id.isEmpty()) {
                 throw new IllegalArgumentException("if _id is specified it must not be empty");
             }
+        }
+
+        private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
+            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+        }
+
+        private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
+            return creationVersion.between(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                || creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID);
         }
 
         @Override

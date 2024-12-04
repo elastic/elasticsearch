@@ -9,7 +9,8 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
@@ -20,6 +21,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
@@ -47,6 +49,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.objectweb.asm.Opcodes.V_PREVIEW;
 
 public class MrjarPlugin implements Plugin<Project> {
@@ -64,6 +67,8 @@ public class MrjarPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");
         var ideaSourceSetsEnabled = project.hasProperty(MRJAR_IDEA_ENABLED) && project.property(MRJAR_IDEA_ENABLED).equals("true");
@@ -83,13 +88,14 @@ public class MrjarPlugin implements Plugin<Project> {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
                 SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
                 configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                addJar(project, mainSourceSet, javaVersion);
                 mainSourceSets.add(mainSourceSetName);
                 testSourceSets.add(mainSourceSetName);
 
                 String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
                 SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
                 testSourceSets.add(testSourceSetName);
-                createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+                createTestTask(project, buildParams, testSourceSet, javaVersion, mainSourceSets);
             }
         }
 
@@ -143,6 +149,14 @@ public class MrjarPlugin implements Plugin<Project> {
         return sourceSet;
     }
 
+    private void addJar(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getConfigurations().register("java" + javaVersion);
+        TaskProvider<Jar> jarTask = project.getTasks().register("java" + javaVersion + "Jar", Jar.class, task -> {
+            task.from(sourceSet.getOutput());
+        });
+        project.getArtifacts().add("java" + javaVersion, jarTask);
+    }
+
     private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {
         project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
             CompileOptions compileOptions = compileTask.getOptions();
@@ -163,7 +177,13 @@ public class MrjarPlugin implements Plugin<Project> {
         jarTask.configure(task -> task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput())));
     }
 
-    private void createTestTask(Project project, SourceSet sourceSet, int javaVersion, List<String> mainSourceSets) {
+    private void createTestTask(
+        Project project,
+        BuildParameterExtension buildParams,
+        SourceSet sourceSet,
+        int javaVersion,
+        List<String> mainSourceSets
+    ) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         var testTaskProvider = project.getTasks().register(JavaPlugin.TEST_TASK_NAME + javaVersion, Test.class);
         testTaskProvider.configure(testTask -> {
@@ -180,9 +200,9 @@ public class MrjarPlugin implements Plugin<Project> {
 
             // only set the jdk if runtime java isn't set because setting the toolchain is incompatible with
             // runtime java setting the executable directly
-            if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            if (buildParams.getIsRuntimeJavaHomeSet()) {
                 testTask.onlyIf("runtime java must support java " + javaVersion, t -> {
-                    JavaVersion runtimeJavaVersion = BuildParams.getRuntimeJavaVersion();
+                    JavaVersion runtimeJavaVersion = buildParams.getRuntimeJavaVersion().get();
                     return runtimeJavaVersion.isCompatibleWith(JavaVersion.toVersion(javaVersion));
                 });
             } else {

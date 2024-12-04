@@ -75,7 +75,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
         ).withParams(Collections.singletonMap("refresh", randomFrom("false", "true", "wait_for"))).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);

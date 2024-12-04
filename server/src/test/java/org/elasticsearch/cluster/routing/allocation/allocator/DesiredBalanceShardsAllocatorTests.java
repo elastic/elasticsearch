@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,6 +58,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -79,7 +81,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -694,6 +698,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             assertTrue(listenersCalled.await(10, TimeUnit.SECONDS));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
         } finally {
             clusterService.close();
             terminate(threadPool);
@@ -749,7 +754,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         try {
             // initial computation is based on DesiredBalance.INITIAL
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(DesiredBalance.INITIAL));
+            assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(DesiredBalance.BECOME_MASTER_INITIAL));
 
             // any next computation is based on current desired balance
             var current = desiredBalanceShardsAllocator.getDesiredBalance();
@@ -802,7 +807,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.INITIAL)));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.BECOME_MASTER_INITIAL)));
 
             clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.getNodes()).localNodeId(node1.getId()).masterNodeId(node2.getId()))
@@ -812,7 +817,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(
                 "desired balance should be resetted on no longer master",
                 desiredBalanceShardsAllocator.getDesiredBalance(),
-                equalTo(DesiredBalance.INITIAL)
+                equalTo(DesiredBalance.NOT_MASTER)
             );
         } finally {
             clusterService.close();
@@ -858,7 +863,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.INITIAL)));
+            assertThat(desiredBalanceAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.BECOME_MASTER_INITIAL)));
 
             final var shutdownType = randomFrom(Type.SIGTERM, Type.REMOVE, Type.REPLACE);
             final var singleShutdownMetadataBuilder = SingleNodeShutdownMetadata.builder()
@@ -910,6 +915,77 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             rerouteAndWait(service, clusterState, "random-reroute");
             assertFalse("desired balance reset should not be called", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
+        } finally {
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
+    public void testNotReconcileEagerlyForEmptyRoutingTable() {
+        final var threadPool = new TestThreadPool(getTestName());
+        final var clusterService = ClusterServiceUtils.createClusterService(ClusterState.EMPTY_STATE, threadPool);
+        final var clusterSettings = createBuiltInClusterSettings();
+        final var shardsAllocator = createShardsAllocator();
+        final var reconciliationTaskSubmitted = new AtomicBoolean();
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            shardsAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    assertThat(previousDesiredBalance, sameInstance(DesiredBalance.BECOME_MASTER_INITIAL));
+                    return new DesiredBalance(desiredBalanceInput.index(), Map.of());
+                }
+            },
+            (clusterState, rerouteStrategy) -> null,
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
+        ) {
+
+            private ActionListener<Void> lastListener;
+
+            @Override
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                lastListener = listener;
+                super.allocate(allocation, listener);
+            }
+
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                fail("should not call reconcile");
+            }
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
+                assertThat(desiredBalance.lastConvergedIndex(), equalTo(0L));
+                reconciliationTaskSubmitted.set(true);
+                lastListener.onResponse(null);
+            }
+        };
+        assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
+        try {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            desiredBalanceShardsAllocator.allocate(
+                new RoutingAllocation(
+                    new AllocationDeciders(Collections.emptyList()),
+                    clusterService.state(),
+                    null,
+                    null,
+                    randomNonNegativeLong()
+                ),
+                future
+            );
+            safeGet(future);
+            assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(1L));
+            assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(1L));
+            assertThat(reconciliationTaskSubmitted.get(), is(true));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance().lastConvergedIndex(), equalTo(0L));
         } finally {
             clusterService.close();
             terminate(threadPool);

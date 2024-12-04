@@ -161,9 +161,9 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         final StringBuilder sb = new StringBuilder("KnnRescoreVectorQuery{");
         sb.append("fieldName='").append(fieldName).append('\'');
         if (byteTarget != null) {
-            sb.append(", byteTarget=").append(Arrays.toString(byteTarget));
+            sb.append(", byteTarget=").append(byteTarget[0]).append("...");
         } else {
-            sb.append(", floatTarget=").append(Arrays.toString(floatTarget));
+            sb.append(", floatTarget=").append(floatTarget[0]).append("...");
         }
         sb.append(", vectorSimilarityFunction=").append(vectorSimilarityFunction);
         sb.append(", k=").append(k);

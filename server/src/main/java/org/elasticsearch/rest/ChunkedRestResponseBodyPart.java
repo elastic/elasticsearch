@@ -173,11 +173,11 @@ public interface ChunkedRestResponseBodyPart {
                     target = null;
                     return result;
                 } catch (Exception e) {
-                    logger.error("failure encoding chunk 5", e);
+                    logger.error("failure encoding chunk", e);
                     throw e;
                 } finally {
                     if (target != null) {
-                        assert false : "failure encoding chunk 6";
+                        assert false : "failure encoding chunk";
                         IOUtils.closeWhileHandlingException(target);
                         target = null;
                     }

@@ -225,7 +225,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         long nowInMillis,
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
-        TimeValue keepAlive,
+        @Nullable TimeValue keepAlive,
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource

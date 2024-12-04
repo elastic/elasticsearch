@@ -22,6 +22,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,7 +127,7 @@ public class RescorePhase {
         List<Runnable> cancellationChecks = new ArrayList<>();
         if (context.lowLevelCancellation()) {
             cancellationChecks.add(() -> {
-                final SearchShardTask task = context.getTask();
+                final CancellableTask task = context.getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -48,6 +49,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -63,6 +67,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -286,32 +291,42 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     /**
      * Builds an request for the initial search phase.
      *
-     * @param shardIt the target {@link SearchShardIterator}
      * @param shardIndex the index of the shard that is used in the coordinator node to
      *                   tiebreak results with identical sort values
      */
-    protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
-        AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
-        assert filter != null;
-        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+    private static ShardSearchRequest buildShardSearchRequest(
+        ShardId shardId,
+        String clusterAlias,
+        int shardIndex,
+        ShardSearchContextId searchContextId,
+        OriginalIndices originalIndices,
+        AliasFilter aliasFilter,
+        TimeValue searchContextKeepAlive,
+        float indexBoost,
+        SearchRequest searchRequest,
+        int totalShardCount,
+        long absoluteStartMillis,
+        boolean hasResponse
+    ) {
+        assert aliasFilter != null;
         ShardSearchRequest shardRequest = new ShardSearchRequest(
-            shardIt.getOriginalIndices(),
-            request,
-            shardIt.shardId(),
+            originalIndices,
+            searchRequest,
+            shardId,
             shardIndex,
-            results.getNumShards(),
-            filter,
+            totalShardCount,
+            aliasFilter,
             indexBoost,
-            timeProvider.absoluteStartMillis(),
-            shardIt.getClusterAlias(),
-            shardIt.getSearchContextId(),
-            shardIt.getSearchContextKeepAlive()
+            absoluteStartMillis,
+            clusterAlias,
+            searchContextId,
+            searchContextKeepAlive
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasResponse && shardRequest.scroll() == null);
         return shardRequest;
     }
 
@@ -358,6 +373,11 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             super(in);
             this.shards = in.readCollectionAsImmutableList(ShardToQuery::readFrom);
             this.searchRequest = new SearchRequest(in);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new SearchShardTask(id, type, action, "", parentTaskId, headers);
         }
 
         @Override
@@ -605,7 +625,22 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         }
         searchTransportService.sendExecuteQuery(
             connection,
-            rewriteShardSearchRequest(buildShardSearchRequest(shardIt, shardIndex)),
+            rewriteShardSearchRequest(
+                buildShardSearchRequest(
+                    shardIt.shardId(),
+                    shardIt.getClusterAlias(),
+                    shardIndex,
+                    shardIt.getSearchContextId(),
+                    shardIt.getOriginalIndices(),
+                    aliasFilter.get(shardIt.shardId().getIndex().getUUID()),
+                    shardIt.getSearchContextKeepAlive(),
+                    concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
+                    request,
+                    results.getNumShards(),
+                    timeProvider.absoluteStartMillis(),
+                    hasShardResponse.get()
+                )
+            ),
             task,
             new SearchActionListener<>(shard, shardIndex) {
                 @Override
@@ -920,8 +955,16 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                     request.shards.size(),
                     transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax()
                 );
+                var executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+                final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
+                final AtomicInteger shardIndex = new AtomicInteger();
                 for (int i = 0; i < workers; i++) {
-
+                    ShardToQuery shardToQuery;
+                    if ((shardToQuery = shards.poll()) != null) {
+                        executor.execute(
+                            () -> executeOne(searchService, request, (CancellableTask) task, shardToQuery, shardIndex, shards, executor)
+                        );
+                    }
                 }
                 new ChannelActionListener<>(channel).onResponse(
                     new NodeQueryResponse(
@@ -932,5 +975,51 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 );
             }
         );
+
+    }
+
+    private static void executeOne(
+        SearchService searchService,
+        NodeQueryRequest request,
+        CancellableTask task,
+        ShardToQuery shardToQuery,
+        AtomicInteger shardIndex,
+        BlockingQueue<ShardToQuery> shards,
+        Executor executor
+    ) {
+        final ShardSearchRequest req = buildShardSearchRequest(
+            shardToQuery.shardId,
+            "",
+            shardIndex.getAndIncrement(),
+            shardToQuery.contextId,
+            shardToQuery.originalIndices,
+            AliasFilter.EMPTY,
+            shardToQuery.contextId == null ? null : TimeValue.MAX_VALUE,
+            shardToQuery.boost,
+            request.searchRequest,
+            2,
+            System.currentTimeMillis(),
+            false
+        );
+        searchService.executeQueryPhase(req, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+
+                maybeNext();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+
+                maybeNext();
+            }
+
+            private void maybeNext() {
+                var shardToQuery = shards.poll();
+                if (shardToQuery != null) {
+                    executor.execute(() -> executeOne(searchService, request, task, shardToQuery, shardIndex, shards, executor));
+                }
+            }
+        });
     }
 }

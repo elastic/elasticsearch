@@ -48,6 +48,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.util.List;
 
@@ -211,7 +212,7 @@ public class RankSearchContext extends SearchContext {
     /* ---- ALL METHODS ARE UNSUPPORTED BEYOND HERE ---- */
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         throw new UnsupportedOperationException();
     }
 

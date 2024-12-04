@@ -11,7 +11,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -47,6 +46,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
@@ -84,9 +84,9 @@ public abstract class SearchContext implements Releasable {
 
     protected SearchContext() {}
 
-    public abstract void setTask(SearchShardTask task);
+    public abstract void setTask(CancellableTask task);
 
-    public abstract SearchShardTask getTask();
+    public abstract CancellableTask getTask();
 
     public abstract boolean isCancelled();
 

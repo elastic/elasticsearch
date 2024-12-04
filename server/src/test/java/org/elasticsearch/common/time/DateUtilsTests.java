@@ -38,28 +38,29 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(compareNanosToMillis(toLong(Instant.EPOCH), Instant.EPOCH.toEpochMilli()), is(0));
 
         // millis before epoch
-        assertThat(
-            compareNanosToMillis(
-                toLong(randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT)),
-                randomInstantBetween(Instant.ofEpochMilli(MAX_MILLIS_BEFORE_MINUS_9999), Instant.ofEpochMilli(-1L)).toEpochMilli()
-            ),
-            is(-1)
+        assertCompareInstants(
+            randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT),
+            randomInstantBetween(Instant.ofEpochMilli(MAX_MILLIS_BEFORE_MINUS_9999), Instant.ofEpochMilli(-1L))
         );
 
         // millis after nanos range
-        assertThat(
-            compareNanosToMillis(
-                toLong(randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT)),
-                randomInstantBetween(MAX_NANOSECOND_INSTANT.plusMillis(1), Instant.ofEpochMilli(Long.MAX_VALUE)).toEpochMilli()
-            ),
-            is(1)
+        assertCompareInstants(
+            randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT),
+            randomInstantBetween(MAX_NANOSECOND_INSTANT.plusMillis(1), Instant.ofEpochMilli(Long.MAX_VALUE))
         );
 
         // both in range
         Instant nanos = randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT);
         Instant millis = randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT);
 
-        assertThat(compareNanosToMillis(toLong(nanos), millis.toEpochMilli()), is(nanos.compareTo(millis)));
+        assertCompareInstants(nanos, millis);
+    }
+
+    /**
+     *  check that compareNanosToMillis is consistent with Instant#compare.
+     */
+    private void assertCompareInstants(Instant nanos, Instant millis) {
+        assertThat(compareNanosToMillis(toLong(nanos), millis.toEpochMilli()), equalTo(nanos.compareTo(millis)));
     }
 
     public void testInstantToLong() {

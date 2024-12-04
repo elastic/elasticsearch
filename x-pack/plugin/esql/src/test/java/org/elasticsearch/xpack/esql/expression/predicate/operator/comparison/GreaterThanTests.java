@@ -140,7 +140,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
                 "GreaterThanNanosMillisEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                (l, r) -> ((Instant) l).isAfter((Instant) r),
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
                 TestCaseSupplier.dateCases(),
@@ -151,10 +151,10 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "GreaterThanMillisNanosEvaluator",
+                "GreaterThanNanosMillisEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                (l, r) -> ((Instant) l).isAfter((Instant) r),
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateNanosCases(),

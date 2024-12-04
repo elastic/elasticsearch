@@ -433,6 +433,7 @@ public class EsqlSession {
             TableIdentifier table = tableInfo.id();
             // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
             indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            // TODO: Verify that the resolved index actually has indexMode: "lookup"
         } else {
             try {
                 // No lookup indices specified

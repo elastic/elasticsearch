@@ -143,7 +143,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // nanoseconds to milliseconds.  NB: these have different evaluator names depending on the direction
+        // nanoseconds to milliseconds. NB: these have different evaluator names depending on the direction
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "NotEqualsNanosMillisEvaluator",

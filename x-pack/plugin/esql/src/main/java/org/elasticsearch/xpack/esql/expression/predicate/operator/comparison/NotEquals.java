@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
-import java.util.Date;
 import java.util.Map;
 
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {

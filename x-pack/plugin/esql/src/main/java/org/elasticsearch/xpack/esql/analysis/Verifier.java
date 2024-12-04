@@ -660,7 +660,7 @@ public class Verifier {
         }
 
         // Allow mixed millisecond and nanosecond binary comparisons
-        if(bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
             return null;
         }
 

@@ -17,7 +17,8 @@ import java.util.List;
 public interface QueryRewriteInterceptor {
 
     /**
-     * Returns a rewritten query if modifications are required; otherwise, returns the same provided {@link QueryBuilder} instance unchanged.
+     * Returns a rewritten query if modifications are required; otherwise,
+     * returns the same provided {@link QueryBuilder} instance unchanged.
      *
      * @param context the {@link QueryRewriteContext} providing the context for the rewrite operation
      * @param queryBuilder the original {@link QueryBuilder} to potentially rewrite

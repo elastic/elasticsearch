@@ -83,7 +83,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /**
      * Indicates that this MatchQueryBuilder has already been intercepted and rewritten,
-     * so subsequent rewrite rounds can short-circuit interception. 
+     * so subsequent rewrite rounds can short-circuit interception.
      */
     private final boolean interceptedAndRewritten;
 

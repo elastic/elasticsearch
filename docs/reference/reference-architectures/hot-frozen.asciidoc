@@ -1,9 +1,16 @@
 [[hot-frozen-architecture]]
 == Hot/Frozen - High Availability
 
-The Hot / Frozen high availability architecture is cost optimized for large time-series datasets. In this architecture, the hot tier is primarily used for indexing, searching, and continuity for automated processes. https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[Searchable snapshots] are taken from hot into a repository, such as a cloud Object Store or an on-premesis shared filesystem, and then cached to any desired volume on the local disks of the Frozen tier. Data in the repository is indexed for fast retrieval and accessed on-demand from the Frozen nodes. Index and Snapshot lifecycle management are used to automate this process. 
+The Hot/Frozen High Availability architecture is cost optimized for large time-series datasets. 
+In this architecture, the hot tier is primarily used for indexing, searching, and continuity for automated processes. 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[Searchable snapshots] are taken from hot into a repository, such as a cloud object store or an on-premises shared filesystem, and then cached to any desired volume on the local disks of the frozen tier. 
+Data in the repository is indexed for fast retrieval and accessed on-demand from the frozen nodes.
+Index and snapshot lifecycle management are used to automate this process. 
 
-This architecture is ideal for time-series use cases, such as Observability or Security, that do not require updating. All the necessary components of the Elastic Stack are included and this is not intended for sizing workloads, but rather as a basis to ensure your cluster is ready to handle any desired workload with resiliency. A very high level representation of data flow is included, and for more detail around ingest architecture see our https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[ingest architectures] documentation. 
+This architecture is ideal for time-series use cases, such as Observability or Security, that do not require updating. 
+All the necessary components of the {stack} are included.
+This is not intended for sizing workloads, but rather as a basis to ensure that your cluster is ready to handle any desired workload with resiliency. 
+A very high level representation of data flow is included, and for more detail around ingest architecture see our {ingest-guide}/use-case-arch.html[ingest architectures] documentation. 
 
 [discrete]
 [[hot-frozen-use-case]]

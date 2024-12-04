@@ -1,8 +1,8 @@
-# GitHub CODEOWNERS definition
-# Identify which groups will be pinged by changes to different parts of the codebase.
-# For more info, see https://help.github.com/articles/about-codeowners/
+ GitHub CODEOWNERS definition
+ Identify which groups will be pinged by changes to different parts of the codebase.
+ For more info, see https://help.github.com/articles/about-codeowners/
 
-# Stack Monitoring index templates
+ Stack Monitoring index templates
 x-pack/plugin/core/template-resources/src/main/resources/monitoring-alerts-7.json @elastic/stack-monitoring
 x-pack/plugin/core/template-resources/src/main/resources/monitoring-beats-mb.json @elastic/stack-monitoring
 x-pack/plugin/core/template-resources/src/main/resources/monitoring-beats.json @elastic/stack-monitoring

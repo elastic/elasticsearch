@@ -83,7 +83,7 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", true).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name]: "
-                + "entitlement type [create_class_loader] is not allowed on external plugins",
+                + "entitlement type [create_class_loader] is allowed only on modules",
             ppe.getMessage()
         );
     }

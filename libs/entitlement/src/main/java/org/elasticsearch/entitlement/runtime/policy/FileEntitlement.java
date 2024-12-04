@@ -23,7 +23,7 @@ public class FileEntitlement implements Entitlement {
     private final String path;
     private final int actions;
 
-    @ExternalEntitlement(parameterNames = { "path", "actions" }, pluginsAccessible = true)
+    @ExternalEntitlement(parameterNames = { "path", "actions" }, modulesOnly = false)
     public FileEntitlement(String path, List<String> actionsList) {
         this.path = path;
         int actionsInt = 0;

@@ -110,8 +110,8 @@ public class PolicyParser {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
 
-        if (entitlementMetadata.pluginsAccessible() == false && isExternalPlugin) {
-            throw newPolicyParserException("entitlement type [" + entitlementType + "] is not allowed on external plugins");
+        if (entitlementMetadata.modulesOnly() && isExternalPlugin) {
+            throw newPolicyParserException("entitlement type [" + entitlementType + "] is allowed only on modules");
         }
 
         if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {

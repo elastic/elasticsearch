@@ -127,9 +127,7 @@ public interface InferenceService extends Closeable {
     );
 
     /**
-     * Chunk long text according to {@code chunkingOptions} or the
-     * model defaults if {@code chunkingOptions} contains unset
-     * values.
+     * Chunk long text.
      *
      * @param model           The model
      * @param query           Inference query, mainly for re-ranking

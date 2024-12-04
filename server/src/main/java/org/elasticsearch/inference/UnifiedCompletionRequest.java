@@ -63,8 +63,6 @@ public record UnifiedCompletionRequest(
         PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
-        // PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"),
-        // ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareStringArray(optionalConstructorArg(), new ParseField("stop"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
         PARSER.declareField(

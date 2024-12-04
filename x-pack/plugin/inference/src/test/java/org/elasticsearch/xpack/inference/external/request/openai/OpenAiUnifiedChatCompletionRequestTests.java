@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithUrlOrganizationUserDefined() throws IOException {
-        var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user");
+        var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user", true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -42,16 +42,27 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(5));
+        assertRequestMapWithUser(requestMap, "user");
+    }
+
+    private void assertRequestMapWithoutUser(Map<String, Object> requestMap) {
+        assertRequestMapWithUser(requestMap, null);
+    }
+
+    private void assertRequestMapWithUser(Map<String, Object> requestMap, @Nullable String user) {
+        assertThat(requestMap, aMapWithSize(user != null ? 6 : 5));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("user"), is("user"));
+        if (user != null) {
+            assertThat(requestMap.get("user"), is(user));
+        }
         assertThat(requestMap.get("n"), is(1));
         assertTrue((Boolean) requestMap.get("stream"));
+        assertThat(requestMap.get("stream_options"), is(Map.of("include_usage", true)));
     }
 
     public void testCreateRequest_WithDefaultUrl() throws URISyntaxException, IOException {
-        var request = createRequest(null, "org", "secret", "abc", "model", "user");
+        var request = createRequest(null, "org", "secret", "abc", "model", "user", true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -63,16 +74,12 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(5));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("user"), is("user"));
-        assertThat(requestMap.get("n"), is(1));
-        assertTrue((Boolean) requestMap.get("stream"));
+        assertRequestMapWithUser(requestMap, "user");
+
     }
 
     public void testCreateRequest_WithDefaultUrlAndWithoutUserOrganization() throws URISyntaxException, IOException {
-        var request = createRequest(null, null, "secret", "abc", "model", null);
+        var request = createRequest(null, null, "secret", "abc", "model", null, true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -84,14 +91,10 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(4));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("n"), is(1));
-        assertTrue((Boolean) requestMap.get("stream"));
+        assertRequestMapWithoutUser(requestMap);
     }
 
-    public void testCreateRequest_WithStreaming() throws URISyntaxException, IOException {
+    public void testCreateRequest_WithStreaming() throws IOException {
         var request = createRequest(null, null, "secret", "abc", "model", null, true);
         var httpRequest = request.createHttpRequest();
 
@@ -103,7 +106,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
-        var request = createRequest(null, null, "secret", "abcd", "model", null);
+        var request = createRequest(null, null, "secret", "abcd", "model", null, true);
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
 
@@ -112,17 +115,18 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap, aMapWithSize(5));
 
         // We do not truncate for OpenAi chat completions
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
         assertTrue((Boolean) requestMap.get("stream"));
+        assertThat(requestMap.get("stream_options"), is(Map.of("include_usage", true)));
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = createRequest(null, null, "secret", "abcd", "model", null);
+        var request = createRequest(null, null, "secret", "abcd", "model", null, true);
         assertNull(request.getTruncationInfo());
     }
 
@@ -147,7 +151,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         boolean stream
     ) {
         var chatCompletionModel = OpenAiChatCompletionModelTests.createChatCompletionModel(url, org, apiKey, model, user);
-        return new OpenAiUnifiedChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", true), chatCompletionModel);
+        return new OpenAiUnifiedChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 
 }

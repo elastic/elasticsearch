@@ -43,6 +43,8 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
     private static final String TOOL_FIELD = "tools";
     private static final String TEXT_FIELD = "text";
     private static final String TYPE_FIELD = "type";
+    private static final String STREAM_OPTIONS_FIELD = "stream_options";
+    private static final String INCLUDE_USAGE_FIELD = "include_usage";
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
@@ -169,6 +171,11 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         }
 
         builder.field(STREAM_FIELD, stream);
+        if (stream) {
+            builder.startObject(STREAM_OPTIONS_FIELD);
+            builder.field(INCLUDE_USAGE_FIELD, true);
+            builder.endObject();
+        }
         builder.endObject();
 
         return builder;

@@ -51,10 +51,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
     }
 
     @Override
-    protected ElasticsearchStatusException createIncompatibleTaskTypeException(
-        InferenceAction.Request request,
-        UnparsedModel unparsedModel
-    ) {
+    protected ElasticsearchStatusException createInvalidTaskTypeException(InferenceAction.Request request, UnparsedModel unparsedModel) {
         return null;
     }
 

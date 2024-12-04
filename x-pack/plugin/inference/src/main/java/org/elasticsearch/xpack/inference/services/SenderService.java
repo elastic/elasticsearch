@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -76,7 +75,7 @@ public abstract class SenderService implements InferenceService {
         return switch (model.getTaskType()) {
             case COMPLETION -> new ChatCompletionInput(input, stream);
             case RERANK -> new QueryAndDocsInputs(query, input, stream);
-            case TEXT_EMBEDDING -> new DocumentsOnlyInput(input, stream);
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> new DocumentsOnlyInput(input, stream);
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
                 RestStatus.BAD_REQUEST
@@ -102,13 +101,12 @@ public abstract class SenderService implements InferenceService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         init();
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, chunkingOptions, timeout, listener);
+        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
@@ -132,7 +130,6 @@ public abstract class SenderService implements InferenceService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );

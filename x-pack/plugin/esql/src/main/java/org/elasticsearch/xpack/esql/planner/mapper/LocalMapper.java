@@ -120,15 +120,7 @@ public class LocalMapper {
                 );
             }
             if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(
-                    join.source(),
-                    left,
-                    right,
-                    config.matchFields(),
-                    config.leftFields(),
-                    config.rightFields(),
-                    join.output()
-                );
+                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
             }
         }
 

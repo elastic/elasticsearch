@@ -53,7 +53,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
     }
 
     @Override
-    protected ElasticsearchStatusException createIncompatibleTaskTypeException(
+    protected ElasticsearchStatusException createInvalidTaskTypeException(
         UnifiedCompletionAction.Request request,
         UnparsedModel unparsedModel
     ) {

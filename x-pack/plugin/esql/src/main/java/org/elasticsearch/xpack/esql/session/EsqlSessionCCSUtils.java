@@ -299,12 +299,13 @@ class EsqlSessionCCSUtils {
     }
 
     /**
-     * Checks the index expression the presence of remote clusters
-     *      * MP TODO: test this with a cluster pattern that does NOT match anything - what happens?
+     * Checks the index expression the presence of remote clusters. If found, it will ensure that the caller
+     * has installed a valid Enterprise (or Trial) license on this (coordinator) node of the querying cluster.
+     * MP TODO: test this with a cluster pattern that does NOT match anything - what happens?
      * @param indices
      * @param indicesGrouper
      * @param licenseState
-     * @throws org.elasticsearch.ElasticsearchSecurityException if the license is not valid (or present) for ES|QL CCS search.
+     * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void checkForCcsLicense(
         List<TableInfo> indices,
@@ -316,7 +317,6 @@ class EsqlSessionCCSUtils {
             try {
                 groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().index());
             } catch (NoSuchRemoteClusterException e) {
-                System.err.println(">>> PATH AAA CHECK FOR ENTERPRISE LICENSE - using EsqlLicenseChecker");
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;
                 } else {
@@ -325,7 +325,6 @@ class EsqlSessionCCSUtils {
             }
             groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (groupedIndices.size() > 0) {
-                System.err.println(">>> PATH BBB CHECK FOR ENTERPRISE LICENSE - using EsqlLicenseChecker");
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
                     throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }

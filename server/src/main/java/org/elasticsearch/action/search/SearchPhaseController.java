@@ -648,7 +648,13 @@ public final class SearchPhaseController {
             : new SearchProfileResultsBuilder(profileShardResults);
         final SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
-            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+            sortedTopDocs = sortDocs(
+                isScrollRequest,
+                bufferedTopDocs,
+                from,
+                queryResults.isEmpty() ? bufferedTopDocs.size() : size,
+                reducedCompletionSuggestions
+            );
         } else {
             ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
                 queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
@@ -877,7 +883,7 @@ public final class SearchPhaseController {
             }
         }
 
-        void add(TopDocsStats other, boolean timedOut, Boolean terminatedEarly) {
+        void add(TopDocsStats other) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += other.totalHits;
                 if (other.totalHitsRelation == Relation.GREATER_THAN_OR_EQUAL_TO) {
@@ -888,12 +894,12 @@ public final class SearchPhaseController {
             if (Float.isNaN(other.maxScore) == false) {
                 maxScore = Math.max(maxScore, other.maxScore);
             }
-            if (timedOut) {
+            if (other.timedOut) {
                 this.timedOut = true;
             }
-            if (terminatedEarly != null) {
+            if (other.terminatedEarly != null) {
                 if (this.terminatedEarly == null) {
-                    this.terminatedEarly = terminatedEarly;
+                    this.terminatedEarly = other.terminatedEarly;
                 } else if (terminatedEarly) {
                     this.terminatedEarly = true;
                 }

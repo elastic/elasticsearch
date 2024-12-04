@@ -224,8 +224,8 @@ final class FetchSearchPhase extends SearchPhase {
             public void onFailure(Exception e) {
                 try {
                     logger.debug(() -> "[" + contextId + "] Failed to execute fetch phase", e);
-                    progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
-                    counter.onFailure(shardIndex, shardTarget, e);
+                    progressListener.notifyFetchFailure(shardIndex, searchShardTarget, e);
+                    counter.onFailure(shardIndex, searchShardTarget, e);
                 } finally {
                     // the search context might not be cleared on the node where the fetch was executed for example
                     // because the action was rejected by the thread pool. in this case we need to send a dedicated

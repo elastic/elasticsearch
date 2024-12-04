@@ -227,14 +227,16 @@ public class SimpleSearchIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lte("B")), 2L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("A").lte("B")), 1L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lt("B")), 1L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")), 3L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)), 2L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)), 4L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)), 4L);
-        assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)), 3L);
+        var coord = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        var client = client(coord);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lte("B")), 2L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("A").lte("B")), 1L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lt("B")), 1L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")), 3L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)), 2L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)), 4L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)), 4L);
+        assertHitCountAndNoFailures(client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)), 3L);
     }
 
     public void testSimpleTerminateAfterCount() throws Exception {

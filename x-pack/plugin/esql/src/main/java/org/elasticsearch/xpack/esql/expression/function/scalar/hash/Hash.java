@@ -84,7 +84,9 @@ public class Hash extends EsqlScalarFunction {
     }
 
     private static BytesRef hash(MessageDigest alg, BytesRef input) {
-        return new BytesRef(HexFormat.of().formatHex(alg.digest(input.utf8ToString().getBytes())));
+        alg.update(input.bytes, input.offset, input.length);
+        var result = alg.digest();
+        return new BytesRef(HexFormat.of().formatHex(result));
     }
 
     @Override

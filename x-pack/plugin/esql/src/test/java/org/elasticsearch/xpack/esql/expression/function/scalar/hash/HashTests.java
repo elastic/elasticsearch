@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -56,7 +57,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(alg), algType, "alg"),
-                    new TestCaseSupplier.TypedData(input, inputType, "input")
+                    new TestCaseSupplier.TypedData(new BytesRef(input), inputType, "input")
                 ),
                 "HashEvaluator[alg=Attribute[channel=0], input=Attribute[channel=1]]",
                 DataType.KEYWORD,
@@ -67,7 +68,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
 
     private static String hash(String alg, String input) {
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance(alg).digest(input.getBytes()));
+            return HexFormat.of().formatHex(MessageDigest.getInstance(alg).digest(input.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalArgumentException("Unknown algorithm: " + alg);
         }

@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.metering.action;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -123,24 +124,36 @@ public class GetBlobStoreStatsNodesResponseTests extends AbstractWireSerializing
                 equalTo(
                     Map.of(
                         "object_store_stats",
-                        Map.of("request_counts", Maps.transformValues(node.getRepositoryStats().requestCounts, Math::toIntExact)),
+                        Map.of(
+                            "request_counts",
+                            Maps.transformValues(
+                                GetBlobStoreStatsNodeResponse.getRequestCounts(node.getRepositoryStats()),
+                                Math::toIntExact
+                            )
+                        ),
                         "operational_backup_service_stats",
-                        Map.of("request_counts", Maps.transformValues(node.getObsRepositoryStats().requestCounts, Math::toIntExact))
+                        Map.of(
+                            "request_counts",
+                            Maps.transformValues(
+                                GetBlobStoreStatsNodeResponse.getRequestCounts(node.getObsRepositoryStats()),
+                                Math::toIntExact
+                            )
+                        )
                     )
                 )
             );
         });
 
-        final var allCounts = new HashMap<String, Long>();
+        final var allCounts = new HashMap<String, BlobStoreActionStats>();
         for (GetBlobStoreStatsNodeResponse nodeResponse : instance.getNodes()) {
-            nodeResponse.getRepositoryStats().requestCounts.forEach(
-                (key, value) -> allCounts.compute(key, (k, v) -> v == null ? value : v + value)
+            nodeResponse.getRepositoryStats().actionStats.forEach(
+                (key, value) -> allCounts.compute(key, (k, v) -> v == null ? value : v.add(value))
             );
         }
-        final var obsAllCounts = new HashMap<String, Long>();
+        final var obsAllCounts = new HashMap<String, BlobStoreActionStats>();
         for (GetBlobStoreStatsNodeResponse nodeResponse : instance.getNodes()) {
-            nodeResponse.getObsRepositoryStats().requestCounts.forEach(
-                (key, value) -> obsAllCounts.compute(key, (k, v) -> v == null ? value : v + value)
+            nodeResponse.getObsRepositoryStats().actionStats.forEach(
+                (key, value) -> obsAllCounts.compute(key, (k, v) -> v == null ? value : v.add(value))
             );
         }
         assertThat(
@@ -148,9 +161,9 @@ public class GetBlobStoreStatsNodesResponseTests extends AbstractWireSerializing
             equalTo(
                 Map.of(
                     "object_store_stats",
-                    Map.of("request_counts", Maps.transformValues(allCounts, Math::toIntExact)),
+                    Map.of("request_counts", Maps.transformValues(allCounts, v -> Math.toIntExact(v.requests()))),
                     "operational_backup_service_stats",
-                    Map.of("request_counts", Maps.transformValues(obsAllCounts, Math::toIntExact))
+                    Map.of("request_counts", Maps.transformValues(obsAllCounts, v -> Math.toIntExact(v.requests())))
                 )
             )
         );

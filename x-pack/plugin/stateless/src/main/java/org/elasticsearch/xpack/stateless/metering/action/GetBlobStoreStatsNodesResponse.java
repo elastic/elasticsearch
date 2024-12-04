@@ -68,12 +68,12 @@ public class GetBlobStoreStatsNodesResponse extends BaseNodesResponse<GetBlobSto
         builder.startObject("_all");
         {
             builder.startObject("object_store_stats");
-            builder.field("request_counts", aggregatedStats.requestCounts);
+            builder.field("request_counts", GetBlobStoreStatsNodeResponse.getRequestCounts(aggregatedStats));
             builder.endObject();
         }
         {
             builder.startObject("operational_backup_service_stats");
-            builder.field("request_counts", obsAggregatedStats.requestCounts);
+            builder.field("request_counts", GetBlobStoreStatsNodeResponse.getRequestCounts(obsAggregatedStats));
             builder.endObject();
         }
         builder.endObject();

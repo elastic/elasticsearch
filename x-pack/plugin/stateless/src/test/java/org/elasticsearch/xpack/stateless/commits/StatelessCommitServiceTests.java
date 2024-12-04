@@ -1461,7 +1461,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 )
                 .map(commit -> staleCommit(shardId, commit))
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // The uploaded commit notification is sent via
+            // StatelessCommitNotificationPublisher#sendNewUploadedCommitNotificationAndFetchInUseCommits which has two parts
+            // as the method name indicates (1) sending the notification and (2) fetching in-use commits.
+            // Though the above respondWithUsedCommitsToUploadNotify call completes the listener for uploaded commit notification
+            // Synchronously, the fetching in-use commits listener may have not been completed by then. In this case, the overall
+            // process for processing CommitsInUse becomes Async which means the commits deletion may _not_ have happened
+            // when respondWithUsedCommitsToUploadNotify returns. Hence, we need wrap the below assertion with assertBusy.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
 
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.getIndexEngineLocalReaderListenerForShard(shardId)

@@ -9,16 +9,19 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -45,20 +48,31 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     /**
      * Request that to retrieve one or more component templates
      */
-    public static class Request extends ActionRequest {
+    public static class Request extends LocalClusterStateRequest {
 
         @Nullable
         private String name;
         private boolean includeDefaults;
 
-        public Request(String name) {
+        public Request(TimeValue masterTimeout, String name) {
+            super(masterTimeout);
             this.name = name;
             this.includeDefaults = false;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
+        /**
+         * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            name = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                includeDefaults = in.readBoolean();
+            } else {
+                includeDefaults = false;
+            }
         }
 
         @Override
@@ -158,9 +172,21 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return null;
         }
 
+        /**
+         * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
+            out.writeMap(componentTemplates, StreamOutput::writeWriteable);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                out.writeOptionalWriteable(rolloverConfiguration);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                out.writeOptionalWriteable(null);
+            }
         }
 
         @Override

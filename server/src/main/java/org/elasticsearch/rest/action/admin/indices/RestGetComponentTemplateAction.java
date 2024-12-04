@@ -10,7 +10,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
-import org.elasticsearch.action.support.TransportLocalClusterStateAction;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetComponentTemplateAction extends BaseRestHandler {
@@ -48,11 +49,12 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
-        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
+        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(
+            getMasterNodeTimeout(request),
+            request.param("name")
+        );
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         TransportLocalClusterStateAction.consumeDeprecatedLocalParameter(request);
-        TransportLocalClusterStateAction.consumeDeprecatedMasterTimeoutParameter(request);
 
         final boolean implicitAll = getRequest.name() == null;
 

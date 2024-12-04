@@ -134,7 +134,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         } else {
             String path = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
-            assertThat(source.getValue(path), nullValue());
+            assertThat(source.getValue(path), is(false));
         }
     }
 

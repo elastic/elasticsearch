@@ -20,7 +20,6 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -111,6 +110,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -2616,7 +2616,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         service.executeQueryPhase(request, task, future);
 
-        ElasticsearchTimeoutException ex = expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
     }
 

@@ -181,12 +181,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             });
         });
 
-        return new RankDocsRetrieverBuilder(
-            rankWindowSize,
-            newRetrievers.stream().map(s -> s.retriever).toList(),
-            results::get,
-            newPreFilters
-        );
+        return new RankDocsRetrieverBuilder(rankWindowSize, newRetrievers.stream().map(s -> s.retriever).toList(), results::get);
     }
 
     @Override

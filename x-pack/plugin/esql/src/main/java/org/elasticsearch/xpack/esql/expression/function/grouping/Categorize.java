@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -44,10 +45,27 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     private final Expression field;
 
-    @FunctionInfo(returnType = "keyword", description = "Categorizes text messages.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Groups text messages into categories of similarly formatted text values.",
+        detailedDescription = """
+            `CATEGORIZE` has the following limitations:
+
+            * can't be used within other expressions
+            * can't be used with multiple groupings
+            * can't be used or referenced within aggregate functions""",
+        examples = {
+            @Example(
+                file = "docs",
+                tag = "docsCategorize",
+                description = "This example categorizes server logs messages into categories and aggregates their counts. "
+            ) },
+        preview = true
+    )
     public Categorize(
         Source source,
         @Param(name = "field", type = { "text", "keyword" }, description = "Expression to categorize") Expression field
+
     ) {
         super(source, List.of(field));
         this.field = field;

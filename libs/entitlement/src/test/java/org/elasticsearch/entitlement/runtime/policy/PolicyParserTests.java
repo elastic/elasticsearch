@@ -25,4 +25,14 @@ public class PolicyParserTests extends ESTestCase {
         );
         assertEquals(parsedPolicy, builtPolicy);
     }
+
+    public void testPolicyBuilderOnExternalPlugin() throws IOException {
+        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", true)
+            .parsePolicy();
+        Policy builtPolicy = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
+        );
+        assertEquals(parsedPolicy, builtPolicy);
+    }
 }

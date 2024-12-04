@@ -75,7 +75,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
             zoneId,
             evaluatorMap,
             LessThanOrEqualNanosMillisEvaluator.Factory::new,
-            LessThanMillisNanosEvaluator.Factory::new
+            LessThanOrEqualMillisNanosEvaluator.Factory::new
         );
     }
 
@@ -122,7 +122,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
         // Note, parameters are reversed, so we need to invert the check.
-        return DateUtils.compareNanosToMillis(rhs, lhs) > 0;
+        return DateUtils.compareNanosToMillis(rhs, lhs) >= 0;
     }
 
     @Evaluator(extraName = "NanosMillis")

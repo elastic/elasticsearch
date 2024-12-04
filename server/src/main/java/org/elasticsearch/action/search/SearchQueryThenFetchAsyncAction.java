@@ -979,7 +979,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                             var mergeResult = queryPhaseResultConsumer.reduce();
                             new ChannelActionListener<>(channel).onResponse(
                                 new NodeQueryResponse(
-                                    Map.of(),
+                                    Map.copyOf(failures),
                                     new QueryPhaseResultConsumer.MergeResult(
                                         request.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
                                         new TopDocs(mergeResult.totalHits(), mergeResult.sortedTopDocs().scoreDocs()),
@@ -991,6 +991,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                             );
                         } catch (Exception e) {
                             throw new AssertionError(e);
+                        } finally {
+                            queryPhaseResultConsumer.close();
                         }
                     }
                 };
@@ -1007,6 +1009,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                 shards,
                                 executor,
                                 queryPhaseResultConsumer,
+                                failures,
                                 onDone
                             )
                         );
@@ -1026,6 +1029,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         BlockingQueue<ShardToQuery> shards,
         Executor executor,
         QueryPhaseResultConsumer queryPhaseResultConsumer,
+        Map<Integer, Exception> failures,
         Runnable onDone
     ) {
         final ShardSearchRequest req = buildShardSearchRequest(
@@ -1052,7 +1056,9 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
             @Override
             public void onFailure(Exception e) {
-
+                failures.put(req.shardRequestIndex(), e);
+                queryPhaseResultConsumer.consumeShardFailure(req.shardRequestIndex());
+                onDone.run();
                 maybeNext();
             }
 
@@ -1069,6 +1075,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                             shards,
                             executor,
                             queryPhaseResultConsumer,
+                            failures,
                             onDone
                         )
                     );

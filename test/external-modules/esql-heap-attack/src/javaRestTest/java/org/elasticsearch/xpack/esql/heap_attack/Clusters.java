@@ -14,13 +14,35 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class Clusters {
-    static ElasticsearchCluster buildCluster() {
+    static ElasticsearchCluster remoteCluster() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            .name("remote_cluster")
             .nodes(2)
             .module("test-esql-heap-attack")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .jvmArg("-Xmx512m");
+        String javaVersion = JvmInfo.jvmInfo().version();
+        if (javaVersion.equals("20") || javaVersion.equals("21")) {
+            // see https://github.com/elastic/elasticsearch/issues/99592
+            spec.jvmArg("-XX:+UnlockDiagnosticVMOptions -XX:+G1UsePreventiveGC");
+        }
+        return spec.build();
+    }
+
+    static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
+        var spec = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .name("local_cluster")
+            .nodes(2)
+            .module("test-esql-heap-attack")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
+            .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
+            .setting("cluster.remote.connections_per_cluster", "1")
+            .setting("cluster.routing.rebalance.enable", "none")
             .jvmArg("-Xmx512m");
         String javaVersion = JvmInfo.jvmInfo().version();
         if (javaVersion.equals("20") || javaVersion.equals("21")) {

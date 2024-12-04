@@ -96,7 +96,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         }
 
         try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
-            for (int i = randomInt(9); i < 10; i++) {
+            for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
                     @Override
                     public void add(int positionOffset, IntBlock groupIds) {
@@ -124,9 +124,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         fail("hashes should not close AddInput");
                     }
                 });
-            }
 
-            assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+                assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+            }
         } finally {
             page.releaseBlocks();
         }
@@ -162,7 +162,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         }
 
         try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
-            for (int i = randomInt(9); i < 10; i++) {
+            for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
                     @Override
                     public void add(int positionOffset, IntBlock groupIds) {
@@ -197,9 +197,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         fail("hashes should not close AddInput");
                     }
                 });
-            }
 
-            assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+                assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+            }
         } finally {
             page.releaseBlocks();
         }
@@ -325,37 +325,39 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
             });
 
-            intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
-                        .map(groupIds::getInt)
-                        .boxed()
-                        .collect(Collectors.toList());
-                    // The category IDs {1, 2, 3} should map to groups {1, 3, 4}, because
-                    // 1 matches an existing category (Connected to ...), and the others are new.
-                    assertEquals(List.of(3, 1, 4), values);
-                }
+            for (int i = randomInt(2); i < 3; i++) {
+                intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
+                            .map(groupIds::getInt)
+                            .boxed()
+                            .collect(Collectors.toList());
+                        // The category IDs {1, 2, 3} should map to groups {1, 3, 4}, because
+                        // 1 matches an existing category (Connected to ...), and the others are new.
+                        assertEquals(List.of(3, 1, 4), values);
+                    }
 
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
-                }
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        add(positionOffset, groupIds.asBlock());
+                    }
 
-                @Override
-                public void close() {
-                    fail("hashes should not close AddInput");
-                }
-            });
+                    @Override
+                    public void close() {
+                        fail("hashes should not close AddInput");
+                    }
+                });
 
-            assertHashState(
-                intermediateHash,
-                withNull,
-                ".*?Connected.+?to.*?",
-                ".*?Connection.+?error.*?",
-                ".*?Disconnected.*?",
-                ".*?System.+?shutdown.*?"
-            );
+                assertHashState(
+                    intermediateHash,
+                    withNull,
+                    ".*?Connected.+?to.*?",
+                    ".*?Connection.+?error.*?",
+                    ".*?Disconnected.*?",
+                    ".*?System.+?shutdown.*?"
+                );
+            }
         } finally {
             intermediatePage1.releaseBlocks();
             intermediatePage2.releaseBlocks();

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.aggregation.spatial.PointType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.GeometryVisitor;
@@ -51,7 +52,6 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO replace boolean with enum
         var suppliers = Stream.of(
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO),
@@ -71,10 +71,14 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
-            var pointVisitor = switch (fieldSupplier.type()) {
-                case DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE -> new SpatialEnvelopeVisitor.CartesianPointVisitor();
-                case DataType.GEO_POINT, DataType.GEO_SHAPE -> new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
+            PointType pointType = switch (fieldSupplier.type()) {
+                case DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE -> PointType.CARTESIAN;
+                case DataType.GEO_POINT, DataType.GEO_SHAPE -> PointType.GEO;
                 default -> throw new IllegalArgumentException("Unsupported type: " + fieldSupplier.type());
+            };
+            var pointVisitor = switch (pointType) {
+                case CARTESIAN -> new SpatialEnvelopeVisitor.CartesianPointVisitor();
+                case GEO -> new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
             };
 
             var fieldTypedData = fieldSupplier.get();
@@ -100,7 +104,8 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
                             (float) result.getMaxY(),
                             (float) result.getMinY()
                         ),
-                        1e-3
+                        1e-3,
+                        pointType
                     )
                 )
             );

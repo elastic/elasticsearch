@@ -257,8 +257,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         }
 
         private static Rectangle maybeWrap(double minNegX, double minPosX, double maxNegX, double maxPosX, double maxY, double minY) {
-            double wrappedWidth = (180 - minPosX) - (-180 - maxNegX);
-            return maxPosX - minNegX <= wrappedWidth
+            double unwrappedWidth = maxPosX - minNegX;
+            double wrappedWidth = 360 + maxNegX - minPosX;
+            return unwrappedWidth <= wrappedWidth
                 ? new Rectangle(minNegX, maxPosX, maxY, minY)
                 : new Rectangle(minPosX, maxNegX, maxY, minY);
         }

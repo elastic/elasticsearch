@@ -16,7 +16,7 @@ import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 
 import java.util.Optional;
 
-enum PointType {
+public enum PointType {
     GEO {
         @Override
         public Optional<Rectangle> computeEnvelope(Geometry geo) {

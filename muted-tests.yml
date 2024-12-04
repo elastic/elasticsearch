@@ -253,6 +253,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117980
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/117981
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test30NoAutogenerationWhenDaemonized
+  issue: https://github.com/elastic/elasticsearch/issues/117956
 
 # Examples:
 #

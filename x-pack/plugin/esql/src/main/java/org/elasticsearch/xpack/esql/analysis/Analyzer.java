@@ -635,7 +635,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 join = new LookupJoin(join.source(), join.left(), join.right(), config);
             } else if (type != JoinTypes.LEFT) {
                 // everything else is unsupported for now
-                // LEFT can only happen by being mapped from a USING above. We can then reach here if this rule is run multiple times.
+                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
+                // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));

@@ -174,6 +174,10 @@ public class DateUtils {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
+    public static ZonedDateTime asDateTime(Instant instant) {
+        return ZonedDateTime.ofInstant(instant, UTC);
+    }
+
     public static long asMillis(ZonedDateTime zonedDateTime) {
         return zonedDateTime.toInstant().toEpochMilli();
     }

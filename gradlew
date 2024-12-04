@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/block/
 
 #
 # Copyright © 2015-2021 the original authors.

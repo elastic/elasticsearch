@@ -36,19 +36,19 @@ When running in your own Data Center (DC) you can equate AZs to failure zones wi
 
 The diagram illustrates an {es} cluster deployed across 3 availability zones (AZ). For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for production] for more details. A cluster that is running in {ecloud} that has data nodes in only two AZs will create a third master-eligible node in a third AZ. True real-time high availability cannot be achieved without three zones for any distributed computing technology.
 
-The number of data nodes shown for each tier (hot and frozen) is illustrative and would be scaled up depending on ingest volume and retention period. Hot nodes contain both primary and replica shards. By default, primary and replica shards are always guaranteed to be in different availability zones in Elasticsearch Service, but when self-deploying https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] would need to be configured. Frozen nodes act as a large high-speed cache and retrieve data from the snapshot store as needed.
+The number of data nodes shown for each tier (hot and frozen) is illustrative and would be scaled up depending on ingest volume and retention period. Hot nodes contain both primary and replica shards. By default, primary and replica shards are always guaranteed to be in different availability zones in {ess}, but when self-deploying https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] would need to be configured. Frozen nodes act as a large high-speed cache and retrieve data from the snapshot store as needed.
 
 Machine learning nodes are optional but highly recommended for large scale time series use cases since the amount of data quickly becomes too difficult to analyze. Applying techniques such as machine learning based anomaly detection or Search AI with large language models helps to dramatically speed up problem identification and resolution. 
 
 [discrete]
 [[hot-frozen-hardware]]
-=== Recommended Hardware Specifications
+=== Recommended hardware specifications
 
-Elastic Cloud allows you to deploy clusters in AWS, Azure and Google Cloud.  Available hardware types and configurations vary across all three cloud providers but each provides instance types that meet our recommendations for the node types used in this architecture. For more details on these instance types, see our documentation on Elastic Cloud hardware for https://www.elastic.co/guide/en/cloud/current/ec-default-aws-configurations.html[AWS], https://www.elastic.co/guide/en/cloud/current/ec-default-azure-configurations.html[Azure], and https://www.elastic.co/guide/en/cloud/current/ec-default-gcp-configurations.html[GCP]. The **Physical** column below is guidance, based on the cloud node types, when self-deploying Elasticsearch in your own data center.
+With {ecloud} you can deploy clusters in AWS, Azure, and Google Cloud.  Available hardware types and configurations vary across all three cloud providers but each provides instance types that meet our recommendations for the node types used in this architecture. For more details on these instance types, see our documentation on {ecloud} hardware for https://www.elastic.co/guide/en/cloud/current/ec-default-aws-configurations.html[AWS], https://www.elastic.co/guide/en/cloud/current/ec-default-azure-configurations.html[Azure], and https://www.elastic.co/guide/en/cloud/current/ec-default-gcp-configurations.html[GCP]. The **Physical** column below is guidance, based on the cloud node types, when self-deploying {es} in your own data center.
 
-In the links provided above, elastic has performance tested hardware for each of the cloud providers to find the optimal hardware for each node type. We use ratios to represent the best mix of CPU, Ram, and Disk for each type.   In some cases the CPU to RAM ratio is key, in others the disk to memory ratio and type of disk is critical.   Significantly deviating from these ratios may look like a way to save on hardware costs, but may result in an Elasticsearch cluster that does not scale and perform well.
+In the links provided above, Elastic has performance tested hardware for each of the cloud providers to find the optimal hardware for each node type. We use ratios to represent the best mix of CPU, RAM, and disk for each type.   In some cases the CPU to RAM ratio is key, in others the disk to memory ratio and type of disk is critical.   Significantly deviating from these ratios may seem like a way to save on hardware costs, but may result in an {es} cluster that does not scale and perform well.
 
-The following table shows our specific recommendations for nodes in Hot / Frozen architecture. 
+This table shows our specific recommendations for nodes in a Hot/Frozen architecture. 
 
 |===
 | **Type** | **AWS** | **Azure** | **GCP** | **Physical**
@@ -110,15 +110,15 @@ N2|
 === Important considerations
 
 
-**Updating Data:**
+**Updating data:**
 
 * Typically, time series logging use cases are append-only and there is rarely a need to update documents. The frozen tier is read-only.
 
-**Multi-AZ Frozen Tier:**
+**Multi-AZ frozen tier:**
 
 * Three availability zones is ideal, but at least two availability zones are recommended to ensure that there will be data nodes available in the event of an AZ failure.
 
-**Shard Management: **
+**Shard management:**
 
 * The most important foundational step to maintaining performance as you scale is proper shard management. This includes even shard distribution amongst nodes, shard size, and shard count. For a complete understanding of what shards are and how they should be used, refer to https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html[Size your shards].
 

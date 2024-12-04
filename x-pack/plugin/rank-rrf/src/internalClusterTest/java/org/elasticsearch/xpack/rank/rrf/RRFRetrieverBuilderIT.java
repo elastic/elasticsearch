@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,6 +50,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -741,6 +745,43 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         source.size(1);
         source.aggregation(AggregationBuilders.terms("topic_agg").field(TOPIC_FIELD));
         expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
+    }
+
+    public void testRRFFiltersPropagatedToKnnQueryVectorBuilder() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will retriever all but 7 only due to top-level filter
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        // this would have retrieved 7 and 6, but due to parent level filter, will retriever 6 and 3 instead
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "vector",
+            null,
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 7 }),
+            1,
+            2,
+            null
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
+        source.size(10);
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_6"));
+            assertThat(Arrays.stream(resp.getHits().getHits()).map(SearchHit::getId).toList(), not(contains("doc_7")));
+        });
     }
 
     public void testRewriteOnce() {

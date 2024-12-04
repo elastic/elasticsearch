@@ -1672,12 +1672,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         mapping.endObject();
         String sourceMode = randomBoolean() ? "stored" : "synthetic";
         Settings.Builder settings = indexSettings(1, 0).put(indexSettings()).put("index.mapping.source.mode", sourceMode);
-        client().admin().indices().prepareCreate("test-script")
-            .setMapping(mapping)
-            .setSettings(settings)
-            .get();
+        client().admin().indices().prepareCreate("test-script").setMapping(mapping).setSettings(settings).get();
         for (int i = 0; i < 10; i++) {
-            index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-"+ i, "meter", 10000 * i));
+            index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-" + i, "meter", 10000 * i));
         }
         refresh("test-script");
         try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 |  LIMIT 10")) {

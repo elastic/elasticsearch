@@ -118,7 +118,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
             case 1:
@@ -128,7 +128,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     newVector,
                     instance.k,
                     instance.numCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
             case 2:
@@ -139,7 +139,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.queryVector,
                     newK,
                     instance.numCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
             case 3:
@@ -149,7 +149,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.queryVector,
                     instance.k,
                     newNumCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
             case 4:
@@ -158,7 +158,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).addFilterQueries(instance.filterQueries)
                     .addFilterQuery(QueryBuilders.termQuery("new_field", "new-value"))
@@ -170,7 +170,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).addFilterQueries(instance.filterQueries).boost(newBoost);
             case 6:
@@ -179,7 +179,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
-                    instance.rescoreVectorBuilder,
+                    instance.getRescoreVectorBuilder(),
                     randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
                 ).addFilterQueries(instance.filterQueries).boost(instance.boost);
             case 7:
@@ -189,7 +189,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.k,
                     instance.numCands,
                     randomValueOtherThan(
-                        instance.rescoreVectorBuilder,
+                        instance.getRescoreVectorBuilder(),
                         () -> new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false))
                     ),
                     instance.similarity
@@ -288,7 +288,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         assertThat(rewritten.filterQueries, hasSize(1));
         assertThat(rewritten.similarity, equalTo(1f));
         assertThat(((RewriteableQuery) rewritten.filterQueries.get(0)).rewrites, equalTo(1));
-        assertThat(rewritten.rescoreVectorBuilder, equalTo(expectedRescore));
+        assertThat(rewritten.getRescoreVectorBuilder(), equalTo(expectedRescore));
     }
 
     public static float[] randomVector(int dim) {

@@ -90,7 +90,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             optionalConstructorArg(),
             (p, c) -> RescoreVectorBuilder.fromXContent(p),
             RESCORE_FIELD,
-            ObjectParser.ValueType.OBJECT_OR_NULL
+            ObjectParser.ValueType.OBJECT
         );
         PARSER.declareFieldArray(
             KnnSearchBuilder.Builder::addFilterQueries,
@@ -123,7 +123,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     String queryName;
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
-    final RescoreVectorBuilder rescoreVectorBuilder;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
 
     /**
      * Defines a kNN search.

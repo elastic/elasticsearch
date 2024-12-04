@@ -36,7 +36,7 @@ public class Hash extends EsqlScalarFunction {
     private final Expression alg;
     private final Expression input;
 
-    @FunctionInfo(returnType = "keyword", description = "Computes the hash of the input keyword.")
+    @FunctionInfo(returnType = "keyword", description = "Computes the hash of the input using the supplied algorithm.")
     public Hash(
         Source source,
         @Param(name = "alg", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression alg,

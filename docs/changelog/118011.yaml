@@ -1,6 +1,5 @@
 pr: 118011
-summary: "Pass data stream names from `GET /data_streams/` to the stats req when `verbose:\
-  \ true`"
+summary: "Pass data stream names from `GET /data_streams/` to the stats req when `verbose: true`"
 area: Data streams
 type: bug
 issues:

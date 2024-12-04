@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
@@ -25,13 +26,14 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -958,21 +960,58 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 var executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
                 final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
                 final AtomicInteger shardIndex = new AtomicInteger();
+                final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+                    request.searchRequest,
+                    executor,
+                    new NoopCircuitBreaker(""),
+                    new SearchPhaseController(searchService::aggReduceContextBuilder),
+                    ((CancellableTask) task)::isCancelled,
+                    SearchProgressListener.NOOP,
+                    request.shards.size(),
+                    e -> {
+                        throw new AssertionError(e);
+                    }
+                );
+                final CountDown countDown = new CountDown(request.shards.size());
+                final Runnable onDone = () -> {
+                    if (countDown.countDown()) {
+                        try {
+                            var mergeResult = queryPhaseResultConsumer.reduce();
+                            new ChannelActionListener<>(channel).onResponse(
+                                new NodeQueryResponse(
+                                    Map.of(),
+                                    new QueryPhaseResultConsumer.MergeResult(
+                                        request.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
+                                        new TopDocs(mergeResult.totalHits(), mergeResult.sortedTopDocs().scoreDocs()),
+                                        mergeResult.aggregations(),
+                                        0L
+                                    ),
+                                    queryPhaseResultConsumer.topDocsStats
+                                )
+                            );
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                };
                 for (int i = 0; i < workers; i++) {
                     ShardToQuery shardToQuery;
                     if ((shardToQuery = shards.poll()) != null) {
                         executor.execute(
-                            () -> executeOne(searchService, request, (CancellableTask) task, shardToQuery, shardIndex, shards, executor)
+                            () -> executeOne(
+                                searchService,
+                                request,
+                                (CancellableTask) task,
+                                shardToQuery,
+                                shardIndex,
+                                shards,
+                                executor,
+                                queryPhaseResultConsumer,
+                                onDone
+                            )
                         );
                     }
                 }
-                new ChannelActionListener<>(channel).onResponse(
-                    new NodeQueryResponse(
-                        Map.of(),
-                        new QueryPhaseResultConsumer.MergeResult(List.of(), Lucene.EMPTY_TOP_DOCS, null, 0L),
-                        new SearchPhaseController.TopDocsStats(0)
-                    )
-                );
             }
         );
 
@@ -985,11 +1024,13 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         ShardToQuery shardToQuery,
         AtomicInteger shardIndex,
         BlockingQueue<ShardToQuery> shards,
-        Executor executor
+        Executor executor,
+        QueryPhaseResultConsumer queryPhaseResultConsumer,
+        Runnable onDone
     ) {
         final ShardSearchRequest req = buildShardSearchRequest(
             shardToQuery.shardId,
-            "",
+            null,
             shardIndex.getAndIncrement(),
             shardToQuery.contextId,
             shardToQuery.originalIndices,
@@ -1004,7 +1045,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         searchService.executeQueryPhase(req, task, new ActionListener<>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
-
+                searchPhaseResult.setShardIndex(req.shardRequestIndex());
+                queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
                 maybeNext();
             }
 
@@ -1017,7 +1059,19 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             private void maybeNext() {
                 var shardToQuery = shards.poll();
                 if (shardToQuery != null) {
-                    executor.execute(() -> executeOne(searchService, request, task, shardToQuery, shardIndex, shards, executor));
+                    executor.execute(
+                        () -> executeOne(
+                            searchService,
+                            request,
+                            task,
+                            shardToQuery,
+                            shardIndex,
+                            shards,
+                            executor,
+                            queryPhaseResultConsumer,
+                            onDone
+                        )
+                    );
                 }
             }
         });

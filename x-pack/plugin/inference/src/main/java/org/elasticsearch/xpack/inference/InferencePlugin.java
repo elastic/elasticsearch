@@ -393,7 +393,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER, OffsetSourceFieldMapper.CONTENT_TYPE, OffsetSourceFieldMapper.PARSER);
+        return Map.of(
+            SemanticTextFieldMapper.CONTENT_TYPE,
+            SemanticTextFieldMapper.PARSER,
+            OffsetSourceFieldMapper.CONTENT_TYPE,
+            OffsetSourceFieldMapper.PARSER
+        );
     }
 
     @Override

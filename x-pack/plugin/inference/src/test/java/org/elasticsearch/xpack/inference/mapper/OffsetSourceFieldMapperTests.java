@@ -49,182 +49,183 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OffsetSourceFieldMapperTests extends MapperTestCase {
-  @Override
-  protected Collection<? extends Plugin> getPlugins() {
-    return List.of(new InferencePlugin(Settings.EMPTY));
-  }
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new InferencePlugin(Settings.EMPTY));
+    }
 
-  @Override
-  protected void minimalMapping(XContentBuilder b) throws IOException {
-    b.field("type", "offset_source");
-  }
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "offset_source");
+    }
 
-  @Override
-  protected Object getSampleValueForDocument() {
-    return getSampleObjectForDocument();
-  }
+    @Override
+    protected Object getSampleValueForDocument() {
+        return getSampleObjectForDocument();
+    }
 
-  @Override
-  protected Object getSampleObjectForDocument() {
-    return Map.of("field", "foo", "start", 100, "end", 300);
-  }
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return Map.of("field", "foo", "start", 100, "end", 300);
+    }
 
-  @Override
-  protected Object generateRandomInputValue(MappedFieldType ft) {
-    return new OffsetSourceFieldMapper.OffsetSource("field", randomIntBetween(0, 100), randomIntBetween(101, 1000));
-  }
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        return new OffsetSourceFieldMapper.OffsetSource("field", randomIntBetween(0, 100), randomIntBetween(101, 1000));
+    }
 
-  @Override
-  protected IngestScriptSupport ingestScriptSupport() {
-    throw new AssumptionViolatedException("not supported");
-  }
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
 
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+        assertThat(query, instanceOf(PrefixQuery.class));
+        PrefixQuery termQuery = (PrefixQuery) query;
+        assertEquals("_offset_source", termQuery.getField());
+        assertEquals(new Term("_offset_source", "field"), termQuery.getPrefix());
+        assertNotNull(fields.getField("_offset_source"));
+    }
 
-  @Override
-  protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-    assertThat(query, instanceOf(PrefixQuery.class));
-    PrefixQuery termQuery = (PrefixQuery) query;
-    assertEquals("_offset_source", termQuery.getField());
-    assertEquals(new Term("_offset_source", "field"), termQuery.getPrefix());
-    assertNotNull(fields.getField("_offset_source"));
-  }
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
-  @Override
-  protected void registerParameters(ParameterChecker checker) throws IOException {}
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertFalse(fieldType.isSearchable());
+    }
 
-  @Override
-  protected void assertSearchable(MappedFieldType fieldType) {
-    assertFalse(fieldType.isSearchable());
-  }
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
 
-  @Override
-  protected boolean supportsStoredFields() {
-    return false;
-  }
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        return false;
+    }
 
-  @Override
-  protected boolean supportsEmptyInputArray() {
-    return false;
-  }
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
+    }
 
-  @Override
-  protected boolean supportsCopyTo() {
-    return false;
-  }
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
 
-  @Override
-  protected boolean supportsIgnoreMalformed() {
-    return false;
-  }
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) {
+                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), null, b -> minimalMapping(b));
+            }
 
-  @Override
-  protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-    return new SyntheticSourceSupport() {
-      @Override
-      public SyntheticSourceExample example(int maxValues) {
-        return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), null, b -> minimalMapping(b));
-      }
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() {
+                return List.of();
+            }
+        };
+    }
 
-      @Override
-      public List<SyntheticSourceInvalidExample> invalidExample() {
-        return List.of();
-      }
-    };
-  }
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // This mapper doesn't support multiple values (array of objects).
+    }
 
-  @Override
-  public void testSyntheticSourceKeepArrays() {
-    // This mapper doesn't support multiple values (array of objects).
-  }
+    public void testDefaults() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-  public void testDefaults() throws Exception {
-    DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-    assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
-
-    ParsedDocument doc1 = mapper.parse(
+        ParsedDocument doc1 = mapper.parse(
             source(b -> b.startObject("field").field("field", "foo").field("start", 0).field("end", 128).endObject())
-    );
-    List<IndexableField> fields = doc1.rootDoc().getFields("_offset_source");
-    assertEquals(1, fields.size());
-    assertThat(fields.get(0), instanceOf(OffsetSourceField.class));
-    OffsetSourceField offsetField1 = (OffsetSourceField) fields.get(0);
+        );
+        List<IndexableField> fields = doc1.rootDoc().getFields("_offset_source");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(OffsetSourceField.class));
+        OffsetSourceField offsetField1 = (OffsetSourceField) fields.get(0);
 
-    ParsedDocument doc2 = mapper.parse(
+        ParsedDocument doc2 = mapper.parse(
             source(b -> b.startObject("field").field("field", "bar").field("start", 128).field("end", 512).endObject())
-    );
-    OffsetSourceField offsetField2 = (OffsetSourceField) doc2.rootDoc().getFields("_offset_source").get(0);
+        );
+        OffsetSourceField offsetField2 = (OffsetSourceField) doc2.rootDoc().getFields("_offset_source").get(0);
 
-    assertTokenStream(offsetField1.tokenStream(null, null), "field.foo", 0, 128);
-    assertTokenStream(offsetField2.tokenStream(null, null), "field.bar", 128, 512);
-  }
+        assertTokenStream(offsetField1.tokenStream(null, null), "field.foo", 0, 128);
+        assertTokenStream(offsetField2.tokenStream(null, null), "field.bar", 128, 512);
+    }
 
-  private void assertTokenStream(TokenStream tk, String expectedTerm, int expectedStartOffset, int expectedEndOffset) throws IOException {
-    CharTermAttribute termAttribute = tk.addAttribute(CharTermAttribute.class);
-    OffsetAttribute offsetAttribute = tk.addAttribute(OffsetAttribute.class);
-    tk.reset();
-    assertTrue(tk.incrementToken());
-    assertThat(new String(termAttribute.buffer(), 0, termAttribute.length()), equalTo(expectedTerm));
-    assertThat(offsetAttribute.startOffset(), equalTo(expectedStartOffset));
-    assertThat(offsetAttribute.endOffset(), equalTo(expectedEndOffset));
-    assertFalse(tk.incrementToken());
-  }
+    private void assertTokenStream(TokenStream tk, String expectedTerm, int expectedStartOffset, int expectedEndOffset) throws IOException {
+        CharTermAttribute termAttribute = tk.addAttribute(CharTermAttribute.class);
+        OffsetAttribute offsetAttribute = tk.addAttribute(OffsetAttribute.class);
+        tk.reset();
+        assertTrue(tk.incrementToken());
+        assertThat(new String(termAttribute.buffer(), 0, termAttribute.length()), equalTo(expectedTerm));
+        assertThat(offsetAttribute.startOffset(), equalTo(expectedStartOffset));
+        assertThat(offsetAttribute.endOffset(), equalTo(expectedEndOffset));
+        assertFalse(tk.incrementToken());
+    }
 
-  @Override
-  protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
-    MappedFieldType ft = mapperService.fieldType(field);
-    MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
-    SourceToParse source = source(b -> b.field(ft.name(), value));
-    SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-    when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
-    when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-    when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
-      throw new UnsupportedOperationException();
-    }, fdt));
-    ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
-    ParsedDocument doc = mapperService.documentMapper().parse(source);
-    withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-      Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
-      nativeFetcher.setNextReader(ir.leaves().get(0));
-      List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
-      assertThat(fromNative.size(), equalTo(1));
-      assertThat("fetching " + value, fromNative.get(0), equalTo(value));
-    });
-  }
+    @Override
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
+            throw new UnsupportedOperationException();
+        }, fdt));
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
+            assertThat(fromNative.size(), equalTo(1));
+            assertThat("fetching " + value, fromNative.get(0), equalTo(value));
+        });
+    }
 
-  @Override
-  protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
-    assumeFalse("[offset_source] currently don't support multiple values in the same field", false);
-  }
+    @Override
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assumeFalse("[offset_source] currently don't support multiple values in the same field", false);
+    }
 
-  public void testInvalidCharset() {
-    var exc = expectThrows(Exception.class, () -> createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").field("charset", "utf_8").endObject(); })));
-    assertThat(exc.getCause().getMessage(), containsString("Unknown value [utf_8] for field [charset]"));
-  }
+    public void testInvalidCharset() {
+        var exc = expectThrows(Exception.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "offset_source").field("charset", "utf_8").endObject();
+        })));
+        assertThat(exc.getCause().getMessage(), containsString("Unknown value [utf_8] for field [charset]"));
+    }
 
-  public void testRejectMultiValuedFields() throws IOException {
-    DocumentMapper mapper = createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").endObject(); }));
+    public void testRejectMultiValuedFields() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").endObject(); }));
 
-    DocumentParsingException exc = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
-      b.startArray("field");
-      {
-        b.startObject().field("field", "bar1").field("start", 128).field("end", 512).endObject();
-        b.startObject().field("field", "bar2").field("start", 128).field("end", 512).endObject();
-      }
-      b.endArray();
-    })));
-    assertThat(exc.getCause().getMessage(), containsString("[offset_source] fields do not support indexing multiple values"));
-  }
+        DocumentParsingException exc = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("field", "bar1").field("start", 128).field("end", 512).endObject();
+                b.startObject().field("field", "bar2").field("start", 128).field("end", 512).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(exc.getCause().getMessage(), containsString("[offset_source] fields do not support indexing multiple values"));
+    }
 
-  public void testInvalidOffsets() throws IOException {
-    DocumentMapper mapper = createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").endObject(); }));
+    public void testInvalidOffsets() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").endObject(); }));
 
-    DocumentParsingException exc = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
-      b.startArray("field");
-      {
-        b.startObject().field("field", "bar1").field("start", -1).field("end", 512).endObject();
-      }
-      b.endArray();
-    })));
-    assertThat(exc.getCause().getCause().getCause().getMessage(), containsString("Illegal offsets"));
-  }
+        DocumentParsingException exc = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("field", "bar1").field("start", -1).field("end", 512).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(exc.getCause().getCause().getCause().getMessage(), containsString("Illegal offsets"));
+    }
 }

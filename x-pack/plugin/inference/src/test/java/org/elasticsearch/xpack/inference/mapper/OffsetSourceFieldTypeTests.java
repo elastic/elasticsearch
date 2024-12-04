@@ -17,32 +17,36 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.util.Collections;
 
 public class OffsetSourceFieldTypeTests extends FieldTypeTestCase {
-  public void testIsNotAggregatable() {
-    MappedFieldType fieldType = getMappedFieldType();
-    assertFalse(fieldType.isAggregatable());
-  }
+    public void testIsNotAggregatable() {
+        MappedFieldType fieldType = getMappedFieldType();
+        assertFalse(fieldType.isAggregatable());
+    }
 
-  @Override
-  public void testFieldHasValue() {
-    MappedFieldType fieldType = getMappedFieldType();
-    FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_offset_source") });
-    assertTrue(fieldType.fieldHasValue(fieldInfos));
-  }
+    @Override
+    public void testFieldHasValue() {
+        MappedFieldType fieldType = getMappedFieldType();
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_offset_source") });
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
+    }
 
-  @Override
-  public void testFieldHasValueWithEmptyFieldInfos() {
-    MappedFieldType fieldType = getMappedFieldType();
-    assertFalse(fieldType.fieldHasValue(FieldInfos.EMPTY));
-  }
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        MappedFieldType fieldType = getMappedFieldType();
+        assertFalse(fieldType.fieldHasValue(FieldInfos.EMPTY));
+    }
 
-  public void testFieldEmptyIfNameIsPresentInFieldInfos() {
-    MappedFieldType fieldType = getMappedFieldType();
-    FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
-    assertFalse(fieldType.fieldHasValue(fieldInfos));
-  }
+    public void testFieldEmptyIfNameIsPresentInFieldInfos() {
+        MappedFieldType fieldType = getMappedFieldType();
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
+        assertFalse(fieldType.fieldHasValue(fieldInfos));
+    }
 
-  @Override
-  public MappedFieldType getMappedFieldType() {
-    return new OffsetSourceFieldMapper.OffsetSourceFieldType("field", OffsetSourceFieldMapper.CharsetFormat.UTF_16, Collections.emptyMap());
-  }
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return new OffsetSourceFieldMapper.OffsetSourceFieldType(
+            "field",
+            OffsetSourceFieldMapper.CharsetFormat.UTF_16,
+            Collections.emptyMap()
+        );
+    }
 }

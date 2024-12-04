@@ -13,62 +13,60 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class OffsetSourceFieldTests extends ESTestCase {
-  public void testBasics() throws Exception {
-    Directory dir = newDirectory();
-    RandomIndexWriter writer = new RandomIndexWriter(
+    public void testBasics() throws Exception {
+        Directory dir = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(
             random(),
             dir,
             newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random().nextBoolean()))
-    );
-    Document doc = new Document();
-    OffsetSourceField field1 = new OffsetSourceField(OffsetSourceFieldMapper.NAME, "field1.foo", 1, 10);
-    doc.add(field1);
-    writer.addDocument(doc);
+        );
+        Document doc = new Document();
+        OffsetSourceField field1 = new OffsetSourceField(OffsetSourceFieldMapper.NAME, "field1.foo", 1, 10);
+        doc.add(field1);
+        writer.addDocument(doc);
 
-    field1.setValues("field1.bar", 10, 128);
-    writer.addDocument(doc);
+        field1.setValues("field1.bar", 10, 128);
+        writer.addDocument(doc);
 
-    writer.addDocument(new Document()); // gap
+        writer.addDocument(new Document()); // gap
 
-    field1.setValues("field1.foo", 50, 256);
-    writer.addDocument(doc);
+        field1.setValues("field1.foo", 50, 256);
+        writer.addDocument(doc);
 
-    writer.addDocument(new Document()); // double gap
-    writer.addDocument(new Document());
+        writer.addDocument(new Document()); // double gap
+        writer.addDocument(new Document());
 
-    field1.setValues("field1.baz", 32, 512);
-    writer.addDocument(doc);
+        field1.setValues("field1.baz", 32, 512);
+        writer.addDocument(doc);
 
-    writer.forceMerge(1);
-    var reader = writer.getReader();
-    writer.close();
+        writer.forceMerge(1);
+        var reader = writer.getReader();
+        writer.close();
 
-    var searcher = newSearcher(reader);
-    var context = searcher.getIndexReader().leaves().get(0);
+        var searcher = newSearcher(reader);
+        var context = searcher.getIndexReader().leaves().get(0);
 
-    var terms = context.reader().terms(OffsetSourceFieldMapper.NAME);
-    assertNotNull(terms);
-    OffsetSourceField.OffsetSourceLoader loader = OffsetSourceField.loader(terms, "field1");
+        var terms = context.reader().terms(OffsetSourceFieldMapper.NAME);
+        assertNotNull(terms);
+        OffsetSourceField.OffsetSourceLoader loader = OffsetSourceField.loader(terms, "field1");
 
-    var offset = loader.advanceTo(0);
-    assertEquals(new OffsetSourceFieldMapper.OffsetSource("foo", 1, 10), offset);
+        var offset = loader.advanceTo(0);
+        assertEquals(new OffsetSourceFieldMapper.OffsetSource("foo", 1, 10), offset);
 
-    offset = loader.advanceTo(1);
-    assertEquals(new OffsetSourceFieldMapper.OffsetSource("bar", 10, 128), offset);
+        offset = loader.advanceTo(1);
+        assertEquals(new OffsetSourceFieldMapper.OffsetSource("bar", 10, 128), offset);
 
-    assertNull(loader.advanceTo(2));
+        assertNull(loader.advanceTo(2));
 
-    offset = loader.advanceTo(3);
-    assertEquals(new OffsetSourceFieldMapper.OffsetSource("foo", 50, 256), offset);
+        offset = loader.advanceTo(3);
+        assertEquals(new OffsetSourceFieldMapper.OffsetSource("foo", 50, 256), offset);
 
-    offset = loader.advanceTo(6);
-    assertEquals(new OffsetSourceFieldMapper.OffsetSource("baz", 32, 512), offset);
+        offset = loader.advanceTo(6);
+        assertEquals(new OffsetSourceFieldMapper.OffsetSource("baz", 32, 512), offset);
 
-    assertNull(loader.advanceTo(189));
+        assertNull(loader.advanceTo(189));
 
-    IOUtils.close(reader, dir);
-  }
+        IOUtils.close(reader, dir);
+    }
 }

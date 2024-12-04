@@ -26,53 +26,53 @@ import java.util.Collections;
  */
 public class OffsetSourceMetaFieldMapper extends MetadataFieldMapper {
 
-  public static final String NAME = "_offset_source";
+    public static final String NAME = "_offset_source";
 
-  public static final String CONTENT_TYPE = "_offset_source";
+    public static final String CONTENT_TYPE = "_offset_source";
 
-  public static final TypeParser PARSER = new FixedTypeParser(c -> new OffsetSourceMetaFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new OffsetSourceMetaFieldMapper());
 
-  public static final class OffsetSourceMetaFieldType extends MappedFieldType {
+    public static final class OffsetSourceMetaFieldType extends MappedFieldType {
 
-    public static final OffsetSourceMetaFieldType INSTANCE = new OffsetSourceMetaFieldType();
+        public static final OffsetSourceMetaFieldType INSTANCE = new OffsetSourceMetaFieldType();
 
-    // made visible for tests
-    OffsetSourceMetaFieldType() {
-      super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        // made visible for tests
+        OffsetSourceMetaFieldType() {
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            throw new UnsupportedOperationException("Cannot run exists query on [_offset_source]");
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            return fieldInfos.fieldInfo(NAME) != null;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new UnsupportedOperationException("The [_offset_source] field may not be queried directly");
+        }
+    }
+
+    private OffsetSourceMetaFieldMapper() {
+        super(OffsetSourceMetaFieldType.INSTANCE);
     }
 
     @Override
-    public String typeName() {
-      return CONTENT_TYPE;
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
-
-    @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-      throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
-    }
-
-    @Override
-    public Query existsQuery(SearchExecutionContext context) {
-      throw new UnsupportedOperationException("Cannot run exists query on [_offset_source]");
-    }
-
-    @Override
-    public boolean fieldHasValue(FieldInfos fieldInfos) {
-      return fieldInfos.fieldInfo(NAME) != null;
-    }
-
-    @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
-      throw new UnsupportedOperationException("The [_offset_source] field may not be queried directly");
-    }
-  }
-
-  private OffsetSourceMetaFieldMapper() {
-    super(OffsetSourceMetaFieldType.INSTANCE);
-  }
-
-  @Override
-  protected String contentType() {
-    return CONTENT_TYPE;
-  }
 }

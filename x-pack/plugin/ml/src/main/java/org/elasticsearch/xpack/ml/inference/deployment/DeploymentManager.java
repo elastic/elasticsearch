@@ -696,6 +696,8 @@ public class DeploymentManager {
                     throw new TimeoutException(
                         Strings.format("Timed out waiting for process worker to complete for process %s", PROCESS_NAME)
                     );
+                } else {
+                    priorityProcessWorker.notifyQueueRunnables();
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

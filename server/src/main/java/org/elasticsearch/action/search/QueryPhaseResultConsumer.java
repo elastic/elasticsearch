@@ -157,6 +157,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         consume(querySearchResult, next);
     }
 
+    public void reduce(TopDocsStats topDocsStats, MergeResult mergeResult) {
+
+    }
+
     @Override
     public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
         if (hasPendingMerges()) {

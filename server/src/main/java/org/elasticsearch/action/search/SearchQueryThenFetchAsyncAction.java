@@ -531,9 +531,19 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                         )
                                     );
                                     if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-
+                                        queryPhaseResultConsumer.reduce(response.topDocsStats, response.mergeResult);
                                     } else {
-
+                                        if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
+                                            countOnlyQueryPhaseResultConsumer.reduce(
+                                                false,
+                                                false,
+                                                response.mergeResult.reducedTopDocs().totalHits.value(),
+                                                response.mergeResult.reducedTopDocs().totalHits.relation()
+                                            );
+                                        }
+                                    }
+                                    if (successfulOps.addAndGet(request.shards.size() - response.failedShards.size()) == expectedTotalOps) {
+                                        onPhaseDone();
                                     }
                                 }
 

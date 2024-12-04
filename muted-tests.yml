@@ -247,6 +247,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.LookupIPFromIndexKeep ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/117974
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/117975
 
 # Examples:
 #

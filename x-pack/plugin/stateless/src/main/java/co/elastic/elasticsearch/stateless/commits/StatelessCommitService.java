@@ -67,9 +67,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -100,6 +102,7 @@ import java.util.function.BinaryOperator;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -185,12 +188,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum number of retries to attempt when an IO error is encountered during upload, before failing the shard.
+     */
+    public static final Setting<Integer> STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES = Setting.intSetting(
+        "stateless.upload.max_io_error_retries",
+        5,
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
+    private final IndicesService indicesService;
     private final Supplier<String> ephemeralNodeIdSupplier;
     private final Function<ShardId, Optional<IndexShardRoutingTable>> shardRoutingFinder;
     private final ThreadPool threadPool;
@@ -213,6 +226,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final ScheduledUploadMonitor scheduledUploadMonitor;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
+    private final int bccUploadMaxIoRetries;
     private final boolean useInternalFilesReplicatedContent;
     private final int cacheRegionSizeInBytes;
     private final LongHistogram bccSizeInMegabytesHistogram;
@@ -230,6 +244,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Settings settings,
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
+        IndicesService indicesService,
         Client client,
         StatelessCommitCleaner commitCleaner,
         StatelessSharedBlobCacheService cacheService,
@@ -240,6 +255,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             settings,
             clusterService,
             objectStoreService,
+            indicesService,
             () -> clusterService.localNode().getEphemeralId(),
             (shardId) -> shardRoutingTableFunction(clusterService, shardId),
             clusterService.threadPool(),
@@ -255,6 +271,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Settings settings,
         ClusterService clusterService,
         ObjectStoreService objectStoreService,
+        IndicesService indicesService,
         Supplier<String> ephemeralNodeIdSupplier,
         Function<ShardId, Optional<IndexShardRoutingTable>> shardRouting,
         ThreadPool threadPool,
@@ -266,6 +283,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         this.clusterService = clusterService;
         this.objectStoreService = objectStoreService;
+        this.indicesService = indicesService;
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
         this.shardRoutingFinder = shardRouting;
         this.threadPool = threadPool;
@@ -284,6 +302,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
+        this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
         this.cacheRegionSizeInBytes = cacheService.getRegionSize();
         this.estimatedMaxHeaderSizeInBytes = BlobCacheUtils.toIntBytes(Math.max(0L, cacheRegionSizeInBytes - bccUploadMaxSizeInBytes));
@@ -650,6 +669,28 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
+    // VBCC uploads are retried indefinitely unless the shard has been closed or it has experienced too many IO errors
+    private class UploadRetryDecider implements Predicate<Exception> {
+        final ShardCommitState commitState;
+        int localIOExceptions = 0;
+
+        UploadRetryDecider(ShardCommitState commitState) {
+            this.commitState = commitState;
+        }
+
+        public boolean test(Exception e) {
+            if (commitState.isClosed()) {
+                return false;
+            }
+
+            if (e instanceof ObjectStoreService.LocalIOException) {
+                localIOExceptions++;
+            }
+
+            return localIOExceptions < bccUploadMaxIoRetries;
+        }
+    }
+
     private void createAndRunCommitUpload(
         ShardCommitState commitState,
         VirtualBatchedCompoundCommit virtualBcc,
@@ -672,7 +713,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             threadPool,
             cacheWarmingService,
             objectStoreService,
-            () -> commitState.isClosed() == false,
+            new UploadRetryDecider(commitState),
             commitState::pauseUpload,
             commitState::runUploadWhenCommitIsReady,
             virtualBcc,
@@ -710,6 +751,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             ),
                             e
                         );
+                    } else if (e instanceof ObjectStoreService.LocalIOException) {
+                        failShard(
+                            commitState.shardId,
+                            virtualBcc.getPrimaryTermAndGeneration().generation(),
+                            (ObjectStoreService.LocalIOException) e
+                        );
                     } else {
                         logger.warn(
                             () -> format(
@@ -725,6 +772,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 private boolean assertClosedOrRejectionFailure(final Exception e) {
                     final var closed = commitState.isClosed();
                     assert closed
+                        || e instanceof ObjectStoreService.LocalIOException
                         || e instanceof EsRejectedExecutionException
                         || e instanceof IndexNotFoundException
                         || e instanceof ShardNotFoundException : closed + " vs " + e;
@@ -742,6 +790,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis());
 
         bccUpload.run();
+    }
+
+    void failShard(ShardId shardId, long generation, ObjectStoreService.LocalIOException error) {
+        final var indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService == null) {
+            logger.info(format("%s index not found, cannot fail BCC [%s] for IO error", shardId, generation), error);
+            return;
+        }
+        IndexShard shard = indexService.getShard(shardId.id());
+        shard.failShard(format("%s failed to upload BCC [%s] due to IO error", shardId, generation), error);
     }
 
     public boolean hasPendingBccUploads(ShardId shardId) {

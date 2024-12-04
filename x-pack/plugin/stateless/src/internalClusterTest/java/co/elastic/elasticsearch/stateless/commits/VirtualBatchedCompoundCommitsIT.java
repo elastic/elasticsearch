@@ -80,7 +80,10 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -101,6 +104,9 @@ import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompou
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
@@ -195,6 +201,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
+            IndicesService indicesService,
             Client client,
             StatelessCommitCleaner commitCleaner,
             StatelessSharedBlobCacheService cacheService,
@@ -205,6 +212,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 settings,
                 objectStoreService,
                 clusterService,
+                indicesService,
                 client,
                 commitCleaner,
                 cacheService,
@@ -232,6 +240,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
+            IndicesService indicesService,
             Client client,
             StatelessCommitCleaner commitCleaner,
             StatelessSharedBlobCacheService cacheService,
@@ -242,6 +251,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 settings,
                 objectStoreService,
                 clusterService,
+                indicesService,
                 client,
                 commitCleaner,
                 cacheService,
@@ -1274,6 +1284,66 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 metricsPlugin.resetMeter();
             }
         }
+    }
+
+    // Corrupt lucene files should be detected on upload and trigger shard failure.
+    // Shard failure should trigger lossless recovery from the translog.
+    public void testUploadCorruptionHandling() throws Exception {
+        // prevent VBCC from filling up before it is corrupted
+        final var indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1000)
+                .put(STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.MAX_VALUE)
+                .build()
+        );
+        startSearchNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+
+        final var indexedDocs = indexDocsAndRefresh(indexName);
+
+        final var shard = findIndexShard(indexName);
+
+        // corruption goes here
+        final var shardFailed = new CountDownLatch(1);
+        shard.addShardFailureCallback((var failure) -> shardFailed.countDown());
+        final var shardPath = shard.shardPath().resolveIndex();
+
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shard.shardId());
+        final var commit = virtualBcc.lastCompoundCommit();
+
+        for (var toCorrupt : randomNonEmptySubsetOf(commit.commitFiles().keySet())) {
+            var targetPath = shardPath.resolve(toCorrupt);
+
+            var targetFile = FileChannel.open(targetPath, StandardOpenOption.READ, StandardOpenOption.WRITE);
+            long position = randomLongBetween(0, targetFile.size() - 1);
+            logger.info("corrupting {} at {}", targetPath, position);
+
+            var buf = ByteBuffer.allocate(1);
+            assertEquals(1, targetFile.read(buf, position));
+            buf.flip();
+
+            byte b = buf.get();
+            buf.clear();
+
+            buf.put((byte) ~b);
+            buf.flip();
+            assertEquals(1, targetFile.write(buf, position));
+
+            targetFile.close();
+        }
+
+        // now that we have a corrupt commit, trigger upload and wait for shard failure
+        flush(indexName);
+
+        shardFailed.await();
+
+        // after which we should recover and not lose any documents (they should be recovered from the translog)
+        ensureGreen(indexName);
+        validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
     }
 
     private void assertMeasurement(Measurement measurement, long value) {

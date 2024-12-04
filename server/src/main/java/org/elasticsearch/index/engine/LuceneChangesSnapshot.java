@@ -65,7 +65,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         IndexVersion indexVersionCreated
     ) throws IOException {
         super(engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
-        this.creationThread = Thread.currentThread();
+        this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
         this.lastSeenSeqNo = fromSeqNo - 1;

@@ -97,9 +97,13 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
                         assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
-                    TopDocs td = r.searchNearestVectors("f", randomVector(vector.length), 1, null, Integer.MAX_VALUE);
+                    float[] randomVector = randomVector(vector.length);
+                    float trueScore = similarityFunction.compare(vector, randomVector);
+                    TopDocs td = r.searchNearestVectors("f", randomVector, 1, null, Integer.MAX_VALUE);
                     assertEquals(1, td.totalHits.value());
                     assertTrue(td.scoreDocs[0].score >= 0);
+                    // When it's the only vector in a segment, the score should be very close to the true score
+                    assertEquals(trueScore, td.scoreDocs[0].score, 0.0001f);
                 }
             }
         }

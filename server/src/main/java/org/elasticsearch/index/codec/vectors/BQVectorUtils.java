@@ -41,19 +41,16 @@ public class BQVectorUtils {
     }
 
     public static void packAsBinary(byte[] vector, byte[] packed) {
-        assert packed.length % 8 == 0;
-        for (int h = 0; h < vector.length; h += 8) {
+        for (int i = 0; i < vector.length;) {
             byte result = 0;
-            int q = 0;
-            int i = Math.min(7, vector.length - h - 1);
-            for (; i >= 0; i--) {
-                assert vector[h + i] == 0 || vector[h + i] == 1;
-                if (vector[h + i] > 0) {
-                    result |= (byte) (1 << q);
-                }
-                q++;
+            for (int j = 7; j >= 0 && i < vector.length; j--) {
+                assert vector[i] == 0 || vector[i] == 1;
+                result |= (byte) ((vector[i] & 1) << j);
+                ++i;
             }
-            packed[h / 8] = result;
+            int index = ((i + 7) / 8) - 1;
+            assert index < packed.length;
+            packed[index] = result;
         }
     }
 

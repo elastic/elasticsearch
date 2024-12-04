@@ -66,11 +66,12 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         if (vectorValues instanceof BinarizedByteVectorValues binarizedVectors) {
             OptimizedScalarQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
+            // We make a copy as the quantization process mutates the input
+            float[] copy = ArrayUtil.copyOfSubArray(target, 0, target.length);
             if (similarityFunction == COSINE) {
-                float[] copy = ArrayUtil.copyOfSubArray(target, 0, target.length);
                 VectorUtil.l2normalize(copy);
-                target = copy;
             }
+            target = copy;
             byte[] initial = new byte[target.length];
             byte[] quantized = new byte[BQSpaceUtils.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(target, initial, (byte) 4, centroid);

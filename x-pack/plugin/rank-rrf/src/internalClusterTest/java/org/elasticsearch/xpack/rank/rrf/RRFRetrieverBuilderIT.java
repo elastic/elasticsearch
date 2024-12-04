@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,8 +49,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -61,7 +58,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     protected static String INDEX = "test_index";
-    protected static final String ID_FIELD = "_id";
     protected static final String DOC_FIELD = "doc";
     protected static final String TEXT_FIELD = "text";
     protected static final String VECTOR_FIELD = "vector";

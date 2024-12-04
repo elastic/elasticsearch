@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -25,6 +26,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.PostStartTrialAction;
+import org.elasticsearch.license.PostStartTrialRequest;
+import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -57,6 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
@@ -81,6 +87,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPlugin.class);
         plugins.add(InternalExchangePlugin.class);
+
         return plugins;
     }
 
@@ -1310,7 +1317,47 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .get(skipUnavailableSetting);
         clusterInfo.put("remote.skip_unavailable", skipUnavailable);
 
+        startTrialLicense2(cluster(LOCAL_CLUSTER).client());
+
         return clusterInfo;
+    }
+
+    private void startTrialLicense(Client client) {
+        PostStartTrialRequest startTrialRequest = new PostStartTrialRequest(TimeValue.timeValueSeconds(30));
+        startTrialRequest.setType(License.LicenseType.TRIAL.getTypeName());
+        startTrialRequest.acknowledge(true);
+        ActionFuture<PostStartTrialResponse> trialResponseFuture = client.execute(PostStartTrialAction.INSTANCE, startTrialRequest);
+        try {
+            PostStartTrialResponse postStartTrialResponse = trialResponseFuture.get(30, TimeUnit.SECONDS);
+            final PostStartTrialResponse.Status status = postStartTrialResponse.getStatus();
+            assertThat(status, equalTo(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // copied from SearchableSnapshotsLicenseIntegTests
+    private void startTrialLicense2(Client client) {
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
+        final PostStartTrialResponse response;
+        try {
+            response = client().execute(PostStartTrialAction.INSTANCE, request).get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        assertThat(
+            response.getStatus(),
+            oneOf(
+                PostStartTrialResponse.Status.UPGRADED_TO_TRIAL,
+                // The LicenceService automatically generates a license of {@link LicenceService#SELF_GENERATED_LICENSE_TYPE} type
+                // if there is no license found in the cluster state (see {@link LicenceService#registerOrUpdateSelfGeneratedLicense).
+                // Since this test explicitly removes the LicensesMetadata from cluster state it is possible that the self generated
+                // license is created before the PostStartTrialRequest is acked.
+                PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED
+            )
+        );
+
     }
 
     /**

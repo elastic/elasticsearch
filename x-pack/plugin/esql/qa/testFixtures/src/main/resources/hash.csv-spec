@@ -1,13 +1,13 @@
 md5
 ROW value = "test" | EVAL hash = hash("md5", value);
 
-value | hash
-test  | 098f6bcd4621d373cade4e832627b4f6
+value:keyword | hash:keyword
+test          | 098f6bcd4621d373cade4e832627b4f6
 ;
 
 sha256
 ROW value = "test" | EVAL hash = hash("sha256", value);
 
-value | hash
-test  | 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+value:keyword | hash:keyword
+test          | 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
 ;

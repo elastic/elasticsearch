@@ -113,8 +113,8 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
-  fips "org.bouncycastle:bctls-fips:1.0.17"
-  fips "org.bouncycastle:bc-fips:1.0.2.4"
+  fips "org.bouncycastle:bctls-fips:1.0.19"
+  fips "org.bouncycastle:bc-fips:1.0.2.5"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -570,19 +570,17 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
-//String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
-String javaSecurityFilename = 'fips_java.security'
+String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+//String javaSecurityFilename = 'fips_java.security'
 File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
 File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
 File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')
-//File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
 
 TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {
   outputDir = fipsResourcesDir
   copy javaSecurityFilename
   copy 'fips_java.policy'
-//  copy 'cacerts.bcfks'
 }
 
 for (final Architecture architecture : Architecture.values()) {

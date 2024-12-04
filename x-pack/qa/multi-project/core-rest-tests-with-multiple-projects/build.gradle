@@ -71,7 +71,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.clear_cache/*/*',
     '^indices.clone/*/*',
     '^indices.exists/20_read_only_index/*',
-    '^indices.forcemerge/*/*',
     '^indices.get/*/*',
     '^indices.get_alias/10_basic/Get alias against closed indices',
     '^indices.get_mapping/50_wildcard_expansion/*', // index close does not work

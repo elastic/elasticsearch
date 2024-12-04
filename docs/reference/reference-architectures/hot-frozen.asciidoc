@@ -14,7 +14,7 @@ A very high level representation of data flow is included, and for more detail a
 
 [discrete]
 [[hot-frozen-use-case]]
-=== Use case
+=== Hot/Frozen use case
 
 This Hot/Frozen – High Availability architecture is intended for organizations that:
 

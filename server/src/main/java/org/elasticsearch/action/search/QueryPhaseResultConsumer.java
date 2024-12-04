@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -157,8 +158,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         consume(querySearchResult, next);
     }
 
-    public void reduce(TopDocsStats topDocsStats, MergeResult mergeResult) {
+    private final List<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayList<>();
 
+    public void reduce(TopDocsStats topDocsStats, MergeResult mergeResult) {
+        synchronized (this) {
+            batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
+        }
     }
 
     @Override
@@ -185,6 +190,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 if (aggsList != null) {
                     aggsList.add(DelayableWriteable.referencing(mergeResult.reducedAggs));
                 }
+            }
+            for (Tuple<TopDocsStats, MergeResult> batchedResult : batchedResults) {
+                if (topDocsList != null) {
+                    topDocsList.add(batchedResult.v2().reducedTopDocs);
+                }
+                if (aggsList != null) {
+                    aggsList.add(DelayableWriteable.referencing(batchedResult.v2().reducedAggs));
+                }
+                topDocsStats.add(batchedResult.v1(), false, false);
             }
             for (QuerySearchResult result : buffer) {
                 topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());

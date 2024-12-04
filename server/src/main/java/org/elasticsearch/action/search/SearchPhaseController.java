@@ -877,6 +877,29 @@ public final class SearchPhaseController {
             }
         }
 
+        void add(TopDocsStats other, boolean timedOut, Boolean terminatedEarly) {
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                totalHits += other.totalHits;
+                if (other.totalHitsRelation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                }
+            }
+            fetchHits += other.fetchHits;
+            if (Float.isNaN(other.maxScore) == false) {
+                maxScore = Math.max(maxScore, other.maxScore);
+            }
+            if (timedOut) {
+                this.timedOut = true;
+            }
+            if (terminatedEarly != null) {
+                if (this.terminatedEarly == null) {
+                    this.terminatedEarly = terminatedEarly;
+                } else if (terminatedEarly) {
+                    this.terminatedEarly = true;
+                }
+            }
+        }
+
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value();

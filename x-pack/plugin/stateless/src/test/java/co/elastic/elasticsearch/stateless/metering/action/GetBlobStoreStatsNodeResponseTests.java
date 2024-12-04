@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.metering.action;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -65,14 +66,14 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
                 instance.getNode(),
                 randomRepositoryStats(
                     randomValueOtherThanMany(
-                        names -> names.equals(instance.getRepositoryStats().requestCounts.keySet()),
+                        names -> names.equals(instance.getRepositoryStats().actionStats.keySet()),
                         GetBlobStoreStatsNodeResponseTests::randomRequestNames
                     )
                 ),
                 instance.getObsRepositoryStats()
             );
             case 2 -> {
-                if (instance.getRepositoryStats().requestCounts.keySet().isEmpty()) {
+                if (instance.getRepositoryStats().actionStats.keySet().isEmpty()) {
                     // file
                     yield new GetBlobStoreStatsNodeResponse(
                         instance.getNode(),
@@ -82,13 +83,13 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
                 } else {
                     yield new GetBlobStoreStatsNodeResponse(
                         instance.getNode(),
-                        instance.getRepositoryStats().merge(randomRepositoryStats(instance.getRepositoryStats().requestCounts.keySet())),
+                        instance.getRepositoryStats().merge(randomRepositoryStats(instance.getRepositoryStats().actionStats.keySet())),
                         instance.getObsRepositoryStats()
                     );
                 }
             }
             case 3 -> {
-                if (instance.getObsRepositoryStats().requestCounts.keySet().isEmpty()) {
+                if (instance.getObsRepositoryStats().actionStats.keySet().isEmpty()) {
                     // file
                     yield new GetBlobStoreStatsNodeResponse(
                         instance.getNode(),
@@ -99,8 +100,7 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
                     yield new GetBlobStoreStatsNodeResponse(
                         instance.getNode(),
                         instance.getRepositoryStats(),
-                        instance.getObsRepositoryStats()
-                            .merge(randomRepositoryStats(instance.getObsRepositoryStats().requestCounts.keySet()))
+                        instance.getObsRepositoryStats().merge(randomRepositoryStats(instance.getObsRepositoryStats().actionStats.keySet()))
 
                     );
                 }
@@ -118,18 +118,31 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
             equalTo(
                 Map.of(
                     "object_store_stats",
-                    Map.of("request_counts", Maps.transformValues(instance.getRepositoryStats().requestCounts, Math::toIntExact)),
+                    Map.of(
+                        "request_counts",
+                        Maps.transformValues(
+                            GetBlobStoreStatsNodeResponse.getRequestCounts(instance.getRepositoryStats()),
+                            Math::toIntExact
+                        )
+                    ),
                     "operational_backup_service_stats",
-                    Map.of("request_counts", Maps.transformValues(instance.getObsRepositoryStats().requestCounts, Math::toIntExact))
+                    Map.of(
+                        "request_counts",
+                        Maps.transformValues(
+                            GetBlobStoreStatsNodeResponse.getRequestCounts(instance.getObsRepositoryStats()),
+                            Math::toIntExact
+                        )
+                    )
                 )
             )
         );
     }
 
     public static RepositoryStats randomRepositoryStats(Set<String> requestNames) {
-        final Map<String, Long> requestCounts = requestNames.stream()
-            .map(name -> Map.entry(name, randomLongBetween(0, 9999)))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Map<String, BlobStoreActionStats> requestCounts = requestNames.stream().map(name -> {
+            final long operations = randomLongBetween(0, 9999);
+            return Map.entry(name, new BlobStoreActionStats(operations, randomLongBetween(operations, 9999)));
+        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         return new RepositoryStats(requestCounts);
     }
 

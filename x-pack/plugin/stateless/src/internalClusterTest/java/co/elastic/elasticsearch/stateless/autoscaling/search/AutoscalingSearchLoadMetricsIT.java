@@ -18,8 +18,10 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -146,6 +149,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
                 .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .put(SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueMillis(1))
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+                .put(AverageSearchLoadSampler.USE_VCPU_REQUEST.getKey(), "true")
                 .build()
         );
 
@@ -206,13 +210,18 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
             }
             // Wait for at least one more publish
             assertBusy(() -> assertThat(searchLoadPublishSent.get(), greaterThan(1)));
+
+            // Get the value of the VCPU_REQUEST on the search node
+            var searchNodeSettings = internalCluster().getInstance(Environment.class, searchNodeName).settings();
+            var vcpuRequest = ServerlessSharedSettings.VCPU_REQUEST.get(searchNodeSettings);
+
             // We'd need an assertBusy since the second publish might still miss the recent load.
             // Eventually just because of queueing, the load will go above the current available threads
             assertBusy(() -> {
                 var metricsAfter = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class).getSearchTierMetrics();
                 assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
                 assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-                assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan((double) executorThreads));
+                assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan(vcpuRequest));
             }, 60, TimeUnit.SECONDS);
         } finally {
             barrier.await();
@@ -233,6 +242,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         var searchNodeName = startSearchNode(
             Settings.builder()
                 .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .put(AverageSearchLoadSampler.USE_VCPU_REQUEST.getKey(), "true")
                 .build()
         );
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -257,7 +267,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), closeTo(0.0, 0.1));
 
-        // Block the executor workers to simulate long-running write tasks
+        // Block the executor workers to simulate long-running read tasks
         var threadpool = internalCluster().getInstance(ThreadPool.class, searchNodeName);
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.SEARCH);
         final var executorThreads = threadpool.info(ThreadPool.Names.SEARCH).getMax();
@@ -269,6 +279,10 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         // Wait for another publication of the metrics
         longAwait(metricPublicationBarrier);
 
+        // Get the value of the VCPU_REQUEST on the search node
+        var searchNodeSettings = internalCluster().getInstance(Environment.class, searchNodeName).settings();
+        var vcpuRequest = ServerlessSharedSettings.VCPU_REQUEST.get(searchNodeSettings);
+
         try {
             // Eventually just because of the "long-running" tasks, the load will go up
             assertBusy(() -> {
@@ -279,7 +293,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
                     assertThat(
                         metricsAfter.toString(),
                         metricsAfter.getNodesLoad().get(0).load(),
-                        allOf(greaterThan(0.0), lessThanOrEqualTo((double) executorThreads))
+                        allOf(greaterThan(0.0), lessThanOrEqualTo(vcpuRequest))
                     );
                 } finally {
                     longAwait(metricPublicationBarrier);

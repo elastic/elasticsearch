@@ -135,6 +135,7 @@ import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCol
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -257,6 +258,13 @@ public class Stateless extends Plugin
     /** Setting for enabling stateless. Defaults to false. **/
     public static final Setting<Boolean> STATELESS_ENABLED = Setting.boolSetting(
         DiscoveryNode.STATELESS_ENABLED_SETTING_NAME,
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /** Temporary feature flag setting for creating indices with a refresh block. Defaults to false. **/
+    public static final Setting<Boolean> USE_INDEX_REFRESH_BLOCK_SETTING = Setting.boolSetting(
+        MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME,
         false,
         Setting.Property.NodeScope
     );
@@ -588,7 +596,7 @@ public class Stateless extends Plugin
                 averageSearchLoadSampler,
                 searchLoadProbe::getSearchLoad,
                 searchLoadProbe::getSearchLoadQuality,
-                EsExecutors.nodeProcessors(settings).count(),
+                averageSearchLoadSampler.getNumProcessors(),
                 clusterService.getClusterSettings(),
                 clusterService
             );
@@ -923,6 +931,7 @@ public class Stateless extends Plugin
             SearchLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING,
             SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
+            AverageSearchLoadSampler.USE_VCPU_REQUEST,
             AverageSearchLoadSampler.SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             AverageSearchLoadSampler.SHARD_READ_SAMPLER_EWMA_ALPHA_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
@@ -958,7 +967,8 @@ public class Stateless extends Plugin
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
-            StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT
+            StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            USE_INDEX_REFRESH_BLOCK_SETTING
         );
     }
 

@@ -258,8 +258,12 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "can't use KQL function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "lookup join disabled for csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V4.capabilityName())
             );
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -535,7 +539,7 @@ public class CsvTests extends ESTestCase {
             bigArrays,
             ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
         );
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor, ActionListener.noop());
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
@@ -565,7 +569,14 @@ public class CsvTests extends ESTestCase {
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
-            exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
+            exchangeSource.addRemoteSink(
+                exchangeSink::fetchPageAsync,
+                Randomness.get().nextBoolean(),
+                randomIntBetween(1, 3),
+                ActionListener.<Void>noop().delegateResponse((l, e) -> {
+                    throw new AssertionError("expected no failure", e);
+                })
+            );
             LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));

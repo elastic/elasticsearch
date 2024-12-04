@@ -51,6 +51,14 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         super.tearDown();
     }
 
+    public void testGet() throws IOException {
+        var elserModel = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
+        assertDefaultElserConfig(elserModel);
+
+        var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
+        assertDefaultE5Config(e5Model);
+    }
+
     @SuppressWarnings("unchecked")
     public void testInferDeploysDefaultElser() throws IOException {
         var model = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
@@ -79,6 +87,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             adaptiveAllocations,
             Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
         );
+        assertDefaultChunkingSettings(modelConfig);
     }
 
     @SuppressWarnings("unchecked")
@@ -112,6 +121,17 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             modelConfig.toString(),
             adaptiveAllocations,
             Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
+        );
+        assertDefaultChunkingSettings(modelConfig);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDefaultChunkingSettings(Map<String, Object> modelConfig) {
+        var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
+        assertThat(
+            modelConfig.toString(),
+            chunkingSettings,
+            Matchers.is(Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1))
         );
     }
 

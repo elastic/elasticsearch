@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -198,7 +199,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 if (aggsList != null) {
                     aggsList.add(DelayableWriteable.referencing(batchedResult.v2().reducedAggs));
                 }
-                topDocsStats.add(batchedResult.v1(), false, false);
+                topDocsStats.add(batchedResult.v1(), batchedResult.v1().timedOut, batchedResult.v1().terminatedEarly);
             }
             for (QuerySearchResult result : buffer) {
                 topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
@@ -561,7 +562,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         static MergeResult readFrom(StreamInput in) throws IOException {
             return new MergeResult(
                 in.readCollectionAsImmutableList(i -> new SearchShard(i.readOptionalString(), new ShardId(i))),
-                Lucene.readTopDocs(in).topDocs,
+                new TopDocs(Lucene.readTotalHits(in), in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new)),
                 in.readOptionalWriteable(InternalAggregations::readFrom),
                 in.readVLong()
             );
@@ -573,7 +574,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 o.writeOptionalString(s.clusterAlias());
                 s.shardId().writeTo(o);
             });
-            Lucene.writeTopDocs(out, new TopDocsAndMaxScore(reducedTopDocs, 0.0f));
+            Lucene.writeTotalHits(out, reducedTopDocs.totalHits);
+            out.writeArray(Lucene::writeScoreDoc, reducedTopDocs.scoreDocs);
             out.writeOptionalWriteable(reducedAggs);
             out.writeVLong(estimatedSize);
         }

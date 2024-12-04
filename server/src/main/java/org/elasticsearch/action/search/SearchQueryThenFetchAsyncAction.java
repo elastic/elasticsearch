@@ -573,10 +573,11 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                         }
                                     }
                                     final int numShards = results.getNumShards();
-                                    final int successes = successfulOps.addAndGet(successfulShards);
-                                    if (successes == numShards) {
+                                    successfulOps.addAndGet(successfulShards);
+                                    final int total = totalOps.addAndGet(successfulShards + response.failedShards.size());
+                                    if (total == numShards) {
                                         onPhaseDone();
-                                    } else if (successes > numShards) {
+                                    } else if (total > numShards) {
                                         throw new AssertionError();
                                     }
                                 }

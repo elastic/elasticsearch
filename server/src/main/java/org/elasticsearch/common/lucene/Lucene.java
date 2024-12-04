@@ -499,7 +499,7 @@ public class Lucene {
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
         if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
-           // throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
+            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);

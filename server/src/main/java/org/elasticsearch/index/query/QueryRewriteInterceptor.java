@@ -15,6 +15,7 @@ import java.util.List;
  * Enables modules and plugins to intercept and rewrite queries during the query rewrite phase on the coordinator node.
  */
 public interface QueryRewriteInterceptor {
+
     /**
      * Returns a rewritten query if modifications are required; otherwise, returns the same provided {@link QueryBuilder} instance unchanged.
      *

@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: "search.match_query_semantic_text_supported"
+      cluster_features: "search.query_rewrite_interception_supported"
       reason: semantic_text match support introduced in 8.18.0
 
   - do:

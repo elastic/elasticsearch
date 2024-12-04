@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -24,6 +25,8 @@ import java.util.Collection;
 import java.util.List;
 
 public class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor {
+
+    public static final NodeFeature QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature("search.query_rewrite_interception_supported");
 
     public SemanticQueryRewriteInterceptor() {}
 

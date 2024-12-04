@@ -101,7 +101,7 @@ public class StXMin extends UnaryScalarFunction {
         if (geometry instanceof Point point) {
             return point.getX();
         }
-        var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        var envelope = SpatialEnvelopeVisitor.visitCartesian(geometry);
         if (envelope.isPresent()) {
             return envelope.get().getMinX();
         }
@@ -114,7 +114,7 @@ public class StXMin extends UnaryScalarFunction {
         if (geometry instanceof Point point) {
             return point.getX();
         }
-        var envelope = SpatialEnvelopeVisitor.visit(geometry, true);
+        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, true);
         if (envelope.isPresent()) {
             return envelope.get().getMinX();
         }

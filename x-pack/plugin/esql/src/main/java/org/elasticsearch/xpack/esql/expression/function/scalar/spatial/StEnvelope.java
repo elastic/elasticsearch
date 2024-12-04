@@ -117,7 +117,7 @@ public class StEnvelope extends UnaryScalarFunction {
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        var envelope = SpatialEnvelopeVisitor.visitCartesian(geometry);
         if (envelope.isPresent()) {
             return UNSPECIFIED.asWkb(envelope.get());
         }
@@ -130,7 +130,7 @@ public class StEnvelope extends UnaryScalarFunction {
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = SpatialEnvelopeVisitor.visit(geometry, true);
+        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, true);
         if (envelope.isPresent()) {
             return UNSPECIFIED.asWkb(envelope.get());
         }

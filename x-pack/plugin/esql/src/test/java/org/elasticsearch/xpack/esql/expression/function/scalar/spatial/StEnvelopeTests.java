@@ -74,7 +74,7 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = geo ? SpatialEnvelopeVisitor.visit(geometry, true) : SpatialEnvelopeVisitor.visit(geometry);
+        var envelope = geo ? SpatialEnvelopeVisitor.visitGeo(geometry, true) : SpatialEnvelopeVisitor.visitCartesian(geometry);
         if (envelope.isPresent()) {
             return UNSPECIFIED.asWkb(envelope.get());
         }

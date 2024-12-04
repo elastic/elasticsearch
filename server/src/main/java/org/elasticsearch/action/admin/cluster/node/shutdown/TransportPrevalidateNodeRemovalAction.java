@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
@@ -55,6 +56,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateNodeRemovalAction.class);
 
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPrevalidateNodeRemovalAction(
@@ -63,7 +65,8 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NodeClient client
+        NodeClient client,
+        ProjectResolver projectResolver
     ) {
         super(
             PrevalidateNodeRemovalAction.NAME,
@@ -78,6 +81,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,6 +93,9 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     ) {
         ActionListener.run(responseListener, listener -> {
             Set<DiscoveryNode> requestNodes = resolveNodes(request, state.nodes());
+            if (projectResolver.supportsMultipleProjects()) {
+                throw new IllegalStateException("The node removal prevalidation API does not support a multi-project setup");
+            }
             doPrevalidation(request, requestNodes, state, listener);
         });
     }
@@ -161,8 +168,8 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
             clusterState,
-            clusterState.metadata().getProject().getConcreteAllIndices(),
-            clusterState.metadata().getProject().id()
+            projectResolver.getProjectMetadata(clusterState).getConcreteAllIndices(),
+            projectResolver.getProjectId()
         );
         Metadata metadata = clusterState.metadata();
         DiscoveryNodes clusterNodes = clusterState.getNodes();
@@ -191,7 +198,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             .collect(Collectors.toSet());
         // If all red indices are searchable snapshot indices, it is safe to remove any node.
         Set<String> redNonSSIndices = redIndices.stream()
-            .map(metadata.getProject()::index)
+            .map(i -> projectResolver.getProjectMetadata(metadata).index(i))
             .filter(i -> i.isSearchableSnapshot() == false)
             .map(im -> im.getIndex().getName())
             .collect(Collectors.toSet());
@@ -227,7 +234,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // (Index, ClusterShardHealth) of all red shards
                 .map(
                     redIndexShardHealthTuple -> new ShardId(
-                        metadata.getProject().index(redIndexShardHealthTuple.v1()).getIndex(),
+                        projectResolver.getProjectMetadata(metadata).index(redIndexShardHealthTuple.v1()).getIndex(),
                         redIndexShardHealthTuple.v2().getShardId()
                     )
                 ) // Convert to ShardId

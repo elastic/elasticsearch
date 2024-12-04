@@ -70,7 +70,7 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
             BinaryComparisonOperation.GTE,
             evaluatorMap,
             GreaterThanOrEqualNanosMillisEvaluator.Factory::new,
-            GreaterThanOrEqualLongsEvaluator.Factory::new
+            GreaterThanOrEqualMillisNanosEvaluator.Factory::new
         );
     }
 
@@ -83,7 +83,7 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
             zoneId,
             evaluatorMap,
             GreaterThanOrEqualNanosMillisEvaluator.Factory::new,
-            GreaterThanOrEqualLongsEvaluator.Factory::new
+            GreaterThanOrEqualMillisNanosEvaluator.Factory::new
         );
     }
 
@@ -130,7 +130,7 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
         // Note, parameters are reversed, so we need to invert the check.
-        return DateUtils.compareNanosToMillis(rhs, lhs) < 0;
+        return DateUtils.compareNanosToMillis(rhs, lhs) <= 0;
     }
 
     @Evaluator(extraName = "NanosMillis")

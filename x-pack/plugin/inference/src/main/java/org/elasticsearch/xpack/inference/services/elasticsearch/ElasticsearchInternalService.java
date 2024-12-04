@@ -226,7 +226,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     )
                 );
             } else if (RERANKER_ID.equals(modelId)) {
-                rerankerCase(inferenceEntityId, taskType, config, serviceSettingsMap, chunkingSettings, modelListener);
+                rerankerCase(inferenceEntityId, taskType, config, serviceSettingsMap, taskSettingsMap, modelListener);
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, modelListener);
             }
@@ -309,7 +309,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 elandServiceSettings(serviceSettings, context),
-                CustomElandRerankTaskSettings.fromMap(taskSettings)
+                RerankTaskSettings.fromMap(taskSettings)
             );
             default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         };
@@ -332,7 +332,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> serviceSettingsMap,
-        ChunkingSettings chunkingSettings,
+        Map<String, Object> taskSettingsMap,
         ActionListener<Model> modelListener
     ) {
 
@@ -347,7 +347,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 new ElasticRerankerServiceSettings(esServiceSettingsBuilder.build()),
-                chunkingSettings
+                RerankTaskSettings.fromMap(taskSettingsMap)
             )
         );
     }
@@ -519,7 +519,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 new ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
-                chunkingSettings
+                RerankTaskSettings.fromMap(taskSettingsMap)
             );
         } else {
             return createCustomElandModel(
@@ -663,10 +663,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
         var returnDocs = Boolean.TRUE;
-        if (model instanceof CustomElandRerankModel) {
-            var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
-            var requestSettings = CustomElandRerankTaskSettings.fromMap(requestTaskSettings);
-            returnDocs = CustomElandRerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
+        if (model.getTaskSettings() instanceof RerankTaskSettings modelSettings) {
+            var requestSettings = RerankTaskSettings.fromMap(requestTaskSettings);
+            returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
         }
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
@@ -922,7 +921,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             TaskType.RERANK,
             NAME,
             new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
-            null
+            RerankTaskSettings.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5, defaultRerank);
     }

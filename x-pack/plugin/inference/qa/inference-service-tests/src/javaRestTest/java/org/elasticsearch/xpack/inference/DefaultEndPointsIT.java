@@ -57,6 +57,9 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
         assertDefaultE5Config(e5Model);
+
+        var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(rerankModel);
     }
 
     @SuppressWarnings("unchecked")
@@ -157,6 +160,8 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
         assertNull(chunkingSettings);
+        var taskSettings = (Map<String, Object>) modelConfig.get("task_settings");
+        assertThat(modelConfig.toString(), taskSettings, Matchers.is(Map.of("return_documents", true)));
     }
 
     @SuppressWarnings("unchecked")

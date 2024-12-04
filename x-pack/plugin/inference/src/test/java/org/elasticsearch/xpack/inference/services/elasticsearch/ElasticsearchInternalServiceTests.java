@@ -534,16 +534,13 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
             var returnDocs = randomBoolean();
-            settings.put(
-                ModelConfigurations.TASK_SETTINGS,
-                new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
-            );
+            settings.put(ModelConfigurations.TASK_SETTINGS, new HashMap<>(Map.of(RerankTaskSettings.RETURN_DOCUMENTS, returnDocs)));
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
                 assertThat(model, instanceOf(CustomElandRerankModel.class));
-                assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+                assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
                 assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
-                assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+                assertEquals(returnDocs, ((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
             service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, modelListener);
@@ -583,9 +580,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
                 assertThat(model, instanceOf(CustomElandRerankModel.class));
-                assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+                assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
                 assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
-                assertEquals(Boolean.TRUE, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+                assertEquals(Boolean.TRUE, ((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
             service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, modelListener);
@@ -1249,14 +1246,11 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
             settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
             var returnDocs = randomBoolean();
-            settings.put(
-                ModelConfigurations.TASK_SETTINGS,
-                new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
-            );
+            settings.put(ModelConfigurations.TASK_SETTINGS, new HashMap<>(Map.of(RerankTaskSettings.RETURN_DOCUMENTS, returnDocs)));
 
             var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
-            assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
-            assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+            assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
+            assertEquals(returnDocs, ((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
         }
 
         // without task settings
@@ -1279,8 +1273,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
 
             var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
-            assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
-            assertTrue(((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+            assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
+            assertTrue(((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
         }
     }
 
@@ -1335,7 +1329,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 taskType,
                 ElasticsearchInternalService.NAME,
                 new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
-                CustomElandRerankTaskSettings.DEFAULT_SETTINGS
+                RerankTaskSettings.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.TEXT_EMBEDDING) {
             var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model", null);

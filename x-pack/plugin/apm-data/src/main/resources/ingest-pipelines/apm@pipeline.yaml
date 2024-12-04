@@ -24,3 +24,13 @@ processors:
     target_field: user_agent
     ignore_failure: true
     ignore_missing: true
+- script:
+    description: Add time when event was ingested (and remove sub-seconds to improve storage efficiency)
+    tag: truncate-subseconds-event-ingested
+    ignore_failure: true
+    source: |-
+      if (ctx?.event == null) {
+        ctx.event = [:];
+      }
+
+      ctx.event.ingested = metadata().now.withNano(0).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

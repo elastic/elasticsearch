@@ -117,7 +117,7 @@ class Elasticsearch {
              * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
              * This forces such policies to take effect immediately.
              */
-            if (Runtime.version().feature() <= 24) {
+            if (Runtime.version().feature() < 24) {
                 org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
                     @Override
                     public void checkPermission(Permission perm) {
@@ -225,7 +225,7 @@ class Elasticsearch {
             }
             // TODO: add a functor to map module to plugin name
             EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);
-        } else if (Runtime.version().feature() <= 24) {
+        } else if (Runtime.version().feature() < 24) {
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(

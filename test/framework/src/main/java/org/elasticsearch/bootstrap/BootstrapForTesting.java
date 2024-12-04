@@ -119,7 +119,7 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
 
         // install security manager if available and requested
-        if (Runtime.version().feature() <= 24 && systemPropertyAsBoolean("tests.security.manager", true)) {
+        if (Runtime.version().feature() < 24 && systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();

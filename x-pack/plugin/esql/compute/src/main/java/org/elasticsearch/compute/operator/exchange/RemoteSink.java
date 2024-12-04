@@ -12,4 +12,14 @@ import org.elasticsearch.action.ActionListener;
 public interface RemoteSink {
 
     void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener);
+
+    default void close(ActionListener<Void> listener) {
+        fetchPageAsync(true, listener.delegateFailure((l, r) -> {
+            try {
+                r.close();
+            } finally {
+                l.onResponse(null);
+            }
+        }));
+    }
 }

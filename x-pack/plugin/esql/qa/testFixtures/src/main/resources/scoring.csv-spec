@@ -1,0 +1,285 @@
+###############################################
+# Tests for scoring support
+#
+
+singleQstrBoostScoringSorted
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings^2")
+| eval c_score = ceil(_score)  
+| keep book_no, title, c_score 
+| sort c_score desc, book_no asc
+| LIMIT 2;
+
+book_no:keyword | title:text                                                                                  | c_score:double
+2675            | The Lord of the Rings - Boxed Set                                                           | 6.0
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 6.0
+;
+
+singleMatchWithKeywordFieldScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score 
+| where author.keyword:"William Faulkner" 
+| keep book_no, author, _score 
+| sort book_no;
+
+book_no:keyword | author:text | _score:double
+2713            | William Faulkner | 2.3142893314361572
+2883            | William Faulkner | 2.3142893314361572
+4724            | William Faulkner | 2.3142893314361572
+4977            | William Faulkner | 2.3142893314361572
+5119            | William Faulkner | 2.3142893314361572
+5404            | William Faulkner | 2.3142893314361572
+5578            | William Faulkner | 2.3142893314361572
+8077            | William Faulkner | 2.3142893314361572
+9896            | William Faulkner | 2.3142893314361572
+;
+
+qstrWithFieldAndScoringSortedEval
+required_capability: qstr_function
+required_capability: metadata_score
+
+from books metadata _score
+| where qstr("title:rings")
+| sort _score desc
+| eval _score::long
+| keep book_no, title, _score
+| limit 3;
+
+book_no:keyword | title:text                                                                 | _score:double 
+2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
+;
+
+qstrWithFieldAndScoringSorted
+required_capability: qstr_function
+required_capability: metadata_score
+
+from books metadata _score
+| where qstr("title:rings")
+| sort _score desc, book_no desc
+| keep book_no, title, _score
+| limit 3;
+
+book_no:keyword | title:text                                                                 | _score:double 
+2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
+;
+
+singleQstrScoringManipulated
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:William Faulkner") 
+| eval add_score = ceil(_score) + 1 
+| keep book_no, author, add_score 
+| sort book_no 
+| LIMIT 2;
+
+book_no:keyword | author:text                                        | add_score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 2.0
+2713            | William Faulkner                                   | 7.0
+;
+
+testMultiValuedFieldWithConjunctionWithScore
+required_capability: match_function
+required_capability: metadata_score
+
+from employees metadata _score
+| where match(job_positions, "Data Scientist") and match(job_positions, "Support Engineer")
+| keep emp_no, first_name, last_name, job_positions, _score;
+
+emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword | _score:double
+10043          | Yishay             | Tzvieli           | [Data Scientist, Python Developer, Support Engineer] | 5.233309745788574
+;
+
+testMatchAndQueryStringFunctionsWithScore
+required_capability: match_function
+required_capability: metadata_score
+
+from employees metadata _score
+| where match(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
+| keep emp_no, first_name, last_name, job_positions, _score;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword | _score:double
+10041          | Uri                 | Lenart           | [Data Scientist, Head Human Resources, Internship, Senior Team Lead] | 3.509873867034912
+10043          | Yishay              | Tzvieli          | [Data Scientist, Python Developer, Support Engineer] | 5.233309745788574
+;
+
+multipleWhereWithMatchScoringNoSort
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"short stories"
+| where author:"Ursula K. Le Guin"
+| keep book_no, title, author, _score;
+
+ignoreOrder:true
+book_no:keyword | title:text                                | author:text        | _score:double
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
+;
+
+multipleWhereWithMatchScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"short stories"
+| where author:"Ursula K. Le Guin"
+| keep book_no, title, author, _score
+| sort book_no;
+
+book_no:keyword | title:text                                | author:text        | _score:double
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
+;
+
+combinedMatchWithFunctionsScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year, _score
+| sort book_no;
+
+book_no:keyword | title:text               | author:text    | year:integer | _score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.448054313659668
+;
+
+singleQstrScoring
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:William Faulkner") 
+| keep book_no, author, _score 
+| sort book_no 
+| LIMIT 2;
+
+book_no:keyword | author:text                                        | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
+2713            | William Faulkner                                   | 5.9556169509887695
+;
+
+singleQstrScoringGrok
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| GROK title "%{WORD:title} %{WORD}" 
+| sort _score desc 
+| keep book_no, title, _score 
+| LIMIT 3;
+
+book_no:keyword | title:keyword | _score:double
+8875            | The | 2.9505908489227295
+4023            | A   | 2.8327860832214355
+2675            | The | 2.7583377361297607
+;
+
+combinedMatchWithScoringEvalNoSort
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| eval c_score = ceil(_score)
+| keep book_no, title, author, year, c_score;
+
+ignoreOrder:true
+book_no:keyword | title:text               | author:text    | year:integer | c_score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
+;
+
+singleQstrScoringRename
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| rename _score as rank 
+| sort rank desc 
+| keep book_no, rank 
+| LIMIT 3;
+
+book_no:keyword | rank:double
+8875            | 2.9505908489227295
+4023            | 2.8327860832214355
+2675            | 2.7583377361297607
+;
+
+singleMatchWithTextFieldScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score 
+| where author:"William Faulkner" 
+| sort book_no 
+| keep book_no, author, _score 
+| limit 5;
+
+book_no:keyword | author:text                                        | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
+2713            | William Faulkner                                   | 4.272439002990723
+2847            | Colleen Faulkner                                   | 1.7401835918426514
+2883            | William Faulkner                                   | 4.272439002990723
+3293            | Danny Faulkner                                     | 1.7401835918426514
+;
+
+combinedMatchWithFunctionsScoringNoSort
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year, _score;
+
+ignoreOrder:true
+book_no:keyword | title:text               | author:text    | year:integer | _score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.448054313659668
+;
+
+combinedMatchWithScoringEval
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| eval c_score = ceil(_score)
+| keep book_no, title, author, year, c_score
+| sort book_no;
+
+book_no:keyword | title:text               | author:text    | year:integer | c_score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
+;
+
+singleQstrScoringEval
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| eval c_score = ceil(_score) 
+| keep book_no, c_score 
+| sort book_no desc 
+| LIMIT 3;
+
+book_no:keyword | c_score:double
+8875            | 3.0
+7350            | 2.0
+7140            | 3.0
+;

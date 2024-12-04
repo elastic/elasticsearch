@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -111,7 +112,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
                 "GreaterThanLongsEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                (l, r) -> ((Instant) l).isAfter((Instant) r),
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
@@ -125,7 +126,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
                 "GreaterThanLongsEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                (l, r) -> ((Instant) l).isAfter((Instant) r),
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
                 TestCaseSupplier.dateNanosCases(),

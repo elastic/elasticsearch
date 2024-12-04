@@ -60,6 +60,7 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource impleme
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
+                assert doc > iterator.docID();
                 docId = doc;
                 return doc >= iterator.docID() && iterator.docID() != DocIdSetIterator.NO_MORE_DOCS && iterator.advance(doc) == doc;
             }

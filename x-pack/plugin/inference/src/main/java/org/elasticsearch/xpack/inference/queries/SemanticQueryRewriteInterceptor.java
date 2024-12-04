@@ -26,7 +26,9 @@ import java.util.List;
 
 public class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor {
 
-    public static final NodeFeature QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature("search.query_rewrite_interception_supported");
+    public static final NodeFeature SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
+        "search.semantic_match_query_rewrite_interception_supported"
+    );
 
     public SemanticQueryRewriteInterceptor() {}
 
@@ -39,7 +41,7 @@ public class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor 
 
         if (queryBuilder instanceof MatchQueryBuilder matchQueryBuilder) {
             QueryBuilder rewritten = queryBuilder;
-            if (context.convertToQueryRewriteContext() != null && matchQueryBuilder.getInferenceFieldsChecked() == false) {
+            if (context.convertToQueryRewriteContext() != null && matchQueryBuilder.getInterceptedAndRewritten() == false) {
                 ResolvedIndices resolvedIndices = context.getResolvedIndices();
                 if (resolvedIndices != null) {
                     Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
@@ -61,7 +63,7 @@ public class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor 
                         for (String inferenceIndexName : inferenceIndices) {
                             // Add a separate clause for each inference query, because they may be using different inference endpoints
                             boolQueryBuilder.should(
-                                createInferenceSubQuery(
+                                createSemanticSubQuery(
                                     inferenceIndexName,
                                     matchQueryBuilder.fieldName(),
                                     (String) matchQueryBuilder.value()
@@ -69,7 +71,7 @@ public class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor 
                             );
                         }
                         boolQueryBuilder.should(
-                            createNonInferenceSubQuery(nonInferenceIndices, matchQueryBuilder.fieldName(), matchQueryBuilder.value())
+                            createMatchSubQuery(nonInferenceIndices, matchQueryBuilder.fieldName(), matchQueryBuilder.value())
                         );
                         rewritten = boolQueryBuilder;
                     } else if (inferenceIndices.isEmpty() == false) {
@@ -83,14 +85,14 @@ public class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor 
         return queryBuilder;
     }
 
-    private QueryBuilder createInferenceSubQuery(String indexName, String fieldName, String value) {
+    private QueryBuilder createSemanticSubQuery(String indexName, String fieldName, String value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, false));
         boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }
 
-    private QueryBuilder createNonInferenceSubQuery(List<String> indices, String fieldName, Object value) {
+    private QueryBuilder createMatchSubQuery(List<String> indices, String fieldName, Object value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(new MatchQueryBuilder(fieldName, value, true));
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));

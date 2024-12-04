@@ -81,12 +81,16 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
-    private final boolean inferenceFieldsChecked;
+    /**
+     * Indicates that this MatchQueryBuilder has already been intercepted and rewritten,
+     * so subsequent rewrite rounds can short-circuit interception. 
+     */
+    private final boolean interceptedAndRewritten;
 
     /**
      * Constructs a new match query.
      */
-    public MatchQueryBuilder(String fieldName, Object value, boolean inferenceFieldsChecked) {
+    public MatchQueryBuilder(String fieldName, Object value, boolean interceptedAndRewritten) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires fieldName");
         }
@@ -95,7 +99,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         }
         this.fieldName = fieldName;
         this.value = value;
-        this.inferenceFieldsChecked = inferenceFieldsChecked;
+        this.interceptedAndRewritten = interceptedAndRewritten;
     }
 
     public MatchQueryBuilder(String fieldName, Object value) {
@@ -125,7 +129,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        inferenceFieldsChecked = false;
+        interceptedAndRewritten = false;
     }
 
     @Override
@@ -199,8 +203,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.fuzziness;
     }
 
-    public boolean getInferenceFieldsChecked() {
-        return inferenceFieldsChecked;
+    public boolean getInterceptedAndRewritten() {
+        return interceptedAndRewritten;
     }
 
     /**

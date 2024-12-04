@@ -412,11 +412,11 @@ public final class ChunkedZipResponse implements Releasable {
                     return new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
                 }
             } catch (Exception e) {
-                logger.error("failure encoding chunk", e);
+                logger.error("failure encoding chunk 7", e);
                 throw e;
             } finally {
                 if (targetStream != null) {
-                    assert false : "failure encoding chunk";
+                    assert false : "failure encoding chunk 8";
                     IOUtils.closeWhileHandlingException(targetStream, Releasables.wrap(releasables));
                     targetStream = null;
                 }

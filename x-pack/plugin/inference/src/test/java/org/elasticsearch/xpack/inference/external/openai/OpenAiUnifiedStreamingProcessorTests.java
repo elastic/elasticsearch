@@ -76,14 +76,13 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
             assertEquals(1, choices.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertEquals("example_content", choice.getDelta().getContent());
-            assertNull(choice.getDelta().getRefusal());
-            assertEquals("assistant", choice.getDelta().getRole());
-            assertEquals("stop", choice.getFinishReason());
-            assertEquals(0, choice.getIndex());
+            assertEquals("example_content", choice.delta().getContent());
+            assertNull(choice.delta().getRefusal());
+            assertEquals("assistant", choice.delta().getRole());
+            assertEquals("stop", choice.finishReason());
+            assertEquals(0, choice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.getDelta()
-                .getToolCalls();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().getToolCalls();
             assertEquals(1, toolCalls.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.getIndex());
@@ -161,22 +160,22 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
 
             // First choice assertions
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice firstChoice = choices.get(0);
-            assertNull(firstChoice.getDelta().getContent());
-            assertNull(firstChoice.getDelta().getRefusal());
-            assertEquals("assistant", firstChoice.getDelta().getRole());
-            assertTrue(firstChoice.getDelta().getToolCalls().isEmpty());
-            assertNull(firstChoice.getFinishReason());
-            assertEquals(0, firstChoice.getIndex());
+            assertNull(firstChoice.delta().getContent());
+            assertNull(firstChoice.delta().getRefusal());
+            assertEquals("assistant", firstChoice.delta().getRole());
+            assertTrue(firstChoice.delta().getToolCalls().isEmpty());
+            assertNull(firstChoice.finishReason());
+            assertEquals(0, firstChoice.index());
 
             // Second choice assertions
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice secondChoice = choices.get(1);
-            assertEquals("example_content", secondChoice.getDelta().getContent());
-            assertEquals("example_refusal", secondChoice.getDelta().getRefusal());
-            assertEquals("user", secondChoice.getDelta().getRole());
-            assertEquals("stop", secondChoice.getFinishReason());
-            assertEquals(1, secondChoice.getIndex());
+            assertEquals("example_content", secondChoice.delta().getContent());
+            assertEquals("example_refusal", secondChoice.delta().getRefusal());
+            assertEquals("user", secondChoice.delta().getRole());
+            assertEquals("stop", secondChoice.finishReason());
+            assertEquals(1, secondChoice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = secondChoice.getDelta()
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = secondChoice.delta()
                 .getToolCalls();
             assertEquals(1, toolCalls.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
@@ -240,14 +239,13 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
             assertEquals(1, choices.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertEquals(choiceContent, choice.getDelta().getContent());
-            assertNull(choice.getDelta().getRefusal());
-            assertEquals(choiceRole, choice.getDelta().getRole());
-            assertEquals(choiceFinishReason, choice.getFinishReason());
-            assertEquals(choiceIndex, choice.getIndex());
+            assertEquals(choiceContent, choice.delta().getContent());
+            assertNull(choice.delta().getRefusal());
+            assertEquals(choiceRole, choice.delta().getRole());
+            assertEquals(choiceFinishReason, choice.finishReason());
+            assertEquals(choiceIndex, choice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.getDelta()
-                .getToolCalls();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().getToolCalls();
             assertEquals(1, toolCalls.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
             assertEquals(toolCallIndex, toolCall.getIndex());
@@ -290,12 +288,12 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
             assertEquals(1, choices.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertNull(choice.getDelta().getContent());
-            assertNull(choice.getDelta().getRefusal());
-            assertNull(choice.getDelta().getRole());
-            assertNull(choice.getFinishReason());
-            assertEquals(choiceIndex, choice.getIndex());
-            assertTrue(choice.getDelta().getToolCalls().isEmpty());
+            assertNull(choice.delta().getContent());
+            assertNull(choice.delta().getRefusal());
+            assertNull(choice.delta().getRole());
+            assertNull(choice.finishReason());
+            assertEquals(choiceIndex, choice.index());
+            assertTrue(choice.delta().getToolCalls().isEmpty());
         }
     }
 

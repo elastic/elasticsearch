@@ -364,11 +364,11 @@ public final class StreamingXContentResponse implements Releasable {
                     return new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
                 }
             } catch (Exception e) {
-                logger.error("failure encoding chunk", e);
+                logger.error("failure encoding chunk 9", e);
                 throw e;
             } finally {
                 if (targetStream != null) {
-                    assert false : "failure encoding chunk";
+                    assert false : "failure encoding chunk 10";
                     IOUtils.closeWhileHandlingException(targetStream, Releasables.wrap(releasables));
                     targetStream = null;
                 }

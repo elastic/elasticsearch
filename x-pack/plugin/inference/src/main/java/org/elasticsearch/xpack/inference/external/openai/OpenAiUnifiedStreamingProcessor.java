@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
@@ -63,7 +62,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
-        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.Result>(item.size());
+        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
         for (ServerSentEvent event : item) {
             if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
                 try {
@@ -83,8 +82,10 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
         }
     }
 
-    private Iterator<StreamingUnifiedChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
-        throws IOException {
+    private Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+        XContentParserConfiguration parserConfig,
+        ServerSentEvent event
+    ) throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
             return Collections.emptyIterator();
         }
@@ -97,45 +98,8 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
 
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = ChatCompletionChunkParser.parse(jsonParser);
 
-            List<StreamingUnifiedChatCompletionResults.Result> results = new ArrayList<>();
-            for (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice : chunk.getChoices()) {
-                String content = choice.getDelta().getContent();
-                String refusal = choice.getDelta().getRefusal();
-                List<StreamingUnifiedChatCompletionResults.ToolCall> toolCalls = parseToolCalls(choice.getDelta().getToolCalls());
-                results.add(
-                    new StreamingUnifiedChatCompletionResults.Result(
-                        content,
-                        refusal,
-                        toolCalls,
-                        choice.getFinishReason(),
-                        chunk.getModel(),
-                        chunk.getObject(),
-                        chunk.getUsage()
-                    )
-                );
-            }
-
-            return results.iterator();
+            return Collections.singleton(chunk).iterator();
         }
-    }
-
-    private List<StreamingUnifiedChatCompletionResults.ToolCall> parseToolCalls(
-        List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls
-    ) {
-        List<StreamingUnifiedChatCompletionResults.ToolCall> parsedToolCalls = new ArrayList<>();
-
-        if (toolCalls == null || toolCalls.isEmpty()) {
-            return null;
-        }
-
-        for (StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall : toolCalls) {
-            int index = toolCall.getIndex();
-            String id = toolCall.getId();
-            String functionName = toolCall.getFunction() != null ? toolCall.getFunction().getName() : null;
-            String functionArguments = toolCall.getFunction() != null ? toolCall.getFunction().getArguments() : null;
-            parsedToolCalls.add(new StreamingUnifiedChatCompletionResults.ToolCall(index, id, functionName, functionArguments));
-        }
-        return parsedToolCalls;
     }
 
     public static class ChatCompletionChunkParser {

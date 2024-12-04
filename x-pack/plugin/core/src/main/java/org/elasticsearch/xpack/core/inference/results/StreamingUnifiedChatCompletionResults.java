@@ -16,17 +16,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Flow;
-
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.Result.RESULT;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
@@ -35,9 +30,26 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
     implements
         InferenceServiceResults {
 
+    public static final String NAME = "chat_completion_chunk";
     public static final String MODEL_FIELD = "model";
     public static final String OBJECT_FIELD = "object";
     public static final String USAGE_FIELD = "usage";
+    public static final String INDEX_FIELD = "index";
+    public static final String ID_FIELD = "id";
+    public static final String FUNCTION_NAME_FIELD = "name";
+    public static final String FUNCTION_ARGUMENTS_FIELD = "arguments";
+    public static final String FUNCTION_FIELD = "function";
+    public static final String CHOICES_FIELD = "choices";
+    public static final String DELTA_FIELD = "delta";
+    public static final String CONTENT_FIELD = "content";
+    public static final String REFUSAL_FIELD = "refusal";
+    public static final String ROLE_FIELD = "role";
+    private static final String TOOL_CALLS_FIELD = "tool_calls";
+    public static final String FINISH_REASON_FIELD = "finish_reason";
+    public static final String COMPLETION_TOKENS_FIELD = "completion_tokens";
+    public static final String TOTAL_TOKENS_FIELD = "total_tokens";
+    public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
+    public static final String TYPE_FIELD = "type";
 
     @Override
     public boolean isStreaming() {
@@ -74,172 +86,21 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
         throw new UnsupportedOperationException("Not implemented");
     }
 
-    public record Results(Deque<Result> results) implements ChunkedToXContent {
+    public record Results(Deque<ChatCompletionChunk> chunks) implements ChunkedToXContent {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startArray(COMPLETION),
-                Iterators.flatMap(results.iterator(), d -> d.toXContentChunked(params)),
+                ChunkedToXContentHelper.startArray(NAME),
+                Iterators.flatMap(chunks.iterator(), c -> c.toXContentChunked(params)),
                 ChunkedToXContentHelper.endArray(),
                 ChunkedToXContentHelper.endObject()
             );
         }
     }
 
-    private static final String REFUSAL_FIELD = "refusal";
-    private static final String TOOL_CALLS_FIELD = "tool_calls";
-    public static final String FINISH_REASON_FIELD = "finish_reason";
-
-    public record Result(
-        String delta,
-        String refusal,
-        List<ToolCall> toolCalls,
-        String finishReason,
-        String model,
-        String object,
-        ChatCompletionChunk.Usage usage
-    ) implements ChunkedToXContent {
-
-        @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            Iterator<? extends ToXContent> toolCallsIterator = Collections.emptyIterator();
-            if (toolCalls != null && toolCalls.isEmpty() == false) {
-                toolCallsIterator = Iterators.concat(
-                    ChunkedToXContentHelper.startArray(TOOL_CALLS_FIELD),
-                    Iterators.flatMap(toolCalls.iterator(), d -> d.toXContentChunked(params)),
-                    ChunkedToXContentHelper.endArray()
-                );
-            }
-
-            Iterator<? extends ToXContent> usageIterator = Collections.emptyIterator();
-            if (usage != null) {
-                usageIterator = Iterators.concat(
-                    ChunkedToXContentHelper.startObject(USAGE_FIELD),
-                    ChunkedToXContentHelper.field("completion_tokens", usage.completionTokens()),
-                    ChunkedToXContentHelper.field("prompt_tokens", usage.promptTokens()),
-                    ChunkedToXContentHelper.field("total_tokens", usage.totalTokens()),
-                    ChunkedToXContentHelper.endObject()
-                );
-            }
-
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field(RESULT, delta),
-                ChunkedToXContentHelper.field(REFUSAL_FIELD, refusal),
-                toolCallsIterator,
-                ChunkedToXContentHelper.field(FINISH_REASON_FIELD, finishReason),
-                ChunkedToXContentHelper.field(MODEL_FIELD, model),
-                ChunkedToXContentHelper.field(OBJECT_FIELD, object),
-                usageIterator,
-                ChunkedToXContentHelper.endObject()
-            );
-        }
-    }
-
-    public static class ToolCall implements ChunkedToXContent {
-        private final int index;
+    public static class ChatCompletionChunk implements ChunkedToXContent {
         private final String id;
-        private final String functionName;
-        private final String functionArguments;
-
-        public ToolCall(int index, String id, String functionName, String functionArguments) {
-            this.index = index;
-            this.id = id;
-            this.functionName = functionName;
-            this.functionArguments = functionArguments;
-        }
-
-        public int getIndex() {
-            return index;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public String getFunctionName() {
-            return functionName;
-        }
-
-        public String getFunctionArguments() {
-            return functionArguments;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ToolCall toolCall = (ToolCall) o;
-            return index == toolCall.index
-                && Objects.equals(id, toolCall.id)
-                && Objects.equals(functionName, toolCall.functionName)
-                && Objects.equals(functionArguments, toolCall.functionArguments);
-        }
-
-        @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("index", index),
-                ChunkedToXContentHelper.field("id", id),
-                ChunkedToXContentHelper.field("functionName", functionName),
-                ChunkedToXContentHelper.field("functionArguments", functionArguments),
-                ChunkedToXContentHelper.endObject()
-            );
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(index, id, functionName, functionArguments);
-        }
-
-        @Override
-        public String toString() {
-            return "ToolCall{"
-                + "index="
-                + index
-                + ", id='"
-                + id
-                + '\''
-                + ", functionName='"
-                + functionName
-                + '\''
-                + ", functionArguments='"
-                + functionArguments
-                + '\''
-                + '}';
-        }
-    }
-
-    public static class ChatCompletionChunk {
-        private final String id;
-        private List<Choice> choices;
-        private final String model;
-        private final String object;
-        private ChatCompletionChunk.Usage usage;
-
-        public ChatCompletionChunk(String id, List<Choice> choices, String model, String object, ChatCompletionChunk.Usage usage) {
-            this.id = id;
-            this.choices = choices;
-            this.model = model;
-            this.object = object;
-            this.usage = usage;
-        }
-
-        public ChatCompletionChunk(
-            String id,
-            ChatCompletionChunk.Choice[] choices,
-            String model,
-            String object,
-            ChatCompletionChunk.Usage usage
-        ) {
-            this.id = id;
-            this.choices = Arrays.stream(choices).toList();
-            this.model = model;
-            this.object = object;
-            this.usage = usage;
-        }
 
         public String getId() {
             return id;
@@ -257,31 +118,74 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
             return object;
         }
 
-        public ChatCompletionChunk.Usage getUsage() {
+        public Usage getUsage() {
             return usage;
         }
 
-        public static class Choice {
-            private final ChatCompletionChunk.Choice.Delta delta;
-            private final String finishReason;
-            private final int index;
+        private final List<Choice> choices;
+        private final String model;
+        private final String object;
+        private final ChatCompletionChunk.Usage usage;
 
-            public Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index) {
-                this.delta = delta;
-                this.finishReason = finishReason;
-                this.index = index;
+        public ChatCompletionChunk(String id, List<Choice> choices, String model, String object, ChatCompletionChunk.Usage usage) {
+            this.id = id;
+            this.choices = choices;
+            this.model = model;
+            this.object = object;
+            this.usage = usage;
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+
+            Iterator<? extends ToXContent> choicesIterator = Collections.emptyIterator();
+            if (choices != null) {
+                choicesIterator = Iterators.concat(
+                    ChunkedToXContentHelper.startArray(CHOICES_FIELD),
+                    Iterators.flatMap(choices.iterator(), c -> c.toXContentChunked(params)),
+                    ChunkedToXContentHelper.endArray()
+                );
             }
 
-            public ChatCompletionChunk.Choice.Delta getDelta() {
-                return delta;
+            Iterator<? extends ToXContent> usageIterator = Collections.emptyIterator();
+            if (usage != null) {
+                usageIterator = Iterators.concat(
+                    ChunkedToXContentHelper.startObject(USAGE_FIELD),
+                    ChunkedToXContentHelper.field("completion_tokens", usage.completionTokens()),
+                    ChunkedToXContentHelper.field("prompt_tokens", usage.promptTokens()),
+                    ChunkedToXContentHelper.field("total_tokens", usage.totalTokens()),
+                    ChunkedToXContentHelper.endObject()
+                );
             }
 
-            public String getFinishReason() {
-                return finishReason;
-            }
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.field(ID_FIELD, id),
+                choicesIterator,
+                ChunkedToXContentHelper.field(MODEL_FIELD, model),
+                ChunkedToXContentHelper.field(OBJECT_FIELD, object),
+                usageIterator,
+                ChunkedToXContentHelper.endObject()
+            );
+        }
 
-            public int getIndex() {
-                return index;
+        public record Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index) {
+
+            /*
+              choices: Array<{
+                delta: { ... };
+                finish_reason: string | null;
+                index: number;
+              }>;
+             */
+            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                return Iterators.concat(
+                    ChunkedToXContentHelper.startObject(),
+                    delta.toXContentChunked(params),
+                    ChunkedToXContentHelper.optionalField(FINISH_REASON_FIELD, finishReason),
+                    ChunkedToXContentHelper.field(INDEX_FIELD, index),
+                    ChunkedToXContentHelper.endObject()
+                );
             }
 
             public static class Delta {
@@ -295,6 +199,35 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                     this.refusal = refusal;
                     this.role = role;
                     this.toolCalls = toolCalls;
+                }
+
+                /*
+                delta: {
+                    content?: string | null;
+                    refusal?: string | null;
+                    role?: 'system' | 'user' | 'assistant' | 'tool';
+                    tool_calls?: Array<{ ... }>;
+                };
+                */
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    var xContent = Iterators.concat(
+                        ChunkedToXContentHelper.startObject(DELTA_FIELD),
+                        ChunkedToXContentHelper.optionalField(CONTENT_FIELD, content),
+                        ChunkedToXContentHelper.optionalField(REFUSAL_FIELD, refusal),
+                        ChunkedToXContentHelper.optionalField(ROLE_FIELD, role)
+                    );
+
+                    if (toolCalls != null && toolCalls.isEmpty() == false) {
+                        xContent = Iterators.concat(
+                            xContent,
+                            ChunkedToXContentHelper.startArray(TOOL_CALLS_FIELD),
+                            Iterators.flatMap(toolCalls.iterator(), t -> t.toXContentChunked(params)),
+                            ChunkedToXContentHelper.endArray()
+                        );
+                    }
+                    xContent = Iterators.concat(xContent, ChunkedToXContentHelper.endObject());
+                    return xContent;
+
                 }
 
                 public String getContent() {
@@ -340,6 +273,40 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
 
                     public String getType() {
                         return type;
+                    }
+
+                    /*
+                        index: number;
+                        id?: string;
+                        function?: {
+                          arguments?: string;
+                          name?: string;
+                        };
+                        type?: 'function';
+                     */
+                    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                        var content = Iterators.concat(
+                            ChunkedToXContentHelper.startObject(),
+                            ChunkedToXContentHelper.field(INDEX_FIELD, index),
+                            ChunkedToXContentHelper.optionalField(ID_FIELD, id)
+                        );
+
+                        if (function != null) {
+                            content = Iterators.concat(
+                                content,
+                                ChunkedToXContentHelper.startObject(FUNCTION_FIELD),
+                                ChunkedToXContentHelper.optionalField(FUNCTION_ARGUMENTS_FIELD, function.getArguments()),
+                                ChunkedToXContentHelper.optionalField(FUNCTION_NAME_FIELD, function.getName()),
+                                ChunkedToXContentHelper.endObject()
+                            );
+                        }
+
+                        content = Iterators.concat(
+                            content,
+                            ChunkedToXContentHelper.field(TYPE_FIELD, type),
+                            ChunkedToXContentHelper.endObject()
+                        );
+                        return content;
                     }
 
                     public static class Function {

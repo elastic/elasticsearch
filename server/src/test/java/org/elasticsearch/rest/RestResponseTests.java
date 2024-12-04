@@ -33,6 +33,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -502,6 +504,28 @@ public class RestResponseTests extends ESTestCase {
             "401",
             "unauthorized"
         );
+    }
+
+    public void testNodeDisconnectErrorsShouldReturn502() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        final RestResponse response = new RestResponse(
+            channel,
+            new SearchPhaseExecutionException(
+                "unused test phase name",
+                "unused test message 1",
+                new NodeDisconnectedException(
+                    null,
+                    "unused test message 2",
+                    "unused test action",
+                    new NodeNotConnectedException(null, "connection already closed")
+                ),
+                ShardSearchFailure.EMPTY_ARRAY
+            )
+        );
+
+        assertThat(response.status().getStatus(), is(502));
+        assertThat(response.content().utf8ToString(), containsString("connection already closed"));
     }
 
     private void assertLogging(

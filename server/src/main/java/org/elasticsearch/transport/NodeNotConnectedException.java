@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -32,5 +33,17 @@ public class NodeNotConnectedException extends ConnectTransportException {
     @Override
     public Throwable fillInStackTrace() {
         return this; // this exception doesn't imply a bug, no need for a stack trace
+    }
+
+    @Override
+    public RestStatus status() {
+        if (getMessage().equals("connection already closed")) {
+            return RestStatus.BAD_GATEWAY;
+        } else {
+            // At the moment, there's no scenario where this Exception is thrown with a
+            // different message. However, to be on the safer side, this alternate branch
+            // is included that returns the default status code.
+            return RestStatus.INTERNAL_SERVER_ERROR;
+        }
     }
 }

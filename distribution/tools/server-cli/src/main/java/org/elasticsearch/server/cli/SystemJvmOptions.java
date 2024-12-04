@@ -138,6 +138,9 @@ final class SystemJvmOptions {
     }
 
     private static Stream<String> maybeAllowSecurityManager() {
+        if (Runtime.version().feature() >= 24) {
+            return Stream.of();
+        }
         // Will become conditional on useEntitlements once entitlements can run without SM
         return Stream.of("-Djava.security.manager=allow");
     }

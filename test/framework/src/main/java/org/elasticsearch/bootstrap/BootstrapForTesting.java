@@ -118,8 +118,8 @@ public class BootstrapForTesting {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
-        // install security manager if requested
-        if (systemPropertyAsBoolean("tests.security.manager", true)) {
+        // install security manager if available and requested
+        if (Runtime.version().feature() <= 24 && systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();

@@ -11,6 +11,8 @@ package org.elasticsearch.secure_sm;
 
 import junit.framework.TestCase;
 
+import org.junit.AssumptionViolatedException;
+
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
@@ -22,6 +24,9 @@ import java.util.stream.Collectors;
 /** Simple tests for SecureSM */
 public class SecureSMTests extends TestCase {
     static {
+        if (Runtime.version().feature() >= 24) {
+            throw new AssumptionViolatedException("SecurityManager has been removed in JDK 24");
+        }
         // install a mock security policy:
         // AllPermission to source code
         // ThreadPermission not granted anywhere else

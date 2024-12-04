@@ -500,8 +500,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void maybeStashClassSecurityManager() {
-        if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
-            securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+        if (Runtime.version().feature() <= 24) {
+            if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
+                securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+            }
         }
     }
 

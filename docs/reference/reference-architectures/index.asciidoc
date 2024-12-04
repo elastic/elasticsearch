@@ -24,7 +24,7 @@ These reference architectures are recommendations and should be adapted to fit y
 A high availability architecture that is cost optimized for large time-series datasets. 
 
 a| 
-* Have a requirement for cost effective long term data storage (many months or years) 
+* Have a requirement for cost effective long term data storage (many months or years).
 * Provide insights and alerts using logs, metrics, traces, or various event types to ensure optimal performance and quick issue resolution for applications.
 * Apply Machine Learning and Search AI to assist in dealing with the large amount of data.
 * Deploy an architecture model that allows for maximum flexibility between storage cost and performance.

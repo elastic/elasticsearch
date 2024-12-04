@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 
 public class Hash extends EsqlScalarFunction {
@@ -71,12 +74,10 @@ public class Hash extends EsqlScalarFunction {
         return DataType.KEYWORD;
     }
 
-    @Evaluator
-    static BytesRef process(
-        BytesRef alg,
-        BytesRef input
-    ) {
-        return input;
+    @Evaluator(warnExceptions = NoSuchAlgorithmException.class)
+    static BytesRef process(BytesRef alg, BytesRef input) throws NoSuchAlgorithmException {
+        byte[] digest = MessageDigest.getInstance(alg.utf8ToString()).digest(input.utf8ToString().getBytes());
+        return new BytesRef(HexFormat.of().formatHex(digest));
     }
 
     @Override

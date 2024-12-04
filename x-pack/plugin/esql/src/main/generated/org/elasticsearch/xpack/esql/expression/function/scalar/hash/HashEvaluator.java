@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.hash;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.security.NoSuchAlgorithmException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -53,7 +54,7 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
         if (inputVector == null) {
           return eval(page.getPositionCount(), algBlock, inputBlock);
         }
-        return eval(page.getPositionCount(), algVector, inputVector).asBlock();
+        return eval(page.getPositionCount(), algVector, inputVector);
       }
     }
   }
@@ -85,19 +86,29 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Hash.process(algBlock.getBytesRef(algBlock.getFirstValueIndex(p), algScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        try {
+          result.appendBytesRef(Hash.process(algBlock.getBytesRef(algBlock.getFirstValueIndex(p), algScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        } catch (NoSuchAlgorithmException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector algVector,
+  public BytesRefBlock eval(int positionCount, BytesRefVector algVector,
       BytesRefVector inputVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef algScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Hash.process(algVector.getBytesRef(p, algScratch), inputVector.getBytesRef(p, inputScratch)));
+        try {
+          result.appendBytesRef(Hash.process(algVector.getBytesRef(p, algScratch), inputVector.getBytesRef(p, inputScratch)));
+        } catch (NoSuchAlgorithmException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

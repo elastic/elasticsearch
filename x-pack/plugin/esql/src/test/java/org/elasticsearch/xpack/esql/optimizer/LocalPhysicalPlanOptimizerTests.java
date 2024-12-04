@@ -1323,7 +1323,19 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var projections = project.projections();
         assertThat(
             Expressions.names(projections),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            contains(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
         // emp_no
         assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
@@ -1331,15 +1343,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(projections.get(2), instanceOf(ReferenceAttribute.class));
 
         // last_name --> first_name
-        var nullAlias = Alias.unwrap(projections.get(7));
+        var nullAlias = Alias.unwrap(projections.get(8));
         assertThat(Expressions.name(nullAlias), is("first_name"));
         // salary --> emp_no
-        nullAlias = Alias.unwrap(projections.get(9));
+        nullAlias = Alias.unwrap(projections.get(10));
         assertThat(Expressions.name(nullAlias), is("emp_no"));
         // check field extraction is skipped and that evaled fields are not extracted anymore
         var field = as(project.child(), FieldExtractExec.class);
         var fields = field.attributesToExtract();
-        assertThat(Expressions.names(fields), contains("_meta_field", "gender", "job", "job.raw", "languages", "long_noidx"));
+        assertThat(Expressions.names(fields), contains("_meta_field", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx"));
     }
 
     /*

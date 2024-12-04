@@ -212,6 +212,7 @@ public class TransportVersions {
     public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE = def(8_801_00_0);
     public static final TransportVersion SOURCE_MODE_TELEMETRY = def(8_802_00_0);
     public static final TransportVersion NEW_REFRESH_CLUSTER_BLOCK = def(8_803_00_0);
+    public static final TransportVersion RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS = def(8_804_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -81,18 +82,20 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             b -> new BytesRef(b.toString()),
             List.of()
         );
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateCases(),
             DataType.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) i).toEpochMilli())),
             List.of()
         );
-        TestCaseSupplier.forUnaryDateNanos(
+        TestCaseSupplier.unary(
             suppliers,
             "ToStringFromDateNanosEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateNanosCases(),
             DataType.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatNanos(DateUtils.toLong(i))),
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatNanos(DateUtils.toLong((Instant) i))),
             List.of()
         );
         TestCaseSupplier.forUnaryGeoPoint(

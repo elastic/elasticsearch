@@ -97,14 +97,30 @@ termWithConjunction
 required_capability: term_function
 
 from books 
-| where term(author, "tolkien") and ratings > 4.6
-| keep book_no, title
-| limit 2;
+| where term(author, "tolkien") and ratings > 4.95
+| eval author = mv_sort(author)
+| keep book_no, ratings, author;
 ignoreOrder:true
 
-book_no:keyword | title:text
-4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
-5335            | Letters of J R R Tolkien     
+book_no:keyword | ratings:double | author:keyword
+2301            | 5.0            | John Ronald Reuel Tolkien    
+3254            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+7350            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+;
+
+termWithConjunctionAndSort
+required_capability: term_function
+
+from books 
+| where term(author, "tolkien") and ratings > 4.95
+| eval author = mv_sort(author)
+| keep book_no, ratings, author
+| sort book_no;
+
+book_no:keyword | ratings:double | author:keyword
+2301            | 5.0            | John Ronald Reuel Tolkien    
+3254            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+7350            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
 ;
 
 termWithFunctionPushedToLucene

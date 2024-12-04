@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -46,6 +47,11 @@ import static java.util.Collections.emptyList;
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
+    private final AnalysisRegistry analysisRegistry;
+
+    AbstractPhysicalOperationProviders(AnalysisRegistry analysisRegistry) {
+        this.analysisRegistry = analysisRegistry;
+    }
 
     @Override
     public final PhysicalOperation groupingPhysicalOperation(
@@ -114,10 +120,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                  *  - before stats (keep x = a | stats by x) which requires the partial input to use a's channel
                  *  - after  stats (stats by a | keep x = a) which causes the output layout to refer to the follow-up alias
                  */
+                // TODO: This is likely required only for pre-8.14 node compatibility; confirm and remove if possible.
+                // Since https://github.com/elastic/elasticsearch/pull/104958, it shouldn't be possible to have aliases in the aggregates
+                // which the groupings refer to. Except for `BY CATEGORIZE(field)`, which remains as alias in the grouping, all aliases
+                // should've become EVALs before or after the STATS.
                 for (NamedExpression agg : aggregates) {
                     if (agg instanceof Alias a) {
                         if (a.child() instanceof Attribute attr) {
-                            if (groupAttribute.id().equals(attr.id())) {
+                            if (sourceGroupAttribute.id().equals(attr.id())) {
                                 groupAttributeLayout.nameIds().add(a.id());
                                 // TODO: investigate whether a break could be used since it shouldn't be possible to have multiple
                                 // attributes pointing to the same attribute
@@ -127,8 +137,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             // is in the output form
                             // if the group points to an alias declared in the aggregate, use the alias child as source
                             else if (aggregatorMode.isOutputPartial()) {
-                                if (groupAttribute.semanticEquals(a.toAttribute())) {
-                                    groupAttribute = attr;
+                                if (sourceGroupAttribute.semanticEquals(a.toAttribute())) {
+                                    sourceGroupAttribute = attr;
                                     break;
                                 }
                             }
@@ -173,7 +183,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize())
+                    context.pageSize(aggregateExec.estimatedRowSize()),
+                    analysisRegistry
                 );
             }
         }

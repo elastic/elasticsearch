@@ -265,9 +265,7 @@ public final class MultiRowTestCaseSupplier {
     }
 
     /**
-     *
      * Generate cases for {@link DataType#DATE_NANOS}.
-     *
      */
     public static List<TypedDataSupplier> dateNanosCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();

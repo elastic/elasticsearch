@@ -181,36 +181,12 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      * </ul>
      */
     public static class GeoPointVisitor implements PointVisitor {
-        private double minY = Double.POSITIVE_INFINITY;
-        private double maxY = Double.NEGATIVE_INFINITY;
-        private double minNegX = Double.POSITIVE_INFINITY;
-        private double maxNegX = Double.NEGATIVE_INFINITY;
-        private double minPosX = Double.POSITIVE_INFINITY;
-        private double maxPosX = Double.NEGATIVE_INFINITY;
-
-        public double getMinY() {
-            return minY;
-        }
-
-        public double getMaxY() {
-            return maxY;
-        }
-
-        public double getMinNegX() {
-            return minNegX;
-        }
-
-        public double getMaxNegX() {
-            return maxNegX;
-        }
-
-        public double getMinPosX() {
-            return minPosX;
-        }
-
-        public double getMaxPosX() {
-            return maxPosX;
-        }
+        protected double minY = Double.POSITIVE_INFINITY;
+        protected double maxY = Double.NEGATIVE_INFINITY;
+        protected double minNegX = Double.POSITIVE_INFINITY;
+        protected double maxNegX = Double.NEGATIVE_INFINITY;
+        protected double minPosX = Double.POSITIVE_INFINITY;
+        protected double maxPosX = Double.NEGATIVE_INFINITY;
 
         private final boolean wrapLongitude;
 
@@ -253,7 +229,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
             return getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
         }
 
-        private static Rectangle getResult(
+        protected static Rectangle getResult(
             double minNegX,
             double minPosX,
             double maxNegX,

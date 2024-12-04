@@ -42,7 +42,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-@FunctionName("st_extent")
+@FunctionName("st_extent_agg")
 public class SpatialStExtentTests extends AbstractAggregationTestCase {
     public SpatialStExtentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -77,6 +77,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
             };
 
             var fieldTypedData = fieldSupplier.get();
+            DataType expectedType = DataType.isSpatialGeo(fieldTypedData.type()) ? DataType.GEO_SHAPE : DataType.CARTESIAN_SHAPE;
             fieldTypedData.multiRowData()
                 .stream()
                 .map(value -> (BytesRef) value)
@@ -87,7 +88,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "SpatialStExtent[field=Attribute[channel=0]]",
-                fieldTypedData.type(),
+                expectedType,
                 new WellKnownBinaryBytesRefMatcher<Rectangle>(
                     RectangleMatcher.closeTo(
                         new Rectangle(

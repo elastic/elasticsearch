@@ -32,6 +32,8 @@ final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayStat
     private IntArray maxYs;
     private IntArray minYs;
 
+    private GeoPointEnvelopeVisitor geoPointVisitor = new GeoPointEnvelopeVisitor();
+
     StExtentGroupingStateWrappedLongitudeState() {
         this(BigArrays.NON_RECYCLING_INSTANCE);
     }
@@ -81,7 +83,7 @@ final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayStat
 
     public void add(int groupId, Geometry geo) {
         ensureCapacity(groupId);
-        var geoPointVisitor = new SpatialEnvelopeVisitor.GeoPointVisitor(true /*wrapLongitude*/);
+        geoPointVisitor.reset();
         if (geo.visit(new SpatialEnvelopeVisitor(geoPointVisitor))) {
             add(
                 groupId,
@@ -158,7 +160,7 @@ final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayStat
                     builder.appendBytesRef(
                         new BytesRef(
                             WellKnownBinary.toWKB(
-                                SpatialAggregationUtils.getResult(
+                                SpatialAggregationUtils.asRectangle(
                                     minNegXs.get(si),
                                     minPosXs.get(si),
                                     maxNegXs.get(si),

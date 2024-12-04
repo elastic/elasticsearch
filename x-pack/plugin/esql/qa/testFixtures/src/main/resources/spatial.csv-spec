@@ -110,93 +110,6 @@ POINT(42.97109629958868 14.7552534006536)  | 42.97109629958868 | 14.755253400653
 // end::st_x_y-result[]
 ;
 
-###############################################
-# ST_EXTENT tests
-###############################################
-
-stExtentSingleGeoPoint
-required_capability: st_extent_agg
-ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
-| STATS extent = st_extent(point)
-;
-
-extent:geo_point
-BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
-;
-
-stExtentMultipleGeoPoints
-required_capability: st_extent_agg
-// tag::st_extent_agg-airports[]
-FROM airports | WHERE country == "India" | STATS extent = st_extent(location)
-// end::st_extent_agg-airports[]
-;
-
-// tag::st_extent_agg-airports-result[]
-extent:geo_point
-BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
-// end::st_extent_agg-airports-result[]
-;
-
-stExtentMultipleGeoPointsNoDocValues
-required_capability: st_extent_agg
-FROM airports_no_doc_values | WHERE country == "India" | STATS extent = st_extent(location)
-;
-
-extent:geo_point
-BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
-;
-
-
-stExtentMultipleCartesianPoints
-required_capability: st_extent_agg
-FROM airports_web | WHERE scalerank == 9 | STATS extent = st_extent(location)
-;
-
-extent:cartesian_point
-BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
-;
-
-stExtentMultipleGeoPointGrouping
-required_capability: st_extent_agg
-FROM airports | STATS extent = st_extent(location) BY country | SORT country | LIMIT 3
-;
-
-extent:geo_point                                                                    | country:keyword
-BBOX (69.2100736219436, 69.2100736219436, 34.56339786294848, 34.56339786294848)     | Afghanistan
-BBOX (19.715032372623682, 19.715032372623682, 41.4208514476195, 41.4208514476195)   | Albania
-BBOX (-0.6067969836294651, 6.621946580708027, 36.69972063973546, 35.62027471605688) | Algeria
-;
-
-stExtentMultipleCartesianPointGrouping
-required_capability: st_extent_agg
-FROM airports_web | STATS extent = st_extent(location) BY scalerank | SORT scalerank DESC | LIMIT 3
-;
-
-extent:cartesian_point                                    | scalerank:integer
-BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | 9
-BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | 8
-BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)    | 7
-;
-
-stExtentGeoShapes
-required_capability: st_extent_agg
-FROM airport_city_boundaries | WHERE region == "City of New York" | STATS extent = st_extent(city_boundary)
-;
-
-extent:geo_shape
-BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
-;
-
-stExtentCartesianShapes
-required_capability: st_extent_agg
-FROM cartesian_multipolygons | STATS extent = st_extent(shape)
-;
-
-extent:cartesian_shape
-BBOX (0.0, 3.0, 3.0, 0.0)
-;
-
-
 simpleLoad
 required_capability: spatial_points_from_source
 
@@ -604,6 +517,61 @@ FROM airports_not_indexed
 
 centroid:geo_point                            | count:long
 POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+###############################################
+# Tests for ST_EXTENT_AGG on GEO_POINT type
+
+stExtentSingleGeoPoint
+required_capability: st_extent_agg
+ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
+| STATS extent = ST_EXTENT_AGG(point)
+;
+
+extent:geo_shape
+BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
+;
+
+stExtentMultipleGeoPoints
+required_capability: st_extent_agg
+// tag::st_extent_agg-airports[]
+FROM airports | WHERE country == "India" | STATS extent = ST_EXTENT_AGG(location)
+// end::st_extent_agg-airports[]
+;
+
+// tag::st_extent_agg-airports-result[]
+extent:geo_shape
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
+// end::st_extent_agg-airports-result[]
+;
+
+stExtentMultipleGeoPointsNoDocValues
+required_capability: st_extent_agg
+FROM airports_no_doc_values | WHERE country == "India" | STATS extent = ST_EXTENT_AGG(location)
+;
+
+extent:geo_shape
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
+;
+
+stExtentMultipleGeoPointGrouping
+required_capability: st_extent_agg
+FROM airports | STATS extent = ST_EXTENT_AGG(location) BY country | SORT country | LIMIT 3
+;
+
+extent:geo_shape                                                                    | country:keyword
+BBOX (69.2100736219436, 69.2100736219436, 34.56339786294848, 34.56339786294848)     | Afghanistan
+BBOX (19.715032372623682, 19.715032372623682, 41.4208514476195, 41.4208514476195)   | Albania
+BBOX (-0.6067969836294651, 6.621946580708027, 36.69972063973546, 35.62027471605688) | Algeria
+;
+
+stExtentGeoShapes
+required_capability: st_extent_agg
+FROM airport_city_boundaries | WHERE region == "City of New York" | STATS extent = ST_EXTENT_AGG(city_boundary)
+;
+
+extent:geo_shape
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
 ;
 
 ###############################################
@@ -1783,6 +1751,48 @@ FROM airports_web
 
 centroid:cartesian_point                    | count:long
 POINT (726480.0130685265 3359566.331716279) | 849
+;
+
+###############################################
+# Tests for ST_EXTENT_AGG on CARTESIAN_POINT type
+
+stExtentSingleCartesianPoint
+required_capability: st_extent_agg
+ROW point = TO_CARTESIANPOINT("POINT(429.7109629958868 147.552534006536)")
+| STATS extent = ST_EXTENT_AGG(point)
+;
+
+extent:cartesian_shape
+BBOX (429.7109680175781, 429.7109680175781, 147.5525360107422, 147.5525360107422)
+;
+
+stExtentMultipleCartesianPoints
+required_capability: st_extent_agg
+FROM airports_web | WHERE scalerank == 9 | STATS extent = ST_EXTENT_AGG(location)
+;
+
+extent:cartesian_shape
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
+;
+
+stExtentMultipleCartesianPointGrouping
+required_capability: st_extent_agg
+FROM airports_web | STATS extent = ST_EXTENT_AGG(location) BY scalerank | SORT scalerank DESC | LIMIT 3
+;
+
+extent:cartesian_shape                                    | scalerank:integer
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | 9
+BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | 8
+BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)    | 7
+;
+
+stExtentCartesianShapes
+required_capability: st_extent_agg
+FROM cartesian_multipolygons | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
 ;
 
 ###############################################

@@ -14,7 +14,6 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 class SpatialAggregationUtils {
@@ -60,10 +59,10 @@ class SpatialAggregationUtils {
         return Double.isFinite(d) ? GeoEncodingUtils.encodeLongitude(d) : DEFAULT_POS;
     }
 
-    public static Rectangle getResult(int minNegX, int minPosX, int maxNegX, int maxPosX, int maxY, int minY) {
+    public static Rectangle asRectangle(int minNegX, int minPosX, int maxNegX, int maxPosX, int maxY, int minY) {
         assert minNegX <= 0 == maxNegX <= 0;
         assert minPosX >= 0 == maxPosX >= 0;
-        return SpatialEnvelopeVisitor.GeoPointVisitor.getResult(
+        return GeoPointEnvelopeVisitor.asRectangle(
             minNegX <= 0 ? decodeLongitude(minNegX) : Double.POSITIVE_INFINITY,
             minPosX >= 0 ? decodeLongitude(minPosX) : Double.POSITIVE_INFINITY,
             maxNegX <= 0 ? decodeLongitude(maxNegX) : Double.NEGATIVE_INFINITY,

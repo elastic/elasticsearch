@@ -28,6 +28,8 @@ final class StExtentStateWrappedLongitudeState implements AggregatorState {
     private int maxY = Integer.MIN_VALUE;
     private int minY = Integer.MAX_VALUE;
 
+    private GeoPointEnvelopeVisitor geoPointVisitor = new GeoPointEnvelopeVisitor();
+
     @Override
     public void close() {}
 
@@ -44,7 +46,7 @@ final class StExtentStateWrappedLongitudeState implements AggregatorState {
     }
 
     public void add(Geometry geo) {
-        var geoPointVisitor = new SpatialEnvelopeVisitor.GeoPointVisitor(true /*wrapLongitude*/);
+        geoPointVisitor.reset();
         if (geo.visit(new SpatialEnvelopeVisitor(geoPointVisitor))) {
             add(
                 SpatialAggregationUtils.encodeNegativeLongitude(geoPointVisitor.getMinNegX()),
@@ -82,7 +84,7 @@ final class StExtentStateWrappedLongitudeState implements AggregatorState {
 
     private byte[] toWKB() {
         return WellKnownBinary.toWKB(
-            SpatialAggregationUtils.getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY),
+            SpatialAggregationUtils.asRectangle(minNegX, minPosX, maxNegX, maxPosX, maxY, minY),
             ByteOrder.LITTLE_ENDIAN
         );
     }

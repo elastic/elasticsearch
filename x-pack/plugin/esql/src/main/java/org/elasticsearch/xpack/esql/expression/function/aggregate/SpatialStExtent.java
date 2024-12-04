@@ -33,7 +33,9 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-/** Calculate spatial extent of all values of a field in matching documents. */
+/**
+ * Calculate spatial extent of all values of a field in matching documents.
+ */
 public final class SpatialStExtent extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -42,7 +44,7 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
     );
 
     @FunctionInfo(
-        returnType = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
+        returnType = { "geo_shape", "cartesian_shape" },
         description = "Calculate the extent over a field with spatial point geometry type.",
         isAggregation = true,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
@@ -84,7 +86,7 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return DataType.isSpatialGeo(field().dataType()) ? DataType.GEO_SHAPE : DataType.CARTESIAN_SHAPE;
     }
 
     @Override

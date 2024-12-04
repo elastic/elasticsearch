@@ -221,11 +221,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117815
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/111319
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/117893
-- class: org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilderTests
-  method: testToQuery
-  issue: https://github.com/elastic/elasticsearch/issues/117904
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test20NoAutoGenerationWhenAutoConfigurationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/117891
@@ -244,6 +239,26 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/117805
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupIPFromIndexKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/117974
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/117975
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndexKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/117976
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndex SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/117980
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/117981
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test30NoAutogenerationWhenDaemonized
+  issue: https://github.com/elastic/elasticsearch/issues/117956
+- class: org.elasticsearch.packaging.test.CertGenCliTests
+  method: test40RunWithCert
+  issue: https://github.com/elastic/elasticsearch/issues/117955
 
 # Examples:
 #

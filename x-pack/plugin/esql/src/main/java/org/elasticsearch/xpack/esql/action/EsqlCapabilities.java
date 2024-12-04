@@ -410,7 +410,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V4(Build.current().isSnapshot()),
+        CATEGORIZE_V5,
 
         /**
          * QSTR function
@@ -528,7 +528,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V3(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V4(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

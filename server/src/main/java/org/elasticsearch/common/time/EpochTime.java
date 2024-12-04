@@ -246,7 +246,10 @@ class EpochTime {
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER1)
+    private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder().optionalStart()
+        .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
+        .optionalEnd()
+        .appendValue(UNSIGNED_MILLIS, 1, 19, SignStyle.NOT_NEGATIVE)
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 

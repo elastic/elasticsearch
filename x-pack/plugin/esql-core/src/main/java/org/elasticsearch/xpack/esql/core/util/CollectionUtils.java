@@ -30,12 +30,8 @@ public abstract class CollectionUtils {
         }
 
         List<T> list = new ArrayList<>(left.size() + right.size());
-        if (left.isEmpty() == false) {
-            list.addAll(left);
-        }
-        if (right.isEmpty() == false) {
-            list.addAll(right);
-        }
+        list.addAll(left);
+        list.addAll(right);
         return list;
     }
 

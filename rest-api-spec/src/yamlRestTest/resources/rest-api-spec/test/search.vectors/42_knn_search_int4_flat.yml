@@ -345,7 +345,7 @@ setup:
         body:
           vector: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 ---
-"Vector rescoring has same ordering as knn, same scoring as exact search for kNN section":
+"Vector rescoring has the same scoring as exact search for kNN section":
   - requires:
       reason: 'Quantized vector rescoring is required'
       test_runner_features: [capabilities]
@@ -355,24 +355,6 @@ setup:
           capabilities: [knn_quantized_vector_rescore]
   - skip:
       features: "headers"
-  - do:
-      headers:
-        Content-Type: application/json
-      search:
-        rest_total_hits_as_int: true
-        index: int4_flat
-        body:
-          fields: [ "name" ]
-          knn:
-            field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8]
-            k: 3
-            num_candidates: 3
-
-  - match: { hits.total: 3 }
-  - set: { hits.hits.0._id: knn_id0 }
-  - set: { hits.hits.1._id: knn_id1 }
-  - set: { hits.hits.2._id: knn_id2 }
 
   # Rescore
   - do:
@@ -391,20 +373,13 @@ setup:
             rescore:
               oversample: 1.5
 
-  # Comparing to knn search
-  - match: { hits.hits.0._id: $knn_id0 }
-  - match: { hits.hits.1._id: $knn_id1 }
-  - match: { hits.hits.2._id: $knn_id2 }
-
-  # Get rescoring scores
+  # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - set: { hits.hits.0._id: rescore_id0 }
-  - set: { hits.hits.1._id: rescore_id1 }
-  - set: { hits.hits.2._id: rescore_id2 }
   - set: { hits.hits.0._score: rescore_score0 }
   - set: { hits.hits.1._score: rescore_score1 }
   - set: { hits.hits.2._score: rescore_score2 }
 
+  # Exact knn via script score
   - do:
       headers:
         Content-Type: application/json
@@ -419,12 +394,8 @@ setup:
                 params:
                   query_vector: [-0.5, 90.0, -10, 14.8]
 
-  # Check same ordering (which will not be true for larger datasets)
-  # and scoring (which should be for the elements that are present in both)
+  # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: $rescore_id0 }
-  - match: { hits.hits.1._id: $rescore_id1 }
-  - match: { hits.hits.2._id: $rescore_id2 }
   - match: { hits.hits.0._score: $rescore_score0 }
   - match: { hits.hits.1._score: $rescore_score1 }
   - match: { hits.hits.2._score: $rescore_score2 }

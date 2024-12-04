@@ -69,6 +69,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -149,33 +150,24 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     5
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
+                assertHitCount(response, 3);
                 assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
-                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
-                assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
-                assertThat(response.getHits().getHits()[2].getId(), equalTo("2"));
+                assertFirstHit(response, hasId("1"));
+                assertSecondHit(response, hasId("3"));
+                assertThirdHit(response, hasId("2"));
             }
         );
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 3);
+            assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+            assertFirstHit(response, hasId("1"));
+            assertSecondHit(response, hasId("2"));
+            assertThirdHit(response, hasId("3"));
+        },
             prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(3)), 5),
-            response -> {
-                assertHitCount(response, 3);
-                assertFirstHit(response, hasId("1"));
-                assertSecondHit(response, hasId("2"));
-                assertThirdHit(response, hasId("3"));
-            }
-        );
-        assertResponse(
             prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown")), 5),
-            response -> {
-                assertHitCount(response, 3);
-                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
-                assertFirstHit(response, hasId("1"));
-                assertSecondHit(response, hasId("2"));
-                assertThirdHit(response, hasId("3"));
-            }
+                .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown")), 5)
         );
     }
 
@@ -212,7 +204,15 @@ public class QueryRescorerIT extends ESIntegTestCase {
         prepareIndex("test").setId("11").setSource("field1", "2st street boston massachusetts").get();
         prepareIndex("test").setId("12").setSource("field1", "3st street boston massachusetts").get();
         indicesAdmin().prepareRefresh("test").get();
-        assertResponse(
+
+        assertResponses(response -> {
+            assertThat(response.getHits().getHits().length, equalTo(5));
+            assertHitCount(response, 9);
+            assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+            assertFirstHit(response, hasId("2"));
+            assertSecondHit(response, hasId("6"));
+            assertThirdHit(response, hasId("3"));
+        },
             prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
@@ -221,16 +221,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .setRescoreQueryWeight(2.0f),
                     20
                 ),
-            response -> {
-                assertThat(response.getHits().getHits().length, equalTo(5));
-                assertHitCount(response, 9);
-                assertFirstHit(response, hasId("2"));
-                assertSecondHit(response, hasId("6"));
-                assertThirdHit(response, hasId("3"));
-            }
-        );
-
-        assertResponse(
             prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
@@ -239,15 +229,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
                         .setRescoreQueryWeight(2.0f),
                     20
-                ),
-            response -> {
-                assertThat(response.getHits().getHits().length, equalTo(5));
-                assertHitCount(response, 9);
-                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
-                assertFirstHit(response, hasId("2"));
-                assertSecondHit(response, hasId("6"));
-                assertThirdHit(response, hasId("3"));
-            }
+                )
         );
         // Make sure non-zero from works:
         assertResponse(
@@ -465,7 +447,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .setFrom(0)
                     .setSize(resultSize),
                 plain -> {
-                    assertResponse(
+                    assertResponses(
+                        rescored -> assertEquivalent(query, plain, rescored),
                         prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
                             .setPreference("test") // ensure we hit the same shards for tie-breaking
                             .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
@@ -478,10 +461,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                     .setRescoreQueryWeight(0.0f),
                                 rescoreWindow
                             ),
-                        rescored -> assertEquivalent(query, plain, rescored)
-                    );  // check equivalence
-
-                    assertResponse(
                         prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
                             .setPreference("test") // ensure we hit the same shards for tie-breaking
                             .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
@@ -492,8 +471,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                     .setQueryWeight(1.0f)
                                     .setRescoreQueryWeight(1.0f),
                                 rescoreWindow
-                            ),
-                        rescored -> assertEquivalent(query, plain, rescored)
+                            )
                     );  // check equivalence
                 }
             );

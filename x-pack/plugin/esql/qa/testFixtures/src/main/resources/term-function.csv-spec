@@ -197,6 +197,7 @@ required_capability: qstr_function
 from employees 
 | where term(job_positions, "Data Scientist") and qstr("first_name: Cristinel and gender: F")
 | keep emp_no, first_name, last_name
+| sort emp_no ASC
 | limit 1;
 ignoreOrder:true
 

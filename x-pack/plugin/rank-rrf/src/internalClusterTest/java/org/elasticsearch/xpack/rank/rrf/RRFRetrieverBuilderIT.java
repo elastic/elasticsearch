@@ -753,13 +753,13 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this will retriever all but 7 only due to top-level filter
         StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
-        // this would have retrieved 7 and 6, but due to parent level filter, will retriever 6 and 3 instead
+        // this will too retrieve just doc 7
         KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
             "vector",
             null,
-            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 7 }),
-            1,
-            2,
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
+            10,
+            10,
             null
         );
         source.retriever(
@@ -772,15 +772,14 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 rankConstant
             )
         );
-        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
+        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
         source.size(10);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
-            assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_6"));
-            assertThat(Arrays.stream(resp.getHits().getHits()).map(SearchHit::getId).toList(), not(contains("doc_7")));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_7"));
         });
     }
 

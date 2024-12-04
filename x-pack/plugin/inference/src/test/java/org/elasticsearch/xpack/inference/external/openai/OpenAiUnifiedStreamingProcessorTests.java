@@ -131,11 +131,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                   ],
                   "model": "example_model",
                   "object": "chat.completion.chunk",
-                  "usage": {
-                    "completion_tokens": 50,
-                    "prompt_tokens": 20,
-                    "total_tokens": 70
-                  }
+                  "usage": null
                 }
             """;
         // Parse the JSON
@@ -150,10 +146,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("example_id", chunk.getId());
             assertEquals("example_model", chunk.getModel());
             assertEquals("chat.completion.chunk", chunk.getObject());
-            assertNotNull(chunk.getUsage());
-            assertEquals(50, chunk.getUsage().completionTokens());
-            assertEquals(20, chunk.getUsage().promptTokens());
-            assertEquals(70, chunk.getUsage().totalTokens());
+            assertNull(chunk.getUsage());
 
             List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
             assertEquals(2, choices.size());

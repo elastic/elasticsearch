@@ -146,9 +146,10 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
             );
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(MODEL_FIELD));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(OBJECT_FIELD));
-            PARSER.declareObject(
+            PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ChatCompletionChunkParser.UsageParser.parse(p),
+                null,
                 new ParseField(USAGE_FIELD)
             );
         }

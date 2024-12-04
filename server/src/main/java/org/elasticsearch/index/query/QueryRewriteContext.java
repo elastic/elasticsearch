@@ -70,7 +70,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
-    private final InferenceQueryBuilderService inferenceQueryBuilderService;
+    private final QueryRewriteInterceptor queryRewriteInterceptor;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -88,7 +88,7 @@ public class QueryRewriteContext {
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final InferenceQueryBuilderService inferenceQueryBuilderService
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -107,7 +107,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
-        this.inferenceQueryBuilderService = inferenceQueryBuilderService;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -137,7 +137,7 @@ public class QueryRewriteContext {
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final InferenceQueryBuilderService inferenceQueryBuilderService
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
         this(
             parserConfiguration,
@@ -155,7 +155,7 @@ public class QueryRewriteContext {
             null,
             resolvedIndices,
             pit,
-            inferenceQueryBuilderService
+            queryRewriteInterceptor
         );
     }
 
@@ -439,7 +439,7 @@ public class QueryRewriteContext {
         return value.split(",")[0].trim();
     }
 
-    public InferenceQueryBuilderService getQueryBuilderService() {
-        return inferenceQueryBuilderService;
+    public QueryRewriteInterceptor getQueryRewriteInterceptor() {
+        return queryRewriteInterceptor;
     }
 }

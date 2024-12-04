@@ -223,7 +223,8 @@ public class IndexModuleTests extends ESTestCase {
             module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
             null,
             indexDeletionListener,
-            emptyMap()
+            emptyMap(),
+            null // TODO create interceptor
         );
     }
 

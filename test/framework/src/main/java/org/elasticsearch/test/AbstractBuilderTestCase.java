@@ -54,8 +54,8 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
-import org.elasticsearch.index.query.InferenceQueryBuilderService;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteInterceptor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -82,8 +82,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.test.index.query.MockDefaultInferenceQueryBuilder;
-import org.elasticsearch.test.index.query.MockInferenceQueryBuilderService;
+import org.elasticsearch.test.index.query.MockQueryRewriteInterceptor;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -633,7 +632,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 scriptService,
                 createMockResolvedIndices(),
                 null,
-                createMockInferenceQueryBuilderService()
+                createMockQueryRewriteInterceptor()
             );
         }
 
@@ -675,8 +674,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             );
         }
 
-        private InferenceQueryBuilderService createMockInferenceQueryBuilderService() {
-            return new MockInferenceQueryBuilderService(MockDefaultInferenceQueryBuilder::new);
+        private QueryRewriteInterceptor createMockQueryRewriteInterceptor() {
+            return new MockQueryRewriteInterceptor();
         }
     }
 }

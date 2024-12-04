@@ -9,14 +9,14 @@
 
 package org.elasticsearch.test.index.query;
 
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.InferenceQueryBuilderService;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteInterceptor;
 
-public class MockInferenceQueryBuilderService extends InferenceQueryBuilderService {
+public class MockQueryRewriteInterceptor implements QueryRewriteInterceptor {
 
-    public MockInferenceQueryBuilderService(TriFunction<String, String, Boolean, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
-        super(defaultInferenceQueryBuilder);
+    @Override
+    public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+        return queryBuilder;
     }
-
 }

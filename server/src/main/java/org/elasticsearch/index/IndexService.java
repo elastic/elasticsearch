@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteInterceptor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -162,6 +163,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final MapperMetrics mapperMetrics;
+    private final QueryRewriteInterceptor queryRewriteInterceptor;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -196,7 +198,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        QueryRewriteInterceptor queryRewriteInterceptor
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -271,6 +274,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
         this.mapperMetrics = mapperMetrics;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
             this.refreshTask = new AsyncRefreshTask(this);

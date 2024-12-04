@@ -14,9 +14,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ResolvedIndices;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,7 +22,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -34,9 +30,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -207,6 +200,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     /**  Gets the fuzziness used when evaluated to a fuzzy query type. */
     public Fuzziness fuzziness() {
         return this.fuzziness;
+    }
+
+    public boolean getInferenceFieldsChecked() {
+        return inferenceFieldsChecked;
     }
 
     /**
@@ -380,61 +377,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
-    }
-
-    @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder rewritten = super.doRewrite(queryRewriteContext);
-
-        if (queryRewriteContext.convertToQueryRewriteContext() != null && rewritten == this && inferenceFieldsChecked == false) {
-            ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-            if (resolvedIndices != null) {
-                Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-                List<String> inferenceIndices = new ArrayList<>();
-                List<String> nonInferenceIndices = new ArrayList<>();
-                for (IndexMetadata indexMetadata : indexMetadataCollection) {
-                    String indexName = indexMetadata.getIndex().getName();
-                    InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-                    if (inferenceFieldMetadata != null) {
-                        inferenceIndices.add(indexName);
-                    } else {
-                        nonInferenceIndices.add(indexName);
-                    }
-                }
-
-                if (inferenceIndices.isEmpty() == false && nonInferenceIndices.isEmpty() == false) {
-                    BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-                    for (String inferenceIndexName : inferenceIndices) {
-                        // Add a separate clause for each inference query, because they may be using different inference endpoints
-                        boolQueryBuilder.should(createInferenceSubQuery(queryRewriteContext.getQueryBuilderService(), inferenceIndexName));
-                    }
-                    boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndices));
-                    rewritten = boolQueryBuilder;
-                } else if (inferenceIndices.isEmpty() == false) {
-                    rewritten = queryRewriteContext.getQueryBuilderService()
-                        .getDefaultInferenceQueryBuilder(fieldName, value.toString(), true);
-                }
-            }
-        }
-
-        return rewritten;
-    }
-
-    private QueryBuilder createInferenceSubQuery(InferenceQueryBuilderService inferenceQueryBuilderService, String indexName) {
-        QueryBuilder inferenceClause = inferenceQueryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString(), false);
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        if (inferenceClause != null) {
-            boolQueryBuilder.must(inferenceClause);
-            boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
-        }
-        return boolQueryBuilder;
-    }
-
-    private QueryBuilder createNonInferenceSubQuery(List<String> indices) {
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new MatchQueryBuilder(fieldName, value, true));
-        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
-        return boolQueryBuilder;
     }
 
     @Override

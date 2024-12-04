@@ -27,11 +27,13 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.query.QueryRewriteInterceptor;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -76,6 +78,7 @@ public class IndicesServiceBuilder {
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
+    QueryRewriteInterceptor queryRewriteInterceptor = null;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -238,6 +241,12 @@ public class IndicesServiceBuilder {
             .map(IndexStorePlugin::getSnapshotCommitSuppliers)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        var queryRewriteInterceptors = pluginsService.filterPlugins(SearchPlugin.class)
+            .map(SearchPlugin::getQueryRewriteInterceptors)
+            .flatMap(List::stream)
+            .toList();
+        queryRewriteInterceptor = QueryRewriteInterceptor.multi(queryRewriteInterceptors);
 
         return new IndicesService(this);
     }

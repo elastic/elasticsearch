@@ -106,9 +106,6 @@ tests:
 - class: org.elasticsearch.search.StressSearchServiceReaperIT
   method: testStressReaper
   issue: https://github.com/elastic/elasticsearch/issues/115816
-- class: org.elasticsearch.search.SearchServiceTests
-  method: testWaitOnRefreshTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/115935
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT

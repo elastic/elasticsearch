@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.inference.rest;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestTests;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -26,6 +29,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseParams;
+import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseTimeout;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,6 +61,42 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
     private static String route(String param) {
         return "_route/" + param;
+    }
+
+    public void testParseParams_ExtractsInferenceIdAndTaskType() {
+        var params = parseParams(
+            RestRequestTests.contentRestRequest("{}", Map.of(INFERENCE_ID, "id", TASK_TYPE_OR_INFERENCE_ID, TaskType.COMPLETION.toString()))
+        );
+        assertThat(params, is(new BaseInferenceAction.Params("id", TaskType.COMPLETION)));
+    }
+
+    public void testParseParams_DefaultsToTaskTypeAny_WhenInferenceId_IsMissing() {
+        var params = parseParams(
+            RestRequestTests.contentRestRequest("{}", Map.of(TASK_TYPE_OR_INFERENCE_ID, TaskType.COMPLETION.toString()))
+        );
+        assertThat(params, is(new BaseInferenceAction.Params(TASK_TYPE_OR_INFERENCE_ID, TaskType.ANY)));
+    }
+
+    public void testParseParams_ThrowsStatusException_WhenTaskTypeIsMissing() {
+        var e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> parseParams(RestRequestTests.contentRestRequest("{}", Map.of(INFERENCE_ID, "id")))
+        );
+        assertThat(e.getMessage(), is("Task type must not be null"));
+    }
+
+    public void testParseTimeout_ReturnsTimeout() {
+        var timeout = parseTimeout(
+            RestRequestTests.contentRestRequest("{}", Map.of(InferenceAction.Request.TIMEOUT.getPreferredName(), "4s"))
+        );
+
+        assertThat(timeout, is(TimeValue.timeValueSeconds(4)));
+    }
+
+    public void testParseTimeout_ReturnsDefaultTimeout() {
+        var timeout = parseTimeout(RestRequestTests.contentRestRequest("{}", Map.of()));
+
+        assertThat(timeout, is(TimeValue.timeValueSeconds(30)));
     }
 
     public void testUsesDefaultTimeout() {

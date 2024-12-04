@@ -15,7 +15,6 @@ import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,7 +28,9 @@ import java.util.function.Function;
 
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(Collection<Tuple<Path, Boolean>> pluginData, Function<Class<?>, String> pluginResolver) {}
+    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {}
+
+    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {}
 
     private static BootstrapArgs bootstrapArgs;
 
@@ -40,11 +41,11 @@ public class EntitlementBootstrap {
     /**
      * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
-     * @param pluginData a collection of (plugin path, boolean), that holds the paths of all the installed Elasticsearch modules and
-     *                   plugins, and whether they are Java modular or not.
+     * @param pluginData a collection of (plugin path, boolean, boolean), that holds the paths of all the installed Elasticsearch modules
+     *                   and plugins, whether they are Java modular or not, and whether they are Elasticsearch modules or external plugins.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
      */
-    public static void bootstrap(Collection<Tuple<Path, Boolean>> pluginData, Function<Class<?>, String> pluginResolver) {
+    public static void bootstrap(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");

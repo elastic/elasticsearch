@@ -17,7 +17,7 @@ import java.util.List;
 public class PolicyParserTests extends ESTestCase {
 
     public void testPolicyBuilder() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml")
+        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", false)
             .parsePolicy();
         Policy builtPolicy = new Policy(
             "test-policy.yaml",

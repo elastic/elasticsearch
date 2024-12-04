@@ -33,4 +33,12 @@ public @interface ExternalEntitlement {
      * have to match the parameter names of the constructor.
      */
     String[] parameterNames() default {};
+
+    /**
+     * This flag indicates if this Entitlement can be used in external plugins,
+     * or if it can be used only in Elasticsearch modules ("internal" plugins).
+     * Using an entitlement that is not {@code pluginsAccessible} in an external
+     * plugin policy will throw in exception while parsing.
+     */
+    boolean pluginsAccessible() default false;
 }

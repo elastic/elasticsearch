@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -92,25 +91,25 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
     }
 
-    private static Map<String, Policy> createPluginPolicies(Collection<Tuple<Path, Boolean>> pluginData) throws IOException {
+    private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
-        for (Tuple<Path, Boolean> entry : pluginData) {
-            Path pluginRoot = entry.v1();
-            boolean isModular = entry.v2();
-
+        for (var entry : pluginData) {
+            Path pluginRoot = entry.pluginPath();
             String pluginName = pluginRoot.getFileName().toString();
-            final Policy policy = loadPluginPolicy(pluginRoot, isModular, pluginName);
+
+            final Policy policy = loadPluginPolicy(pluginRoot, entry.isModular(), pluginName, entry.isExternalPlugin());
 
             pluginPolicies.put(pluginName, policy);
         }
         return pluginPolicies;
     }
 
-    private static Policy loadPluginPolicy(Path pluginRoot, boolean isModular, String pluginName) throws IOException {
+    private static Policy loadPluginPolicy(Path pluginRoot, boolean isModular, String pluginName, boolean isExternalPlugin)
+        throws IOException {
         Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
 
         final Set<String> moduleNames = getModuleNames(pluginRoot, isModular);
-        final Policy policy = parsePolicyIfExists(pluginName, policyFile);
+        final Policy policy = parsePolicyIfExists(pluginName, policyFile, isExternalPlugin);
 
         // TODO: should this check actually be part of the parser?
         for (Scope scope : policy.scopes) {
@@ -121,9 +120,9 @@ public class EntitlementInitialization {
         return policy;
     }
 
-    private static Policy parsePolicyIfExists(String pluginName, Path policyFile) throws IOException {
+    private static Policy parsePolicyIfExists(String pluginName, Path policyFile, boolean isExternalPlugin) throws IOException {
         if (Files.exists(policyFile)) {
-            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName).parsePolicy();
+            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName, isExternalPlugin).parsePolicy();
         }
         return new Policy(pluginName, List.of());
     }

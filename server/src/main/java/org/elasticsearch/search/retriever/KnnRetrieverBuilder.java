@@ -97,7 +97,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             optionalConstructorArg(),
             (p, c) -> RescoreVectorBuilder.fromXContent(p),
             RESCORE_FIELD,
-            ObjectParser.ValueType.OBJECT_OR_NULL
+            ObjectParser.ValueType.OBJECT
         );
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -282,9 +282,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (rescoreVectorBuilder != null) {
-            builder.startObject(RESCORE_FIELD.getPreferredName());
-            rescoreVectorBuilder.toXContent(builder, params);
-            builder.endObject();
+            builder.field(RESCORE_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
     }
 

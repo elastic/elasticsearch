@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionRequestTaskSettingsTests.getChatCompletionRequestTaskSettingsMap;
@@ -44,6 +46,44 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
 
         var overriddenModel = OpenAiChatCompletionModel.of(model, (Map<String, Object>) null);
         assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
+        var model = createChatCompletionModel("url", "org", "api_key", "model_name", "user");
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null, null)),
+            "different_model",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(
+            OpenAiChatCompletionModel.of(model, request),
+            is(createChatCompletionModel("url", "org", "api_key", "different_model", "user"))
+        );
+    }
+
+    public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
+        var model = createChatCompletionModel("url", "org", "api_key", "model_name", "user");
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null, null)),
+            null, // not overriding model
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(
+            OpenAiChatCompletionModel.of(model, request),
+            is(createChatCompletionModel("url", "org", "api_key", "model_name", "user"))
+        );
     }
 
     public static OpenAiChatCompletionModel createChatCompletionModel(

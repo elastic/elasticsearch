@@ -70,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2941,6 +2942,29 @@ public class MetadataTests extends ESTestCase {
             Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
             assertThat(lookup.project(alt2), isEmpty());
         }));
+    }
+
+    public void testOldestIndexVersionAllProjects() {
+        final int numProjects = between(1, 5);
+        final List<IndexVersion> indexVersions = randomList(
+            numProjects,
+            numProjects,
+            () -> IndexVersionUtils.randomCompatibleVersion(random())
+        );
+
+        final Map<ProjectId, ProjectMetadata> projectMetadataMap = new HashMap<>();
+        for (int i = 0; i < numProjects; i++) {
+            final var projectId = i == 0 ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+            projectMetadataMap.put(
+                projectId,
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder(randomIdentifier()).settings(indexSettings(indexVersions.get(i), 1, 1)))
+                    .build()
+            );
+        }
+        final Metadata metadata = Metadata.builder(Metadata.EMPTY_METADATA).projectMetadata(projectMetadataMap).build();
+
+        assertThat(metadata.oldestIndexVersionAllProjects(), equalTo(indexVersions.stream().min(Comparator.naturalOrder()).orElseThrow()));
     }
 
     public static Metadata randomMetadata() {

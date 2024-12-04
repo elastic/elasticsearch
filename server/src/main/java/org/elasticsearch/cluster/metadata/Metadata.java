@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -40,6 +41,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -442,10 +444,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return this.projectMetadata;
     }
 
+    public Iterable<IndexMetadata> indicesAllProjects() {
+        return () -> Iterators.flatMap(projectMetadata.values().iterator(), ProjectMetadata::iterator);
+    }
+
     /**
      * TODO: Remove as part of multi-project
      */
     @FixForMultiProject
+    @Deprecated(forRemoval = true)
     public ProjectMetadata getProject() {
         return getSingleProject();
     }
@@ -482,6 +489,19 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             indexCount += project.indices().size();
         }
         return indexCount;
+    }
+
+    /**
+     * @return The oldest {@link IndexVersion} of indices across all projects
+     */
+    public IndexVersion oldestIndexVersionAllProjects() {
+        IndexVersion oldest = IndexVersion.current();
+        for (var projectMetadata : projectMetadata.values()) {
+            if (oldest.compareTo(projectMetadata.oldestIndexVersion()) > 0) {
+                oldest = projectMetadata.oldestIndexVersion();
+            }
+        }
+        return oldest;
     }
 
     public NodesShutdownMetadata nodeShutdowns() {

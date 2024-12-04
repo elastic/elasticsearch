@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.ProjectCustom;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
@@ -297,6 +299,11 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests")).build();
+        if (randomBoolean()) {
+            originalState = ClusterState.builder(originalState)
+                .metadata(Metadata.builder(originalState.metadata()).put(ProjectMetadata.builder(randomProjectId())))
+                .build();
+        }
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
     }
@@ -317,15 +324,23 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
                 new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
             );
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
             .nodes(nodes)
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(
+                Metadata.builder(Metadata.EMPTY_METADATA)
+                    .put(ProjectMetadata.builder(projectId).putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            )
             .build();
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
 
-        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(originalState);
-        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(returnedState);
+        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+            originalState.metadata().getProject(projectId)
+        );
+        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+            returnedState.metadata().getProject(projectId)
+        );
         assertEquals(originalTasks, returnedTasks);
     }
 
@@ -351,15 +366,23 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
                 new PersistentTasksCustomMetadata.Assignment("left-the-cluster", "test assignment")
             );
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
             .nodes(nodes)
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(
+                Metadata.builder(Metadata.EMPTY_METADATA)
+                    .put(ProjectMetadata.builder(projectId).putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            )
             .build();
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, not(sameInstance(returnedState)));
 
-        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(originalState);
-        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(returnedState);
+        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+            originalState.metadata().getProject(projectId)
+        );
+        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+            returnedState.metadata().getProject(projectId)
+        );
         assertNotEquals(originalTasks, returnedTasks);
 
         assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));

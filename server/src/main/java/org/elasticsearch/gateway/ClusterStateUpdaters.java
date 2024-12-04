@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -87,7 +88,7 @@ public class ClusterStateUpdaters {
             blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 
-        for (final IndexMetadata indexMetadata : state.metadata().getProject()) {
+        for (final IndexMetadata indexMetadata : state.metadata().indicesAllProjects()) {
             blocks.addBlocks(indexMetadata);
         }
 
@@ -96,11 +97,18 @@ public class ClusterStateUpdaters {
 
     static ClusterState updateRoutingTable(final ClusterState state, ShardRoutingRoleStrategy shardRoutingRoleStrategy) {
         // initialize all index routing tables as empty
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, state.routingTable());
-        for (final IndexMetadata indexMetadata : state.metadata().getProject().indices().values()) {
-            routingTableBuilder.addAsRecovery(indexMetadata);
+        final GlobalRoutingTable.Builder globalRoutingTableBuilder = GlobalRoutingTable.builder(state.globalRoutingTable());
+        for (var projectMetadata : state.metadata().projects().values()) {
+            final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(
+                shardRoutingRoleStrategy,
+                state.routingTable(projectMetadata.id())
+            );
+            for (final IndexMetadata indexMetadata : projectMetadata) {
+                routingTableBuilder.addAsRecovery(indexMetadata);
+            }
+            globalRoutingTableBuilder.put(projectMetadata.id(), routingTableBuilder);
         }
-        return ClusterState.builder(state).routingTable(routingTableBuilder.build()).build();
+        return ClusterState.builder(state).routingTable(globalRoutingTableBuilder.build()).build();
     }
 
     static ClusterState removeStateNotRecoveredBlock(final ClusterState state) {
@@ -116,7 +124,7 @@ public class ClusterStateUpdaters {
     }
 
     static ClusterState mixCurrentStateAndRecoveredState(final ClusterState currentState, final ClusterState recoveredState) {
-        assert currentState.metadata().getProject().indices().isEmpty();
+        assert currentState.metadata().getTotalNumberOfIndices() == 0;
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).blocks(recoveredState.blocks());
 
@@ -124,8 +132,10 @@ public class ClusterStateUpdaters {
         // automatically generate a UID for the metadata if we need to
         metadataBuilder.generateClusterUuidIfNeeded();
 
-        for (final IndexMetadata indexMetadata : recoveredState.metadata().getProject()) {
-            metadataBuilder.put(indexMetadata, false);
+        for (final ProjectMetadata projectMetadata : recoveredState.metadata().projects().values()) {
+            for (final IndexMetadata indexMetadata : projectMetadata) {
+                metadataBuilder.getProject(projectMetadata.id()).put(indexMetadata, false);
+            }
         }
 
         return ClusterState.builder(currentState).blocks(blocks).metadata(metadataBuilder).build();
@@ -136,7 +146,7 @@ public class ClusterStateUpdaters {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-            for (IndexMetadata indexMetadata : state.metadata().getProject()) {
+            for (IndexMetadata indexMetadata : state.metadata().indicesAllProjects()) {
                 blocks.removeIndexBlocks(indexMetadata.getIndex().getName());
             }
             final Metadata metadata = Metadata.builder()

@@ -15,7 +15,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -133,6 +135,10 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
     }
 
+    public static PersistentTasksCustomMetadata getPersistentTasksCustomMetadata(ProjectMetadata projectMetadata) {
+        return projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
+    }
+
     /**
      * Private builder used in XContent parser to build task-specific portion (params and state)
      */
@@ -232,26 +238,46 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
      *          a copy with the modified tasks
      */
     public static ClusterState disassociateDeadNodes(ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(clusterState);
-        if (tasks == null) {
+        Metadata.Builder metadataBuilder = null;
+        for (var projectId : clusterState.metadata().projects().keySet()) {
+            final ProjectState projectState = clusterState.projectState(projectId);
+            final ProjectMetadata newProjectMetadata = disassociateDeadNodesForProject(projectState);
+            if (projectState.metadata() != newProjectMetadata) {
+                if (metadataBuilder == null) {
+                    metadataBuilder = Metadata.builder(clusterState.metadata());
+                }
+                metadataBuilder.put(newProjectMetadata);
+            }
+        }
+
+        if (metadataBuilder == null) {
             return clusterState;
+        }
+
+        return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+    }
+
+    private static ProjectMetadata disassociateDeadNodesForProject(ProjectState projectState) {
+        PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(projectState.metadata());
+        if (tasks == null) {
+            return projectState.metadata();
         }
 
         PersistentTasksCustomMetadata.Builder taskBuilder = PersistentTasksCustomMetadata.builder(tasks);
         for (PersistentTask<?> task : tasks.tasks()) {
             if (task.getAssignment().getExecutorNode() != null
-                && clusterState.nodes().nodeExists(task.getAssignment().getExecutorNode()) == false) {
+                && projectState.cluster().nodes().nodeExists(task.getAssignment().getExecutorNode()) == false) {
                 taskBuilder.reassignTask(task.getId(), LOST_NODE_ASSIGNMENT);
             }
         }
 
         if (taskBuilder.isChanged() == false) {
-            return clusterState;
+            return projectState.metadata();
         }
 
-        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectState.metadata());
         metadataBuilder.putCustom(TYPE, taskBuilder.build());
-        return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+        return metadataBuilder.build();
     }
 
     public static class Assignment {

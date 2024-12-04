@@ -93,8 +93,16 @@ setup:
 
 ---
 "Query using a sparse embedding model":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -124,8 +132,16 @@ setup:
 
 ---
 "Numeric query using a sparse embedding model":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -150,8 +166,16 @@ setup:
 
 ---
 "Boolean query using a sparse embedding model":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -179,9 +203,15 @@ setup:
   - requires:
       cluster_features: "semantic_text.search_inference_id"
       reason: search_inference_id introduced in 8.16.0
+      test_runner_features: [ capabilities ]
 
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.put_mapping:
@@ -221,8 +251,16 @@ setup:
 
 ---
 "Query using a dense embedding model":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -252,8 +290,16 @@ setup:
 
 ---
 "Numeric query using a dense embedding model":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -278,8 +324,16 @@ setup:
 
 ---
 "Boolean query using a dense embedding model":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -304,8 +358,16 @@ setup:
 
 ---
 "Query using a dense embedding model that uses byte embeddings":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       inference.put:
@@ -368,9 +430,15 @@ setup:
   - requires:
       cluster_features: "semantic_text.search_inference_id"
       reason: search_inference_id introduced in 8.16.0
+      test_runner_features: [ capabilities ]
 
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.put_mapping:
@@ -410,8 +478,16 @@ setup:
 
 ---
 "Apply boost and query name":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -444,8 +520,16 @@ setup:
 
 ---
 "Query an index alias":
+  - requires:
+      test_runner_features: [ capabilities ]
+
   - skip:
       features: [ "headers", "close_to" ]
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:

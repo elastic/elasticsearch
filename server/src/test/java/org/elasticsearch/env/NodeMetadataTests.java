@@ -87,8 +87,10 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(resource, notNullValue());
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
 
-        ElasticsearchException ex = assertThrows(ElasticsearchException.class,
-            () -> NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir));
+        ElasticsearchException ex = assertThrows(
+            ElasticsearchException.class,
+            () -> NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir)
+        );
         Throwable rootCause = ex.getRootCause();
         assertTrue(rootCause instanceof IllegalStateException);
         assertEquals("Node version is required in node metadata", rootCause.getMessage());

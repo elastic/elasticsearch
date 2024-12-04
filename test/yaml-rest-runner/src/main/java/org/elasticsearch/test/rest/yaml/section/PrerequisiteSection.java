@@ -12,7 +12,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Features;
 import org.elasticsearch.xcontent.XContentLocation;

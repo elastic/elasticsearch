@@ -36,7 +36,7 @@ public class ES816BinaryQuantizedRWVectorsFormat extends ES816BinaryQuantizedVec
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    private static final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(
+    private static final ES816BinaryFlatRWVectorsScorer scorer = new ES816BinaryFlatRWVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 

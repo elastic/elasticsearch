@@ -77,7 +77,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private final List<FieldWriter> fields = new ArrayList<>();
     private final IndexOutput meta, binarizedVectorData;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final ES816BinaryFlatVectorsScorer vectorsScorer;
+    private final ES816BinaryFlatRWVectorsScorer vectorsScorer;
     private boolean finished;
 
     /**
@@ -86,7 +86,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      * @param vectorsScorer the scorer to use for scoring vectors
      */
     protected ES816BinaryQuantizedVectorsWriter(
-        ES816BinaryFlatVectorsScorer vectorsScorer,
+        ES816BinaryFlatRWVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
         SegmentWriteState state
     ) throws IOException {

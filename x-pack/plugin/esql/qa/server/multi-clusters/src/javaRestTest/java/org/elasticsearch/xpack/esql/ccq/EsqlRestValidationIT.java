@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlRestValidationTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -77,5 +79,10 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
             remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
         return remoteClient;
+    }
+
+    @Before
+    public void skipTestOnOldVersions() {
+        assumeTrue("skip on old versions", Clusters.localClusterVersion().equals(Version.V_8_16_0));
     }
 }

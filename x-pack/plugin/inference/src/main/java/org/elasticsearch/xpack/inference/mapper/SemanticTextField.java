@@ -406,11 +406,14 @@ public record SemanticTextField(
         boolean withOffsets
     ) {
         // TODO: Use offsets from ChunkedInferenceServiceResults
+        // TODO: Investigate input handling with list values when using legacy semantic text format
         List<Chunk> chunks = new ArrayList<>();
         for (var result : results) {
             for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it
                 .hasNext();) {
                 var chunkAsByteReference = it.next();
+                assert chunkAsByteReference.matchedText() != null;
+
                 int startOffset = withOffsets ? input.indexOf(chunkAsByteReference.matchedText()) : -1;
                 chunks.add(
                     new Chunk(

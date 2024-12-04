@@ -183,7 +183,7 @@ public class PluginsResolverTests extends ESTestCase {
     }
 
     private static URLClassLoader createClassLoader(Path jar) throws MalformedURLException {
-        return new URLClassLoader(new URL[]{jar.toUri().toURL()});
+        return new URLClassLoader(new URL[] { jar.toUri().toURL() });
     }
 
     private static ModuleLayer createModuleLayer(String moduleName, Path... jars) {
@@ -239,8 +239,7 @@ public class PluginsResolverTests extends ESTestCase {
         return jar;
     }
 
-    private static Path createNonModularPluginJar(Path home, String pluginName, String packageName, String className)
-        throws IOException {
+    private static Path createNonModularPluginJar(Path home, String pluginName, String packageName, String className) throws IOException {
         Path jar = home.resolve(pluginName + ".jar");
         String fqClassName = packageName + "." + className;
 
@@ -249,12 +248,7 @@ public class PluginsResolverTests extends ESTestCase {
         );
 
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        JarUtils.createJarWithEntries(
-            jar,
-            Map.ofEntries(
-                entry(packageName + "/" + className + ".class", classToBytes.get(fqClassName))
-            )
-        );
+        JarUtils.createJarWithEntries(jar, Map.ofEntries(entry(packageName + "/" + className + ".class", classToBytes.get(fqClassName))));
         return jar;
     }
 }

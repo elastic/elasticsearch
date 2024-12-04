@@ -28,7 +28,7 @@ class PluginsResolver {
             var pluginName = pluginLayer.pluginBundle().pluginDescriptor().getName();
             if (pluginLayer.pluginModuleLayer() != null && pluginLayer.pluginModuleLayer() != ModuleLayer.boot()) {
                 // This plugin is a Java Module
-                for (var module: pluginLayer.pluginModuleLayer().modules()) {
+                for (var module : pluginLayer.pluginModuleLayer().modules()) {
                     pluginNameByModule.put(module, pluginName);
                 }
             } else {

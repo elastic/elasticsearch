@@ -16,17 +16,17 @@ x-pack/plugin/core/template-resources/src/main/resources/monitoring-logstash.jso
 x-pack/plugin/core/template-resources/src/main/resources/monitoring-mb-ilm-policy.json @elastic/stack-monitoring
 x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/MonitoringTemplateRegistry.java @elastic/stack-monitoring
 
-# Fleet
+ Fleet
 x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/fleet
 x-pack/plugin/core/src/main/resources/fleet-* @elastic/fleet
 
-# Logstash
+ Logstash
 libs/logstash-bridge @elastic/logstash
 
-# Kibana Security
+ Kibana Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
 
-# APM Data index templates, etc.
+ APM Data index templates, etc.
 x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services
 x-pack/plugin/apm-data/src/yamlRestTest/resources @elastic/obs-ds-intake-services
 

@@ -399,6 +399,16 @@ public class RecoverySettings {
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
+    /**
+     * The maximum allowable size, in bytes, for buffering source documents during recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE = Setting.byteSizeSetting(
+        "indices.recovery.chunk_size",
+        DEFAULT_CHUNK_SIZE,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
@@ -417,7 +427,7 @@ public class RecoverySettings {
 
     private final AdjustableSemaphore maxSnapshotFileDownloadsPerNodeSemaphore;
 
-    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile ByteSizeValue chunkSize;
 
     private final ByteSizeValue availableNetworkBandwidth;
     private final ByteSizeValue availableDiskReadBandwidth;
@@ -444,6 +454,7 @@ public class RecoverySettings {
         this.availableNetworkBandwidth = NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.get(settings);
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
+        this.chunkSize = INDICES_RECOVERY_CHUNK_SIZE.get(settings);
         validateNodeBandwidthRecoverySettings(settings);
         this.nodeBandwidthSettingsExist = hasNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
@@ -493,6 +504,7 @@ public class RecoverySettings {
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
             this::setMaxConcurrentIncomingRecoveries
         );
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CHUNK_SIZE, this::setChunkSize);
     }
 
     private void computeMaxBytesPerSec(Settings settings) {

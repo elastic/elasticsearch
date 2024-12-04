@@ -3143,7 +3143,8 @@ public class InternalEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException {
         if (enableRecoverySource == false) {
             throw new IllegalStateException(
@@ -3162,7 +3163,7 @@ public class InternalEngine extends Engine {
                     engineConfig.getMapperService().mappingLookup(),
                     searcher,
                     SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                    LuceneSyntheticSourceChangesSnapshot.DEFAULT_MEMORY_SIZE,
+                    maxChunkSize,
                     fromSeqNo,
                     toSeqNo,
                     requiredFullRange,

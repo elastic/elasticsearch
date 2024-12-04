@@ -12,6 +12,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -60,14 +61,34 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
         long fromSeqNo = randomNonNegativeLong();
         long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
         // Empty engine
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean(), randomBoolean())) {
+        try (
+            Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                "test",
+                fromSeqNo,
+                toSeqNo,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
             assertThat(
                 error.getMessage(),
                 containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found")
             );
         }
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", fromSeqNo, toSeqNo, false, randomBoolean(), randomBoolean())) {
+        try (
+            Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                "test",
+                fromSeqNo,
+                toSeqNo,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
             assertThat(snapshot, SnapshotMatchers.size(0));
         }
         int numOps = between(1, 100);
@@ -212,7 +233,8 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                 toSeqNo,
                 randomBoolean(),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
             )
         ) {
             assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
@@ -341,7 +363,8 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                         toSeqNo,
                         true,
                         randomBoolean(),
-                        randomBoolean()
+                        randomBoolean(),
+                        randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                     )
                 ) {
                     translogHandler.run(follower, snapshot);
@@ -389,7 +412,17 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
     public void testOverFlow() throws Exception {
         long fromSeqNo = randomLongBetween(0, 5);
         long toSeqNo = randomLongBetween(Long.MAX_VALUE - 5, Long.MAX_VALUE);
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean(), randomBoolean())) {
+        try (
+            Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                "test",
+                fromSeqNo,
+                toSeqNo,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
             assertThat(
                 error.getMessage(),
@@ -439,7 +472,8 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                     toSeqNo.getAsLong(),
                     false,
                     randomBoolean(),
-                    false
+                    false,
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 IllegalStateException error = expectThrows(IllegalStateException.class, snapshot::totalOperations);
@@ -457,7 +491,8 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                     toSeqNo.getAsLong(),
                     false,
                     randomBoolean(),
-                    true
+                    true,
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 assertThat(snapshot.totalOperations(), equalTo(numOps));

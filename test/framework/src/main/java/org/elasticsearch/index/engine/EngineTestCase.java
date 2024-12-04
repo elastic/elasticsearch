@@ -62,6 +62,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -1289,7 +1290,17 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
+        try (
+            Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);

@@ -89,6 +89,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -6447,7 +6448,8 @@ public class InternalEngineTests extends EngineTestCase {
                                     max,
                                     true,
                                     randomBoolean(),
-                                    randomBoolean()
+                                    randomBoolean(),
+                                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                                 )
                             ) {}
                         } else {
@@ -7673,7 +7675,7 @@ public class InternalEngineTests extends EngineTestCase {
         ) {
             IllegalStateException exc = expectThrows(
                 IllegalStateException.class,
-                () -> engine.newChangesSnapshot("test", 0, 1000, true, true, true)
+                () -> engine.newChangesSnapshot("test", 0, 1000, true, true, true, randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes()))
             );
             assertThat(exc.getMessage(), containsString("unavailable"));
         }

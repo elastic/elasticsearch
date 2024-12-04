@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -651,7 +652,15 @@ public class FollowingEngineTests extends ESTestCase {
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
                     try (
                         Translog.Snapshot snapshot = shuffleSnapshot(
-                            leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean(), randomBoolean())
+                            leader.newChangesSnapshot(
+                                "test",
+                                fromSeqNo,
+                                toSeqNo,
+                                true,
+                                randomBoolean(),
+                                randomBoolean(),
+                                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                            )
                         )
                     ) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());

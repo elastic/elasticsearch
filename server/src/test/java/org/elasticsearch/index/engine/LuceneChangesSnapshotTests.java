@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.store.Store;
@@ -66,7 +67,8 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
                     between(1, smallBatch),
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 while ((op = snapshot.next()) != null) {
@@ -82,7 +84,8 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
                     between(20, 100),
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 while ((op = snapshot.next()) != null) {
@@ -98,7 +101,8 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
                     between(21, 100),
                     false,
                     true,
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 while ((op = snapshot.next()) != null) {
@@ -114,7 +118,8 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
                     between(21, 100),
                     false,
                     false,
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 while ((op = snapshot.next()) != null) {

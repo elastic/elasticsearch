@@ -96,7 +96,7 @@ public final class ExceptionsHelper {
 
         // Traverse through the stacktrace and check if the error is caused by NodeNotConnectedException.
         Throwable nodeNotConnEx = result;
-        while (nodeNotConnEx instanceof ElasticsearchException) {
+        while (nodeNotConnEx != null) {
             if (nodeNotConnEx instanceof NodeNotConnectedException nn && nn.getMessage().equals("connection already closed")) {
                 break;
             }

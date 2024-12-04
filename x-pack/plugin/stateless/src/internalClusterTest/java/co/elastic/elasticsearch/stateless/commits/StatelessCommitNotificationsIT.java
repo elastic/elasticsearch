@@ -40,6 +40,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -92,6 +93,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
+            IndicesService indicesService,
             Client client,
             StatelessCommitCleaner commitCleaner,
             StatelessSharedBlobCacheService cacheService,
@@ -102,6 +104,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
                 settings,
                 objectStoreService,
                 clusterService,
+                indicesService,
                 client,
                 commitCleaner,
                 cacheService,
@@ -154,6 +157,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
+            IndicesService indicesService,
             Client client,
             StatelessCommitCleaner commitCleaner,
             StatelessSharedBlobCacheService cacheService,
@@ -164,6 +168,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
                 settings,
                 objectStoreService,
                 clusterService,
+                indicesService,
                 client,
                 commitCleaner,
                 cacheService,

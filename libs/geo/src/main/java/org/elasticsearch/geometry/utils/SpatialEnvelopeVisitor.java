@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -74,7 +75,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      * Determine the BBOX without considering the CRS or wrapping of the longitude.
      * Note that incoming BBOX's that do cross the dateline (minx>maxx) will be treated as invalid.
      */
-    public static Optional<Rectangle> visit(Geometry geometry) {
+    public static Optional<Rectangle> visitCartesian(Geometry geometry) {
         var visitor = new SpatialEnvelopeVisitor(new CartesianPointVisitor());
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
@@ -85,7 +86,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
     /**
      * Determine the BBOX assuming the CRS is geographic (eg WGS84) and optionally wrapping the longitude around the dateline.
      */
-    public static Optional<Rectangle> visit(Geometry geometry, boolean wrapLongitude) {
+    public static Optional<Rectangle> visitGeo(Geometry geometry, boolean wrapLongitude) {
         var visitor = new SpatialEnvelopeVisitor(new GeoPointVisitor(wrapLongitude));
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
@@ -122,6 +123,22 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         private double maxX = Double.NEGATIVE_INFINITY;
         private double maxY = Double.NEGATIVE_INFINITY;
 
+        public double getMinX() {
+            return minX;
+        }
+
+        public double getMinY() {
+            return minY;
+        }
+
+        public double getMaxX() {
+            return maxX;
+        }
+
+        public double getMaxY() {
+            return maxY;
+        }
+
         @Override
         public void visitPoint(double x, double y) {
             minX = Math.min(minX, x);
@@ -133,7 +150,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         @Override
         public void visitRectangle(double minX, double maxX, double maxY, double minY) {
             if (minX > maxX) {
-                throw new IllegalArgumentException("Invalid cartesian rectangle: minX > maxX");
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Invalid cartesian rectangle: minX (%s) > maxX (%s)", minX, maxX)
+                );
             }
             this.minX = Math.min(this.minX, minX);
             this.minY = Math.min(this.minY, minY);
@@ -168,6 +187,30 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         private double maxNegX = Double.NEGATIVE_INFINITY;
         private double minPosX = Double.POSITIVE_INFINITY;
         private double maxPosX = Double.NEGATIVE_INFINITY;
+
+        public double getMinY() {
+            return minY;
+        }
+
+        public double getMaxY() {
+            return maxY;
+        }
+
+        public double getMinNegX() {
+            return minNegX;
+        }
+
+        public double getMaxNegX() {
+            return maxNegX;
+        }
+
+        public double getMinPosX() {
+            return minPosX;
+        }
+
+        public double getMaxPosX() {
+            return maxPosX;
+        }
 
         private final boolean wrapLongitude;
 
@@ -207,9 +250,20 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         @Override
         public Rectangle getResult() {
-            if (Double.isInfinite(maxY)) {
-                return null;
-            } else if (Double.isInfinite(minPosX)) {
+            return Double.isInfinite(maxY) ? null : getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
+        }
+
+        public static Rectangle getResult(
+            double minNegX,
+            double minPosX,
+            double maxNegX,
+            double maxPosX,
+            double maxY,
+            double minY,
+            boolean wrapLongitude
+        ) {
+            assert Double.isFinite(maxY);
+            if (Double.isInfinite(minPosX)) {
                 return new Rectangle(minNegX, maxNegX, maxY, minY);
             } else if (Double.isInfinite(minNegX)) {
                 return new Rectangle(minPosX, maxPosX, maxY, minY);

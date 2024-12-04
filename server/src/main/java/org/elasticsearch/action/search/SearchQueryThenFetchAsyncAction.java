@@ -48,6 +48,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -61,7 +62,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -530,6 +533,10 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                             e
                                         )
                                     );
+                                    final int successfulShards = request.shards.size() - response.failedShards.size();
+                                    if (successfulShards > 0) {
+                                        hasShardResponse.set(true);
+                                    }
                                     if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                                         queryPhaseResultConsumer.reduce(response.topDocsStats, response.mergeResult);
                                     } else {
@@ -543,8 +550,12 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                             );
                                         }
                                     }
-                                    if (successfulOps.addAndGet(request.shards.size() - response.failedShards.size()) == expectedTotalOps) {
+                                    final int numShards = results.getNumShards();
+                                    final int successes = successfulOps.addAndGet(successfulShards);
+                                    if (successes == numShards) {
                                         onPhaseDone();
+                                    } else if (successes > numShards) {
+                                        throw new AssertionError();
                                     }
                                 }
 
@@ -904,6 +915,14 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeQueryRequest::new,
             (request, channel, task) -> {
+                final BlockingQueue<ShardToQuery> shards = new LinkedBlockingQueue<>(request.shards);
+                final int workers = Math.min(
+                    request.shards.size(),
+                    transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax()
+                );
+                for (int i = 0; i < workers; i++) {
+
+                }
                 new ChannelActionListener<>(channel).onResponse(
                     new NodeQueryResponse(
                         Map.of(),

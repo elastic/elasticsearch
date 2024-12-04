@@ -89,13 +89,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
     public record Results(Deque<ChatCompletionChunk> chunks) implements ChunkedToXContent {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startArray(NAME),
-                Iterators.flatMap(chunks.iterator(), c -> c.toXContentChunked(params)),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.endObject()
-            );
+            return Iterators.concat(Iterators.flatMap(chunks.iterator(), c -> c.toXContentChunked(params)));
         }
     }
 

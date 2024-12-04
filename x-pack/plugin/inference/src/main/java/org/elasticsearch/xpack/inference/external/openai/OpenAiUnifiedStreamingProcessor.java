@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingDeque;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
@@ -58,6 +59,17 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
 
+    private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
+
+    @Override
+    protected void onRequest(long n) {
+        if (buffer.isEmpty()) {
+            super.onRequest(n);
+        } else {
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(singleItem(buffer.poll())));
+        }
+    }
+
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
@@ -77,8 +89,16 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
 
         if (results.isEmpty()) {
             upstream().request(1);
-        } else {
+        }
+        if (results.size() == 1) {
             downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
+        } else {
+            // results > 1, but openai spec only wants 1 chunk per SSE event
+            var firstItem = singleItem(results.poll());
+            while (results.isEmpty() == false) {
+                buffer.offer(results.poll());
+            }
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(firstItem));
         }
     }
 
@@ -269,5 +289,13 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
                 return PARSER.parse(parser, null);
             }
         }
+    }
+
+    private Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> singleItem(
+        StreamingUnifiedChatCompletionResults.ChatCompletionChunk result
+    ) {
+        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(2);
+        deque.offer(result);
+        return deque;
     }
 }

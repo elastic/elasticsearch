@@ -242,6 +242,9 @@ tests:
 - class: org.elasticsearch.upgrades.QueryBuilderBWCIT
   method: testQueryBuilderBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116990
+- class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
+  method: testQueryBuilderBWC {p0=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/116989
 
 # Examples:
 #

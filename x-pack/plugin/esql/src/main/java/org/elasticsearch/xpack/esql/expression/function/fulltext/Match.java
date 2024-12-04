@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -177,7 +178,12 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public void validate(Failures failures) {
-        if (field instanceof FieldAttribute == false) {
+        Expression fieldExpression = field();
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof FieldAttribute == false) {
             failures.add(
                 Failure.fail(
                     field,

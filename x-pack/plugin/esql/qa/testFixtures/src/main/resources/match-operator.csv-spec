@@ -470,7 +470,6 @@ emp_no:integer | height:double
 10098          | 2.0     
 ;
 
-
 testMatchMultipleFieldTypes
 required_capability: match_function
 required_capability: match_additional_types
@@ -486,3 +485,86 @@ emp_as_int:integer | name_as_kw:keyword
 10005              | Kyoichi        
 10005              | Kyoichi      
 ;
+
+
+testMatchMultipleFieldTypesKeywordText
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible 
+| where first_name::keyword : "Kazuhito" 
+| eval first_name_kwd = first_name::keyword 
+| keep first_name_kwd
+;
+
+first_name_kwd:keyword
+Kazuhito
+Kazuhito      
+;
+
+testMatchMultipleFieldTypesDoubleFloat
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where height::double : 2.03 
+| eval height_dbl = height::double 
+| eval emp_no = emp_no::int 
+| keep emp_no, height_dbl
+;
+ignoreOrder:true
+
+emp_no:integer | height_dbl:double    
+10001          | 2.0299999713897705
+10090          | 2.0299999713897705
+10001          | 2.03              
+10090          | 2.03  
+;
+
+testMatchMultipleFieldTypesBooleanKeyword
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where still_hired::keyword : "true" and height.scaled_float == 2.08
+| eval still_hired_bool = still_hired::boolean
+| keep still_hired_bool
+;
+
+still_hired_bool:boolean    
+true
+true
+true
+true
+;
+
+testMatchMultipleFieldTypesLongUnsignedLong
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible  
+| where avg_worked_seconds::unsigned_long : 200296405 
+| eval avg_worked_seconds_ul = avg_worked_seconds::unsigned_long 
+| keep avg_worked_seconds_ul
+;
+
+avg_worked_seconds_ul:unsigned_long
+200296405            
+200296405            
+;
+
+testMatchMultipleFieldTypesDateNanosDate
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where hire_date::datetime : "1986-06-26T00:00:00.000Z"
+| eval hire_date_nanos = hire_date::date_nanos
+| keep hire_date_nanos
+;
+
+hire_date_nanos:date_nanos
+1986-06-26T00:00:00.000Z            
+1986-06-26T00:00:00.000Z
+;
+

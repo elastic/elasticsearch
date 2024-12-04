@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -532,8 +533,12 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
-            Expression field = match.field();
-            if (field instanceof FieldAttribute fieldAttribute) {
+            Expression fieldExpression = match.field();
+            // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+            if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+                fieldExpression = convertFunction.field();
+            }
+            if (fieldExpression instanceof FieldAttribute fieldAttribute) {
                 String fieldName = fieldAttribute.name();
                 if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
                     // If we have multiple field types, we allow the query to be done, but getting the underlying field name

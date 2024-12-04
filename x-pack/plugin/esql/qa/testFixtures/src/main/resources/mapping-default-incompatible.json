@@ -16,7 +16,7 @@
             "type" : "date"
         },
         "hire_date": {
-            "type" : "date"
+            "type" : "date_nanos"
         },
         "salary" : {
             "type" : "long"
@@ -60,7 +60,7 @@
             "type" : "text"
         },
         "is_rehired" : {
-            "type" : "text"
+            "type" : "keyword"
         },
         "salary_change": {
             "type": "float",

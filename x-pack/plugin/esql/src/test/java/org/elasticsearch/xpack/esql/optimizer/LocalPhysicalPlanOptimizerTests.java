@@ -1546,6 +1546,32 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
+    /**
+     * Expects
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"match":{"emp_no":{"query":123456}}}][_doc{f}#14],
+     *       limit[1000], sort[] estimatedRowSize[332]
+     */
+    public void testMatchWithFieldCasting() {
+        String query = """
+            from test
+            | where emp_no::long : 123456
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+        var queryBuilder = as(queryExec.query(), MatchQueryBuilder.class);
+        assertThat(queryBuilder.fieldName(), is("emp_no"));
+        assertThat(queryBuilder.value(), is(123456));
+    }
+
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }

@@ -1,4 +1,6 @@
 md5
+required_capability: kql_function
+
 ROW value = "test" | EVAL hash = hash("md5", value);
 
 value:keyword | hash:keyword
@@ -6,6 +8,8 @@ test          | 098f6bcd4621d373cade4e832627b4f6
 ;
 
 sha256
+required_capability: kql_function
+
 ROW value = "test" | EVAL hash = hash("sha256", value);
 
 value:keyword | hash:keyword

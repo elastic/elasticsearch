@@ -547,9 +547,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             builder.field(NAME_FIELD.getPreferredName(), queryName);
         }
         if (rescoreVectorBuilder != null) {
-            builder.startObject(RESCORE_FIELD.getPreferredName());
-            rescoreVectorBuilder.toXContent(builder, params);
-            builder.endObject();
+            builder.field(RESCORE_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
 
         return builder;

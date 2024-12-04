@@ -50,11 +50,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.operator.OperatorTestCase.runDriver;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -95,41 +95,114 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (BlockHash hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry)) {
-            hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    assertEquals(groupIds.getPositionCount(), positions);
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+            for (int i = randomInt(9); i < 10; i++) {
+                hash.add(page, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        assertEquals(groupIds.getPositionCount(), positions);
 
-                    assertEquals(1, groupIds.getInt(0));
-                    assertEquals(2, groupIds.getInt(1));
-                    assertEquals(2, groupIds.getInt(2));
-                    assertEquals(2, groupIds.getInt(3));
-                    assertEquals(3, groupIds.getInt(4));
-                    assertEquals(1, groupIds.getInt(5));
-                    assertEquals(1, groupIds.getInt(6));
-                    if (withNull) {
-                        assertEquals(0, groupIds.getInt(7));
+                        assertEquals(1, groupIds.getInt(0));
+                        assertEquals(2, groupIds.getInt(1));
+                        assertEquals(2, groupIds.getInt(2));
+                        assertEquals(2, groupIds.getInt(3));
+                        assertEquals(3, groupIds.getInt(4));
+                        assertEquals(1, groupIds.getInt(5));
+                        assertEquals(1, groupIds.getInt(6));
+                        if (withNull) {
+                            assertEquals(0, groupIds.getInt(7));
+                        }
                     }
-                }
 
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
-                }
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        add(positionOffset, groupIds.asBlock());
+                    }
 
-                @Override
-                public void close() {
-                    fail("hashes should not close AddInput");
-                }
-            });
+                    @Override
+                    public void close() {
+                        fail("hashes should not close AddInput");
+                    }
+                });
+            }
+
+            assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
         } finally {
             page.releaseBlocks();
         }
 
-        // TODO: randomize and try multiple pages.
-        // TODO: assert the state of the BlockHash after adding pages. Including the categorizer state.
-        // TODO: also test the lookup method and other stuff.
+        // TODO: randomize values? May give wrong results
+        // TODO: assert the categorizer state after adding pages.
+    }
+
+    public void testCategorizeRawMultivalue() {
+        final Page page;
+        boolean withNull = randomBoolean();
+        final int positions = 3 + (withNull ? 1 : 0);
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.endPositionEntry();
+            builder.appendBytesRef(new BytesRef("Disconnected"));
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
+            builder.endPositionEntry();
+            if (withNull) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(""));
+                }
+            }
+            page = new Page(builder.build());
+        }
+
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+            for (int i = randomInt(9); i < 10; i++) {
+                hash.add(page, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        assertEquals(groupIds.getPositionCount(), positions);
+
+                        assertThat(groupIds.getFirstValueIndex(0), equalTo(0));
+                        assertThat(groupIds.getValueCount(0), equalTo(4));
+                        assertThat(groupIds.getFirstValueIndex(1), equalTo(4));
+                        assertThat(groupIds.getValueCount(1), equalTo(1));
+                        assertThat(groupIds.getFirstValueIndex(2), equalTo(5));
+                        assertThat(groupIds.getValueCount(2), equalTo(2));
+
+                        assertEquals(1, groupIds.getInt(0));
+                        assertEquals(2, groupIds.getInt(1));
+                        assertEquals(2, groupIds.getInt(2));
+                        assertEquals(2, groupIds.getInt(3));
+                        assertEquals(3, groupIds.getInt(4));
+                        assertEquals(1, groupIds.getInt(5));
+                        assertEquals(1, groupIds.getInt(6));
+                        if (withNull) {
+                            assertEquals(0, groupIds.getInt(7));
+                        }
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        add(positionOffset, groupIds.asBlock());
+                    }
+
+                    @Override
+                    public void close() {
+                        fail("hashes should not close AddInput");
+                    }
+                });
+            }
+
+            assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     public void testCategorizeIntermediate() {
@@ -226,7 +299,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page2.releaseBlocks();
         }
 
-        try (BlockHash intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INTERMEDIATE, null)) {
+        try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, null)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
@@ -274,6 +347,15 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
+
+            assertHashState(
+                intermediateHash,
+                withNull,
+                ".*?Connected.+?to.*?",
+                ".*?Connection.+?error.*?",
+                ".*?Disconnected.*?",
+                ".*?System.+?shutdown.*?"
+            );
         } finally {
             intermediatePage1.releaseBlocks();
             intermediatePage2.releaseBlocks();
@@ -456,5 +538,50 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
     private BlockHash.GroupSpec makeGroupSpec() {
         return new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true);
+    }
+
+    private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {
+        // Check the keys
+        Block[] blocks = null;
+        try {
+            blocks = hash.getKeys();
+            assertThat(blocks, arrayWithSize(1));
+
+            var keysBlock = (BytesRefBlock) blocks[0];
+            assertThat(keysBlock.getPositionCount(), equalTo(expectedKeys.length + (withNull ? 1 : 0)));
+
+            if (withNull) {
+                assertTrue(keysBlock.isNull(0));
+            }
+
+            for (int i = 0; i < expectedKeys.length; i++) {
+                int position = i + (withNull ? 1 : 0);
+                String key = keysBlock.getBytesRef(position, new BytesRef()).utf8ToString();
+                assertThat(key, equalTo(expectedKeys[i]));
+            }
+        } finally {
+            if (blocks != null) {
+                Releasables.close(blocks);
+            }
+        }
+
+        // Check the nonEmpty() result
+        try (IntVector nonEmptyKeys = hash.nonEmpty()) {
+            int oneIfNull = withNull ? 1 : 0;
+            assertThat(nonEmptyKeys.getPositionCount(), equalTo(expectedKeys.length + oneIfNull));
+
+            for (int i = 0; i < expectedKeys.length + oneIfNull; i++) {
+                assertThat(nonEmptyKeys.getInt(i), equalTo(i + 1 - oneIfNull));
+            }
+        }
+
+        // Check seenGroupIds()
+        try (var seenGroupIds = hash.seenGroupIds(blockFactory.bigArrays())) {
+            assertThat(seenGroupIds.get(0), equalTo(withNull));
+
+            for (int i = 1; i <= expectedKeys.length; i++) {
+                assertThat(seenGroupIds.get(i), equalTo(true));
+            }
+        }
     }
 }

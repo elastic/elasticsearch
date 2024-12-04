@@ -12,6 +12,7 @@ import org.apache.lucene.geo.XYEncodingUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 
 import java.util.Optional;
 
@@ -19,7 +20,7 @@ enum PointType {
     GEO {
         @Override
         public Optional<Rectangle> computeEnvelope(Geometry geo) {
-            return SpatialEnvelopeVisitor.visitGeo(geo, false /* wrapLongitude */);
+            return SpatialEnvelopeVisitor.visitGeo(geo, WrapLongitude.WRAP);
         }
 
         @Override

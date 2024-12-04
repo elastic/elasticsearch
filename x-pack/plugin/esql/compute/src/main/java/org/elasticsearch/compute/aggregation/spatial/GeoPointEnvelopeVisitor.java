@@ -9,10 +9,11 @@ package org.elasticsearch.compute.aggregation.spatial;
 
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 
 class GeoPointEnvelopeVisitor extends SpatialEnvelopeVisitor.GeoPointVisitor {
     GeoPointEnvelopeVisitor() {
-        super(true /*wrapLongitude*/);
+        super(WrapLongitude.WRAP);
     }
 
     void reset() {
@@ -55,7 +56,7 @@ class GeoPointEnvelopeVisitor extends SpatialEnvelopeVisitor.GeoPointVisitor {
         double maxPosX,
         double maxY,
         double minY,
-        boolean wrapLongitude
+        WrapLongitude wrapLongitude
     ) {
         return SpatialEnvelopeVisitor.GeoPointVisitor.getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
     }

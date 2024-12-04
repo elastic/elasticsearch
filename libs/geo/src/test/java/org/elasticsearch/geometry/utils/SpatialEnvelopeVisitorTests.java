@@ -13,6 +13,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,7 +37,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     public void testVisitGeoShapeNoWrap() {
         for (int i = 0; i < 1000; i++) {
             var geometry = GeometryTestUtils.randomGeometryWithoutCircle(0, false);
-            var bbox = SpatialEnvelopeVisitor.visitGeo(geometry, false);
+            var bbox = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.NO_WRAP);
             assertNotNull(bbox);
             assertTrue(i + ": " + geometry, bbox.isPresent());
             var result = bbox.get();
@@ -48,7 +49,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     public void testVisitGeoShapeWrap() {
         for (int i = 0; i < 1000; i++) {
             var geometry = GeometryTestUtils.randomGeometryWithoutCircle(0, true);
-            var bbox = SpatialEnvelopeVisitor.visitGeo(geometry, false);
+            var bbox = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.NO_WRAP);
             assertNotNull(bbox);
             assertTrue(i + ": " + geometry, bbox.isPresent());
             var result = bbox.get();
@@ -81,7 +82,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     }
 
     public void testVisitGeoPointsNoWrapping() {
-        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(false));
+        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.NO_WRAP));
         double minY = Double.MAX_VALUE;
         double maxY = -Double.MAX_VALUE;
         double minX = Double.MAX_VALUE;
@@ -103,7 +104,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     }
 
     public void testVisitGeoPointsWrapping() {
-        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(true));
+        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP));
         double minY = Double.POSITIVE_INFINITY;
         double maxY = Double.NEGATIVE_INFINITY;
         double minNegX = Double.POSITIVE_INFINITY;
@@ -145,7 +146,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     }
 
     public void testWillCrossDateline() {
-        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(true));
+        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP));
         visitor.visit(new Point(-90.0, 0.0));
         visitor.visit(new Point(90.0, 0.0));
         assertCrossesDateline(visitor, false);

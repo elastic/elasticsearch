@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -72,7 +73,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var pointVisitor = switch (fieldSupplier.type()) {
                 case DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE -> new SpatialEnvelopeVisitor.CartesianPointVisitor();
-                case DataType.GEO_POINT, DataType.GEO_SHAPE -> new SpatialEnvelopeVisitor.GeoPointVisitor(true /*wrapLongitude*/);
+                case DataType.GEO_POINT, DataType.GEO_SHAPE -> new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
                 default -> throw new IllegalArgumentException("Unsupported type: " + fieldSupplier.type());
             };
 

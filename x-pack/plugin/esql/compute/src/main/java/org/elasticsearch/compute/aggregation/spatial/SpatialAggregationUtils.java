@@ -14,6 +14,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 class SpatialAggregationUtils {
@@ -69,7 +70,7 @@ class SpatialAggregationUtils {
             maxPosX >= 0 ? decodeLongitude(maxPosX) : Double.NEGATIVE_INFINITY,
             GeoEncodingUtils.decodeLatitude(maxY),
             GeoEncodingUtils.decodeLatitude(minY),
-            true /*wrapLongitude*/
+            WrapLongitude.WRAP
         );
     }
 

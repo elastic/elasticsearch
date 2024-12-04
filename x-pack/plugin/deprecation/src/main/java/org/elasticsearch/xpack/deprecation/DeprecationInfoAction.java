@@ -366,7 +366,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
-        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
+        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true, true);
         private String[] indices;
 
         public Request(TimeValue masterNodeTimeout, String... indices) {

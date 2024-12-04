@@ -279,61 +279,6 @@ public record UnifiedCompletionRequest(
         }
     }
 
-    // private static Stop parseStop(XContentParser parser) throws IOException {
-    // var token = parser.currentToken();
-    // if (token == XContentParser.Token.START_ARRAY) {
-    // var parsedStopValues = XContentParserUtils.parseList(parser, XContentParser::text);
-    // return new StopValues(parsedStopValues);
-    // } else if (token == XContentParser.Token.VALUE_STRING) {
-    // return StopString.of(parser);
-    // }
-    //
-    // throw new XContentParseException("Unsupported token [" + token + "]");
-    // }
-
-    // public sealed interface Stop extends NamedWriteable permits StopString, StopValues {}
-    //
-    // public record StopString(String value) implements Stop, NamedWriteable {
-    // public static final String NAME = "stop_string";
-    //
-    // public static StopString of(XContentParser parser) throws IOException {
-    // var content = parser.text();
-    // return new StopString(content);
-    // }
-    //
-    // public StopString(StreamInput in) throws IOException {
-    // this(in.readString());
-    // }
-    //
-    // @Override
-    // public void writeTo(StreamOutput out) throws IOException {
-    // out.writeString(value);
-    // }
-    //
-    // @Override
-    // public String getWriteableName() {
-    // return NAME;
-    // }
-    // }
-    //
-    // public record StopValues(List<String> values) implements Stop, NamedWriteable {
-    // public static final String NAME = "stop_values";
-    //
-    // public StopValues(StreamInput in) throws IOException {
-    // this(in.readStringCollectionAsImmutableList());
-    // }
-    //
-    // @Override
-    // public void writeTo(StreamOutput out) throws IOException {
-    // out.writeStringCollection(values);
-    // }
-    //
-    // @Override
-    // public String getWriteableName() {
-    // return NAME;
-    // }
-    // }
-
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {
         var token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {

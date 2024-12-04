@@ -30,7 +30,7 @@ public class RectangleMatcher extends TypeSafeMatcher<Rectangle> {
 
     @Override
     protected boolean matchesSafely(Rectangle other) {
-        // For geo bounds, longitude of (-180, 180) and (-epsilon, epsilon) are actually very close, since both encompass the entire globe.
+        // For geo bounds, longitude of (-180, 180) and (epsilon, -epsilon) are actually very close, since both encompass the entire globe.
         boolean wrapAroundWorkAround = pointType == PointType.GEO && r.getMinX() >= r.getMaxX();
         boolean matchMinX = Matchers.closeTo(r.getMinX(), error).matches(other.getMinX())
             || (wrapAroundWorkAround && Matchers.closeTo(r.getMinX() - 180, error).matches(other.getMinX()))

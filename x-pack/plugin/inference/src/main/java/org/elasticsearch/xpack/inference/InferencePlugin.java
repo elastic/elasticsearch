@@ -216,11 +216,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
-        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-
-        String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
-
-        if (elasticInferenceUrl != null) {
+        if (isElasticInferenceServiceEnabled()) {
             // Create a new HTTPClientManager with its own configuration, including the connection pool.
             // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
             var sslStrategy = HttpClientManager.getSSLStrategy(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX);
@@ -239,6 +235,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             );
             elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
+            ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+            String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
             elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
 
             inferenceServices.add(
@@ -377,8 +375,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         settings.add(SKIP_VALIDATE_AND_START);
 
         // Do not register Elastic Inference Service settings if the feature is disabled.
-        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(this.settings);
-        if (getElasticInferenceServiceUrl(inferenceServiceSettings) != null ) {
+        if (isElasticInferenceServiceEnabled()) {
             settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         }
 
@@ -453,5 +450,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         }
 
         return elasticInferenceUrl;
+    }
+
+    protected Boolean isElasticInferenceServiceEnabled() {
+        return (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled() || DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled());
     }
 }

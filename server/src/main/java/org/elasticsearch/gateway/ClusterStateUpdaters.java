@@ -154,8 +154,12 @@ public class ClusterStateUpdaters {
                 .coordinationMetadata(state.metadata().coordinationMetadata())
                 .build();
 
+            // metadata has been rebuilt from scratch, so clear the routing table
+            final GlobalRoutingTable.Builder globalRoutingTableBuilder = GlobalRoutingTable.builder();
+            metadata.projects().keySet().forEach(projectId -> globalRoutingTableBuilder.put(projectId, RoutingTable.EMPTY_ROUTING_TABLE));
+
             return ClusterState.builder(state)
-                .routingTable(GlobalRoutingTable.EMPTY_ROUTING_TABLE) // metadata has been rebuilt from scratch, so clear the routing table
+                .routingTable(globalRoutingTableBuilder.build())
                 .metadata(metadata)
                 .blocks(blocks.build())
                 .build();

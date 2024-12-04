@@ -261,6 +261,9 @@ class EsqlSessionCCSUtils {
     }
 
     private static boolean concreteIndexRequested(String indexExpression) {
+        if (Strings.isNullOrBlank(indexExpression)) {
+            return false;
+        }
         for (String expr : indexExpression.split(",")) {
             if (expr.charAt(0) == '<' || expr.startsWith("-<")) {
                 // skip date math expressions

@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
+
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -37,6 +39,16 @@ public class AverageSearchLoadSampler {
     static final double DEFAULT_SEARCH_EWMA_ALPHA = 0.2;
     static final double DEFAULT_SHARD_READ_EWMA_ALPHA = 0.6;
 
+    /**
+     * If true, {@code ServerlessSharedSettings.VCPU_REQUEST} will be used determine the number of vCPUs when normalizing the Search Load,
+     * rather than {@code EsExecutors.NODE_PROCESSORS_SETTING}.
+     */
+    public static final Setting<Boolean> USE_VCPU_REQUEST = Setting.boolSetting(
+        "serverless.autoscaling.search.use_vcpu_request",
+        false,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Double> SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.search.sampler.search_load_ewma_alpha",
         DEFAULT_SEARCH_EWMA_ALPHA,
@@ -45,6 +57,7 @@ public class AverageSearchLoadSampler {
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
+
     public static final Setting<Double> SHARD_READ_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.search.sampler.shard_read_load_ewma_alpha",
         DEFAULT_SHARD_READ_EWMA_ALPHA,
@@ -79,11 +92,14 @@ public class AverageSearchLoadSampler {
 
         Map<String, Double> threadPoolsAndEWMAAlpha = new HashMap<>(MONITORED_EXECUTORS.size(), 1.0f);
         MONITORED_EXECUTORS.forEach((name, setting) -> threadPoolsAndEWMAAlpha.put(name, clusterSettings.get(setting)));
+        var numProcessors = AverageSearchLoadSampler.USE_VCPU_REQUEST.get(settings)
+            ? ServerlessSharedSettings.VCPU_REQUEST.get(settings)
+            : EsExecutors.nodeProcessors(settings).count();
         var sampler = new AverageSearchLoadSampler(
             threadPool,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings),
             threadPoolsAndEWMAAlpha,
-            EsExecutors.nodeProcessors(settings).count()
+            numProcessors
         );
         MONITORED_EXECUTORS.forEach(
             (name, setting) -> clusterSettings.addSettingsUpdateConsumer(setting, value -> sampler.updateEWMAAlpha(name, value))
@@ -131,6 +147,13 @@ public class AverageSearchLoadSampler {
             executor.getMaximumPoolSize(),
             numProcessors
         );
+    }
+
+    /**
+     * Returns the number of processors used for normalizing the search load.
+     */
+    public double getNumProcessors() {
+        return numProcessors;
     }
 
     private void updateEWMAAlpha(String executorName, double alpha) {

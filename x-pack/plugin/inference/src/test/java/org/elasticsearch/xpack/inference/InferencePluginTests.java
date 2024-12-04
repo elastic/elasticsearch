@@ -45,8 +45,7 @@ public class InferencePluginTests extends ESTestCase {
         // set default value for elasticInferenceServiceEnabled
         setElasticInferenceServiceEnabled(true);
     }
-
-    @Test
+    
     public void testElasticInferenceServiceSettingsPresent() throws Exception {
         boolean anyMatch = inferencePlugin.getSettings()
             .stream()
@@ -56,7 +55,6 @@ public class InferencePluginTests extends ESTestCase {
         MatcherAssert.assertThat("xpack.inference.elastic settings are present", anyMatch, is(true));
     }
 
-    @Test
     public void testElasticInferenceServiceSettingsNotPresent() throws Exception {
         setElasticInferenceServiceEnabled(false); // disable elastic inference service
         boolean noneMatch = inferencePlugin.getSettings()

@@ -120,40 +120,6 @@ public class TextFormatTests extends ESTestCase {
         assertEquals("name\n", text);
     }
 
-    private static EsqlQueryResponse regularData() {
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        // headers
-        List<ColumnInfoImpl> headers = asList(
-            new ColumnInfoImpl("string", "keyword"),
-            new ColumnInfoImpl("number", "integer"),
-            new ColumnInfoImpl("location", "geo_point"),
-            new ColumnInfoImpl("location2", "cartesian_point"),
-            new ColumnInfoImpl("null_field", "keyword")
-        );
-
-        BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
-        geoPoints.append(GEO.asWkb(new Point(12, 56)));
-        geoPoints.append(GEO.asWkb(new Point(-97, 26)));
-        // values
-        List<Page> values = List.of(
-            new Page(
-                blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(new BytesRef("Along The River Bank"))
-                    .appendBytesRef(new BytesRef("Mind Train"))
-                    .build(),
-                blockFactory.newIntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
-                blockFactory.newBytesRefArrayVector(geoPoints, 2).asBlock(),
-                blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
-                    .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
-                    .build(),
-                blockFactory.newConstantNullBlock(2)
-            )
-        );
-
-        return new EsqlQueryResponse(headers, values, null, false, false, null);
-    }
-
     public void testCsvFormatWithRegularData() {
         String text = format(CSV, req(), regularData());
         assertEquals("""
@@ -209,6 +175,15 @@ public class TextFormatTests extends ESTestCase {
             sb.append("\r\n");
         } while (expectedTerms.size() > 0);
         assertEquals(sb.toString(), text);
+    }
+
+    public void testTsvFormatWithRegularData() {
+        String text = format(TSV, req(), regularData());
+        assertEquals("""
+            string\tnumber\tlocation\tlocation2\tnull_field
+            Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)\t
+            Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)\t
+            """, text);
     }
 
     public void testCsvFormatWithEscapedData() {
@@ -275,15 +250,6 @@ public class TextFormatTests extends ESTestCase {
         );
     }
 
-    public void testTsvFormatWithRegularData() {
-        String text = format(TSV, req(), regularData());
-        assertEquals("""
-            string\tnumber\tlocation\tlocation2\tnull_field
-            Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)\t
-            Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)\t
-            """, text);
-    }
-
     public void testCsvFormatWithDropNullColumns() {
         String text = format(CSV, reqWithParam("drop_null_columns", "true"), regularData());
         assertEquals("""
@@ -293,10 +259,6 @@ public class TextFormatTests extends ESTestCase {
             """, text);
     }
 
-    private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false, null);
-    }
-
     public void testTsvFormatWithDropNullColumns() {
         String text = format(TSV, reqWithParam("drop_null_columns", "true"), regularData());
         assertEquals("""
@@ -304,6 +266,44 @@ public class TextFormatTests extends ESTestCase {
             Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)
             Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)
             """, text);
+    }
+
+    private static EsqlQueryResponse emptyData() {
+        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false, null);
+    }
+
+    private static EsqlQueryResponse regularData() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        // headers
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("string", "keyword"),
+            new ColumnInfoImpl("number", "integer"),
+            new ColumnInfoImpl("location", "geo_point"),
+            new ColumnInfoImpl("location2", "cartesian_point"),
+            new ColumnInfoImpl("null_field", "keyword")
+        );
+
+        BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
+        geoPoints.append(GEO.asWkb(new Point(12, 56)));
+        geoPoints.append(GEO.asWkb(new Point(-97, 26)));
+        // values
+        List<Page> values = List.of(
+            new Page(
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("Along The River Bank"))
+                    .appendBytesRef(new BytesRef("Mind Train"))
+                    .build(),
+                blockFactory.newIntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
+                blockFactory.newBytesRefArrayVector(geoPoints, 2).asBlock(),
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
+                    .build(),
+                blockFactory.newConstantNullBlock(2)
+            )
+        );
+
+        return new EsqlQueryResponse(headers, values, null, false, false, null);
     }
 
     private static EsqlQueryResponse escapedData() {

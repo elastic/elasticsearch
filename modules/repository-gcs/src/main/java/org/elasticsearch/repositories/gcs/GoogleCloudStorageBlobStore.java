@@ -27,6 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -597,7 +598,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, BlobStoreActionStats> stats() {
         return stats.toMap();
     }
 

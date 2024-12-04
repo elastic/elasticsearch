@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -49,11 +50,12 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
 
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.DOUBLE, b -> b ? 1d : 0d, List.of());
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
+            TestCaseSupplier.dateCases(),
             DataType.DOUBLE,
-            i -> (double) i.toEpochMilli(),
+            i -> (double) ((Instant) i).toEpochMilli(),
             List.of()
         );
         // random strings that don't look like a double

@@ -110,6 +110,7 @@ import java.util.function.BiConsumer;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
@@ -1039,8 +1040,16 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
-    public void testRespondAfterClose() throws Exception {
-        final String url = "/thing";
+    public void testRespondAfterServiceCloseWithClientCancel() throws Exception {
+        runRespondAfterServiceCloseTest(true);
+    }
+
+    public void testRespondAfterServiceCloseWithServerCancel() throws Exception {
+        runRespondAfterServiceCloseTest(false);
+    }
+
+    private void runRespondAfterServiceCloseTest(boolean clientCancel) throws Exception {
+        final String url = "/" + randomIdentifier();
         final CountDownLatch responseReleasedLatch = new CountDownLatch(1);
         final SubscribableListener<Void> transportClosedFuture = new SubscribableListener<>();
         final CountDownLatch handlingRequestLatch = new CountDownLatch(1);
@@ -1066,7 +1075,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-                Settings.EMPTY,
+                clientCancel
+                    ? Settings.EMPTY
+                    : Settings.builder().put(SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(1)).build(),
                 networkService,
                 threadPool,
                 xContentRegistry(),
@@ -1082,8 +1093,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             transport.start();
             final var address = randomFrom(transport.boundAddress().boundAddresses()).address();
             try (var client = RestClient.builder(new HttpHost(address.getAddress(), address.getPort())).build()) {
-                client.performRequestAsync(new Request("GET", url), ActionTestUtils.wrapAsRestResponseListener(ActionListener.noop()));
+                final var cancellable = client.performRequestAsync(
+                    new Request("GET", url),
+                    ActionTestUtils.wrapAsRestResponseListener(ActionListener.noop())
+                );
                 safeAwait(handlingRequestLatch);
+                if (clientCancel) {
+                    threadPool.generic().execute(cancellable::cancel);
+                }
                 transport.close();
                 transportClosedFuture.onResponse(null);
                 safeAwait(responseReleasedLatch);

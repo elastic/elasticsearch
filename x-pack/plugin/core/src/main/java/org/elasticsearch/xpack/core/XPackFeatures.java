@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
@@ -30,10 +29,5 @@ public class XPackFeatures implements FeatureSpecification {
             LOGSDB_TELEMETRY,
             LOGSDB_TELMETRY_STATS
         );
-    }
-
-    @Override
-    public Set<NodeFeature> getTestFeatures() {
-        return Set.of(SparseVectorFieldMapper.SPARSE_VECTOR_STORE_SUPPORT);
     }
 }

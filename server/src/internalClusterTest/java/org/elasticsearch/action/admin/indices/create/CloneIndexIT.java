@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -141,6 +142,20 @@ public class CloneIndexIT extends ESIntegTestCase {
                 .get();
         });
         assertThat(error.getMessage(), containsString("can't change setting [index.mapping.source.mode] during resize"));
+    }
+
+    public void testResizeChangeRecoveryUseSyntheticSource() {
+        prepareCreate("source").setSettings(indexSettings(between(1, 5), 0))
+                .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
+                .get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+            indicesAdmin().prepareResizeIndex("source", "target")
+                    .setResizeType(ResizeType.CLONE)
+                    .setSettings(Settings.builder().put("index.recovery.use_synthetic_source", true).putNull("index.blocks.write").build())
+                    .get();
+        });
+        assertThat(error.getMessage(), containsString("can't change setting [index.recovery.use_synthetic_source] during resize"));
     }
 
     public void testResizeChangeIndexSorts() {

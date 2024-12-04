@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -798,6 +799,24 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get();
         });
         assertThat(error.getMessage(), containsString("cannot modify setting [index.mapping.source.mode] on restore"));
+    }
+
+    public void testRestoreChangeRecoveryUseSyntheticSource() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                    .cluster()
+                    .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                    .setIndexSettings(Settings.builder().put("index.recovery.use_synthetic_source", true))
+                    .setWaitForCompletion(true)
+                    .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.recovery.use_synthetic_source] on restore"));
     }
 
     public void testRestoreChangeIndexSorts() {

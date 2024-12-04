@@ -71,7 +71,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorSer
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.elasticsearch.xpack.inference.queries.SemanticQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -408,7 +408,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
-        return List.of(new SemanticQueryRewriteInterceptor());
+        return List.of(new SemanticMatchQueryRewriteInterceptor());
     }
 
     @Override

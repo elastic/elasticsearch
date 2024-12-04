@@ -20,7 +20,7 @@ Create an inference endpoint by using the <<put-inference-api>>:
 ------------------------------------------------------------
 PUT _inference/sparse_embedding/my-elser-endpoint <1>
 {
-  "service": "elser", <2>
+  "service": "elasticsearch", <2>
   "service_settings": {
     "adaptive_allocations": { <3>
       "enabled": true,
@@ -35,7 +35,7 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 <1> The task type is `sparse_embedding` in the path as the `elser` service will
 be used and ELSER creates sparse vectors. The `inference_id` is
 `my-elser-endpoint`.
-<2> The `elser` service is used in this example.
+<2> The `elasticsearch` service is used in this example.
 <3> This setting enables and configures adaptive allocations.
 Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
 
@@ -59,7 +59,7 @@ PUT semantic-embeddings
   "mappings": {
     "properties": {
       "semantic_text": { <1>
-        "type": "semantic_text", 
+        "type": "semantic_text",
         "inference_id": "my-elser-endpoint" <2>
       },
       "content": { <3>
@@ -99,7 +99,7 @@ Download the file and upload it to your cluster using the {kibana-ref}/connect-t
 ==== Reindex the data for hybrid search
 
 Reindex the data from the `test-data` index into the `semantic-embeddings` index.
-The data in the `content` field of the source index is copied into the `content` field of the destination index. 
+The data in the `content` field of the source index is copied into the `content` field of the destination index.
 The `copy_to` parameter set in the index mapping creation ensures that the content is copied into the `semantic_text` field. The data is processed by the {infer} endpoint at ingest time to generate embeddings.
 
 [NOTE]
@@ -211,7 +211,7 @@ After performing the hybrid search, the query will return the top 10 documents t
     "hits": [
       {
         "_index": "semantic-embeddings",
-        "_id": "wv65epIBEMBRnhfTsOFM", 
+        "_id": "wv65epIBEMBRnhfTsOFM",
         "_score": 0.032786883,
         "_rank": 1,
         "_source": {
@@ -237,7 +237,7 @@ After performing the hybrid search, the query will return the top 10 documents t
                     "out": 1.0991782,
                     "##io": 1.0794281,
                     "last": 1.0474665,
-                   (...) 
+                   (...)
                   }
                 }
               ]

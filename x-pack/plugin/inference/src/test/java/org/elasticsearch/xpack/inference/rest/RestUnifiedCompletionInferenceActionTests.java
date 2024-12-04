@@ -71,8 +71,6 @@ public class RestUnifiedCompletionInferenceActionTests extends RestActionTestCas
 
         // the response content will be null when there is no error
         assertNull(responseSetOnce.get().content());
-        // var responseBody = responseSetOnce.get().content().utf8ToString();
-        // assertThat(Objects.requireNonNull(responseSetOnce.get().content()).utf8ToString(), equalTo(createResponse()));
         assertThat(executeCalled.get(), equalTo(true));
     }
 

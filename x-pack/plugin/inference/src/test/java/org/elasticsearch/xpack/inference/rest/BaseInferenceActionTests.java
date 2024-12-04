@@ -74,7 +74,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         var params = parseParams(
             RestRequestTests.contentRestRequest("{}", Map.of(TASK_TYPE_OR_INFERENCE_ID, TaskType.COMPLETION.toString()))
         );
-        assertThat(params, is(new BaseInferenceAction.Params(TASK_TYPE_OR_INFERENCE_ID, TaskType.ANY)));
+        assertThat(params, is(new BaseInferenceAction.Params("completion", TaskType.ANY)));
     }
 
     public void testParseParams_ThrowsStatusException_WhenTaskTypeIsMissing() {

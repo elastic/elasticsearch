@@ -73,6 +73,7 @@ public class MapperFeatures implements FeatureSpecification {
             IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
             IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
             MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
             META_FETCH_FIELDS_ERROR_CODE_CHANGED
         );

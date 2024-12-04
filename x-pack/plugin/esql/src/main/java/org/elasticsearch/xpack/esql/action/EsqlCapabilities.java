@@ -215,6 +215,11 @@ public class EsqlCapabilities {
         SPATIAL_CENTROID_NO_RECORDS,
 
         /**
+         * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
+         */
+        ST_ENVELOPE,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -407,7 +412,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V4,
+        CATEGORIZE_V5,
 
         /**
          * QSTR function
@@ -525,7 +530,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V3(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V4(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

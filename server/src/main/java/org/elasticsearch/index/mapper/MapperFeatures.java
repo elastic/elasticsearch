@@ -64,7 +64,6 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
 
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(

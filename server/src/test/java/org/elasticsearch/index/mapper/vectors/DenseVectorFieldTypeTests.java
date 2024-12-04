@@ -20,11 +20,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
@@ -411,11 +409,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRescoreOversampleUsedWithoutQuantization() {
-        ElementType elementType = randomFrom(BYTE, FLOAT);
         DenseVectorFieldType nonQuantizedField = new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
-            elementType,
+            FLOAT,
             3,
             true,
             VectorSimilarity.COSINE,
@@ -433,15 +430,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null
         );
 
-        if (elementType == BYTE) {
-            ESKnnByteVectorQuery esKnnQuery = (ESKnnByteVectorQuery) knnQuery;
-            assertThat(esKnnQuery.getK(), is(100));
-            assertThat(esKnnQuery.kParam(), is(10));
-        } else {
-            ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) knnQuery;
-            assertThat(esKnnQuery.getK(), is(100));
-            assertThat(esKnnQuery.kParam(), is(10));
-        }
+        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) knnQuery;
+        assertThat(esKnnQuery.getK(), is(100));
+        assertThat(esKnnQuery.kParam(), is(10));
     }
 
     public void testRescoreOversampleModifiesKnnParams() {
@@ -475,18 +466,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         int expectedCandidates
     ) {
         Query query = fieldType.createKnnQuery(new VectorData(null, new byte[] { 1, 4, 10 }), k, candidates, oversample, null, null, null);
-
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-        if (fieldType.getElementType() == BYTE) {
-            ESKnnByteVectorQuery esKnnQuery = (ESKnnByteVectorQuery) rescoreQuery.innerQuery();
-            assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
-            assertThat("Unexpected k parameter", esKnnQuery.kParam(), equalTo(expectedK));
-            assertThat("Unexpected candidates", esKnnQuery.getK(), equalTo(expectedCandidates));
-        } else {
-            ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) rescoreQuery.innerQuery();
-            assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
-            assertThat("Unexpected k parameter", esKnnQuery.kParam(), equalTo(expectedK));
-            assertThat("Unexpected candidates", esKnnQuery.getK(), equalTo(expectedCandidates));
-        }
+        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) rescoreQuery.innerQuery();
+        assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
+        assertThat("Unexpected k parameter", esKnnQuery.kParam(), equalTo(expectedK));
+        assertThat("Unexpected candidates", esKnnQuery.getK(), equalTo(expectedCandidates));
     }
 }

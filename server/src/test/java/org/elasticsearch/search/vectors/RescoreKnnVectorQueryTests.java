@@ -12,15 +12,12 @@ package org.elasticsearch.search.vectors;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
@@ -53,13 +50,10 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     public static final String FIELD_NAME = "float_vector";
     private final int numDocs;
-    private final VectorProvider vectorProvider;
     private final Integer k;
 
-    public RescoreKnnVectorQueryTests(VectorProvider vectorProvider, boolean useK) {
-        this.vectorProvider = vectorProvider;
+    public RescoreKnnVectorQueryTests(boolean useK) {
         this.numDocs = randomIntBetween(10, 100);
-        ;
         this.k = useK ? randomIntBetween(1, numDocs - 1) : null;
     }
 
@@ -72,15 +66,17 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
 
         try (Directory d = newDirectory()) {
-            addRandomDocuments(numDocs, d, numDims, vectorProvider);
+            addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
 
                 // Use a RescoreKnnVectorQuery with a match all query, to ensure we get scoring of 1 from the inner query
                 // and thus we're rescoring the top k docs.
-                VectorData queryVector = vectorProvider.randomVector(numDims);
-                RescoreKnnVectorQuery rescoreKnnVectorQuery = vectorProvider.createRescoreQuery(
+                float[] queryVector = randomVector(numDims);
+                RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
+                    FIELD_NAME,
                     queryVector,
+                    VectorSimilarityFunction.COSINE,
                     adjustedK,
                     new MatchAllDocsQuery()
                 );
@@ -98,11 +94,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 PriorityQueue<Float> topK = new PriorityQueue<>((o1, o2) -> Float.compare(o2, o1));
 
                 for (LeafReaderContext leafReaderContext : reader.leaves()) {
-                    KnnVectorValues vectorValues = vectorProvider.vectorValues(leafReaderContext.reader());
+                    FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(FIELD_NAME);
                     KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                     while (iterator.nextDoc() != NO_MORE_DOCS) {
-                        VectorData vectorData = vectorProvider.dataVectorForDoc(vectorValues, iterator.docID());
-                        float score = vectorProvider.score(queryVector, vectorData);
+                        float[] vectorData = vectorValues.vectorValue(iterator.docID());
+                        float score = VectorSimilarityFunction.COSINE.compare(queryVector, vectorData);
                         topK.add(score);
                         int docId = iterator.docID();
                         // If the doc has been retrieved from the RescoreKnnVectorQuery, check the score is the same and remove it
@@ -131,10 +127,10 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
 
         try (Directory d = newDirectory()) {
-            addRandomDocuments(numDocs, d, numDims, vectorProvider);
+            addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
-                VectorData queryVector = vectorProvider.randomVector(numDims);
+                float[] queryVector = randomVector(numDims);
 
                 checkProfiling(queryVector, reader, new MatchAllDocsQuery());
                 checkProfiling(queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
@@ -142,8 +138,14 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
     }
 
-    private void checkProfiling(VectorData queryVector, IndexReader reader, Query innerQuery) throws IOException {
-        RescoreKnnVectorQuery rescoreKnnVectorQuery = vectorProvider.createRescoreQuery(queryVector, k, innerQuery);
+    private void checkProfiling(float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
+        RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
+            FIELD_NAME,
+            queryVector,
+            VectorSimilarityFunction.COSINE,
+            k,
+            innerQuery
+        );
         IndexSearcher searcher = newSearcher(reader, true, false);
         searcher.search(rescoreKnnVectorQuery, numDocs);
 
@@ -159,6 +161,14 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
 
         assertThat(queryProfiler.getVectorOpsCount(), equalTo(expectedVectorOpsCount));
+    }
+
+    private static float[] randomVector(int numDimensions) {
+        float[] vector = new float[numDimensions];
+        for (int j = 0; j < numDimensions; j++) {
+            vector[j] = randomFloatBetween(0, 1, true);
+        }
+        return vector;
     }
 
     /**
@@ -206,103 +216,13 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
     }
 
-    /**
-     * Vector operations depend on the type of vector field used. This interface abstracts the operations needed to perform the tests
-     */
-    private interface VectorProvider {
-        VectorData randomVector(int numDimensions);
-
-        RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k, Query innerQuery);
-
-        KnnVectorValues vectorValues(LeafReader leafReader) throws IOException;
-
-        void addVectorField(Document document, VectorData vector);
-
-        VectorData dataVectorForDoc(KnnVectorValues vectorValues, int docId) throws IOException;
-
-        float score(VectorData queryVector, VectorData dataVector);
-    }
-
-    private static class FloatVectorProvider implements VectorProvider {
-        @Override
-        public VectorData randomVector(int numDimensions) {
-            float[] vector = new float[numDimensions];
-            for (int j = 0; j < numDimensions; j++) {
-                vector[j] = randomFloatBetween(0, 1, true);
-            }
-            return VectorData.fromFloats(vector);
-        }
-
-        @Override
-        public RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k, Query innerQuery) {
-            return new RescoreKnnVectorQuery(FIELD_NAME, queryVector.floatVector(), VectorSimilarityFunction.COSINE, k, innerQuery);
-        }
-
-        @Override
-        public KnnVectorValues vectorValues(LeafReader leafReader) throws IOException {
-            return leafReader.getFloatVectorValues(FIELD_NAME);
-        }
-
-        @Override
-        public void addVectorField(Document document, VectorData vector) {
-            KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector.floatVector());
-            document.add(vectorField);
-        }
-
-        @Override
-        public VectorData dataVectorForDoc(KnnVectorValues vectorValues, int docId) throws IOException {
-            return VectorData.fromFloats(((FloatVectorValues) vectorValues).vectorValue(docId));
-        }
-
-        @Override
-        public float score(VectorData queryVector, VectorData dataVector) {
-            return VectorSimilarityFunction.COSINE.compare(queryVector.floatVector(), dataVector.floatVector());
-        }
-    }
-
-    private static class ByteVectorProvider implements VectorProvider {
-        @Override
-        public VectorData randomVector(int numDimensions) {
-            byte[] vector = new byte[numDimensions];
-            for (int j = 0; j < numDimensions; j++) {
-                vector[j] = randomByte();
-            }
-            return VectorData.fromBytes(vector);
-        }
-
-        @Override
-        public RescoreKnnVectorQuery createRescoreQuery(VectorData queryVector, Integer k, Query innerQuery) {
-            return new RescoreKnnVectorQuery(FIELD_NAME, queryVector.byteVector(), VectorSimilarityFunction.COSINE, k, innerQuery);
-        }
-
-        @Override
-        public KnnVectorValues vectorValues(LeafReader leafReader) throws IOException {
-            return leafReader.getByteVectorValues(FIELD_NAME);
-        }
-
-        @Override
-        public void addVectorField(Document document, VectorData vector) {
-            KnnByteVectorField vectorField = new KnnByteVectorField(FIELD_NAME, vector.byteVector());
-            document.add(vectorField);
-        }
-
-        @Override
-        public VectorData dataVectorForDoc(KnnVectorValues vectorValues, int docId) throws IOException {
-            return VectorData.fromBytes(((ByteVectorValues) vectorValues).vectorValue(docId));
-        }
-
-        @Override
-        public float score(VectorData queryVector, VectorData dataVector) {
-            return VectorSimilarityFunction.COSINE.compare(queryVector.byteVector(), dataVector.byteVector());
-        }
-    }
-
-    private static void addRandomDocuments(int numDocs, Directory d, int numDims, VectorProvider vectorProvider) throws IOException {
+    private static void addRandomDocuments(int numDocs, Directory d, int numDims) throws IOException {
         try (IndexWriter w = new IndexWriter(d, newIndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                VectorData vector = vectorProvider.randomVector(numDims);
-                vectorProvider.addVectorField(document, vector);
+                float[] vector = randomVector(numDims);
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector);
+                document.add(vectorField);
                 w.addDocument(document);
             }
             w.commit();
@@ -313,10 +233,8 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
-        params.add(new Object[] { new FloatVectorProvider(), true });
-        params.add(new Object[] { new FloatVectorProvider(), false });
-        params.add(new Object[] { new ByteVectorProvider(), true });
-        params.add(new Object[] { new ByteVectorProvider(), false });
+        params.add(new Object[] { true });
+        params.add(new Object[] { false });
 
         return params;
     }

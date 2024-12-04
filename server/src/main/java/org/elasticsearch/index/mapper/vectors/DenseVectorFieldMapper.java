@@ -2019,15 +2019,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return switch (getElementType()) {
-                case BYTE -> createKnnByteQuery(
-                    queryVector.asByteVector(),
-                    k,
-                    numCands,
-                    filter,
-                    rescoreOversample,
-                    similarityThreshold,
-                    parentFilter
-                );
+                case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
                 case FLOAT -> createKnnFloatQuery(
                     queryVector.asFloatVector(),
                     k,
@@ -2072,7 +2064,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Integer k,
             int numCands,
             Query filter,
-            Float rescoreOversample,
             Float similarityThreshold,
             BitSetProducer parentFilter
         ) {
@@ -2082,30 +2073,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Integer adjustedK = k;
-            int adjustedNumCands = numCands;
-            if (needsRescore(rescoreOversample) && adjustedK != null) {
-                adjustedK = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample));
-                adjustedNumCands = Math.max(adjustedK, numCands);
-            }
-
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
-                : new ESKnnByteVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
+                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
+                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
                     similarityThreshold,
                     similarity.score(similarityThreshold, elementType, dims)
-                );
-            }
-            if (needsRescore(rescoreOversample)) {
-                knnQuery = new RescoreKnnVectorQuery(
-                    name(),
-                    queryVector,
-                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.BYTE),
-                    k,
-                    knnQuery
                 );
             }
             return knnQuery;

@@ -18,7 +18,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityByteValueSource;
 import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -31,7 +30,6 @@ import java.util.Objects;
  */
 public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
     private final String fieldName;
-    private final byte[] byteTarget;
     private final float[] floatTarget;
     private final VectorSimilarityFunction vectorSimilarityFunction;
     private final Integer k;
@@ -41,56 +39,23 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
 
     public RescoreKnnVectorQuery(
         String fieldName,
-        byte[] byteTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        Integer k,
-        Query innerQuery
-    ) {
-        this(fieldName, byteTarget, null, vectorSimilarityFunction, k, innerQuery, null);
-    }
-
-    public RescoreKnnVectorQuery(
-        String fieldName,
         float[] floatTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
         Integer k,
         Query innerQuery
     ) {
-        this(fieldName, null, floatTarget, vectorSimilarityFunction, k, innerQuery, null);
-    }
-
-    private RescoreKnnVectorQuery(
-        String fieldName,
-        byte[] byteTarget,
-        float[] floatTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        Integer k,
-        Query innerQuery,
-        QueryProfilerProvider queryProfilerProvider
-    ) {
-        if ((byteTarget == null ^ floatTarget == null) == false) {
-            throw new IllegalArgumentException("Either byteTarget or floatTarget must be set");
-        }
-
         this.fieldName = fieldName;
-        this.byteTarget = byteTarget;
         this.floatTarget = floatTarget;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
         this.innerQuery = innerQuery;
-        this.vectorProfiling = queryProfilerProvider;
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        final DoubleValuesSource valueSource;
-        if (byteTarget != null) {
-            valueSource = new VectorSimilarityByteValueSource(fieldName, byteTarget, vectorSimilarityFunction);
-        } else {
-            valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
-        }
-        // Vector similarity DoubleValueSource keep track of the compared vectors - we need that in case we don't need
-        // to calculate top k and return directly the query
+        DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
+        // Vector similarity VectorSimilarityFloatValueSource keep track of the compared vectors - we need that in case we don't need
+        // to calculate top k and return directly the query to understand how many comparisons were done
         vectorProfiling = (QueryProfilerProvider) valueSource;
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
         Query query = searcher.rewrite(functionScoreQuery);
@@ -144,7 +109,6 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         if (o == null || getClass() != o.getClass()) return false;
         RescoreKnnVectorQuery that = (RescoreKnnVectorQuery) o;
         return Objects.equals(fieldName, that.fieldName)
-            && Objects.deepEquals(byteTarget, that.byteTarget)
             && Objects.deepEquals(floatTarget, that.floatTarget)
             && vectorSimilarityFunction == that.vectorSimilarityFunction
             && Objects.equals(k, that.k)
@@ -153,18 +117,14 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(byteTarget), Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
+        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
     }
 
     @Override
     public String toString(String field) {
         final StringBuilder sb = new StringBuilder("KnnRescoreVectorQuery{");
         sb.append("fieldName='").append(fieldName).append('\'');
-        if (byteTarget != null) {
-            sb.append(", byteTarget=").append(byteTarget[0]).append("...");
-        } else {
-            sb.append(", floatTarget=").append(floatTarget[0]).append("...");
-        }
+        sb.append(", floatTarget=").append(floatTarget[0]).append("...");
         sb.append(", vectorSimilarityFunction=").append(vectorSimilarityFunction);
         sb.append(", k=").append(k);
         sb.append(", vectorQuery=").append(innerQuery);

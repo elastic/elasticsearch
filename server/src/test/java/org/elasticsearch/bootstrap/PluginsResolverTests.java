@@ -19,6 +19,9 @@ import org.elasticsearch.test.jar.JarUtils;
 import java.io.IOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +45,7 @@ public class PluginsResolverTests extends ESTestCase {
 
         final Path home = createTempDir();
 
-        Path jar = createPluginJar(home, pluginName, moduleName, "p", "A");
+        Path jar = createModularPluginJar(home, pluginName, moduleName, "p", "A");
 
         var layer = createModuleLayer(moduleName, jar);
         var loader = layer.findLoader(moduleName);
@@ -66,8 +69,8 @@ public class PluginsResolverTests extends ESTestCase {
     public void testResolveMultipleModularPlugins() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
-        Path jar1 = createPluginJar(home, "plugin1", "module.one", "p", "A");
-        Path jar2 = createPluginJar(home, "plugin2", "module.two", "q", "B");
+        Path jar1 = createModularPluginJar(home, "plugin1", "module.one", "p", "A");
+        Path jar2 = createModularPluginJar(home, "plugin2", "module.two", "q", "B");
 
         var layer1 = createModuleLayer("module.one", jar1);
         var loader1 = layer1.findLoader("module.one");
@@ -95,7 +98,7 @@ public class PluginsResolverTests extends ESTestCase {
     public void testResolveReferencedModulesInModularPlugins() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
-        Path dependencyJar = createPluginJar(home, "plugin1", "module.one", "p", "A");
+        Path dependencyJar = createModularPluginJar(home, "plugin1", "module.one", "p", "A");
         Path pluginJar = home.resolve("plugin2.jar");
 
         Map<String, CharSequence> sources = Map.ofEntries(
@@ -125,6 +128,62 @@ public class PluginsResolverTests extends ESTestCase {
 
         assertEquals("plugin2", resolvedPluginName1);
         assertEquals("plugin2", resolvedPluginName2);
+    }
+
+    public void testResolveMultipleNonModularPlugins() throws IOException, ClassNotFoundException {
+        final Path home = createTempDir();
+
+        Path jar1 = createNonModularPluginJar(home, "plugin1", "p", "A");
+        Path jar2 = createNonModularPluginJar(home, "plugin2", "q", "B");
+
+        var loader1 = createClassLoader(jar1);
+        var loader2 = createClassLoader(jar2);
+
+        PluginBundle bundle1 = createMockBundle("plugin1", null, "p.A");
+        PluginBundle bundle2 = createMockBundle("plugin2", null, "q.B");
+        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
+
+        when(mockPluginsLoader.pluginLayers()).thenReturn(
+            Stream.of(new TestPluginLayer(bundle1, loader1, ModuleLayer.boot()), new TestPluginLayer(bundle2, loader2, ModuleLayer.boot()))
+        );
+        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+
+        var testClass1 = loader1.loadClass("p.A");
+        var testClass2 = loader2.loadClass("q.B");
+        var resolvedPluginName1 = pluginsResolver.resolveClassToPluginName(testClass1);
+        var resolvedPluginName2 = pluginsResolver.resolveClassToPluginName(testClass2);
+
+        assertEquals("plugin1", resolvedPluginName1);
+        assertEquals("plugin2", resolvedPluginName2);
+    }
+
+    public void testResolveNonModularPlugin() throws IOException, ClassNotFoundException {
+        String pluginName = "non-modular-plugin";
+
+        final Path home = createTempDir();
+
+        Path jar = createNonModularPluginJar(home, pluginName, "p", "A");
+
+        var loader = createClassLoader(jar);
+
+        PluginBundle bundle = createMockBundle(pluginName, null, "p.A");
+        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
+
+        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot())));
+        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+
+        var testClass = loader.loadClass("p.A");
+        var resolvedPluginName = pluginsResolver.resolveClassToPluginName(testClass);
+        var unresolvedPluginName1 = pluginsResolver.resolveClassToPluginName(PluginsResolver.class);
+        var unresolvedPluginName2 = pluginsResolver.resolveClassToPluginName(String.class);
+
+        assertEquals(pluginName, resolvedPluginName);
+        assertNull(unresolvedPluginName1);
+        assertNull(unresolvedPluginName2);
+    }
+
+    private static URLClassLoader createClassLoader(Path jar) throws MalformedURLException {
+        return new URLClassLoader(new URL[]{jar.toUri().toURL()});
     }
 
     private static ModuleLayer createModuleLayer(String moduleName, Path... jars) {
@@ -159,7 +218,7 @@ public class PluginsResolverTests extends ESTestCase {
         return bundle;
     }
 
-    private static Path createPluginJar(Path home, String pluginName, String moduleName, String packageName, String className)
+    private static Path createModularPluginJar(Path home, String pluginName, String moduleName, String packageName, String className)
         throws IOException {
         Path jar = home.resolve(pluginName + ".jar");
         String fqClassName = packageName + "." + className;
@@ -174,6 +233,25 @@ public class PluginsResolverTests extends ESTestCase {
             jar,
             Map.ofEntries(
                 entry("module-info.class", classToBytes.get("module-info")),
+                entry(packageName + "/" + className + ".class", classToBytes.get(fqClassName))
+            )
+        );
+        return jar;
+    }
+
+    private static Path createNonModularPluginJar(Path home, String pluginName, String packageName, String className)
+        throws IOException {
+        Path jar = home.resolve(pluginName + ".jar");
+        String fqClassName = packageName + "." + className;
+
+        Map<String, CharSequence> sources = Map.ofEntries(
+            entry(fqClassName, "package " + packageName + "; public class " + className + " {}")
+        );
+
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+        JarUtils.createJarWithEntries(
+            jar,
+            Map.ofEntries(
                 entry(packageName + "/" + className + ".class", classToBytes.get(fqClassName))
             )
         );

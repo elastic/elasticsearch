@@ -9,41 +9,39 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsLoader;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 class PluginsResolver {
-    private final Map<ModuleLayer, PluginDescriptor> modularPluginDescriptorByLayer;
+    private final Map<Module, String> pluginNameByModule;
 
-    private PluginsResolver(Map<ModuleLayer, PluginDescriptor> modularPluginDescriptorByLayer) {
-        this.modularPluginDescriptorByLayer = modularPluginDescriptorByLayer;
+    private PluginsResolver(Map<Module, String> pluginNameByModule) {
+        this.pluginNameByModule = pluginNameByModule;
     }
 
     public static PluginsResolver create(PluginsLoader pluginsLoader) {
-        var modularPluginDescriptorByLayer = pluginsLoader.pluginLayers()
-            .filter(e -> e.pluginModuleLayer() != null && e.pluginModuleLayer() != ModuleLayer.boot())
-            .collect(Collectors.toUnmodifiableMap(PluginsLoader.PluginLayer::pluginModuleLayer, e -> e.pluginBundle().pluginDescriptor()));
+        Map<Module, String> pluginNameByModule = new HashMap<>();
 
-        return new PluginsResolver(modularPluginDescriptorByLayer);
+        pluginsLoader.pluginLayers().forEach(pluginLayer -> {
+            var pluginName = pluginLayer.pluginBundle().pluginDescriptor().getName();
+            if (pluginLayer.pluginModuleLayer() != null && pluginLayer.pluginModuleLayer() != ModuleLayer.boot()) {
+                // This plugin is a Java Module
+                for (var module: pluginLayer.pluginModuleLayer().modules()) {
+                    pluginNameByModule.put(module, pluginName);
+                }
+            } else {
+                // This plugin is not modularized
+                pluginNameByModule.put(pluginLayer.pluginClassLoader().getUnnamedModule(), pluginName);
+            }
+        });
+
+        return new PluginsResolver(pluginNameByModule);
     }
 
     public String resolveClassToPluginName(Class<?> clazz) {
         var module = clazz.getModule();
-        var layer = module.getLayer();
-
-        if (layer != null && layer != ModuleLayer.boot()) {
-            // Potentially a modular plugin
-            var pluginDescriptor = modularPluginDescriptorByLayer.get(layer);
-            return pluginDescriptor == null ? null : pluginDescriptor.getName();
-        } else if (module.isNamed() == false) {
-            // Potentially a non-modular plugin
-            // TODO: fallback to checking the clazz.getClassLoader() for non-modular plugins
-            return null;
-        }
-        // Not a plugin
-        return null;
+        return pluginNameByModule.get(module);
     }
 }

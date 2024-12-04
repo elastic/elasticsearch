@@ -12,7 +12,7 @@ enabled by Elasticsearch include:
 * Application performance monitoring (APM)
 * Security logs
 
-\... and more!
+\''' and more!
 
 To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].

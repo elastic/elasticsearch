@@ -103,11 +103,11 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };

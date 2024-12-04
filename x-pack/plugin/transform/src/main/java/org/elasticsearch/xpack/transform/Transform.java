@@ -190,7 +190,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             return;
         }
 
-        // Enable Transform upgrade mode before upgrading the ML system indices to ensure nothing writes to them during the upgrade
+        // Enable Transform upgrade mode before upgrading the system indices to ensure nothing writes to them during the upgrade
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,

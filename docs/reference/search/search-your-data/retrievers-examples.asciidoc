@@ -1,31 +1,16 @@
 [[retrievers-examples]]
-=== Retrievers examples
 
 Learn how to combine different retrievers in these hands-on examples.
-To demonstrate the full functionality of retrievers, these examples require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
+
+=== Retrievers examples
 
 [discrete]
 [[retrievers-examples-setup]]
 ==== Add example data
 
-To begin with, we'll set up the necessary services and have them in place for later use.
+To begin with, lets create the `retrievers_example` index, and add some documents to it.
 
-[source,js]
-----
-// Setup rerank task stored as `my-rerank-model`
-PUT _inference/rerank/my-rerank-model
-{
- "service": "cohere",
- "service_settings": {
-   "model_id": "rerank-english-v3.0",
-   "api_key": "{{COHERE_API_KEY}}"
- }
-}
-----
-//NOTCONSOLE
-
-Now that we have our reranking service in place, lets create the `retrievers_example` index, and add some documents to it.
-[source,js]
+[source,console]
 ----
 PUT retrievers_example
 {
@@ -49,11 +34,7 @@ PUT retrievers_example
        }
    }
 }
-----
-//NOTCONSOLE
 
-[source,js]
-----
 POST /retrievers_example/_doc/1
 {
  "vector": [0.23, 0.67, 0.89],
@@ -94,10 +75,12 @@ POST /retrievers_example/_doc/5
  "topic": ["documentation", "observability", "elastic"]
 }
 
-----
-//NOTCONSOLE
+POST /retrievers_example/_refresh
 
-Now that we also have our documents in place, let's try to run some queries using retrievers.
+----
+// TESTSETUP
+
+Now that we have our documents in place, let's try to run some queries using retrievers.
 
 [discrete]
 [[retrievers-examples-combining-standard-knn-retrievers-with-rrf]]
@@ -112,164 +95,1079 @@ To implement this in the retriever framework, we start with the top-level elemen
 retriever. This retriever operates on top of two other retrievers: a `knn` retriever and a
 `standard` retriever. Our query structure would look like this:
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
-   "retriever":{
-       "rrf": {
-           "retrievers":[
-               {
-                   "standard":{
-                       "query":{
-                           "query_string":{
-                              "query": "(information retrieval) OR (artificial intelligence)",
-                              "default_field": "text"
-                           }
-                       }
-                   }
-               },
-               {
-                   "knn": {
-                       "field": "vector",
-                       "query_vector": [
-                           0.23,
-                           0.67,
-                           0.89
-                       ],
-                       "k": 3,
-                       "num_candidates": 5
-                   }
-               }
-           ],
-           "rank_window_size": 10,
-           "rank_constant": 1
-       }
-   },
-   "_source": ["text", "topic"]
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false
 }
 ----
-//NOTCONSOLE
+// TEST
+
+This returns the following response based on the final rrf score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
 
 [discrete]
 [[retrievers-examples-collapsing-retriever-results]]
 ==== Example: Grouping results by year with `collapse`
 
 In our result set, we have many documents with the same `year` value. We can clean this
-up using the `collapse` parameter with our retriever. This enables grouping results by
-any field and returns only the highest-scoring document from each group. In this example
+up using the `collapse` parameter with our retriever. This, as with the standard <<collapse-search-results, collapse>> feature,
+enables grouping results by any field and returns only the highest-scoring document from each group. In this example
 we'll collapse our results based on the `year` field.
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
-   "retriever":{
-       "rrf": {
-           "retrievers":[
-               {
-                   "standard":{
-                       "query":{
-                           "query_string":{
-                              "query": "(information retrieval) OR (artificial intelligence)",
-                              "default_field": "text"
-                           }
-                       }
-                   }
-               },
-               {
-                   "knn": {
-                       "field": "vector",
-                       "query_vector": [
-                           0.23,
-                           0.67,
-                           0.89
-                       ],
-                       "k": 3,
-                       "num_candidates": 5
-                   }
-               }
-           ],
-           "rank_window_size": 10,
-           "rank_constant": 1
-       }
-   },
-   "collapse": {
-       "field": "year",
-       "inner_hits": {
-           "name": "topic related documents",
-           "_source": ["text", "year"]
-       }
-   },
-   "_source": ["text", "topic"]
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "collapse": {
+        "field": "year",
+        "inner_hits": {
+            "name": "topic related documents",
+            "_source": [
+                "year"
+            ]
+        }
+    },
+    "_source": false
 }
 ----
-//NOTCONSOLE
+// TEST[continued]
+
+This returns the following response with collapsed results.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334,
+                "fields": {
+                    "year": [
+                        2024
+                    ]
+                },
+                "inner_hits": {
+                    "topic related documents": {
+                        "hits": {
+                            "total": {
+                                "value": 2,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.8333334,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example",
+                                    "_id": "1",
+                                    "_score": 0.8333334,
+                                    "_source": {
+                                        "year": 2024
+                                    }
+                                },
+                                {
+                                    "_index": "retrievers_example",
+                                    "_id": "3",
+                                    "_score": 0.25,
+                                    "_source": {
+                                        "year": 2024
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334,
+                "fields": {
+                    "year": [
+                        2023
+                    ]
+                },
+                "inner_hits": {
+                    "topic related documents": {
+                        "hits": {
+                            "total": {
+                                "value": 1,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.8333334,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example",
+                                    "_id": "2",
+                                    "_score": 0.8333334,
+                                    "_source": {
+                                        "year": 2023
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
+
+[discrete]
+[[retrievers-examples-highlighting-retriever-results]]
+==== Example: Highlighting results based on nested sub-retrievers
+
+Highlighting is now also available for nested sub-retrievers matches. For example, consider the same
+`rrf` retriever as above, with a `knn` and `standard` retriever as its sub-retrievers. We can specify a `highlight`
+section, as defined in <<highlighting,highlighting>> documentation, and compute highlights for the top results.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "highlight": {
+        "fields": {
+            "text": {
+                "fragment_size": 150,
+                "number_of_fragments": 3
+            }
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+This would highlight the `text` field, based on the matches produced by the `standard` retriever. The highlighted snippets
+would then be included in the response as usual, i.e. under each search hit.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334,
+                "highlight": {
+                    "text": [
+                        "Large language models are revolutionizing <em>information</em> <em>retrieval</em> by boosting search precision, deepening contextual understanding, and reshaping user experiences"
+                    ]
+                }
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334,
+                "highlight": {
+                    "text": [
+                        "<em>Artificial</em> <em>intelligence</em> is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved"
+                    ]
+                }
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
+
+[discrete]
+[[retrievers-examples-inner-hits-retriever-results]]
+==== Example: Computing inner hits from nested sub-retrievers
+
+We can also define `inner_hits` to be computed on any of the sub-retrievers, and propagate those computations to the top
+level compound retriever. For example, let's create a new index with a `knn` field, nested under the `nested_field` field,
+and index a couple of documents.
+
+[source,console]
+----
+PUT retrievers_example_nested
+{
+    "mappings": {
+        "properties": {
+            "nested_field": {
+                "type": "nested",
+                "properties": {
+                    "paragraph_id": {
+                        "type": "keyword"
+                    },
+                    "nested_vector": {
+                        "type": "dense_vector",
+                        "dims": 3,
+                        "similarity": "l2_norm",
+                        "index": true
+                    }
+                }
+            },
+            "topic": {
+                "type": "keyword"
+            }
+        }
+    }
+}
+
+POST /retrievers_example_nested/_doc/1
+{
+    "nested_field": [
+        {
+            "paragraph_id": "1a",
+            "nested_vector": [
+                -1.12,
+                -0.59,
+                0.78
+            ]
+        },
+        {
+            "paragraph_id": "1b",
+            "nested_vector": [
+                -0.12,
+                1.56,
+                0.42
+            ]
+        },
+        {
+            "paragraph_id": "1c",
+            "nested_vector": [
+                1,
+                -1,
+                0
+            ]
+        }
+    ],
+    "topic": [
+        "ai"
+    ]
+}
+
+POST /retrievers_example_nested/_doc/2
+{
+    "nested_field": [
+        {
+            "paragraph_id": "2a",
+            "nested_vector": [
+                0.23,
+                1.24,
+                0.65
+            ]
+        }
+    ],
+    "topic": [
+        "information_retrieval"
+    ]
+}
+
+POST /retrievers_example_nested/_doc/3
+{
+    "topic": [
+        "ai"
+    ]
+}
+
+POST /retrievers_example_nested/_refresh
+----
+// TEST[continued]
+
+Now we can run an `rrf` retriever query and also compute <<inner-hits, inner hits>> for the `nested_field.nested_vector`
+field, based on the `knn` query specified.
+
+[source,console]
+----
+GET /retrievers_example_nested/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "nested": {
+                                "path": "nested_field",
+                                "inner_hits": {
+                                    "name": "nested_vector",
+                                    "_source": false,
+                                    "fields": [
+                                        "nested_field.paragraph_id"
+                                    ]
+                                },
+                                "query": {
+                                    "knn": {
+                                        "field": "nested_field.nested_vector",
+                                        "query_vector": [
+                                            1,
+                                            0,
+                                            0.5
+                                        ],
+                                        "k": 10
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "topic": "ai"
+                            }
+                        }
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": [
+        "topic"
+    ]
+}
+----
+// TEST[continued]
+
+This would propagate the `inner_hits` defined for the `knn` query to the `rrf` retriever, and compute inner hits for `rrf`'s top results.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 1.0,
+        "hits": [
+            {
+                "_index": "retrievers_example_nested",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                    "topic": [
+                        "ai"
+                    ]
+                },
+                "inner_hits": {
+                    "nested_vector": {
+                        "hits": {
+                            "total": {
+                                "value": 3,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.44353113,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "1",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 2
+                                    },
+                                    "_score": 0.44353113,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "1c"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "1",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 1
+                                    },
+                                    "_score": 0.26567122,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "1b"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "1",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 0
+                                    },
+                                    "_score": 0.18478848,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "1a"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "_index": "retrievers_example_nested",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                    "topic": [
+                        "information_retrieval"
+                    ]
+                },
+                "inner_hits": {
+                    "nested_vector": {
+                        "hits": {
+                            "total": {
+                                "value": 1,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.32002488,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "2",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 0
+                                    },
+                                    "_score": 0.32002488,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "2a"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "_index": "retrievers_example_nested",
+                "_id": "3",
+                "_score": 0.33333334,
+                "_source": {
+                    "topic": [
+                        "ai"
+                    ]
+                },
+                "inner_hits": {
+                    "nested_vector": {
+                        "hits": {
+                            "total": {
+                                "value": 0,
+                                "relation": "eq"
+                            },
+                            "max_score": null,
+                            "hits": []
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
+
+Note: if using more than one `inner_hits` we need to provide custom names for each `inner_hits` so that they
+are unique across all retrievers within the request.
+
+[discrete]
+[[retrievers-examples-rrf-and-aggregations]]
+==== Example: Combine RRF with aggregations
+
+Retrievers support both composability and most of the standard `_search` functionality. For instance,
+we can compute aggregations with the `rrf` retriever. When using a compound retriever,
+the aggregations are computed based on its nested retrievers. In the following example,
+the `terms` aggregation for the `topic` field will include all results, not just the top `rank_window_size`,
+from the 2 nested retrievers, i.e. all documents whose `year` field is greater than 2023, and whose `topic` field
+matches the term `elastic`.
+
+[source,console]
+----
+GET retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "range": {
+                                "year": {
+                                    "gt": 2023
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "topic": "elastic"
+                            }
+                        }
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false,
+    "aggs": {
+        "topics": {
+            "terms": {
+                "field": "topic"
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+.Example response
+[%collapsible]
+==============
+[source, console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 4,
+            "relation": "eq"
+        },
+        "max_score": 0.5833334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
+                "_score": 0.5833334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.5
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 0.5
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.33333334
+            }
+        ]
+    },
+    "aggregations": {
+        "topics": {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+                {
+                    "key": "ai",
+                    "doc_count": 3
+                },
+                {
+                    "key": "elastic",
+                    "doc_count": 2
+                },
+                {
+                    "key": "assistant",
+                    "doc_count": 1
+                },
+                {
+                    "key": "documentation",
+                    "doc_count": 1
+                },
+                {
+                    "key": "information_retrieval",
+                    "doc_count": 1
+                },
+                {
+                    "key": "llm",
+                    "doc_count": 1
+                },
+                {
+                    "key": "observability",
+                    "doc_count": 1
+                },
+                {
+                    "key": "security",
+                    "doc_count": 1
+                }
+            ]
+        }
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
+
+[discrete]
+[[retrievers-examples-explain-multiple-rrf]]
+==== Example: Explainability with multiple retrievers
+
+By adding `explain: true` to the request, each retriever will now provide a detailed explanation of all the steps
+and calculations required to compute the final score. Composability is fully supported in the context of `explain`, and
+each retriever will provide its own explanation, as shown in the example below.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "topic": "elastic"
+                            }
+                        }
+                    }
+                },
+                {
+                    "rrf": {
+                        "retrievers": [
+                            {
+                                "standard": {
+                                    "query": {
+                                        "query_string": {
+                                            "query": "(information retrieval) OR (artificial intelligence)",
+                                            "default_field": "text"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "knn": {
+                                    "field": "vector",
+                                    "query_vector": [
+                                        0.23,
+                                        0.67,
+                                        0.89
+                                    ],
+                                    "k": 3,
+                                    "num_candidates": 5
+                                }
+                            }
+                        ],
+                        "rank_window_size": 10,
+                        "rank_constant": 1
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false,
+    "size": 1,
+    "explain": true
+}
+----
+// TEST[continued]
+
+The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking.
+
+.Example response
+[%collapsible]
+==============
+[source, console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": 0.5,
+        "hits": [
+            {
+                "_shard": "[retrievers_example][0]",
+                "_node": "jnrdZFKS3abUgWVsVdj2Vg",
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.5,
+                "_explanation": {
+                    "value": 0.5,
+                    "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                    "details": [
+                        {
+                            "value": 0.0,
+                            "description": "rrf score: [0], result not found in query at index [0]",
+                            "details": []
+                        },
+                        {
+                            "value": 1,
+                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
+                            "details": [
+                                {
+                                    "value": 0.8333334,
+                                    "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                                    "details": [
+                                        {
+                                            "value": 2,
+                                            "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1)], for matching query with score",
+                                            "details": [
+                                                {
+                                                    "value": 2.8129659,
+                                                    "description": "sum of:",
+                                                    "details": [
+                                                        {
+                                                            "value": 1.4064829,
+                                                            "description": "weight(text:information in 0) [PerFieldSimilarity], result of:",
+                                                            "details": [
+                                                                ***
+                                                            ]
+                                                        },
+                                                        {
+                                                            "value": 1.4064829,
+                                                            "description": "weight(text:retrieval in 0) [PerFieldSimilarity], result of:",
+                                                            "details": [
+                                                                ***
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "value": 1,
+                                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
+                                            "details": [
+                                                {
+                                                    "value": 1,
+                                                    "description": "doc [0] with an original score of [1.0] is at rank [1] from the following source queries.",
+                                                    "details": [
+                                                        {
+                                                            "value": 1.0,
+                                                            "description": "found vector with calculated similarity: 1.0",
+                                                            "details": []
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.0.details.0/]
+// TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.1.details.0/]
+// TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
+==============
 
 [discrete]
 [[retrievers-examples-text-similarity-reranker-on-top-of-rrf]]
 ==== Example: Rerank results of an RRF retriever
 
-Previously, we used a `text_similarity_reranker` retriever within an `rrf` retriever.
-Because retrievers support full composability, we can also rerank the results of an
-`rrf` retriever. Let's apply this to our first example.
+To demonstrate the full functionality of retrievers, the following examples also require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
 
-[source,js]
+In this example we'll set up a reranking service and use it with the `text_similarity_reranker` retriever to rerank our top results.
+
+[source,console]
+----
+PUT _inference/rerank/my-rerank-model
+{
+ "service": "cohere",
+ "service_settings": {
+   "model_id": "rerank-english-v3.0",
+   "api_key": "{{COHERE_API_KEY}}"
+ }
+}
+----
+// TEST[skip: no_access_to_ml]
+
+Let's start by reranking the results of the `rrf` retriever in our previous example.
+
+[source,console]
 ----
 GET retrievers_example/_search
 {
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "rrf": {
-                   "retrievers": [
-                       {
-                           "standard":{
-                               "query":{
-                                   "query_string":{
-                                      "query": "(information retrieval) OR (artificial intelligence)",
-                                      "default_field": "text"
-                                   }
-                               }
-                           }
-                       },
-                       {
-                           "knn": {
-                               "field": "vector",
-                               "query_vector": [
-                                   0.23,
-                                   0.67,
-                                   0.89
-                               ],
-                               "k": 3,
-                               "num_candidates": 5
-                           }
-                       }
-                   ],
-                   "rank_window_size": 10,
-                   "rank_constant": 1
-               }
-           },
-           "field": "text",
-           "inference_id": "my-rerank-model",
-           "inference_text": "What are the state of the art applications of AI in information retrieval?"
-       }
-   },
-   "_source": ["text", "topic"]
+    "retriever": {
+        "text_similarity_reranker": {
+            "retriever": {
+                "rrf": {
+                    "retrievers": [
+                        {
+                            "standard": {
+                                "query": {
+                                    "query_string": {
+                                        "query": "(information retrieval) OR (artificial intelligence)",
+                                        "default_field": "text"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "knn": {
+                                "field": "vector",
+                                "query_vector": [
+                                    0.23,
+                                    0.67,
+                                    0.89
+                                ],
+                                "k": 3,
+                                "num_candidates": 5
+                            }
+                        }
+                    ],
+                    "rank_window_size": 10,
+                    "rank_constant": 1
+                }
+            },
+            "field": "text",
+            "inference_id": "my-rerank-model",
+            "inference_text": "What are the state of the art applications of AI in information retrieval?"
+        }
+    },
+    "_source": false
 }
 
 ----
-//NOTCONSOLE
+// TEST[skip: no_access_to_ml]
 
 [discrete]
 [[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
 ==== Example: RRF with semantic reranker
 
-For this example, we'll replace our semantic query with the `my-rerank-model`
-reranker we previously configured. Since this is a reranker, it needs an initial pool of
-documents to work with. In this case, we'll filter for documents about `ai` topics.
+For this example, we'll replace the rrf's `standard` retriever with the `text_similarity_reranker` retriever, using the
+`my-rerank-model` reranker we previously configured. Since this is a reranker, it needs an initial pool of
+documents to work with. In this case, we'll rerank the top `rank_window_size` documents matching the  `ai` topic.
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
@@ -309,120 +1207,56 @@ GET /retrievers_example/_search
             "rank_constant": 1
         }
     },
-    "_source": [
-        "text",
-        "topic"
-    ]
+    "_source": false
 }
 ----
-//NOTCONSOLE
+// TEST[skip: no_access_to_ml]
 
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
 ==== Example: Chaining multiple semantic rerankers
 
-Full composability means we can chain together multiple retrievers of the same type. For instance, imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
+Full composability means we can chain together multiple retrievers of the same type. For instance,
+imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
-[source,js]
+[source,console]
 ----
 GET retrievers_example/_search
 {
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "text_similarity_reranker": {
-                   "retriever": {
-                       "knn": {
-                           "field": "vector",
-                           "query_vector": [
-                               0.23,
-                               0.67,
-                               0.89
-                           ],
-                           "k": 3,
-                           "num_candidates": 5
-                       }
-                   },
-                   "rank_window_size": 100,
-                   "field": "text",
-                   "inference_id": "my-rerank-model",
-                   "inference_text": "What are the state of the art applications of AI in information retrieval?"
-               }
-           },
-           "rank_window_size": 10,
-           "field": "text",
-           "inference_id": "my-other-more-expensive-rerank-model",
-           "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
-       }
-   },
-   "_source": [
-       "text",
-       "topic"
-   ]
+    "retriever": {
+        "text_similarity_reranker": {
+            "retriever": {
+                "text_similarity_reranker": {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "rank_window_size": 100,
+                    "field": "text",
+                    "inference_id": "my-rerank-model",
+                    "inference_text": "What are the state of the art applications of AI in information retrieval?"
+                }
+            },
+            "rank_window_size": 10,
+            "field": "text",
+            "inference_id": "my-other-more-expensive-rerank-model",
+            "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
+        }
+    },
+    "_source": false
 }
 ----
-//NOTCONSOLE
-
+// TEST[skip: no_access_to_ml]
 
 Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
 pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
-
-[discrete]
-[[retrievers-examples-rrf-and-aggregations]]
-==== Example: Combine RRF with aggregations
-
-Retrievers support both composability and most of the standard `_search` functionality. For instance,
-we can compute aggregations with the `rrf` retriever. When using a compound retriever,
-the aggregations are computed based on its nested retrievers. In the following example,
-the `terms` aggregation for the `topic` field will include all results, not just the top `rank_window_size`,
-from the 2 nested retrievers, i.e. all documents whose `year` field is greater than 2023, and whose `topic` field
-matches the term `elastic`.
-
-[source,js]
-----
-GET retrievers_example/_search
-{
-    "retriever": {
-        "rrf": {
-            "retrievers": [
-                {
-                    "standard": {
-                        "query": {
-                            "range": {
-                                "year": {
-                                    "gt": 2023
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "standard": {
-                        "query": {
-                            "term": {
-                                "topic": "elastic"
-                            }
-                        }
-                    }
-                }
-            ],
-            "rank_window_size": 10,
-            "rank_constant": 1
-        }
-    },
-    "_source": [
-        "text",
-        "topic"
-    ],
-    "aggs": {
-        "topics": {
-            "terms": {
-                "field": "topic"
-            }
-        }
-    }
-}
-----
-//NOTCONSOLE

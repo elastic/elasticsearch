@@ -56,6 +56,7 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
+import org.elasticsearch.search.lookup.ReinitializingSourceProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -74,6 +75,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 
@@ -500,9 +502,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public SourceProvider createSourceProvider() {
-        return isSourceSynthetic()
-            ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics())
-            : SourceProvider.fromStoredFields();
+        final Supplier<SourceProvider> supplier;
+        if (isSourceSynthetic()) {
+            supplier = () -> SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics());
+        } else {
+            supplier = () -> SourceProvider.fromStoredFields();
+        }
+        // TODO: apply selectively. (only in the context of compute engine)
+        return new ReinitializingSourceProvider(supplier);
     }
 
     /**

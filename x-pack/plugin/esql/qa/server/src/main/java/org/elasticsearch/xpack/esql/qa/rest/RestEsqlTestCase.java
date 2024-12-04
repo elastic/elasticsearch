@@ -52,7 +52,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
 
@@ -1218,7 +1217,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
             String isRunning = response.getHeader("X-Elasticsearch-Async-Is-Running");
-            if (Objects.equals(isRunning, "?0")) {
+            if ("?0".equals(isRunning)) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(builder.keepOnCompletion(), is(true));
             } else {

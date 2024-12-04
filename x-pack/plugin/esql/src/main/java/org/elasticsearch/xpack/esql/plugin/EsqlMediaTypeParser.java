@@ -45,7 +45,7 @@ public class EsqlMediaTypeParser {
         var mediaType = getResponseMediaType(request);
         validateColumnarRequest(esqlRequest.columnar(), mediaType);
         validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
-        return checkNonNullMediaType(mediaType, request);
+        return mediaType;
     }
 
     /*

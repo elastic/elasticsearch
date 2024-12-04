@@ -101,9 +101,16 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
+        List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
+            indexNameExpressionResolver,
+            state,
+            request.getNames(),
+            request.indicesOptions()
+        );
         if (request.verbose()) {
             DataStreamsStatsAction.Request req = new DataStreamsStatsAction.Request();
-            req.indices(request.indices());
+            req.indices(dataStreamNames.toArray(new String[0]));
+            req.indicesOptions(request.indicesOptions());
             client.execute(DataStreamsStatsAction.INSTANCE, req, new ActionListener<>() {
                 @Override
                 public void onResponse(DataStreamsStatsAction.Response response) {
@@ -118,7 +125,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
                         innerOperation(
                             state,
                             request,
-                            indexNameExpressionResolver,
+                            dataStreamNames,
                             systemIndices,
                             clusterSettings,
                             globalRetentionSettings,
@@ -134,7 +141,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             });
         } else {
             listener.onResponse(
-                innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, globalRetentionSettings, null)
+                innerOperation(state, request, dataStreamNames, systemIndices, clusterSettings, globalRetentionSettings, null)
             );
         }
     }
@@ -142,13 +149,13 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     static GetDataStreamAction.Response innerOperation(
         ClusterState state,
         GetDataStreamAction.Request request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        List<String> dataStreamNames,
         SystemIndices systemIndices,
         ClusterSettings clusterSettings,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         @Nullable Map<String, Long> maxTimestamps
     ) {
-        List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
+        List<DataStream> dataStreams = getDataStreams(state, dataStreamNames);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
             final String indexTemplate;
@@ -293,15 +300,10 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         }
     }
 
-    static List<DataStream> getDataStreams(
-        ClusterState clusterState,
-        IndexNameExpressionResolver iner,
-        GetDataStreamAction.Request request
-    ) {
-        List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
+    static List<DataStream> getDataStreams(ClusterState clusterState, List<String> dataStreamNames) {
         Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
-        return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
+        return dataStreamNames.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
     }
 
     @Override

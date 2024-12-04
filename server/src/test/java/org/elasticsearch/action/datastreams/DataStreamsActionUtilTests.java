@@ -20,8 +20,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -29,13 +32,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DataStreamsActionUtilTests extends ESTestCase {
+    private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
     public void testDataStreamsResolveConcreteIndexNames() {
 
@@ -88,6 +96,82 @@ public class DataStreamsActionUtilTests extends ESTestCase {
         ).toList();
 
         assertThat(resolved, containsInAnyOrder(".ds-foo1", ".ds-foo2", ".ds-baz1"));
+    }
+
+    public void testGetDataStream() {
+        final String dataStreamName = "my-data-stream";
+        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
+        List<String> dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, equalTo(List.of(dataStreamName)));
+    }
+
+    public void testGetDataStreamsWithWildcards() {
+        final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
+        ClusterState cs = getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
+            List.of()
+        );
+
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamNames[1].substring(0, 5) + "*" }
+        );
+        List<String> dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, equalTo(List.of(dataStreamNames[1])));
+
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
+        dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, null);
+        dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "matches-none*" });
+        dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, empty());
+    }
+
+    public void testGetDataStreamsWithoutWildcards() {
+        final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
+        ClusterState cs = getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
+            List.of()
+        );
+
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamNames[0], dataStreamNames[1] }
+        );
+        List<String> dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[1] });
+        dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[0] });
+        dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
+        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+
+        GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "foo" });
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> DataStreamsActionUtil.getDataStreamNames(resolver, cs, req2.getNames(), req2.indicesOptions())
+        );
+        assertThat(e.getMessage(), containsString("no such index [foo]"));
+    }
+
+    public void testGetNonexistentDataStream() {
+        final String dataStreamName = "my-data-stream";
+        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions())
+        );
+        assertThat(e.getMessage(), containsString("no such index [" + dataStreamName + "]"));
     }
 
     private Map<String, IndexMetadata> createLocalOnlyIndicesMetadata(Index... indices) {

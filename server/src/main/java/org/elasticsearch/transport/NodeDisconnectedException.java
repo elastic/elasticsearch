@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -34,14 +33,5 @@ public class NodeDisconnectedException extends ConnectTransportException {
     @Override
     public Throwable fillInStackTrace() {
         return this;
-    }
-
-    @Override
-    public RestStatus status() {
-        if (getCause() instanceof NodeNotConnectedException nodeNotConnectedException) {
-            return nodeNotConnectedException.status();
-        } else {
-            return RestStatus.INTERNAL_SERVER_ERROR;
-        }
     }
 }

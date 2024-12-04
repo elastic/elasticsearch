@@ -22,6 +22,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -91,7 +93,18 @@ public final class ExceptionsHelper {
             }
             result = result.getCause();
         }
-        return result;
+
+        // Traverse through the stacktrace and check if the error is caused by NodeNotConnectedException.
+        Throwable nodeNotConnEx = result;
+        while (nodeNotConnEx instanceof ElasticsearchException) {
+            if (nodeNotConnEx instanceof NodeNotConnectedException nn && nn.getMessage().equals("connection already closed")) {
+                break;
+            }
+
+            nodeNotConnEx = nodeNotConnEx.getCause();
+        }
+
+        return nodeNotConnEx != null ? nodeNotConnEx : result;
     }
 
     public static String stackTrace(Throwable e) {

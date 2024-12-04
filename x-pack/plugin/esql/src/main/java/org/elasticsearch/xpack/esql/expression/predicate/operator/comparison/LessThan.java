@@ -67,7 +67,16 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
     }
 
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.LT, zoneId, evaluatorMap, LessThanNanosMillisEvaluator.Factory::new, LessThanMillisNanosEvaluator.Factory::new);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.LT,
+            zoneId,
+            evaluatorMap,
+            LessThanNanosMillisEvaluator.Factory::new,
+            LessThanMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -113,7 +122,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
         // Note, parameters are reversed, so we need to invert the check.
-        return DateUtils.compareNanosToMillis(rhs, lhs) >= 0;
+        return DateUtils.compareNanosToMillis(rhs, lhs) > 0;
     }
 
     @Evaluator(extraName = "NanosMillis")

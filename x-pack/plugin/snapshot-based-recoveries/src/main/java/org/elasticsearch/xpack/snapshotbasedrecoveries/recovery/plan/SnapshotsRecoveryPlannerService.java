@@ -17,7 +17,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshot;
@@ -60,9 +59,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         ActionListener<ShardRecoveryPlan> listener
     ) {
         // Fallback to source only recovery if the target node is in an incompatible version
-        boolean canUseSnapshots = isLicenseActive.getAsBoolean()
-            && useSnapshots
-            && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION);
+        boolean canUseSnapshots = isLicenseActive.getAsBoolean() && useSnapshots;
 
         fetchLatestSnapshotsIgnoringErrors(
             shardId,

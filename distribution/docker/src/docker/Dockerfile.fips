@@ -17,7 +17,7 @@ RUN cat <<EOF > instance.yml
 instances:
     - name: "node1"
       dns:
-      - "node1.example.com"
+      - "node1.local"
       cn:
       - "node1.elasticsearch.cluster"
 EOF
@@ -29,6 +29,7 @@ RUN cp node1/node1.key config
 WORKDIR /usr/share/elasticsearch/config
 # Add fips specific configuration
 RUN cat <<EOF >> elasticsearch.yml
+cache.hash_algo: "ssha256"
 xpack.security.fips_mode.enabled: true
 xpack.security.enabled: true
 xpack.security.http.ssl.enabled: true

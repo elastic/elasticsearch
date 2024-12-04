@@ -16,9 +16,12 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_PATH;
@@ -28,6 +31,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENC
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetInferenceModelAction extends BaseRestHandler {
     public static final String DEFAULT_ELSER_2_CAPABILITY = "default_elser_2";
+    public static final String INFERENCE_METADATA_FIELDS_CAPABILITY = "inference_metadata_fields";
 
     @Override
     public String getName() {
@@ -66,6 +70,12 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DEFAULT_ELSER_2_CAPABILITY);
+        Set<String> capabilities = new HashSet<>();
+        capabilities.add(DEFAULT_ELSER_2_CAPABILITY);
+        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            capabilities.add(INFERENCE_METADATA_FIELDS_CAPABILITY);
+        }
+
+        return Collections.unmodifiableSet(capabilities);
     }
 }

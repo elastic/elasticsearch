@@ -14,6 +14,8 @@ import com.diffplug.gradle.spotless.SpotlessPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
+import java.util.Map;
+
 /**
  * This plugin configures formatting for Java source using Spotless
  * for Gradle. Since the act of formatting existing source can interfere
@@ -66,7 +68,8 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 java.importOrderFile(project.getRootProject().file(importOrderPath));
 
                 // Most formatting is done through the Eclipse formatter
-                java.eclipse().configFile(project.getRootProject().file(formatterConfigPath));
+                java.eclipse().withP2Mirrors(Map.of("https://download.eclipse.org/", "https://mirror.umd.edu/eclipse/"))
+                    configFile(project.getRootProject().file(formatterConfigPath));
 
                 // Ensure blank lines are actually empty. Since formatters are applied in
                 // order, apply this one last, otherwise non-empty blank lines can creep

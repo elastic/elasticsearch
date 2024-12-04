@@ -151,7 +151,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "GreaterThanNanosMillisEvaluator",
+                "GreaterThanMillisNanosEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((Instant) l).isAfter((Instant) r),

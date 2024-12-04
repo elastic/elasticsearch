@@ -130,7 +130,7 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
     @Evaluator(extraName = "MillisNanos")
     static boolean processMillisNanos(long lhs, long rhs) {
         // Note, parameters are reversed, so we need to invert the check.
-        return DateUtils.compareNanosToMillis(rhs, lhs) <= 0;
+        return DateUtils.compareNanosToMillis(rhs, lhs) < 0;
     }
 
     @Evaluator(extraName = "NanosMillis")

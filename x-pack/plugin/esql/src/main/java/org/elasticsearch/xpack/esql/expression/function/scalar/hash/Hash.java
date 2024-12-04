@@ -36,10 +36,7 @@ public class Hash extends EsqlScalarFunction {
     private final Expression alg;
     private final Expression input;
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Computes the hash of the input keyword."
-    )
+    @FunctionInfo(returnType = "keyword", description = "Computes the hash of the input keyword.")
     public Hash(
         Source source,
         @Param(name = "alg", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression alg,
@@ -51,11 +48,7 @@ public class Hash extends EsqlScalarFunction {
     }
 
     private Hash(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -73,6 +66,11 @@ public class Hash extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
+    }
+
+    @Override
+    public boolean foldable() {
+        return alg.foldable() && input.foldable();
     }
 
     @Evaluator(warnExceptions = NoSuchAlgorithmException.class)

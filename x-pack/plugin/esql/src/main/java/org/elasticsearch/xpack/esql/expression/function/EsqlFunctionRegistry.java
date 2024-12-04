@@ -406,10 +406,7 @@ public class EsqlFunctionRegistry {
             // fulltext functions
             new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr") },
             // hash
-            new FunctionDefinition[] {
-                def(Hash.class, Hash::new, "hash")
-            }
-        };
+            new FunctionDefinition[] { def(Hash.class, Hash::new, "hash") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

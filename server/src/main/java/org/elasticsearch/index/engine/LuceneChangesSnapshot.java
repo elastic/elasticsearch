@@ -16,6 +16,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SourceFieldMapper;

@@ -10,7 +10,6 @@
 package org.elasticsearch.multiproject;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -35,13 +34,6 @@ public class MultiProjectClusterStateActionIT extends MultiProjectRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return CLUSTER.getHttpAddresses();
-    }
-
-    // Once the cleanup part of integration tests works with multiple projects, we don't need to preserve the cluster.
-    @FixForMultiProject
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
     }
 
     public void testMultipleProjects() throws Exception {

@@ -96,7 +96,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -949,12 +948,7 @@ public class PersistedClusterStateService {
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    metadata.projects()
-                        .values()
-                        .stream()
-                        .map(ProjectMetadata::oldestIndexVersion)
-                        .min(Comparator.naturalOrder())
-                        .orElse(IndexVersion.current()),
+                    metadata.oldestIndexVersionAllProjects(),
                     metadata.clusterUUID(),
                     metadata.clusterUUIDCommitted()
                 );
@@ -996,12 +990,7 @@ public class PersistedClusterStateService {
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    metadata.projects()
-                        .values()
-                        .stream()
-                        .map(ProjectMetadata::oldestIndexVersion)
-                        .min(Comparator.naturalOrder())
-                        .orElse(IndexVersion.current()),
+                    metadata.oldestIndexVersionAllProjects(),
                     metadata.clusterUUID(),
                     metadata.clusterUUIDCommitted()
                 );

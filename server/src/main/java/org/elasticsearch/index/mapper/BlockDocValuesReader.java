@@ -82,33 +82,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    /**
-     * Base class for block loader that loads in row oriented fashion only and leaves stored field loading
-     * to scripting infrastructure.
-     */
-    public abstract static class AbstractScriptBlockLoader implements BlockLoader {
-
-        @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            return null;
-        }
-
-        @Override
-        public boolean supportsOrdinals() {
-            return false;
-        }
-
-        @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.SCRIPT_NO_REQUIREMENTS;
-        }
-    }
-
     public static class LongsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 

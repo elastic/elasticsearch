@@ -18,13 +18,8 @@ import java.util.function.Function;
  * Defines which stored fields need to be loaded during a fetch
  * @param requiresSource        should source be loaded
  * @param requiredStoredFields  a set of stored fields to load
- * @param hasScript             Whether scripts or runtime fields are used
  */
-public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields, boolean hasScript) {
-
-    public StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
-        this(requiresSource, requiresMetadata, requiredStoredFields, false);
-    }
+public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
 
     public boolean noRequirements() {
         return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty();
@@ -34,11 +29,6 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
      * Use when no stored fields are required
      */
     public static final StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of());
-
-    /**
-     * Use when scripts / runtime fields are used and no stored fields are required
-     */
-    public static final StoredFieldsSpec SCRIPT_NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of(), true);
 
     /**
      * Use when the source should be loaded but no other stored fields are required
@@ -57,8 +47,7 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,
             this.requiresMetadata || other.requiresMetadata,
-            mergedFields,
-            this.hasScript || other.hasScript
+            mergedFields
         );
     }
 

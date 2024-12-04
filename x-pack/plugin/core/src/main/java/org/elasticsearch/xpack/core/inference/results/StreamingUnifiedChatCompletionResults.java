@@ -145,9 +145,9 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
             if (usage != null) {
                 usageIterator = Iterators.concat(
                     ChunkedToXContentHelper.startObject(USAGE_FIELD),
-                    ChunkedToXContentHelper.field("completion_tokens", usage.completionTokens()),
-                    ChunkedToXContentHelper.field("prompt_tokens", usage.promptTokens()),
-                    ChunkedToXContentHelper.field("total_tokens", usage.totalTokens()),
+                    ChunkedToXContentHelper.field(COMPLETION_TOKENS_FIELD, usage.completionTokens()),
+                    ChunkedToXContentHelper.field(PROMPT_TOKENS_FIELD, usage.promptTokens()),
+                    ChunkedToXContentHelper.field(TOTAL_TOKENS_FIELD, usage.totalTokens()),
                     ChunkedToXContentHelper.endObject()
                 );
             }

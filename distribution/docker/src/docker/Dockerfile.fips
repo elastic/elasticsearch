@@ -27,8 +27,8 @@ RUN cp node1/node1.crt config
 RUN cp node1/node1.key config
 
 WORKDIR /usr/share/elasticsearch/config
-# Add policies for FIPS
-RUN cat <<EOF > elasticsearch.yml
+# Add fips specific configuration
+RUN cat <<EOF >> elasticsearch.yml
 xpack.security.fips_mode.enabled: true
 xpack.security.enabled: true
 xpack.security.http.ssl.enabled: true

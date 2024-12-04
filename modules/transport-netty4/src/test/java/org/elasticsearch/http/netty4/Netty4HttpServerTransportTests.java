@@ -40,6 +40,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -48,6 +49,7 @@ import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -100,6 +102,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -1093,9 +1096,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             transport.start();
             final var address = randomFrom(transport.boundAddress().boundAddresses()).address();
             try (var client = RestClient.builder(new HttpHost(address.getAddress(), address.getPort())).build()) {
+                final var responseExceptionFuture = new PlainActionFuture<Exception>();
                 final var cancellable = client.performRequestAsync(
                     new Request("GET", url),
-                    ActionTestUtils.wrapAsRestResponseListener(ActionListener.noop())
+                    ActionTestUtils.wrapAsRestResponseListener(ActionTestUtils.assertNoSuccessListener(responseExceptionFuture::onResponse))
                 );
                 safeAwait(handlingRequestLatch);
                 if (clientCancel) {
@@ -1104,6 +1108,12 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 transport.close();
                 transportClosedFuture.onResponse(null);
                 safeAwait(responseReleasedLatch);
+                final var responseException = safeGet(responseExceptionFuture);
+                if (clientCancel) {
+                    assertThat(responseException, instanceOf(CancellationException.class));
+                } else {
+                    assertThat(responseException, instanceOf(ConnectionClosedException.class));
+                }
             }
         }
     }

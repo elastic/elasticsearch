@@ -33,6 +33,15 @@ public class EsqlParser {
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
+    /**
+     * Maximum number of characters in an ESQL query. Antlr may parse the entire
+     * query into tokens to make the choices, buffering the world. There's a lot we
+     * can do in the grammar to prevent that, but let's be paranoid and assume we'll
+     * fail at preventing antlr from slurping in the world. Instead, let's make sure
+     * that the world just isn't that big.
+     */
+    public static final int MAX_LENGTH = 1_000_000;
+
     private EsqlConfig config = new EsqlConfig();
 
     public EsqlConfig config() {
@@ -60,8 +69,14 @@ public class EsqlParser {
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
+        if (query.length() > MAX_LENGTH) {
+            throw new org.elasticsearch.xpack.esql.core.ParsingException(
+                "ESQL statement is too large [{} characters > {}]",
+                query.length(),
+                MAX_LENGTH
+            );
+        }
         try {
-            // new CaseChangingCharStream()
             EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
 
             lexer.removeErrorListeners();

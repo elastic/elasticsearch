@@ -24,11 +24,16 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PolicyParserTests extends ESTestCase {
 
-    public void testGetEntitlementClassName() {
-        assertEquals("CreateClassloaderEntitlement", PolicyParser.getEntitlementClassName("create classloader"));
-        assertEquals("CreateClassloaderEntitlement", PolicyParser.getEntitlementClassName("create_classloader"));
-        assertEquals("CreateClassloaderEntitlement", PolicyParser.getEntitlementClassName("create-classloader"));
-        assertEquals("MultiNameActionEntitlement", PolicyParser.getEntitlementClassName("multi name action"));
+    private static class TestWrongEntitlementName implements Entitlement {}
+
+    public void testGetEntitlementTypeName() {
+        assertEquals("create_class_loader", PolicyParser.getEntitlementTypeName(CreateClassLoaderEntitlement.class));
+
+        var ex = expectThrows(IllegalArgumentException.class, () -> PolicyParser.getEntitlementTypeName(TestWrongEntitlementName.class));
+        assertThat(
+            ex.getMessage(),
+            equalTo("TestWrongEntitlementName is not a valid Entitlement class name. A valid class name must end with 'Entitlement'")
+        );
     }
 
     public void testPolicyBuilder() throws IOException {
@@ -44,17 +49,17 @@ public class PolicyParserTests extends ESTestCase {
     public void testParseCreateClassloader() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              - create_classloader
+              - create_class_loader
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml").parsePolicy();
         Policy builtPolicy = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new CreateClassloaderEntitlement())))
+            List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))
         );
         assertThat(
             parsedPolicy.scopes,
             contains(
                 both(transformedMatch((Scope scope) -> scope.name, equalTo("entitlement-module-name"))).and(
-                    transformedMatch(scope -> scope.entitlements, contains(instanceOf(CreateClassloaderEntitlement.class)))
+                    transformedMatch(scope -> scope.entitlements, contains(instanceOf(CreateClassLoaderEntitlement.class)))
                 )
             )
         );

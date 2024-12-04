@@ -21,22 +21,40 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
+import java.util.stream.Stream;
 
 /**
  * A parser to parse policy files for entitlements.
  */
 public class PolicyParser {
 
-    protected static final String entitlementPackageName = Entitlement.class.getPackage().getName();
+    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(FileEntitlement.class, CreateClassLoaderEntitlement.class)
+        .collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;
     protected final String policyName;
+
+    static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
+        var entitlementClassName = entitlementClass.getSimpleName();
+
+        if (entitlementClassName.endsWith("Entitlement") == false) {
+            throw new IllegalArgumentException(
+                entitlementClassName + " is not a valid Entitlement class name. A valid class name must end with 'Entitlement'"
+            );
+        }
+
+        var strippedClassName = entitlementClassName.substring(0, entitlementClassName.indexOf("Entitlement"));
+        return Arrays.stream(strippedClassName.split("(?=\\p{Lu})"))
+            .filter(Predicate.not(String::isEmpty))
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.joining("_"));
+    }
 
     public PolicyParser(InputStream inputStream, String policyName) throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
@@ -95,16 +113,12 @@ public class PolicyParser {
     }
 
     protected Entitlement parseEntitlement(String scopeName, String entitlementType) throws IOException {
-        Class<?> entitlementClass;
-        try {
-            var className = getEntitlementClassName(entitlementType);
-            entitlementClass = Class.forName(entitlementPackageName + "." + className);
-        } catch (ClassNotFoundException cnfe) {
+        Class<?> entitlementClass = EXTERNAL_ENTITLEMENTS.get(entitlementType);
+
+        if (entitlementClass == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
-        if (Entitlement.class.isAssignableFrom(entitlementClass) == false) {
-            throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
-        }
+
         Constructor<?> entitlementConstructor = entitlementClass.getConstructors()[0];
         ExternalEntitlement entitlementMetadata = entitlementConstructor.getAnnotation(ExternalEntitlement.class);
         if (entitlementMetadata == null) {
@@ -148,14 +162,6 @@ public class PolicyParser {
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new IllegalStateException("internal error");
         }
-    }
-
-    static String getEntitlementClassName(String entitlementType) {
-        var tokens = entitlementType.split("[\\W_]+");
-        var caseAdjustedTokens = Arrays.stream(tokens)
-            .filter(Predicate.not(String::isEmpty))
-            .map(x -> Character.toUpperCase(x.charAt(0)) + x.substring(1));
-        return caseAdjustedTokens.collect(Collectors.joining()) + "Entitlement";
     }
 
     protected PolicyParserException newPolicyParserException(String message) {

@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements ProfilingQuery {
+public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
 

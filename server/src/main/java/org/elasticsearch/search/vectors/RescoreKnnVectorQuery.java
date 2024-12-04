@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -28,7 +29,7 @@ import java.util.Objects;
 /**
  * Wraps an internal query to rescore the results using a similarity function over the original, non-quantized vectors of a vector field
  */
-public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
+public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
     private final String fieldName;
     private final byte[] byteTarget;
     private final float[] floatTarget;
@@ -36,7 +37,7 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
     private final Integer k;
     private final Query innerQuery;
 
-    private long vectorOpsCount;
+    private QueryProfilerProvider vectorProfiling;
 
     public RescoreKnnVectorQuery(
         String fieldName,
@@ -45,12 +46,7 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
         Integer k,
         Query innerQuery
     ) {
-        this.fieldName = fieldName;
-        this.byteTarget = byteTarget;
-        this.floatTarget = null;
-        this.vectorSimilarityFunction = vectorSimilarityFunction;
-        this.k = k;
-        this.innerQuery = innerQuery;
+        this(fieldName, byteTarget, null, vectorSimilarityFunction, k, innerQuery, null);
     }
 
     public RescoreKnnVectorQuery(
@@ -60,29 +56,47 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
         Integer k,
         Query innerQuery
     ) {
+        this(fieldName, null, floatTarget, vectorSimilarityFunction, k, innerQuery, null);
+    }
+
+    private RescoreKnnVectorQuery(
+        String fieldName,
+        byte[] byteTarget,
+        float[] floatTarget,
+        VectorSimilarityFunction vectorSimilarityFunction,
+        Integer k,
+        Query innerQuery,
+        QueryProfilerProvider queryProfilerProvider
+    ) {
+        if ((byteTarget == null ^ floatTarget == null) == false) {
+            throw new IllegalArgumentException("Either byteTarget or floatTarget must be set");
+        }
+
         this.fieldName = fieldName;
-        this.byteTarget = null;
+        this.byteTarget = byteTarget;
         this.floatTarget = floatTarget;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
         this.innerQuery = innerQuery;
+        this.vectorProfiling = queryProfilerProvider;
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        assert byteTarget == null ^ floatTarget == null : "Either byteTarget or floatTarget must be set";
-
         final DoubleValuesSource valueSource;
         if (byteTarget != null) {
             valueSource = new VectorSimilarityByteValueSource(fieldName, byteTarget, vectorSimilarityFunction);
         } else {
             valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
         }
+        // Vector similarity DoubleValueSource keep track of the compared vectors - we need that in case we don't need
+        // to calculate top k and return directly the query
+        vectorProfiling = (QueryProfilerProvider) valueSource;
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
         Query query = searcher.rewrite(functionScoreQuery);
 
         if (k == null) {
-            // No need to calculate top k - let the request size limit the results
+            // No need to calculate top k - let the request size limit the results.
             return query;
         }
 
@@ -95,8 +109,6 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
             docIds[i] = scoreDocs[i].doc;
             scores[i] = scoreDocs[i].score;
         }
-
-        vectorOpsCount = scoreDocs.length;
 
         return new KnnScoreDocQuery(docIds, scores, searcher.getIndexReader());
     }
@@ -111,17 +123,19 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        if (innerQuery instanceof ProfilingQuery profilingQuery) {
-            profilingQuery.profile(queryProfiler);
+        if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.profile(queryProfiler);
         }
-        queryProfiler.addVectorOpsCount(vectorOpsCount);
+
+        if (vectorProfiling == null) {
+            throw new IllegalStateException("Query should have been rewritten");
+        }
+        vectorProfiling.profile(queryProfiler);
     }
 
     @Override
     public void visit(QueryVisitor visitor) {
-        if (visitor.acceptField(fieldName)) {
-            visitor.visitLeaf(this);
-        }
+        innerQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
     }
 
     @Override

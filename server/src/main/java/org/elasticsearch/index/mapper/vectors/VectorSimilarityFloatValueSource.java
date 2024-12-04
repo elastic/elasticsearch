@@ -18,6 +18,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.vectors.QueryProfilerProvider;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,11 +29,12 @@ import java.util.Objects;
  * DoubleValuesSource that is used to calculate scores according to a similarity function for a KnnFloatVectorField, using the
  * original vector values stored in the index
  */
-public class VectorSimilarityFloatValueSource extends DoubleValuesSource {
+public class VectorSimilarityFloatValueSource extends DoubleValuesSource implements QueryProfilerProvider {
 
     private final String field;
     private final float[] target;
     private final VectorSimilarityFunction vectorSimilarityFunction;
+    private long vectorOpsCount;
 
     public VectorSimilarityFloatValueSource(String field, float[] target, VectorSimilarityFunction vectorSimilarityFunction) {
         this.field = field;
@@ -51,6 +54,7 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource {
 
             @Override
             public double doubleValue() throws IOException {
+                vectorOpsCount++;
                 return vectorSimilarityFunction.compare(target, vectorValues.vectorValue(docId));
             }
 
@@ -70,6 +74,11 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource {
     @Override
     public DoubleValuesSource rewrite(IndexSearcher reader) throws IOException {
         return this;
+    }
+
+    @Override
+    public void profile(QueryProfiler queryProfiler) {
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
     @Override

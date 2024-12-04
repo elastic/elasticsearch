@@ -31,7 +31,7 @@ import static org.elasticsearch.common.Strings.format;
 /**
  * This query provides a simple post-filter for the provided Query. The query is assumed to be a Knn(Float|Byte)VectorQuery.
  */
-public class VectorSimilarityQuery extends Query implements ProfilingQuery {
+public class VectorSimilarityQuery extends Query implements QueryProfilerProvider {
     private final float similarity;
     private final float docScore;
     private final Query innerKnnQuery;
@@ -81,8 +81,8 @@ public class VectorSimilarityQuery extends Query implements ProfilingQuery {
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        if (innerKnnQuery instanceof ProfilingQuery profilingQuery) {
-            profilingQuery.profile(queryProfiler);
+        if (innerKnnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.profile(queryProfiler);
         }
     }
 

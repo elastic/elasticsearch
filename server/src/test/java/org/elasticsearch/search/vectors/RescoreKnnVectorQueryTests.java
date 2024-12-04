@@ -35,6 +35,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -136,7 +137,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 VectorData queryVector = vectorProvider.randomVector(numDims);
 
                 checkProfiling(queryVector, reader, new MatchAllDocsQuery());
-                checkProfiling(queryVector, reader, new MockProfilingQuery(randomIntBetween(1, 100)));
+                checkProfiling(queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
             }
         }
     }
@@ -149,13 +150,10 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         QueryProfiler queryProfiler = new QueryProfiler();
         rescoreKnnVectorQuery.profile(queryProfiler);
 
-        long expectedVectorOpsCount = 0;
-        if (k != null) {
-            expectedVectorOpsCount += k;
-        }
-        if (innerQuery instanceof ProfilingQuery profilingQuery) {
+        long expectedVectorOpsCount = numDocs;
+        if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
             QueryProfiler anotherProfiler = new QueryProfiler();
-            profilingQuery.profile(anotherProfiler);
+            queryProfilerProvider.profile(anotherProfiler);
             assertThat(anotherProfiler.getVectorOpsCount(), greaterThan(0L));
             expectedVectorOpsCount += anotherProfiler.getVectorOpsCount();
         }
@@ -166,11 +164,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     /**
      * A mock query that is used to test profiling
      */
-    private static class MockProfilingQuery extends Query implements ProfilingQuery {
+    private static class MockQueryProfilerProvider extends Query implements QueryProfilerProvider {
 
         private final long vectorOpsCount;
 
-        private MockProfilingQuery(long vectorOpsCount) {
+        private MockQueryProfilerProvider(long vectorOpsCount) {
             this.vectorOpsCount = vectorOpsCount;
         }
 
@@ -181,7 +179,12 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new MatchAllDocsQuery().createWeight(searcher, scoreMode, boost);
+            throw new UnsupportedEncodingException("Should have been rewritten");
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+            return new MatchAllDocsQuery();
         }
 
         @Override
@@ -189,7 +192,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            return obj instanceof MockProfilingQuery;
+            return obj instanceof MockQueryProfilerProvider;
         }
 
         @Override

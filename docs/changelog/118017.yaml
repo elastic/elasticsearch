@@ -1,0 +1,6 @@
+pr: 118017
+summary: Add a new `offset_source` field to store offsets referencing substrings of
+  another field
+area: Vector Search
+type: feature
+issues: []

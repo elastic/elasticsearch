@@ -251,6 +251,11 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.LookupMessageFromIndexKeep ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/117976
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndex SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/117980
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/117981
 
 # Examples:
 #

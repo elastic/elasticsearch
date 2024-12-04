@@ -53,7 +53,7 @@ public class Categorize extends GroupingFunction implements Validatable {
 
             * can't be used within other expressions
             * can't be used with multiple groupings
-            * can't be used or referenced within aggregations""",
+            * can't be used or referenced within aggregate functions""",
         examples = {
             @Example(
                 file = "docs",

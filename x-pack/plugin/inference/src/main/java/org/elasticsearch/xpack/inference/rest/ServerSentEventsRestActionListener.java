@@ -336,47 +336,39 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
                 assert target == null;
                 target = chunkStream;
 
-                logger.warn("encodeChunk1");
                 // if this is the first time we are encoding this chunk, write the SSE leading bytes
                 if (isStartOfData.compareAndSet(true, false)) {
                     target.write(ServerSentEventSpec.BOM);
                     target.write(event.eventType);
                     target.write(ServerSentEventSpec.EOL);
                     target.write(ServerSentEventSpec.DATA);
-                    logger.warn("encodeChunk2");
                 }
 
                 // start or continue writing this chunk
                 while (serialization.hasNext()) {
-                    logger.warn("encodeChunk3");
                     serialization.next().toXContent(builder, params);
-                    logger.warn("encodeChunk4");
                     if (chunkStream.size() >= sizeHint) {
                         break;
                     }
                 }
-                logger.warn("encodeChunk5");
 
                 if (serialization.hasNext() == false) {
-                    logger.warn("encodeChunk6");
                     // SSE wants two newlines between messages
                     builder.close();
                     target.write(ServerSentEventSpec.EOL);
                     target.write(ServerSentEventSpec.EOL);
                     target.flush();
-                    logger.warn("encodeChunk7");
 
                 }
                 final var result = new ReleasableBytesReference(chunkStream.bytes(), () -> Releasables.closeExpectNoException(chunkStream));
-                logger.warn("encodeChunk8");
                 target = null;
                 return result;
             } catch (Exception e) {
-                logger.error("failure encoding chunk 1", e);
+                logger.error("failure encoding chunk", e);
                 throw e;
             } finally {
                 if (target != null) {
-                    assert false : "failure encoding chunk 2";
+                    assert false : "failure encoding chunk";
                     IOUtils.closeWhileHandlingException(target);
                     target = null;
                 }
@@ -436,11 +428,11 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
                 isPartComplete = true;
                 return new ReleasableBytesReference(chunkStream.bytes(), () -> Releasables.closeExpectNoException(chunkStream));
             } catch (Exception e) {
-                logger.error("failure encoding chunk 3", e);
+                logger.error("failure encoding chunk", e);
                 throw e;
             } finally {
                 if (isPartComplete == false) {
-                    assert false : "failure encoding chunk 4";
+                    assert false : "failure encoding chunk";
                     IOUtils.closeWhileHandlingException(chunkStream);
                 }
             }

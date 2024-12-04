@@ -28,8 +28,6 @@ public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregati
     protected long docCount;
     protected InternalAggregations aggregations;
 
-    long bucketOrd;
-
     public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
         this.aggregations = aggregations;

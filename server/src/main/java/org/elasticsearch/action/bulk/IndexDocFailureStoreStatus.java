@@ -124,7 +124,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
         public ExceptionWithFailureStoreStatus(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
             } else {
                 failureStoreStatus = NOT_APPLICABLE_OR_UNKNOWN;
@@ -134,7 +134,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
         @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeByte(failureStoreStatus.getId());
             }
         }

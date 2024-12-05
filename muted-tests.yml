@@ -103,9 +103,6 @@ tests:
 - class: org.elasticsearch.search.StressSearchServiceReaperIT
   method: testStressReaper
   issue: https://github.com/elastic/elasticsearch/issues/115816
-- class: org.elasticsearch.search.SearchServiceTests
-  method: testParseSourceValidation
-  issue: https://github.com/elastic/elasticsearch/issues/115936
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -248,9 +245,12 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/118040
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/117862
+- class: org.elasticsearch.packaging.test.ConfigurationTests
+  method: test20HostnameSubstitution
+  issue: https://github.com/elastic/elasticsearch/issues/118028
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster
+  issue: https://github.com/elastic/elasticsearch/issues/118029
 
 # Examples:
 #

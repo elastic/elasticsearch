@@ -21,7 +21,7 @@
       ]
     },
     "body":{
-      "description":"The body contains the fields `mode` and `source.index, where the only mode currently supported is `upgrade`, and the `source.index` must be a data stream name"
+      "description":"The body contains the fields `mode` and `source.index, where the only mode currently supported is `upgrade`, and the `source.index` must be a data stream name",
       "required":true
     }
   }

@@ -44,6 +44,7 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
 
   def localCluster = testClusters.register("${baseName}-local") {
     versions = [project.version]
+    setting 'xpack.license.self_generated.type', 'trial'
     setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
     setting 'cluster.remote.connections_per_cluster', '1'
     setting 'cluster.remote.my_remote_cluster.seeds',
@@ -79,5 +80,6 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

@@ -358,7 +358,6 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
                     target.write(ServerSentEventSpec.EOL);
                     target.write(ServerSentEventSpec.EOL);
                     target.flush();
-
                 }
                 final var result = new ReleasableBytesReference(chunkStream.bytes(), () -> Releasables.closeExpectNoException(chunkStream));
                 target = null;

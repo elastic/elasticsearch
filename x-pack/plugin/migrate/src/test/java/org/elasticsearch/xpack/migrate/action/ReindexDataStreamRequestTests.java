@@ -18,19 +18,13 @@ public class ReindexDataStreamRequestTests extends AbstractXContentSerializingTe
 
     @Override
     protected ReindexDataStreamRequest createTestInstance() {
-        return new ReindexDataStreamRequest(randomAlphaOfLength(15), randomAlphaOfLength(40));
+        return new ReindexDataStreamRequest(ReindexDataStreamAction.Mode.UPGRADE, randomAlphaOfLength(40));
     }
 
     @Override
     protected ReindexDataStreamRequest mutateInstance(ReindexDataStreamRequest instance) {
-        String mode = instance.getMode();
-        String source = instance.getSourceDataStream();
-        switch (randomIntBetween(0, 1)) {
-            case 0 -> mode = randomAlphaOfLength(20);
-            case 1 -> source = randomAlphaOfLength(50);
-            default -> throw new UnsupportedOperationException();
-        }
-        return new ReindexDataStreamRequest(mode, source);
+        // There is currently only one possible value for mode, so we can't change it
+        return new ReindexDataStreamRequest(instance.getMode(), randomAlphaOfLength(50));
     }
 
     @Override

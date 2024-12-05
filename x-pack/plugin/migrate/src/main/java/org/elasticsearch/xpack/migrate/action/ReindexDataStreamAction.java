@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -37,6 +38,10 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
 
     public ReindexDataStreamAction() {
         super(NAME);
+    }
+
+    public enum Mode {
+        UPGRADE
     }
 
     public static class ReindexDataStreamResponse extends ActionResponse implements ToXContentObject {
@@ -82,17 +87,17 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
     }
 
     public static class ReindexDataStreamRequest extends ActionRequest implements IndicesRequest, ToXContent {
-        private final String mode;
+        private final Mode mode;
         private final String sourceDataStream;
 
-        public ReindexDataStreamRequest(String mode, String sourceDataStream) {
+        public ReindexDataStreamRequest(Mode mode, String sourceDataStream) {
             this.mode = mode;
             this.sourceDataStream = sourceDataStream;
         }
 
         public ReindexDataStreamRequest(StreamInput in) throws IOException {
             super(in);
-            this.mode = in.readString();
+            this.mode = Mode.valueOf(in.readString());
             this.sourceDataStream = in.readString();
         }
 
@@ -100,7 +105,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
             new ConstructingObjectParser<>("migration_reindex", new Function<Object[], ReindexDataStreamRequest>() {
                 @Override
                 public ReindexDataStreamRequest apply(Object[] objects) {
-                    String mode = (String) objects[0];
+                    Mode mode = Mode.valueOf(((String) objects[0]).toUpperCase(Locale.ROOT));
                     String source = (String) objects[1];
                     return new ReindexDataStreamRequest(mode, source);
                 }
@@ -129,7 +134,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(mode);
+            out.writeString(mode.name());
             out.writeString(sourceDataStream);
         }
 
@@ -147,7 +152,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
             return sourceDataStream;
         }
 
-        public String getMode() {
+        public Mode getMode() {
             return mode;
         }
 

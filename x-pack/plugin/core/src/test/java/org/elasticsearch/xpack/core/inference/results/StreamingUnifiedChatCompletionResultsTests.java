@@ -21,7 +21,7 @@ import java.util.List;
 
 public class StreamingUnifiedChatCompletionResultsTests extends ESTestCase {
 
-    public void testResultstoXContentChunked() throws IOException {
+    public void testResults_toXContentChunked() throws IOException {
         String expected = """
                         {
                           "id": "chunk1",

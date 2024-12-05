@@ -139,7 +139,8 @@ PUT test-index
         "fields": {
             "my_semantic_field": {
                 "type": "semantic",
-                "number_of_fragments": 2  <1>
+                "number_of_fragments": 2,  <1>
+                "order": "score"           <2>
             }
         }
     }
@@ -147,6 +148,7 @@ PUT test-index
 ------------------------------------------------------------
 // TEST[skip:Requires inference endpoint]
 <1> Specifies the maximum number of fragments to return.
+<2> Sorts highlighted fragments by score when set to `score`. By default, fragments will be output in the order they appear in the field (order: none).
 
 [discrete]
 [[custom-indexing]]

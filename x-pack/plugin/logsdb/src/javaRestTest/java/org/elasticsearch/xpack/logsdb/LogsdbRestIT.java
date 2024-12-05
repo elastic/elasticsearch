@@ -204,20 +204,20 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         List<?> values = (List<?>) esqlResponseBody.get("values");
         assertThat(values, Matchers.not(Matchers.empty()));
-        var count = ((List<?>) values.getFirst()).get(0);
+        var count = ((List<?>) values.get(0)).get(0);
         assertThat(count, equalTo(numDocs));
         logger.warn("VALUES: {}", values);
 
-        var minTimestamp = ((List<?>) values.getFirst()).get(1);
+        var minTimestamp = ((List<?>) values.get(0)).get(1);
         assertThat(minTimestamp, equalTo(formatInstant(expectedMinTimestamp)));
-        var maxTimestamp = ((List<?>) values.getFirst()).get(2);
+        var maxTimestamp = ((List<?>) values.get(0)).get(2);
         assertThat(maxTimestamp, equalTo(formatInstant(expectedMaxTimestamp)));
 
-        var minLength = ((List<?>) values.getFirst()).get(3);
+        var minLength = ((List<?>) values.get(0)).get(3);
         assertThat(minLength, equalTo(20));
-        var maxLength = ((List<?>) values.getFirst()).get(4);
+        var maxLength = ((List<?>) values.get(0)).get(4);
         assertThat(maxLength, equalTo(20));
-        var sumLength = ((List<?>) values.getFirst()).get(5);
+        var sumLength = ((List<?>) values.get(0)).get(5);
         assertThat(sumLength, equalTo(20 * numDocs));
     }
 

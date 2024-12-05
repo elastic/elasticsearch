@@ -245,6 +245,8 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster
   issue: https://github.com/elastic/elasticsearch/issues/118029
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/117981
 
 # Examples:
 #

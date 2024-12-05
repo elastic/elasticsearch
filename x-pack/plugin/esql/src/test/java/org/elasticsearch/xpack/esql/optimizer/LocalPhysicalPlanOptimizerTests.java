@@ -646,7 +646,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(1000));
-        var expected = QueryBuilders.matchQuery("last_name", "Smith");
+        var expected = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -678,7 +678,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         Source filterSource = new Source(2, 38, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
-        var queryString = QueryBuilders.matchQuery("last_name", "Smith");
+        var queryString = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
         var expected = QueryBuilders.boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -713,7 +713,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         Source filterSource = new Source(2, 32, "cidr_match(ip, \"127.0.0.1/32\")");
         var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
-        var queryString = QueryBuilders.matchQuery("text", "beta");
+        var queryString = QueryBuilders.matchQuery("text", "beta").lenient(true);
         var expected = QueryBuilders.boolQuery().must(queryString).must(terms);
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -747,7 +747,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
-        var queryString = QueryBuilders.matchQuery("last_name", "Smith");
+        var queryString = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
         var expected = QueryBuilders.boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -777,8 +777,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var query = as(field.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(1000));
 
-        var queryStringLeft = QueryBuilders.matchQuery("last_name", "Smith");
-        var queryStringRight = QueryBuilders.matchQuery("first_name", "John");
+        var queryStringLeft = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
+        var queryStringRight = QueryBuilders.matchQuery("first_name", "John").lenient(true);
         var expected = QueryBuilders.boolQuery().must(queryStringLeft).must(queryStringRight);
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -1476,7 +1476,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var fieldExtract = as(project.child(), FieldExtractExec.class);
                 var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue));
+                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue)).lenient(true);
                 assertThat("Unexpected match query for data type " + fieldDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
             } catch (ParsingException e) {
                 fail("Error parsing ESQL query: " + esqlQuery + "\n" + e.getMessage());
@@ -1551,10 +1551,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
         Source filterSource = new Source(4, 8, "emp_no > 10000");
-        var expectedLuceneQuery = new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Anna"))
-            .must(new MatchQueryBuilder("first_name", "Anneke"))
+        var expectedLuceneQuery = new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Anna").lenient(true))
+            .must(new MatchQueryBuilder("first_name", "Anneke").lenient(true))
             .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
-            .must(new MatchQueryBuilder("last_name", "Xinglin"));
+            .must(new MatchQueryBuilder("last_name", "Xinglin").lenient(true));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 

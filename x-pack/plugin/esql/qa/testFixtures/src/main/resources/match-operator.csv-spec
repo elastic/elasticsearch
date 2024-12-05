@@ -568,3 +568,16 @@ hire_date_nanos:date_nanos
 1986-06-26T00:00:00.000Z
 ;
 
+testMatchWithWrongFieldValue
+required_capability: match_function
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where still_hired::boolean : "Wrong boolean"
+| eval emp_no_bool = emp_no::boolean
+| keep emp_no_bool
+;
+
+emp_no_bool:boolean
+;
+

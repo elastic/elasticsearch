@@ -29,27 +29,27 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$exit(Class<?> callerClass, int status) {
-        policyManager.checkExitVMEntitlement(callerClass);
+        policyManager.checkExitVM(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
-        policyManager.checkCreateClassLoaderEntitlement(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {
-        policyManager.checkCreateClassLoaderEntitlement(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {
-        policyManager.checkCreateClassLoaderEntitlement(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {
-        policyManager.checkCreateClassLoaderEntitlement(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override
@@ -60,6 +60,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         ClassLoader parent,
         URLStreamHandlerFactory factory
     ) {
-        policyManager.checkCreateClassLoaderEntitlement(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 }

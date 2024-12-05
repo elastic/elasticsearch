@@ -94,11 +94,11 @@ public class PolicyManager {
         return null;
     }
 
-    public void checkExitVMEntitlement(Class<?> callerClass) {
+    public void checkExitVM(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, ExitVMEntitlement.class);
     }
 
-    public void checkCreateClassLoaderEntitlement(Class<?> callerClass) {
+    public void checkCreateClassLoader(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, CreateClassLoaderEntitlement.class);
     }
 
@@ -110,17 +110,17 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlementsOrThrow(callerClass, requestingModule);
         if (entitlements.hasEntitlement(entitlementClass)) {
-            logger.debug(
-                "Allowed: caller [{}] in module [{}] has [{}]",
+            logger.debug(() -> Strings.format(
+                "Entitled: caller [%s], module [%s], type [%s]",
                 callerClass,
                 requestingModule.getName(),
                 entitlementClass.getSimpleName()
-            );
+            ));
             return;
         }
         throw new NotEntitledException(
             Strings.format(
-                "Caller [%s] in module [%s] does not have [%s]",
+                "Missing entitlement: caller [%s], module [%s], type [%s]",
                 callerClass,
                 requestingModule.getName(),
                 entitlementClass.getSimpleName()
@@ -139,7 +139,7 @@ public class PolicyManager {
 
         if (isServerModule(requestingModule)) {
             var scopeName = requestingModule.getName();
-            return getModuleEntitlementsOrThrow(callerClass, requestingModule, serverPolicy, scopeName, "server");
+            return getModuleEntitlementsOrThrow(callerClass, requestingModule, serverPolicy, scopeName);
         }
 
         // plugins
@@ -153,7 +153,7 @@ public class PolicyManager {
                 } else {
                     scopeName = requestingModule.getName();
                 }
-                return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginPolicy, scopeName, pluginName);
+                return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginPolicy, scopeName);
             }
         }
 
@@ -162,25 +162,18 @@ public class PolicyManager {
     }
 
     private static String buildModuleNoPolicyMessage(Class<?> callerClass, Module requestingModule) {
-        return Strings.format("Caller [%s] in module [%s] does not have any policy", callerClass, requestingModule.getName());
+        return Strings.format("Missing entitlement policy: caller [%s], module [%s]", callerClass, requestingModule.getName());
     }
 
     private ModuleEntitlements getModuleEntitlementsOrThrow(
         Class<?> callerClass,
         Module module,
         Policy policy,
-        String moduleName,
-        String codebase
+        String moduleName
     ) {
         var entitlements = lookupEntitlementsForModule(policy, moduleName);
         if (entitlements == null) {
             // Module without entitlements - remember we don't have any
-            logger.warn(
-                "Class {} from module {} in {} does not have a policy; caching as unresolvable",
-                callerClass.getName(),
-                moduleName,
-                codebase
-            );
             moduleEntitlementsMap.put(module, ModuleEntitlements.NONE);
             throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, module));
         }
@@ -223,10 +216,10 @@ public class PolicyManager {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (requestingModule == null) {
-            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
+            logger.debug("Entitlement trivially allowed: entire call stack is in composed of classes in system modules");
             return true;
         }
-        logger.trace("Not trivially allowed");
+        logger.trace("Entitlement not trivially allowed");
         return false;
     }
 

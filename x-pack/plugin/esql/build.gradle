@@ -168,13 +168,13 @@ dependencies {
   regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
-String grammarPath = 'src/main/antlr'
-String outputPath = 'src/main/java/org/elasticsearch/xpack/esql/parser'
+String antlrGrammarPath = 'src/main/antlr'
+String antlrOutputPath = 'src/main/generated-src/org/elasticsearch/xpack/esql/parser'
 
 pluginManager.withPlugin('com.diffplug.spotless') {
   spotless {
     java {
-      // for some reason "${outputPath}/EsqlBaseParser*.java" does not match the same files...
+      // for some reason "${antlrOutputPath}/EsqlBaseParser*.java" does not match the same files...
       targetExclude "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseLexer*.java",
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
@@ -184,10 +184,10 @@ pluginManager.withPlugin('com.diffplug.spotless') {
 }
 
 tasks.register("cleanGenerated", Delete) {
-  delete fileTree(grammarPath) {
+  delete fileTree(antlrGrammarPath) {
     include '*.tokens'
   }
-  delete fileTree(outputPath) {
+  delete fileTree(antlrOutputPath) {
     include 'EsqlBase*.java'
   }
 }
@@ -204,8 +204,8 @@ tasks.register("regenLexer", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-o', outputPath,
-    "${file(grammarPath)}/EsqlBaseLexer.g4"
+    '-o', antlrOutputPath,
+    "${file(antlrGrammarPath)}/EsqlBaseLexer.g4"
 }
 
 tasks.register("regenParser", JavaExec) {
@@ -221,24 +221,24 @@ tasks.register("regenParser", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-o', outputPath,
-    '-lib', outputPath,
-    "${file(grammarPath)}/EsqlBaseParser.g4"
+    '-o', antlrOutputPath,
+    '-lib', antlrOutputPath,
+    "${file(antlrGrammarPath)}/EsqlBaseParser.g4"
 }
 
 tasks.register("regen") {
   dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/EsqlBaseLexer.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/EsqlBaseParser.tokens", toDir: grammarPath)
+    ant.move(file: "${antlrOutputPath}/EsqlBaseLexer.tokens", toDir: antlrGrammarPath)
+    ant.move(file: "${antlrOutputPath}/EsqlBaseParser.tokens", toDir: antlrGrammarPath)
     // make the generated classes package private
     ant.replaceregexp(
       match: 'public ((interface|class) \\QEsqlBase(Parser|Lexer)\\E\\w+)',
       replace: '\\1',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+      fileset(dir: antlrOutputPath, includes: 'EsqlBase*.java')
     }
     // nuke timestamps/filenames in generated files
     ant.replaceregexp(
@@ -246,11 +246,11 @@ tasks.register("regen") {
       replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+      fileset(dir: antlrOutputPath, includes: 'EsqlBase*.java')
     }
     // remove tabs in antlr generated files
     ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+      fileset(dir: antlrOutputPath, includes: 'EsqlBase*.java')
     }
     // suppress this-escape warnings on EsqlBaseLexer
     ant.replaceregexp(
@@ -258,7 +258,7 @@ tasks.register("regen") {
       replace: '@SuppressWarnings("this-escape")${line.separator}  public EsqlBaseLexer',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBaseLexer.java')
+      fileset(dir: antlrOutputPath, includes: 'EsqlBaseLexer.java')
     }
     // suppress this-escape warnings on all internal EsqlBaseParser class constructores
     ant.replaceregexp(
@@ -267,10 +267,10 @@ tasks.register("regen") {
       replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBaseParser.java')
+      fileset(dir: antlrOutputPath, includes: 'EsqlBaseParser.java')
     }
     // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+    ant.fixcrlf(srcdir: antlrOutputPath, eol: 'lf') {
       patternset(includes: 'EsqlBase*.java')
     }
   }

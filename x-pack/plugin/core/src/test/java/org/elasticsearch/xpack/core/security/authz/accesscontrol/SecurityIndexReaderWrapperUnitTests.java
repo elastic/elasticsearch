@@ -24,6 +24,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.permission.BuiltInMetadataFieldsAutomatonProvider;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -50,7 +51,13 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         metaFields.add(SourceFieldMapper.NAME);
         metaFields.add(FieldNamesFieldMapper.NAME);
         metaFields.add(SeqNoFieldMapper.NAME);
+        metaFields.add("_uid");
+        metaFields.add("_type");
+        metaFields.add("_timestamp");
+        metaFields.add("_ttl");
+        metaFields.add("_size");
         META_FIELDS = Collections.unmodifiableSet(metaFields);
+        FieldPermissions.setBuiltInMetadataFieldsProvider(new BuiltInMetadataFieldsAutomatonProvider(META_FIELDS));
     }
 
     private SecurityContext securityContext;
@@ -111,7 +118,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("_index"), is(true));
         assertThat(result.getFilter().run("_field_names"), is(true));
         assertThat(result.getFilter().run("_seq_no"), is(true));
-        assertThat(result.getFilter().run("_some_random_meta_field"), is(true));
+        assertThat(result.getFilter().run("_some_random_meta_field"), is(false));
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 

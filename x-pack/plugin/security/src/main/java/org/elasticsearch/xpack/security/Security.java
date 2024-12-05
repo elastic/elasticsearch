@@ -214,7 +214,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
-import org.elasticsearch.xpack.core.security.authz.permission.BuiltInMetadataFieldsProvider;
+import org.elasticsearch.xpack.core.security.authz.permission.BuiltInMetadataFieldsAutomatonProvider;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
@@ -755,7 +755,7 @@ public class Security extends Plugin
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
-                new BuiltInMetadataFieldsProvider(services.mapperRegistry().getAllMetadataFields())
+                new BuiltInMetadataFieldsAutomatonProvider(services.mapperRegistry().getAllMetadataFields())
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -776,7 +776,7 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
-        BuiltInMetadataFieldsProvider builtInMetadataFieldsProvider
+        BuiltInMetadataFieldsAutomatonProvider builtInMetadataFieldsAutomatonProvider
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -925,7 +925,7 @@ public class Security extends Plugin
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
-        FieldPermissions.setBuiltInMetadataFieldsProvider(builtInMetadataFieldsProvider);
+        FieldPermissions.setBuiltInMetadataFieldsProvider(builtInMetadataFieldsAutomatonProvider);
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         // Need to set to default if it wasn't set by an extension

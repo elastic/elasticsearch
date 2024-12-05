@@ -58,10 +58,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
         BASE_HASHSET_ENTRY_SIZE = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
-    private static BuiltInMetadataFieldsProvider builtInMetadataFieldsProvider = new BuiltInMetadataFieldsProvider(Set.of());
+    private static BuiltInMetadataFieldsAutomatonProvider builtInMetadataFieldsAutomatonProvider =
+        new BuiltInMetadataFieldsAutomatonProvider(Set.of());
 
-    public static void setBuiltInMetadataFieldsProvider(BuiltInMetadataFieldsProvider builtInMetadataFieldsProvider) {
-        FieldPermissions.builtInMetadataFieldsProvider = builtInMetadataFieldsProvider;
+    public static void setBuiltInMetadataFieldsProvider(BuiltInMetadataFieldsAutomatonProvider builtInMetadataFieldsAutomatonProvider) {
+        FieldPermissions.builtInMetadataFieldsAutomatonProvider = builtInMetadataFieldsAutomatonProvider;
     }
 
     private final List<FieldPermissionsDefinition> fieldPermissionsDefinitions;
@@ -166,7 +167,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         } else {
             // an automaton that includes metadata fields, including join fields created by the _parent field such
             // as _parent#type
-            Automaton metaFieldsAutomaton = builtInMetadataFieldsProvider.getAutomaton();
+            Automaton metaFieldsAutomaton = builtInMetadataFieldsAutomatonProvider.getAutomaton();
             grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
         }
 

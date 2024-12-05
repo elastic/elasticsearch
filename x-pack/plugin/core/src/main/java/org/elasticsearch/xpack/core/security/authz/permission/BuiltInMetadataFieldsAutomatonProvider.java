@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Set;
 
-public class BuiltInMetadataFieldsProvider {
+public class BuiltInMetadataFieldsAutomatonProvider {
 
-    private final Set<String> allMetadataFields;
     private final Automaton allMetadataFieldsAutomaton;
+    private final Set<String> allMetadataFields;
 
-    public BuiltInMetadataFieldsProvider(Set<String> allMetadataFields) {
-        this.allMetadataFields = allMetadataFields;
+    public BuiltInMetadataFieldsAutomatonProvider(Set<String> allMetadataFields) {
         this.allMetadataFieldsAutomaton = Automatons.patterns(allMetadataFields);
+        this.allMetadataFields = allMetadataFields;
     }
 
     public boolean isMetadataField(String field) {

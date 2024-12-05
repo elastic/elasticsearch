@@ -44,7 +44,11 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -87,7 +91,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.BuiltInMetadataFieldsProvider;
+import org.elasticsearch.xpack.core.security.authz.permission.BuiltInMetadataFieldsAutomatonProvider;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -202,6 +206,21 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
+    private static final Set<String> META_FIELDS;
+    static {
+        final Set<String> metaFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        metaFields.add(SourceFieldMapper.NAME);
+        metaFields.add(FieldNamesFieldMapper.NAME);
+        metaFields.add(SeqNoFieldMapper.NAME);
+        metaFields.add("_uid");
+        metaFields.add("_type");
+        metaFields.add("_timestamp");
+        metaFields.add("_ttl");
+        metaFields.add("_size");
+        META_FIELDS = Collections.unmodifiableSet(metaFields);
+        FieldPermissions.setBuiltInMetadataFieldsProvider(new BuiltInMetadataFieldsAutomatonProvider(META_FIELDS));
+    }
+
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), BuildVersion.current(), IndexVersion.current());
@@ -232,7 +251,7 @@ public class SecurityTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
-            mock(BuiltInMetadataFieldsProvider.class)
+            new BuiltInMetadataFieldsAutomatonProvider(META_FIELDS)
         );
     }
 

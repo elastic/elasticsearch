@@ -293,6 +293,23 @@ public class DateUtils {
         return nanoSecondsSinceEpoch / 1_000_000;
     }
 
+    /**
+     * Compare an epoch nanosecond date (such as returned by {@link DateUtils#toLong}
+     * to an epoch millisecond date (such as returned by {@link Instant#toEpochMilli()}}.
+     * <p>
+     * NB: This function does not implement {@link java.util.Comparator} in
+     * order to avoid performance costs of autoboxing the input longs.
+     *
+     * @param nanos Epoch date represented as a long number of nanoseconds.
+     *              Note that Elasticsearch does not support nanosecond dates
+     *              before Epoch, so this number should never be negative.
+     * @param millis Epoch date represented as a long number of milliseconds.
+     *               This parameter does not have to be constrained to the
+     *               range of long nanosecond dates.
+     * @return -1 if the nanosecond date is before the millisecond date,
+     *         0  if the two dates represent the same instant,
+     *         1  if the nanosecond date is after the millisecond date
+     */
     public static int compareNanosToMillis(long nanos, long millis) {
         if (millis < 0) {
             return 1;

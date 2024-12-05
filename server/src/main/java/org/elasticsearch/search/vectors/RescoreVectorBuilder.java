@@ -31,12 +31,11 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), OVERSAMPLE_FIELD);
+        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
     }
 
     // Oversample is required as of now as it is the only field in the rescore vector
-    // that may change in the future, so we treat it as optional
-    private final Float oversample;
+    private final float oversample;
 
     public RescoreVectorBuilder(Float oversample) {
         Objects.requireNonNull(oversample, "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be set");
@@ -47,20 +46,19 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     }
 
     public RescoreVectorBuilder(StreamInput in) throws IOException {
-        this.oversample = in.readOptionalFloat();
+        this.oversample = in.readFloat();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalFloat(oversample);
+        out.writeFloat(oversample);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (oversample != null) {
-            builder.field(OVERSAMPLE_FIELD.getPreferredName(), oversample);
-        }
-
+        builder.startObject();
+        builder.field(OVERSAMPLE_FIELD.getPreferredName(), oversample);
+        builder.endObject();
         return builder;
     }
 

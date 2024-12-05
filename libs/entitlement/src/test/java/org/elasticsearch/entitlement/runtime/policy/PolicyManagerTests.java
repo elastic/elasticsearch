@@ -55,7 +55,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
 
         assertEquals(
-            "Caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests] in module [null] does not have any policy",
+            "Missing entitlement policy: caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests], module [null]",
             ex.getMessage()
         );
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
@@ -75,7 +75,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
 
         assertEquals(
-            "Caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests] in module [null] does not have any policy",
+            "Missing entitlement policy: caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests], module [null]",
             ex.getMessage()
         );
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
@@ -131,7 +131,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
 
         assertEquals(
-            "Caller [class com.sun.net.httpserver.HttpServer] in module [jdk.httpserver] does not have any policy",
+            "Missing entitlement policy: caller [class com.sun.net.httpserver.HttpServer], module [jdk.httpserver]",
             ex.getMessage()
         );
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));

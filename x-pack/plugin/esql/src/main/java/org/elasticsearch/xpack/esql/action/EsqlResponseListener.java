@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
@@ -102,10 +103,10 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     }
 
     /**
-     * Async query get API does not have an EsqlQueryRequest, store the async ID as an alternative
+     * Async query GET API does not have an EsqlQueryRequest.
      */
-    public EsqlResponseListener(RestChannel channel, RestRequest restRequest) {
-        this(channel, restRequest, restRequest.param("id"), EsqlMediaTypeParser.getResponseMediaType(restRequest));
+    public EsqlResponseListener(RestChannel channel, RestRequest getRequest) {
+        this(channel, getRequest, getRequest.param("id"), EsqlMediaTypeParser.getResponseMediaType(getRequest, XContentType.JSON));
     }
 
     private EsqlResponseListener(RestChannel channel, RestRequest restRequest, String esqlQueryOrId, MediaType mediaType) {

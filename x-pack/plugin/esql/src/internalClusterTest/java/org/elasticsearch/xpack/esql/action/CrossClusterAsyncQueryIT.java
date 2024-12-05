@@ -66,7 +66,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     private static final String INDEX_WITH_RUNTIME_MAPPING = "blocking";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 

@@ -61,7 +61,6 @@ public class ReservedClusterStateService {
 
     final Map<String, ReservedClusterStateHandler<?>> handlers;
     final ClusterService clusterService;
-    private final MasterServiceTaskQueue<ReservedStateUpdateTask> updateTaskQueue;
     private final MasterServiceTaskQueue<ReservedStateErrorTask> errorTaskQueue;
 
     @SuppressWarnings("unchecked")
@@ -77,6 +76,7 @@ public class ReservedClusterStateService {
             return new ReservedStateChunk(stateMap, (ReservedStateVersion) a[1]);
         }
     );
+    private final RerouteService rerouteService;
 
     /**
      * Controller class for saving and reserving {@link ClusterState}.
@@ -89,11 +89,7 @@ public class ReservedClusterStateService {
         List<ReservedClusterStateHandler<?>> handlerList
     ) {
         this.clusterService = clusterService;
-        this.updateTaskQueue = clusterService.createTaskQueue(
-            "reserved state update",
-            Priority.URGENT,
-            new ReservedStateUpdateTaskExecutor(rerouteService)
-        );
+        this.rerouteService = rerouteService;
         this.errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
@@ -160,7 +156,8 @@ public class ReservedClusterStateService {
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
         var missingVersion = new ReservedStateVersion(EMPTY_VERSION, BuildVersion.current());
         var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
-        updateTaskQueue.submitTask(
+
+        submitUpdateTask(
             "empty initial cluster state [" + namespace + "]",
             new ReservedStateUpdateTask(
                 namespace,
@@ -169,11 +166,11 @@ public class ReservedClusterStateService {
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
-                errorState -> { throw new AssertionError(); },
+                errorState -> {
+                    throw new AssertionError();
+                },
                 listener
-            ),
-            null
-        );
+            ));
 
     }
 
@@ -234,7 +231,7 @@ public class ReservedClusterStateService {
             errorListener.accept(error);
             return;
         }
-        updateTaskQueue.submitTask(
+        submitUpdateTask(
             "reserved cluster state [" + namespace + "]",
             new ReservedStateUpdateTask(
                 namespace,
@@ -261,7 +258,19 @@ public class ReservedClusterStateService {
                         }
                     }
                 }
-            ),
+            )
+        );
+    }
+
+    private void submitUpdateTask(String source, ReservedStateUpdateTask task) {
+        var updateTaskQueue = clusterService.createTaskQueue(
+            "reserved state update",
+            Priority.URGENT,
+            new ReservedStateUpdateTaskExecutor(rerouteService)
+        );
+        updateTaskQueue.submitTask(
+            source,
+            task,
             null
         );
     }
@@ -327,7 +336,7 @@ public class ReservedClusterStateService {
      * <p>
      * The trial run does not result in an update of the cluster state, it's only purpose is to verify
      * if we can correctly perform a cluster state update with the given reserved state chunk.
-     *
+     * <p>
      * Package private for testing
      * @return Any errors that occured
      */

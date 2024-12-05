@@ -81,7 +81,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.indices = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
@@ -101,7 +101,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
         }

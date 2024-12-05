@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -127,7 +126,7 @@ class CountedTermsAggregator extends TermsAggregator {
                 }
                 try (LongArray ordsArray = bigArrays().newLongArray(ordsToCollect)) {
                     long ordsCollected = 0;
-                    for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
+                    for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
                         // as users can't control sort order, in practice we'll always sort by doc count descending
                         try (
                             BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(
@@ -138,20 +137,12 @@ class CountedTermsAggregator extends TermsAggregator {
                         ) {
                             BucketAndOrd<StringTerms.Bucket> spare = null;
                             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
-                            Supplier<StringTerms.Bucket> emptyBucketBuilder = () -> new StringTerms.Bucket(
-                                new BytesRef(),
-                                0,
-                                null,
-                                false,
-                                0,
-                                format
-                            );
                             while (ordsEnum.next()) {
                                 long docCount = bucketDocCount(ordsEnum.ord());
                                 otherDocCounts.increment(ordIdx, docCount);
                                 if (spare == null) {
                                     checkRealMemoryCBForInternalBucket();
-                                    spare = new BucketAndOrd<>(emptyBucketBuilder.get());
+                                    spare = new BucketAndOrd<>(new StringTerms.Bucket(new BytesRef(), 0, null, false, 0, format));
                                 }
                                 ordsEnum.readValue(spare.bucket.getTermBytes());
                                 spare.bucket.setDocCount(docCount);
@@ -160,11 +151,12 @@ class CountedTermsAggregator extends TermsAggregator {
                             }
                             final int orderedSize = (int) ordered.size();
                             final StringTerms.Bucket[] buckets = new StringTerms.Bucket[orderedSize];
-                            for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                            for (int i = orderedSize - 1; i >= 0; --i) {
                                 BucketAndOrd<StringTerms.Bucket> bucketAndOrd = ordered.pop();
                                 buckets[i] = bucketAndOrd.bucket;
                                 ordsArray.set(ordsCollected + i, bucketAndOrd.ord);
                                 otherDocCounts.increment(ordIdx, -bucketAndOrd.bucket.getDocCount());
+                                bucketAndOrd.bucket.setTermBytes(BytesRef.deepCopyOf(bucketAndOrd.bucket.getTermBytes()));
                             }
                             topBucketsPerOrd.set(ordIdx, buckets);
                             ordsCollected += orderedSize;

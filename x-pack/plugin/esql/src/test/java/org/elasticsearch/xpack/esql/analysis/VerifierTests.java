@@ -1338,6 +1338,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTermFunctionOnlyAllowedInWhere() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
     }
 
@@ -1406,6 +1407,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTermFunctionWithDisjunctions() {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
     }
 
@@ -1472,6 +1474,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTermFunctionWithNonBooleanFunctions() {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
     }
 
@@ -1576,6 +1579,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTermFunctionArgNotConstant() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         assertEquals(
             "1:19: second argument of [term(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where term(first_name, first_name)")
@@ -1589,6 +1593,7 @@ public class VerifierTests extends ESTestCase {
 
     // These should pass eventually once we lift some restrictions on match function
     public void testTermFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         assertEquals(
             "1:67: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where term(first_name, \"Anna\")")
@@ -1596,6 +1601,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTermFunctionNullArgs() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         assertEquals(
             "1:19: first argument of [term(null, \"query\")] cannot be null, received [null]",
             error("from test | where term(null, \"query\")")
@@ -1607,6 +1613,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTermTargetsExistingField() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         assertEquals("1:38: Unknown column [first_name]", error("from test | keep emp_no | where term(first_name, \"Anna\")"));
     }
 

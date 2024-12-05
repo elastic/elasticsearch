@@ -27,7 +27,7 @@ public class ESPolicyTests extends ESTestCase {
      * test restricting privileges to no permissions actually works
      */
     public void testRestrictPrivileges() {
-        assumeTrue("test requires security manager", System.getSecurityManager() != null);
+        assumeTrue("test requires security manager", Runtime.version().feature() < 24 && System.getSecurityManager() != null);
         try {
             System.getProperty("user.home");
         } catch (SecurityException e) {

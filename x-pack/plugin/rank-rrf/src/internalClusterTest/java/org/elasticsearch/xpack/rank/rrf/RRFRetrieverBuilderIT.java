@@ -774,7 +774,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
             assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_7"));
         });
     }

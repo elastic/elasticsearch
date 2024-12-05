@@ -51,6 +51,10 @@ public class MapperFeatures implements FeatureSpecification {
         );
     }
 
+    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
+        "mapper.constant_keyword.synthetic_source_write_fix"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -59,7 +63,9 @@ public class MapperFeatures implements FeatureSpecification {
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
             SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
             IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
-            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT
+            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX
         );
     }
 }

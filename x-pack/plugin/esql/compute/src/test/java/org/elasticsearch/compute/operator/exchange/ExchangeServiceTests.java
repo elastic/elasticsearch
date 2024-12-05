@@ -374,6 +374,15 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        Set<String> finishingRequests = ConcurrentCollections.newConcurrentSet();
+        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            final ExchangeRequest exchangeRequest = (ExchangeRequest) request;
+            if (exchangeRequest.sourcesFinished()) {
+                String exchangeId = exchangeRequest.exchangeId();
+                assertTrue("tried to finish [" + exchangeId + "] twice", finishingRequests.add(exchangeId));
+            }
+            handler.messageReceived(request, channel, task);
+        });
 
         try (exchange0; exchange1; node0; node1) {
             String exchangeId = "exchange";
@@ -391,7 +400,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
-    public void testFailToRespondPage() {
+    public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
@@ -450,7 +459,6 @@ public class ExchangeServiceTests extends ESTestCase {
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
-            sinkHandler.onFailure(new RuntimeException(cause));
             sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS);
         }
     }

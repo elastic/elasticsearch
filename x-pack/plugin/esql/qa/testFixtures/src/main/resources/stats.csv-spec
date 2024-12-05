@@ -2348,6 +2348,42 @@ v:integer | job_positions:keyword
     10094 | Accountant
 ;
 
+docsStatsWithSimpleFiltering
+required_capability: per_agg_filtering
+// tag::aggFiltering[]
+FROM employees
+| STATS avg50s = AVG(salary)::LONG WHERE birth_date < "1960-01-01",
+        avg60s = AVG(salary)::LONG WHERE birth_date >= "1960-01-01"
+        BY gender
+| SORT gender
+// end::aggFiltering[]
+| WHERE gender IS NOT NULL
+;
+
+// tag::aggFiltering-result[]
+avg50s:long    |avg60s:long    |gender:keyword
+55462          |46637          |F
+48279          |44879          |M
+// end::aggFiltering-result[]
+;
+
+docsStatsWithFilteringNoGroups
+required_capability: per_agg_filtering
+// tag::aggFilteringNoGroup[]
+FROM employees
+| EVAL Ks = salary / 1000 // thousands
+| STATS under_40K = COUNT(*) WHERE Ks < 40,
+        inbetween = COUNT(*) WHERE 40 <= Ks AND Ks < 60,
+        over_60K  = COUNT(*) WHERE 60 <= Ks,
+        total     = COUNT(*)
+// end::aggFilteringNoGroup[]
+;
+
+// tag::aggFilteringNoGroup-result[]
+under_40K:long |inbetween:long |over_60K:long  |total:long
+36             |39             |25             |100
+// end::aggFilteringNoGroup-result[]
+;
 
 statsWithFiltering
 required_capability: per_agg_filtering
@@ -2642,6 +2678,57 @@ c2:l |c2_f:l |m2:i |m2_f:i |c:l
 1    |1      |5    |5      |21
 ;
 
+simpleCountOnFieldWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(emp_no) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(hire_date) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnStarWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(*) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(birth_date) where emp_no <= 10050
+;
+
+c1:long
+40
+;
+
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(job_positions) where emp_no <= 10003
+;
+
+c1:long
+3
+;
+
 commonFilterExtractionWithAliasing
 required_capability: per_agg_filtering
 from employees
@@ -2720,6 +2807,18 @@ FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
 
 m:integer | y+1:integer
 11        | 12
+;
+
+statsByConstantExpressionWithAliasAndSort
+required_capability: fix_stats_by_foldable_expression_2
+FROM employees
+| EVAL y = "a"
+| STATS count = COUNT() BY x = y
+| SORT x
+;
+
+count:long | x:keyword
+100        | a
 ;
 
 filterIsAlwaysTrue

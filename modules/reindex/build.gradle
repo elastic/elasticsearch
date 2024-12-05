@@ -16,9 +16,9 @@ import org.elasticsearch.gradle.transform.UnzipTransform
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -33,7 +33,6 @@ testClusters.configureEach {
   module ':modules:rest-root'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 dependencies {
@@ -42,6 +41,10 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:parent-join')
+  clusterModules project(":modules:rest-root")
 }
 
 restResources {
@@ -132,7 +135,7 @@ if (OS.current() == OS.WINDOWS) {
     oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
-      executable = "${BuildParams.runtimeJavaHome}/bin/java"
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath

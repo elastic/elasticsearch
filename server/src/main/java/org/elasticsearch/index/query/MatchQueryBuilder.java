@@ -82,15 +82,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
     /**
-     * Indicates that this MatchQueryBuilder has already been intercepted and rewritten,
-     * so subsequent rewrite rounds can short-circuit interception.
-     */
-    private final boolean interceptedAndRewritten;
-
-    /**
      * Constructs a new match query.
      */
-    public MatchQueryBuilder(String fieldName, Object value, boolean interceptedAndRewritten) {
+    public MatchQueryBuilder(String fieldName, Object value) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires fieldName");
         }
@@ -99,11 +93,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         }
         this.fieldName = fieldName;
         this.value = value;
-        this.interceptedAndRewritten = interceptedAndRewritten;
-    }
-
-    public MatchQueryBuilder(String fieldName, Object value) {
-        this(fieldName, value, false);
     }
 
     /**
@@ -129,7 +118,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        interceptedAndRewritten = false;
     }
 
     @Override
@@ -201,10 +189,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     /**  Gets the fuzziness used when evaluated to a fuzzy query type. */
     public Fuzziness fuzziness() {
         return this.fuzziness;
-    }
-
-    public boolean getInterceptedAndRewritten() {
-        return interceptedAndRewritten;
     }
 
     /**

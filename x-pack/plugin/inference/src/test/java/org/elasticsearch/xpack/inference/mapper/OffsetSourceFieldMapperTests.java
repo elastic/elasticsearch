@@ -11,14 +11,10 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -78,15 +74,6 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        assertThat(query, instanceOf(PrefixQuery.class));
-        PrefixQuery termQuery = (PrefixQuery) query;
-        assertEquals("_offset_source", termQuery.getField());
-        assertEquals(new Term("_offset_source", "field"), termQuery.getPrefix());
-        assertNotNull(fields.getField("_offset_source"));
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     @Override
@@ -141,7 +128,7 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(
             source(b -> b.startObject("field").field("field", "foo").field("start", 0).field("end", 128).endObject())
         );
-        List<IndexableField> fields = doc1.rootDoc().getFields("_offset_source");
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         assertThat(fields.get(0), instanceOf(OffsetSourceField.class));
         OffsetSourceField offsetField1 = (OffsetSourceField) fields.get(0);
@@ -149,10 +136,10 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         ParsedDocument doc2 = mapper.parse(
             source(b -> b.startObject("field").field("field", "bar").field("start", 128).field("end", 512).endObject())
         );
-        OffsetSourceField offsetField2 = (OffsetSourceField) doc2.rootDoc().getFields("_offset_source").get(0);
+        OffsetSourceField offsetField2 = (OffsetSourceField) doc2.rootDoc().getFields("field").get(0);
 
-        assertTokenStream(offsetField1.tokenStream(null, null), "field.foo", 0, 128);
-        assertTokenStream(offsetField2.tokenStream(null, null), "field.bar", 128, 512);
+        assertTokenStream(offsetField1.tokenStream(null, null), "foo", 0, 128);
+        assertTokenStream(offsetField2.tokenStream(null, null), "bar", 128, 512);
     }
 
     private void assertTokenStream(TokenStream tk, String expectedTerm, int expectedStartOffset, int expectedEndOffset) throws IOException {

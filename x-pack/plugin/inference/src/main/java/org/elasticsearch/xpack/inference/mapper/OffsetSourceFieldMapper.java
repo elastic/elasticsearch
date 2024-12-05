@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -52,7 +50,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * was chosen for ease of Java integration.
  */
 public class OffsetSourceFieldMapper extends FieldMapper {
-    public static final String NAME = "_offset_source";
+    public static final String NAME = "offset_source";
     public static final String CONTENT_TYPE = "offset_source";
 
     private static final String SOURCE_NAME_FIELD = "field";
@@ -61,7 +59,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
     public record OffsetSource(String field, int start, int end) implements ToXContentObject {
         public OffsetSource {
-            if (start == -1 || end == -1) {
+            if (start < 0 || end < 0) {
                 throw new IllegalArgumentException("Illegal offsets, expected positive numbers, got: " + start + ":" + end);
             }
             if (start > end) {
@@ -150,13 +148,8 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new PrefixQuery(new Term(NAME, name()));
-        }
-
-        @Override
         public boolean fieldHasValue(FieldInfos fieldInfos) {
-            return fieldInfos.fieldInfo(NAME) != null;
+            return fieldInfos.fieldInfo(name()) != null;
         }
 
         @Override
@@ -172,8 +165,8 @@ public class OffsetSourceFieldMapper extends FieldMapper {
                 @Override
                 public void setNextReader(LeafReaderContext context) {
                     try {
-                        var terms = context.reader().terms(OffsetSourceFieldMapper.NAME);
-                        offsetLoader = terms != null ? OffsetSourceField.loader(terms, name()) : null;
+                        var terms = context.reader().terms(name());
+                        offsetLoader = terms != null ? OffsetSourceField.loader(terms) : null;
                     } catch (IOException exc) {
                         throw new UncheckedIOException(exc);
                     }
@@ -238,16 +231,17 @@ public class OffsetSourceFieldMapper extends FieldMapper {
             );
         }
 
-        boolean isWithinLeafObject = context.path().isWithinLeafObject();
         // make sure that we don't expand dots in field names while parsing
+        boolean isWithinLeafObject = context.path().isWithinLeafObject();
         context.path().setWithinLeafObject(true);
         try {
             var offsetSource = OFFSET_SOURCE_PARSER.parse(parser, null);
             context.doc()
                 .addWithKey(
-                    fullPath(),
-                    new OffsetSourceField(NAME, fullPath() + "." + offsetSource.field, offsetSource.start, offsetSource.end)
+                    fieldType().name(),
+                    new OffsetSourceField(fullPath(), offsetSource.field, offsetSource.start, offsetSource.end)
                 );
+            context.addToFieldNames(fieldType().name());
         } finally {
             context.path().setWithinLeafObject(isWithinLeafObject);
         }

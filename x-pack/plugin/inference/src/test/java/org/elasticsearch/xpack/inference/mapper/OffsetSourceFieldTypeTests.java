@@ -23,7 +23,7 @@ public class OffsetSourceFieldTypeTests extends FieldTypeTestCase {
     @Override
     public void testFieldHasValue() {
         MappedFieldType fieldType = getMappedFieldType();
-        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_offset_source") });
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName(fieldType.name()) });
         assertTrue(fieldType.fieldHasValue(fieldInfos));
     }
 
@@ -31,12 +31,6 @@ public class OffsetSourceFieldTypeTests extends FieldTypeTestCase {
     public void testFieldHasValueWithEmptyFieldInfos() {
         MappedFieldType fieldType = getMappedFieldType();
         assertFalse(fieldType.fieldHasValue(FieldInfos.EMPTY));
-    }
-
-    public void testFieldEmptyIfNameIsPresentInFieldInfos() {
-        MappedFieldType fieldType = getMappedFieldType();
-        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
-        assertFalse(fieldType.fieldHasValue(fieldInfos));
     }
 
     @Override

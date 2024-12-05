@@ -18,10 +18,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -70,8 +66,8 @@ public final class OffsetSourceField extends Field {
         return stream;
     }
 
-    public static OffsetSourceLoader loader(Terms terms, String fieldName) throws IOException {
-        return new OffsetSourceLoader(terms, fieldName);
+    public static OffsetSourceLoader loader(Terms terms) throws IOException {
+        return new OffsetSourceLoader(terms);
     }
 
     private static final class OffsetTokenStream extends TokenStream {
@@ -117,14 +113,12 @@ public final class OffsetSourceField extends Field {
     public static class OffsetSourceLoader {
         private final Map<String, PostingsEnum> postingsEnums = new LinkedHashMap<>();
 
-        private OffsetSourceLoader(Terms terms, String fieldName) throws IOException {
-            Automaton prefixAutomaton = PrefixQuery.toAutomaton(new BytesRef(fieldName + "."));
-            var termsEnum = terms.intersect(new CompiledAutomaton(prefixAutomaton, false, true, false), null);
+        private OffsetSourceLoader(Terms terms) throws IOException {
+            var termsEnum = terms.iterator();
             while (termsEnum.next() != null) {
                 var postings = termsEnum.postings(null, PostingsEnum.OFFSETS);
                 if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    String sourceFieldName = termsEnum.term().utf8ToString().substring(fieldName.length() + 1);
-                    postingsEnums.put(sourceFieldName, postings);
+                    postingsEnums.put(termsEnum.term().utf8ToString(), postings);
                 }
             }
         }

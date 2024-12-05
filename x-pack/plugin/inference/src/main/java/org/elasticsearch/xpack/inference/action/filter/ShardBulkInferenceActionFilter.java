@@ -398,7 +398,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                Map<String, List<SemanticTextField.Chunk>> chunkMap = new HashMap<>();
+                Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
                 for (var resp : responses) {
                     var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
                     lst.addAll(

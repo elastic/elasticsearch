@@ -35,8 +35,8 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -373,7 +373,7 @@ public record SemanticTextField(
     }
 
     private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser) throws IOException {
-        Map<String, List<Chunk>> resultMap = new HashMap<>();
+        Map<String, List<Chunk>> resultMap = new LinkedHashMap<>();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);

@@ -2747,9 +2747,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testSpatialTypesAndStatsExtentUseDocValues() {
         for (String query : new String[] {
-            "from airports | stats extent = st_extent(location)",
-            "from airports | stats extent = st_extent(to_geopoint(location))",
-            "from airports | eval location = to_geopoint(location) | stats extent = st_extent(location)" }) {
+            "from airports | stats extent = st_extent_agg(location)",
+            "from airports | stats extent = st_extent_agg(to_geopoint(location))",
+            "from airports | eval location = to_geopoint(location) | stats extent = st_extent_agg(location)" }) {
             for (boolean withDocValues : new boolean[] { false, true }) {
                 var testData = withDocValues ? airports : airportsNoDocValues;
                 var plan = physicalPlan(query, testData);

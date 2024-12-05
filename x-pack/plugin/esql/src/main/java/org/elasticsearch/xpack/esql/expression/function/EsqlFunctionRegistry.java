@@ -353,7 +353,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
-                def(SpatialStExtent.class, SpatialStExtent::new, "st_extent", "st_extent_agg"),
+                def(SpatialStExtent.class, SpatialStExtent::new, "st_extent_agg"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),

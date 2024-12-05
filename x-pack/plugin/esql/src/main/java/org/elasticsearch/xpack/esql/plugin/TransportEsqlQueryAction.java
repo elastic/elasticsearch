@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
+import org.elasticsearch.xpack.esql.session.QueryBuilderRewriter;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -68,6 +69,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
+    private final QueryBuilderRewriter queryBuilderRewriter;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -121,6 +123,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.queryBuilderRewriter = new QueryBuilderRewriter(searchService, clusterService);
     }
 
     @Override
@@ -191,6 +194,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             remoteClusterService,
             planRunner,
+            queryBuilderRewriter,
             listener.map(result -> toResponse(task, request, configuration, result))
         );
     }

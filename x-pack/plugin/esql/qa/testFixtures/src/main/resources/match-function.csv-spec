@@ -197,3 +197,62 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10041          | Uri                 | Lenart         
 10043          | Yishay              | Tzvieli        
 ;
+
+testMatchWithSemanticText
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where match(semantic_text_field, "something")
+| keep semantic_text_field
+| sort semantic_text_field asc
+;
+
+semantic_text_field:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+
+testMatchWithSemanticTextMultiValueField
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text metadata _id
+| where match(st_multi_value, "something") AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:semantic_text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where match(semantic_text_field, "something") AND size > 1 AND match(host, "host1")
+| STATS result = count(*)
+;
+
+result:long
+1
+;
+
+testMatchWithSemanticTextAndKql
+required_capability: match_function
+required_capability: semantic_text_type
+required_capability: kql_function
+
+from semantic_text
+| where kql("host:host1") AND match(semantic_text_field, "something")
+| KEEP host, semantic_text_field
+;
+
+host:keyword | semantic_text_field:semantic_text
+"host1"      | live long and prosper
+;

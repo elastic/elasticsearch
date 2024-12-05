@@ -6,7 +6,7 @@ esplugin {
   name 'x-pack-esql-core'
   description 'Elasticsearch infrastructure plugin for ESQL'
   classname 'org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'x-pack-ml']
 }
 
 base {
@@ -17,6 +17,7 @@ dependencies {
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(path: xpackModule('mapper-version'))
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('ml'))
   testApi(project(xpackModule('esql-core:test-fixtures'))) {
     exclude group: 'org.elasticsearch.plugin', module: 'esql-core'
   }

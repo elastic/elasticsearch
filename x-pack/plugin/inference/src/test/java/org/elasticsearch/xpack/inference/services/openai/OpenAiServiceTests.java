@@ -922,7 +922,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testUnifiedCompletionInfer() throws Exception {
-        // streaming response must be on a single line
+        // The escapes are because the streaming response must be on a single line
         String responseJson = """
             data: {\
                 "id":"12345",\

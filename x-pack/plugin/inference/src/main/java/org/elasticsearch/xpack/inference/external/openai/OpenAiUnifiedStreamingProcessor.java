@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, ChunkedToXContent> {
     public static final String FUNCTION_FIELD = "function";
     private static final Logger logger = LogManager.getLogger(OpenAiUnifiedStreamingProcessor.class);
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI chat completions response";
 
     private static final String CHOICES_FIELD = "choices";
     private static final String DELTA_FIELD = "delta";

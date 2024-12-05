@@ -203,6 +203,10 @@ public record UnifiedCompletionRequest(
             out.writeString(type);
         }
 
+        public String toString() {
+            return text + ":" + type;
+        }
+
     }
 
     public record ContentString(String content) implements Content, NamedWriteable {
@@ -229,6 +233,10 @@ public record UnifiedCompletionRequest(
 
         public void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.value(content);
+        }
+
+        public String toString() {
+            return content;
         }
     }
 
@@ -390,7 +398,7 @@ public record UnifiedCompletionRequest(
         public record FunctionField(
             @Nullable String description,
             String name,
-            @Nullable Map<String, Object> parameters, // TODO can we parse this as a string?
+            @Nullable Map<String, Object> parameters,
             @Nullable Boolean strict
         ) implements Writeable {
 

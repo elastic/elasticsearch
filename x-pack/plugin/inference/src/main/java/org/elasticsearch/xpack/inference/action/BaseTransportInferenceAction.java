@@ -92,28 +92,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 return;
             }
 
-            // if (service.isEmpty()) {
-            // var e = unknownServiceException(unparsedModel.service(), request.getInferenceEntityId());
-            // recordMetrics(unparsedModel, timer, e);
-            // listener.onFailure(e);
-            // return;
-            // }
-
-            // if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
-            // // not the wildcard task type and not the model task type
-            // var e = incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType());
-            // recordMetrics(unparsedModel, timer, e);
-            // listener.onFailure(e);
-            // return;
-            // }
-
-            // if (isInvalidTaskTypeForInferenceEndpoint(request, unparsedModel)) {
-            // var e = createInvalidTaskTypeException(request, unparsedModel);
-            // recordMetrics(unparsedModel, timer, e);
-            // listener.onFailure(e);
-            // return;
-            // }
-
             var model = service.get()
                 .parsePersistedConfigWithSecrets(
                     unparsedModel.inferenceEntityId(),
@@ -194,27 +172,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             listener.onFailure(unsupportedStreamingTaskException(request, service));
         }
     }
-
-    // private static Runnable inferRunnable(
-    // Model model,
-    // T request,
-    // InferenceService service,
-    // ActionListener<InferenceServiceResults> listener
-    // ) {
-    // return request.isUnifiedCompletionMode()
-    // // TODO add parameters
-    // ? () -> service.completionInfer(model, null, request.getInferenceTimeout(), listener)
-    // : () -> service.infer(
-    // model,
-    // request.getQuery(),
-    // request.getInput(),
-    // request.isStreaming(),
-    // request.getTaskSettings(),
-    // request.getInputType(),
-    // request.getInferenceTimeout(),
-    // listener
-    // );
-    // }
 
     protected abstract void doInference(
         Model model,

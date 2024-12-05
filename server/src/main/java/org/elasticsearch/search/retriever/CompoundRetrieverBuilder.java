@@ -246,11 +246,21 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
-        // apply the pre-filters downstream once
         if (preFilterQueryBuilders.isEmpty() == false) {
             retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         }
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
+
+        // apply the pre-filters
+        if (preFilterQueryBuilders.size() > 0) {
+            QueryBuilder query = sourceBuilder.query();
+            BoolQueryBuilder newQuery = new BoolQueryBuilder();
+            if (query != null) {
+                newQuery.must(query);
+            }
+            preFilterQueryBuilders.forEach(newQuery::filter);
+            sourceBuilder.query(newQuery);
+        }
 
         // Record the shard id in the sort result
         List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();

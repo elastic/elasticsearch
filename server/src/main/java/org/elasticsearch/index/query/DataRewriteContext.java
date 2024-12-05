@@ -30,8 +30,4 @@ public class DataRewriteContext extends QueryRewriteContext {
         return this;
     }
 
-    @Override
-    public QueryRewriteContext convertToQueryRewriteContext() {
-        return null;
-    }
 }

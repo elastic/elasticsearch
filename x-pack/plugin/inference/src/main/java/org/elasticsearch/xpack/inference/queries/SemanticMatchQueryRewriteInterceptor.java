@@ -39,10 +39,6 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
             return queryBuilder;
         }
 
-        if (context.convertToQueryRewriteContext() == null) {
-            return queryBuilder;
-        }
-
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
         QueryBuilder rewritten = queryBuilder;
         if (matchQueryBuilder.getInterceptedAndRewritten() == false) {

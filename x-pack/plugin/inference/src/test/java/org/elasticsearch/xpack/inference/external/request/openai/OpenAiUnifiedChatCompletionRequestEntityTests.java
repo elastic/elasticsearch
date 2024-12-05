@@ -269,10 +269,10 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
             messageList,
             null, // model
             null, // maxCompletionTokens
-            Collections.emptyList(), // empty stop list TODO when passing an empty stop-list, should it be converted to null?
+            Collections.emptyList(), // empty stop list
             null, // temperature
             null, // toolChoice
-            Collections.emptyList(), // empty tools list TODO when passing an empty tools-list, should it be converted to null?
+            Collections.emptyList(), // empty tools list
             null  // topP
         );
 

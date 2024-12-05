@@ -37,10 +37,10 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
 
     @Override
     protected ReindexDataStreamTaskParams createXContextTestInstance(XContentType xContentType) {
-         /*
-          * Since we filter out headers from xcontent in some cases, we can't use them in the standard xcontent round trip testing.
-          * Headers are covered in testToXContentContextMode
-          */
+        /*
+         * Since we filter out headers from xcontent in some cases, we can't use them in the standard xcontent round trip testing.
+         * Headers are covered in testToXContentContextMode
+         */
         return createTestInstance(false);
     }
 
@@ -108,7 +108,9 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
         // We do not expect to get headers if the "content_mode" is "api"
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.humanReadable(true);
-            ToXContent.Params xContentParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.XContentContext.API.toString()));
+            ToXContent.Params xContentParams = new ToXContent.MapParams(
+                Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.XContentContext.API.toString())
+            );
             params.toXContent(builder, xContentParams);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
                 Map<String, Object> parserMap = parser.map();
@@ -121,7 +123,12 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
         // We do expect to get headers if the "content_mode" is anything but "api"
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.humanReadable(true);
-            ToXContent.Params xContentParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, randomFrom(Metadata.XContentContext.GATEWAY.toString(), Metadata.XContentContext.SNAPSHOT.toString())));
+            ToXContent.Params xContentParams = new ToXContent.MapParams(
+                Map.of(
+                    Metadata.CONTEXT_MODE_PARAM,
+                    randomFrom(Metadata.XContentContext.GATEWAY.toString(), Metadata.XContentContext.SNAPSHOT.toString())
+                )
+            );
             params.toXContent(builder, xContentParams);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
                 Map<String, Object> parserMap = parser.map();

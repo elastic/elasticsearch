@@ -107,10 +107,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             "field permission definitions cannot be null"
         );
         this.originalAutomaton = permittedFieldsAutomaton;
-        this.permittedFieldsAutomaton = new FieldPermissionsCharacterRunAutomaton(
-            new CharacterRunAutomaton(permittedFieldsAutomaton),
-            builtInMetadataFieldsProvider
-        );
+        this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
         this.fieldPredicate = permittedFieldsAutomatonIsTotal
@@ -167,7 +164,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            grantedFieldsAutomaton = Automatons.patterns(grantedFields);
+            // an automaton that includes metadata fields, including join fields created by the _parent field such
+            // as _parent#type
+            Automaton metaFieldsAutomaton = builtInMetadataFieldsProvider.getAutomaton();
+            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
         }
 
         Automaton deniedFieldsAutomaton;

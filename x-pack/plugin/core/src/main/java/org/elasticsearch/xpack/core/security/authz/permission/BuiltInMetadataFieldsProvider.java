@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Set;
@@ -16,20 +15,18 @@ import java.util.Set;
 public class BuiltInMetadataFieldsProvider {
 
     private final Set<String> allMetadataFields;
-    private final Automaton originalAllMetadataFieldsAutomaton;
-    private final CharacterRunAutomaton allMetadataFieldsAutomaton;
+    private final Automaton allMetadataFieldsAutomaton;
 
     public BuiltInMetadataFieldsProvider(Set<String> allMetadataFields) {
         this.allMetadataFields = allMetadataFields;
-        this.originalAllMetadataFieldsAutomaton = Automatons.patterns(allMetadataFields);
-        this.allMetadataFieldsAutomaton = new CharacterRunAutomaton(originalAllMetadataFieldsAutomaton);
+        this.allMetadataFieldsAutomaton = Automatons.patterns(allMetadataFields);
     }
 
     public boolean isMetadataField(String field) {
         return allMetadataFields.contains(field);
     }
 
-    public CharacterRunAutomaton getRunAutomaton() {
+    public Automaton getAutomaton() {
         return allMetadataFieldsAutomaton;
     }
 

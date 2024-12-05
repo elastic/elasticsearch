@@ -2,18 +2,17 @@
 
 set -euo pipefail
 
-VALIDATION_SCRIPTS_VERSION=2.5.1
+VALIDATION_SCRIPTS_VERSION=2.7.1
 GRADLE_ENTERPRISE_ACCESS_KEY=$(vault kv get -field=value secret/ci/elastic-elasticsearch/gradle-enterprise-api-key)
 export GRADLE_ENTERPRISE_ACCESS_KEY
-
-curl -s -L -O https://github.com/gradle/gradle-enterprise-build-validation-scripts/releases/download/v$VALIDATION_SCRIPTS_VERSION/gradle-enterprise-gradle-build-validation-$VALIDATION_SCRIPTS_VERSION.zip && unzip -q -o gradle-enterprise-gradle-build-validation-$VALIDATION_SCRIPTS_VERSION.zip
+curl -s -L -O https://github.com/gradle/gradle-enterprise-build-validation-scripts/releases/download/v$VALIDATION_SCRIPTS_VERSION/develocity-gradle-build-validation-$VALIDATION_SCRIPTS_VERSION.zip && unzip -q -o develocity-gradle-build-validation-$VALIDATION_SCRIPTS_VERSION.zip
 
 # Create a temporary file
 tmpOutputFile=$(mktemp)
 trap "rm $tmpOutputFile" EXIT
 
 set +e
-gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t precommit --fail-if-not-fully-cacheable | tee $tmpOutputFile
+develocity-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --develocity-server https://gradle-enterprise.elastic.co -t precommit --fail-if-not-fully-cacheable | tee $tmpOutputFile
 # Capture the return value
 retval=$?
 set -e

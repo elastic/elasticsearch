@@ -1,14 +1,594 @@
-categorize
-required_capability: categorize
+standard aggs
+required_capability: categorize_v5
 
 FROM sample_data
-  | SORT message ASC
-  | STATS count=COUNT(), values=MV_SORT(VALUES(message)) BY category=CATEGORIZE(message)
+  | STATS count=COUNT(),
+          sum=SUM(event_duration),
+          avg=AVG(event_duration),
+          count_distinct=COUNT_DISTINCT(event_duration)
+       BY category=CATEGORIZE(message)
+  | SORT count DESC, category
+;
+
+count:long | sum:long |     avg:double     | count_distinct:long | category:keyword
+         3 |  7971589 | 2657196.3333333335 |                   3 | .*?Connected.+?to.*?
+         3 | 14027356 | 4675785.333333333  |                   3 | .*?Connection.+?error.*?
+         1 |  1232382 | 1232382.0          |                   1 | .*?Disconnected.*?
+;
+
+values aggs
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS values=MV_SORT(VALUES(message)),
+          top=TOP(event_duration, 2, "DESC")
+       BY category=CATEGORIZE(message)
   | SORT category
 ;
 
-count:long | values:keyword                                                        | category:integer
-3          | [Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | 0
-3          | [Connection error]                                                    | 1
-1          | [Disconnected]                                                        | 2
+values:keyword                                                        |      top:long      | category:keyword
+[Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | [3450233, 2764889] | .*?Connected.+?to.*?
+[Connection error]                                                    | [8268153, 5033755] | .*?Connection.+?error.*?
+[Disconnected]                                                        |           1232382  | .*?Disconnected.*?
+;
+
+mv
+required_capability: categorize_v5
+
+FROM mv_sample_data
+  | STATS COUNT(), SUM(event_duration) BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | SUM(event_duration):long | category:keyword
+           7 |                 23231327 | .*?Banana.*?
+           3 |                  7971589 | .*?Connected.+?to.*?
+           3 |                 14027356 | .*?Connection.+?error.*?
+           1 |                  1232382 | .*?Disconnected.*?
+;
+
+row mv
+required_capability: categorize_v5
+
+ROW message = ["connected to a", "connected to b", "disconnected"], str = ["a", "b", "c"]
+  | STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | VALUES(str):keyword | category:keyword
+           2 | [a, b, c]           | .*?connected.+?to.*?
+           1 | [a, b, c]           | .*?disconnected.*?
+;
+
+skips stopwords
+required_capability: categorize_v5
+
+ROW message = ["Mon Tue connected to a", "Jul Aug connected to b September ", "UTC connected GMT to c UTC"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?connected.+?to.*?
+;
+
+with multiple indices
+required_capability: categorize_v5
+required_capability: union_types
+
+FROM sample_data*
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+          12 | .*?Connected.+?to.*?
+          12 | .*?Connection.+?error.*?
+           4 | .*?Disconnected.*?
+;
+
+mv with many values
+required_capability: categorize_v5
+
+FROM employees
+  | STATS COUNT() BY category=CATEGORIZE(job_positions)
+  | SORT category
+  | LIMIT 5
+;
+
+COUNT():long | category:keyword
+           18 | .*?Accountant.*?
+           13 | .*?Architect.*?
+           11 | .*?Business.+?Analyst.*?
+           13 | .*?Data.+?Scientist.*?
+           10 | .*?Head.+?Human.+?Resources.*?
+;
+
+mv with many values and SUM
+required_capability: categorize_v5
+
+FROM employees
+  | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
+  | SORT category
+  | LIMIT 3
+;
+
+SUM(languages):long | category:keyword
+                 43 | .*?Accountant.*?
+                 46 | .*?Architect.*?
+                 35 | .*?Business.+?Analyst.*?
+;
+
+mv with many values and nulls and SUM
+required_capability: categorize_v5
+
+FROM employees
+  | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
+  | SORT category DESC
+  | LIMIT 2
+;
+
+SUM(languages):long | category:keyword
+                 27 | null
+                 46 | .*?Tech.+?Lead.*?
+;
+
+mv via eval
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL message = MV_APPEND(message, "Banana")
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | .*?Banana.*?
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+mv via eval const
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL message = ["Banana", "Bread"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | .*?Banana.*?
+           7 | .*?Bread.*?
+;
+
+mv via eval const without aliases
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL message = ["Banana", "Bread"]
+  | STATS COUNT() BY CATEGORIZE(message)
+  | SORT `CATEGORIZE(message)`
+;
+
+COUNT():long | CATEGORIZE(message):keyword
+           7 | .*?Banana.*?
+           7 | .*?Bread.*?
+;
+
+mv const in parameter
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY c = CATEGORIZE(["Banana", "Bread"])
+  | SORT c
+;
+
+COUNT():long | c:keyword
+           7 | .*?Banana.*?
+           7 | .*?Bread.*?
+;
+
+agg alias shadowing
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS c = COUNT() BY c = CATEGORIZE(["Banana", "Bread"])
+  | SORT c
+;
+
+warning:Line 2:9: Field 'c' shadowed by field at line 2:24
+
+c:keyword
+.*?Banana.*?
+.*?Bread.*?
+;
+
+chained aggregations using categorize
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | STATS COUNT() BY category=CATEGORIZE(category)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           1 | .*?Connected.+?to.*?
+           1 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+stats without aggs
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+category:keyword
+.*?Connected.+?to.*?
+.*?Connection.+?error.*?
+.*?Disconnected.*?
+;
+
+text field
+required_capability: categorize_v5
+
+FROM hosts
+  | STATS COUNT() BY category=CATEGORIZE(host_group)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           2 | .*?Gateway.+?instances.*?
+           5 | .*?Kubernetes.+?cluster.*?
+           2 | .*?servers.*?
+           1 | null
+
+// Note: DB is removed from "DB servers", because the ml_standard
+// tokenizer drops numbers, including hexadecimal ones.
+;
+
+on TO_UPPER
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(TO_UPPER(message))
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?CONNECTED.+?TO.*?
+           3 | .*?CONNECTION.+?ERROR.*?
+           1 | .*?DISCONNECTED.*?
+;
+
+on CONCAT
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " banana"))
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?Connected.+?to.+?banana.*?
+           3 | .*?Connection.+?error.+?banana.*?
+           1 | .*?Disconnected.+?banana.*?
+;
+
+on CONCAT with unicode
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " 👍🏽😊"))
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+on REVERSE(CONCAT())
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(REVERSE(CONCAT(message, " 👍🏽😊")))
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           1 | .*?detcennocsiD.*?
+           3 | .*?ot.+?detcennoC.*?
+           3 | .*?rorre.+?noitcennoC.*?
+;
+
+and then TO_LOWER
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | EVAL category=TO_LOWER(category)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?connected.+?to.*?
+           3 | .*?connection.+?error.*?
+           1 | .*?disconnected.*?
+;
+
+on const empty string
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE("")
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | null
+;
+
+on const empty string from eval
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL x = ""
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | null
+;
+
+on null
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL x = null
+  | STATS COUNT(), SUM(event_duration) BY category=CATEGORIZE(x)
+  | SORT category
+;
+
+COUNT():long | SUM(event_duration):long | category:keyword
+           7 |                 23231327 |  null
+;
+
+on null string
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL x = null::string
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | null
+;
+
+filtering out all data
+required_capability: categorize_v5
+
+FROM sample_data
+  | WHERE @timestamp < "2023-10-23T00:00:00Z"
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+;
+
+filtering out all data with constant
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | WHERE false
+;
+
+COUNT():long | category:keyword
+;
+
+drop output columns
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message)
+  | EVAL x=1
+  | DROP count, category
+;
+
+x:integer
+1
+1
+1
+;
+
+category value processing
+required_capability: categorize_v5
+
+ROW message = ["connected to a", "connected to b", "disconnected"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | EVAL category = TO_UPPER(category)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           2 | .*?CONNECTED.+?TO.*?
+           1 | .*?DISCONNECTED.*?
+;
+
+row aliases
+required_capability: categorize_v5
+
+ROW message = "connected to xyz"
+  | EVAL x = message
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | SORT y
+;
+
+COUNT():long | category:keyword           | y:keyword
+           1 | .*?connected.+?to.+?xyz.*? | .*?connected.+?to.+?xyz.*?
+;
+
+from aliases
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL x = message
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | SORT y
+;
+
+COUNT():long | category:keyword         | y:keyword
+           3 | .*?Connected.+?to.*?     | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*? | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?       | .*?Disconnected.*?
+;
+
+row aliases with keep
+required_capability: categorize_v5
+
+ROW message = "connected to xyz"
+  | EVAL x = message
+  | KEEP x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | KEEP `COUNT()`, y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           1 | .*?connected.+?to.+?xyz.*?
+;
+
+from aliases with keep
+required_capability: categorize_v5
+
+FROM sample_data
+  | EVAL x = message
+  | KEEP x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | KEEP `COUNT()`, y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+row rename
+required_capability: categorize_v5
+
+ROW message = "connected to xyz"
+  | RENAME message as x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | RENAME category as y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           1 | .*?connected.+?to.+?xyz.*?
+;
+
+from rename
+required_capability: categorize_v5
+
+FROM sample_data
+  | RENAME message as x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | RENAME category as y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+row drop
+required_capability: categorize_v5
+
+ROW message = "connected to a"
+  | STATS c = COUNT() BY category=CATEGORIZE(message)
+  | DROP category
+  | SORT c
+;
+
+c:long
+1
+;
+
+from drop
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS c = COUNT() BY category=CATEGORIZE(message)
+  | DROP category
+  | SORT c
+;
+
+c:long
+1
+3
+3
+;
+
+categorize in aggs inside function
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(category, category) BY category=CATEGORIZE(message)
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
+           3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
+           1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;
+
+categorize in aggs same as grouping inside function
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(CATEGORIZE(message), `CATEGORIZE(message)`) BY CATEGORIZE(message)
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
+           3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
+           1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;
+
+categorize in aggs same as grouping inside function with explicit alias
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT(), x = MV_APPEND(CATEGORIZE(message), category) BY category=CATEGORIZE(message)
+  | SORT x
+  | KEEP `COUNT()`, x
+;
+
+COUNT():long | x:keyword
+           3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
+           3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
+           1 | [.*?Disconnected.*?,.*?Disconnected.*?]
 ;

@@ -40,6 +40,7 @@ import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
+import com.azure.storage.blob.specialized.BlobLeaseClient;
 import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 
@@ -51,6 +52,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -694,7 +696,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, BlobStoreActionStats> stats() {
         return requestMetricsRecorder.statsMap(service.isStateless());
     }
 
@@ -737,26 +739,38 @@ public class AzureBlobStore implements BlobStore {
     }
 
     // visible for testing
+    record StatsCounter(LongAdder operations, LongAdder requests) {
+        StatsCounter() {
+            this(new LongAdder(), new LongAdder());
+        }
+
+        BlobStoreActionStats getEndpointStats() {
+            return new BlobStoreActionStats(operations.sum(), requests.sum());
+        }
+    }
+
+    // visible for testing
     class RequestMetricsRecorder {
         private final RepositoriesMetrics repositoriesMetrics;
-        final Map<StatsKey, LongAdder> opsCounters = new ConcurrentHashMap<>();
+        final Map<StatsKey, StatsCounter> statsCounters = new ConcurrentHashMap<>();
         final Map<StatsKey, Map<String, Object>> opsAttributes = new ConcurrentHashMap<>();
 
         RequestMetricsRecorder(RepositoriesMetrics repositoriesMetrics) {
             this.repositoriesMetrics = repositoriesMetrics;
         }
 
-        Map<String, Long> statsMap(boolean stateless) {
+        Map<String, BlobStoreActionStats> statsMap(boolean stateless) {
             if (stateless) {
-                return opsCounters.entrySet()
+                return statsCounters.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().sum()));
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().getEndpointStats()));
             } else {
-                Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
-                opsCounters.forEach(
+                Map<String, BlobStoreActionStats> normalisedStats = Arrays.stream(Operation.values())
+                    .collect(Collectors.toMap(Operation::getKey, o -> BlobStoreActionStats.ZERO));
+                statsCounters.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
-                        (k, current) -> Objects.requireNonNull(current) + value.sum()
+                        (k, current) -> value.getEndpointStats().add(Objects.requireNonNull(current))
                     )
                 );
                 return Map.copyOf(normalisedStats);
@@ -765,13 +779,14 @@ public class AzureBlobStore implements BlobStore {
 
         public void onRequestComplete(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
             final StatsKey statsKey = new StatsKey(operation, purpose);
-            final LongAdder counter = opsCounters.computeIfAbsent(statsKey, k -> new LongAdder());
+            final StatsCounter counter = statsCounters.computeIfAbsent(statsKey, k -> new StatsCounter());
             final Map<String, Object> attributes = opsAttributes.computeIfAbsent(
                 statsKey,
                 k -> RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey())
             );
 
-            counter.add(1);
+            counter.operations.increment();
+            counter.requests.add(requestMetrics.getRequestCount());
 
             // range not satisfied is not retried, so we count them by checking the final response
             if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
@@ -1010,13 +1025,36 @@ public class AzureBlobStore implements BlobStore {
                 }
                 return currentValue;
             } finally {
-                leaseClient.releaseLease();
+                bestEffortRelease(leaseClient);
             }
         } else {
             if (expected.length() == 0) {
                 uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setIfNoneMatch("*"));
             }
             return BytesArray.EMPTY;
+        }
+    }
+
+    /**
+     * Release the lease, ignoring conflicts due to expiry
+     *
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob?outcomes-of-lease-operations-on-blobs-by-lease-state">Outcomes of lease operations by lease state</a>
+     * @param leaseClient The client for the lease
+     */
+    private static void bestEffortRelease(BlobLeaseClient leaseClient) {
+        try {
+            leaseClient.releaseLease();
+        } catch (BlobStorageException blobStorageException) {
+            if (blobStorageException.getStatusCode() == RestStatus.CONFLICT.getStatus()) {
+                // This is OK, we tried to release a lease that was expired/re-acquired
+                logger.debug(
+                    "Ignored conflict on release: errorCode={}, message={}",
+                    blobStorageException.getErrorCode(),
+                    blobStorageException.getMessage()
+                );
+            } else {
+                throw blobStorageException;
+            }
         }
     }
 

@@ -44,7 +44,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
     public static final String REMOTE_CLUSTER = "remote_cluster";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -109,10 +110,17 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             test.exclude("**/*$*.class");
 
+            final String securityManager;
+            if (test.getJavaVersion().compareTo(JavaVersion.VERSION_24) < 0) {
+                securityManager = "-Djava.security.manager=allow";
+            } else {
+                securityManager = "-Djava.security.manager=disallow";
+            }
+
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "-Djava.security.manager=allow",
+                securityManager,
                 "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized

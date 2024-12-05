@@ -85,7 +85,7 @@ public class RandomRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RANDOM_RERANKER_RETRIEVER;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override

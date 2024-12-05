@@ -61,7 +61,7 @@ public class TextFormatter {
      * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
      */
     public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader, boolean dropNullColumns) {
-        boolean[] nullColumns = dropNullColumns ? response.nullColumns() : null;
+        boolean[] nullColumns = dropNullColumns ? response.nullColumns() : new boolean[response.columns().size()];
         return Iterators.concat(
             // The header lines
             includeHeader && response.columns().size() > 0
@@ -74,7 +74,7 @@ public class TextFormatter {
 
     private void formatHeader(Writer writer, boolean[] nullColumns) throws IOException {
         for (int i = 0; i < width.length; i++) {
-            if (nullColumns != null && nullColumns[i]) {
+            if (nullColumns[i]) {
                 continue;
             }
             if (i > 0) {
@@ -92,7 +92,7 @@ public class TextFormatter {
         writer.append('\n');
 
         for (int i = 0; i < width.length; i++) {
-            if (nullColumns != null && nullColumns[i]) {
+            if (nullColumns[i]) {
                 continue;
             }
             if (i > 0) {
@@ -107,7 +107,7 @@ public class TextFormatter {
         return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
-                if (nullColumns != null && nullColumns[i]) {
+                if (nullColumns[i]) {
                     row.next();
                     continue;
                 }

@@ -288,10 +288,10 @@ public enum TextFormat implements MediaType {
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
         boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-        boolean[] nullColumns = dropNullColumns ? esqlResponse.nullColumns() : null;
+        boolean[] nullColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
         return Iterators.concat(
             // if the header is requested return the info
-            hasHeader(request) && esqlResponse.columns() != null
+            hasHeader(request) && esqlResponse.columns().size() > 0
                 ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, nullColumns))
                 : Collections.emptyIterator(),
             Iterators.map(
@@ -326,7 +326,7 @@ public enum TextFormat implements MediaType {
         int i = -1;
         while (row.hasNext()) {
             i++;
-            if (nullColumns != null && nullColumns[i]) {
+            if (nullColumns[i]) {
                 row.next();
                 continue;
             }

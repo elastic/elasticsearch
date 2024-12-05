@@ -405,6 +405,8 @@ public class RecoverySettings {
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE = Setting.byteSizeSetting(
         "indices.recovery.chunk_size",
         DEFAULT_CHUNK_SIZE,
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope,
         Property.Dynamic
     );
@@ -609,7 +611,7 @@ public class RecoverySettings {
         return chunkSize;
     }
 
-    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+    public void setChunkSize(ByteSizeValue chunkSize) {
         if (chunkSize.bytesAsInt() <= 0) {
             throw new IllegalArgumentException("chunkSize must be > 0");
         }

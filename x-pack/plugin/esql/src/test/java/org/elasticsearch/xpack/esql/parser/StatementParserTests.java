@@ -2504,13 +2504,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         // named arguments must have their names in quotes, and values are constants
         Map<String, String[]> commands = Map.ofEntries(
-            Map.entry("eval x = {}", new String[] {"31", "35"}),
-            Map.entry("where {}", new String[] {"28", "32"}),
-            Map.entry("stats {}", new String[] {"28", "32"}),
-            Map.entry("stats agg() by {}", new String[] {"37", "41"}),
-            Map.entry("sort {}", new String[] {"27", "31"}),
-            Map.entry("dissect {} \"%{bar}\"", new String[] {"30", "34"}),
-            Map.entry("grok {} \"%{WORD:foo}\"", new String[] {"27", "31"})
+            Map.entry("eval x = {}", new String[] { "31", "35" }),
+            Map.entry("where {}", new String[] { "28", "32" }),
+            Map.entry("stats {}", new String[] { "28", "32" }),
+            Map.entry("stats agg() by {}", new String[] { "37", "41" }),
+            Map.entry("sort {}", new String[] { "27", "31" }),
+            Map.entry("dissect {} \"%{bar}\"", new String[] { "30", "34" }),
+            Map.entry("grok {} \"%{WORD:foo}\"", new String[] { "27", "31" })
         );
 
         for (Map.Entry<String, String[]> command : commands.entrySet()) {
@@ -2523,10 +2523,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String errorMessage2 = cmd.startsWith("dissect") || cmd.startsWith("grok")
                 ? "mismatched input 'string' expecting {QUOTED_STRING"
                 : "no viable alternative at input 'fn(f1, {";
-            System.out.println("command: " + cmd);
-            System.out.println("error: " + error2);
-            System.out.println("message: " + errorMessage2);
-
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, { 1:\"string\" })"),
                 LoggerMessageFormat.format(null, "line 1:{}: {}", error1, errorMessage1)

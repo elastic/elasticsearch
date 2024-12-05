@@ -1,17 +1,13 @@
-md5
+hash
 required_capability: hash_function
 
-ROW value = "test" | EVAL hash = hash("md5", value);
+FROM languages 
+| EVAL md5 = hash("md5", language_name), sha256 = hash("sha256", language_name) 
+| KEEP language_name, md5, sha256;
 
-value:keyword | hash:keyword
-test          | 098f6bcd4621d373cade4e832627b4f6
-;
-
-sha256
-required_capability: hash_function
-
-ROW value = "test" | EVAL hash = hash("sha256", value);
-
-value:keyword | hash:keyword
-test          | 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+language_name:keyword | md5:keyword                      | sha256:keyword
+English               | 78463a384a5aa4fad5fa73e2f506ecfc | ba118bf7fc9c1aedc1edb28a0aa86e0b43b681f222af6616e13c43be87815b06
+French                | ad225f707802ba118c22987186dd38e8 | 7458199fe97a184002bfd3c42bae81371f0ae2229b5c0a257a9bae77e4f4eda8
+Spanish               | cb5480c32e71778852b08ae1e8712775 | 3411059cb8e0660e29dd7a3737e65a28b08eb01524a8ebc3d4168932649f23e6
+German                | 86bc3115eb4e9873ac96904a4a68e19e | a659b60d246dce8d4865d45673963de83d0e49a57e8559da98581c2bc5d7d97f
 ;

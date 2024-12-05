@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public final class HashConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
+  private final BreakingBytesRefBuilder scratch;
+
   private final MessageDigest alg;
 
   private final EvalOperator.ExpressionEvaluator input;
@@ -35,9 +38,10 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public HashConstantEvaluator(Source source, MessageDigest alg,
+  public HashConstantEvaluator(Source source, BreakingBytesRefBuilder scratch, MessageDigest alg,
       EvalOperator.ExpressionEvaluator input, DriverContext driverContext) {
     this.source = source;
+    this.scratch = scratch;
     this.alg = alg;
     this.input = input;
     this.driverContext = driverContext;
@@ -69,7 +73,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Hash.processConstant(this.alg, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.alg, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
       }
       return result.build();
     }
@@ -79,7 +83,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Hash.processConstant(this.alg, inputVector.getBytesRef(p, inputScratch)));
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.alg, inputVector.getBytesRef(p, inputScratch)));
       }
       return result.build();
     }
@@ -92,7 +96,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(input);
+    Releasables.closeExpectNoException(scratch, input);
   }
 
   private Warnings warnings() {
@@ -110,20 +114,24 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
     private final Function<DriverContext, MessageDigest> alg;
 
     private final EvalOperator.ExpressionEvaluator.Factory input;
 
-    public Factory(Source source, Function<DriverContext, MessageDigest> alg,
+    public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
+        Function<DriverContext, MessageDigest> alg,
         EvalOperator.ExpressionEvaluator.Factory input) {
       this.source = source;
+      this.scratch = scratch;
       this.alg = alg;
       this.input = input;
     }
 
     @Override
     public HashConstantEvaluator get(DriverContext context) {
-      return new HashConstantEvaluator(source, alg.apply(context), input.get(context), context);
+      return new HashConstantEvaluator(source, scratch.apply(context), alg.apply(context), input.get(context), context);
     }
 
     @Override

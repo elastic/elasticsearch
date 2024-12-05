@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -92,19 +93,28 @@ public class Hash extends EsqlScalarFunction {
     }
 
     @Evaluator(warnExceptions = NoSuchAlgorithmException.class)
-    static BytesRef process(BytesRef alg, BytesRef input) throws NoSuchAlgorithmException {
-        return hash(MessageDigest.getInstance(alg.utf8ToString()), input);
+    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef alg, BytesRef input)
+        throws NoSuchAlgorithmException {
+        return hash(scratch, MessageDigest.getInstance(alg.utf8ToString()), input);
     }
 
     @Evaluator(extraName = "Constant")
-    static BytesRef processConstant(@Fixed(build = true) MessageDigest alg, BytesRef input) {
-        return hash(alg, input);
+    static BytesRef processConstant(
+        @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
+        @Fixed(build = true) MessageDigest alg,
+        BytesRef input
+    ) {
+        return hash(scratch, alg, input);
     }
 
-    private static BytesRef hash(MessageDigest alg, BytesRef input) {
+    private static BytesRef hash(BreakingBytesRefBuilder scratch, MessageDigest alg, BytesRef input) {
+        alg.reset();
         alg.update(input.bytes, input.offset, input.length);
-        var result = alg.digest();
-        return new BytesRef(HexFormat.of().formatHex(result));
+        var digest = alg.digest();
+        scratch.clear();
+        scratch.grow(digest.length * 2);
+        scratch.append(new BytesRef(HexFormat.of().formatHex(digest)));
+        return scratch.bytesRefView();
     }
 
     @Override
@@ -112,12 +122,22 @@ public class Hash extends EsqlScalarFunction {
         if (alg.foldable() && alg.dataType() == DataType.KEYWORD) {
             try {
                 var md = MessageDigest.getInstance(((BytesRef) alg.fold()).utf8ToString());
-                return new HashConstantEvaluator.Factory(source(), context -> md, toEvaluator.apply(input));
+                return new HashConstantEvaluator.Factory(
+                    source(),
+                    context -> new BreakingBytesRefBuilder(context.breaker(), "hash"),
+                    context -> md,
+                    toEvaluator.apply(input)
+                );
             } catch (NoSuchAlgorithmException e) {
                 throw new IllegalArgumentException(e);
             }
         } else {
-            return new HashEvaluator.Factory(source(), toEvaluator.apply(alg), toEvaluator.apply(input));
+            return new HashEvaluator.Factory(
+                source(),
+                context -> new BreakingBytesRefBuilder(context.breaker(), "hash"),
+                toEvaluator.apply(alg),
+                toEvaluator.apply(input)
+            );
         }
     }
 

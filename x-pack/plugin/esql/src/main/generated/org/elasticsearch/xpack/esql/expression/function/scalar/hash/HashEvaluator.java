@@ -8,11 +8,13 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.security.NoSuchAlgorithmException;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
+  private final BreakingBytesRefBuilder scratch;
+
   private final EvalOperator.ExpressionEvaluator alg;
 
   private final EvalOperator.ExpressionEvaluator input;
@@ -34,9 +38,11 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public HashEvaluator(Source source, EvalOperator.ExpressionEvaluator alg,
-      EvalOperator.ExpressionEvaluator input, DriverContext driverContext) {
+  public HashEvaluator(Source source, BreakingBytesRefBuilder scratch,
+      EvalOperator.ExpressionEvaluator alg, EvalOperator.ExpressionEvaluator input,
+      DriverContext driverContext) {
     this.source = source;
+    this.scratch = scratch;
     this.alg = alg;
     this.input = input;
     this.driverContext = driverContext;
@@ -87,7 +93,7 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         try {
-          result.appendBytesRef(Hash.process(algBlock.getBytesRef(algBlock.getFirstValueIndex(p), algScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+          result.appendBytesRef(Hash.process(this.scratch, algBlock.getBytesRef(algBlock.getFirstValueIndex(p), algScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -104,7 +110,7 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(Hash.process(algVector.getBytesRef(p, algScratch), inputVector.getBytesRef(p, inputScratch)));
+          result.appendBytesRef(Hash.process(this.scratch, algVector.getBytesRef(p, algScratch), inputVector.getBytesRef(p, inputScratch)));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -121,7 +127,7 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(alg, input);
+    Releasables.closeExpectNoException(scratch, alg, input);
   }
 
   private Warnings warnings() {
@@ -139,20 +145,24 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
     private final EvalOperator.ExpressionEvaluator.Factory alg;
 
     private final EvalOperator.ExpressionEvaluator.Factory input;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory alg,
+    public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
+        EvalOperator.ExpressionEvaluator.Factory alg,
         EvalOperator.ExpressionEvaluator.Factory input) {
       this.source = source;
+      this.scratch = scratch;
       this.alg = alg;
       this.input = input;
     }
 
     @Override
     public HashEvaluator get(DriverContext context) {
-      return new HashEvaluator(source, alg.get(context), input.get(context), context);
+      return new HashEvaluator(source, scratch.apply(context), alg.get(context), input.get(context), context);
     }
 
     @Override

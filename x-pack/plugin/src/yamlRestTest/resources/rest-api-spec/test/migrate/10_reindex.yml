@@ -1,0 +1,88 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test Reindex With Unsupported Mode":
+  - do:
+      catch: /illegal_argument_exception/
+      migrate.reindex:
+        body: |
+          {
+            "mode": "unsupported_mode",
+            "source": {
+              "index": "my-data-stream"
+            }
+          }
+
+---
+"Test Reindex With Nonexistent Data Stream":
+  - do:
+      catch: /resource_not_found_exception/
+      migrate.reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream"
+            }
+          }
+
+  - do:
+      catch: /resource_not_found_exception/
+      migrate.reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream1,my-data-stream2"
+            }
+          }
+
+
+---
+"Test Reindex With Bad Data Stream Name":
+  - do:
+      catch: /illegal_argument_exception/
+      migrate.reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream*"
+            }
+          }
+
+---
+"Test Reindex Wioth Existing Data Stream":
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [my-data-stream*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                'foo':
+                  type: keyword
+          data_stream: {}
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: my-data-stream
+  - is_true: acknowledged
+
+  - do:
+      migrate.reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream"
+            }
+          }
+  - match: { task: "reindex-data-stream-my-data-streamc" }

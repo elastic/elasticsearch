@@ -1,0 +1,29 @@
+{
+  "migrate.reindex":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
+      "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster."
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_migration/reindex",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The search definition using the Query DSL and the prototype for the index request.",
+      "required":true
+    }
+  }
+}
+

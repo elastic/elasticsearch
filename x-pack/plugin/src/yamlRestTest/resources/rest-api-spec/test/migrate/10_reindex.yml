@@ -85,4 +85,4 @@ setup:
               "index": "my-data-stream"
             }
           }
-  - match: { task: "reindex-data-stream-my-data-streamc" }
+  - match: { task: "reindex-data-stream-my-data-stream" }

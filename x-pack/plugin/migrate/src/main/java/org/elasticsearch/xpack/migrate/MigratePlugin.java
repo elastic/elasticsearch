@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     @Override
@@ -61,48 +63,60 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestMigrationReindexAction());
+        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
+            handlers.add(new RestMigrationReindexAction());
+        }
         return handlers;
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
+        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
+        }
         return actions;
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return List.of(
-            new NamedXContentRegistry.Entry(
-                PersistentTaskState.class,
-                new ParseField(ReindexDataStreamPersistentTaskState.NAME),
-                ReindexDataStreamPersistentTaskState::fromXContent
-            ),
-            new NamedXContentRegistry.Entry(
-                PersistentTaskParams.class,
-                new ParseField(ReindexDataStreamTaskParams.NAME),
-                ReindexDataStreamTaskParams::fromXContent
-            )
-        );
+        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
+            return List.of(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskState.class,
+                    new ParseField(ReindexDataStreamPersistentTaskState.NAME),
+                    ReindexDataStreamPersistentTaskState::fromXContent
+                ),
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    new ParseField(ReindexDataStreamTaskParams.NAME),
+                    ReindexDataStreamTaskParams::fromXContent
+                )
+            );
+        } else {
+            return List.of();
+        }
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(
-                PersistentTaskState.class,
-                ReindexDataStreamPersistentTaskState.NAME,
-                ReindexDataStreamPersistentTaskState::new
-            ),
-            new NamedWriteableRegistry.Entry(
-                PersistentTaskParams.class,
-                ReindexDataStreamTaskParams.NAME,
-                ReindexDataStreamTaskParams::new
-            ),
-            new NamedWriteableRegistry.Entry(Task.Status.class, ReindexDataStreamStatus.NAME, ReindexDataStreamStatus::new)
-        );
+        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
+            return List.of(
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskState.class,
+                    ReindexDataStreamPersistentTaskState.NAME,
+                    ReindexDataStreamPersistentTaskState::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskParams.class,
+                    ReindexDataStreamTaskParams.NAME,
+                    ReindexDataStreamTaskParams::new
+                ),
+                new NamedWriteableRegistry.Entry(Task.Status.class, ReindexDataStreamStatus.NAME, ReindexDataStreamStatus::new)
+            );
+        } else {
+            return List.of();
+        }
     }
 
     @Override
@@ -113,6 +127,12 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new ReindexDataStreamPersistentTaskExecutor(client, clusterService, ReindexDataStreamTask.TASK_NAME, threadPool));
+        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
+            return List.of(
+                new ReindexDataStreamPersistentTaskExecutor(client, clusterService, ReindexDataStreamTask.TASK_NAME, threadPool)
+            );
+        } else {
+            return List.of();
+        }
     }
 }

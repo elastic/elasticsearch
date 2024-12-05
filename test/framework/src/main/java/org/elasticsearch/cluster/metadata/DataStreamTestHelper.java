@@ -527,9 +527,19 @@ public final class DataStreamTestHelper {
     @FixForMultiProject(description = "Don't use default project id")
     @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(getProjectWithDataStream(Metadata.DEFAULT_PROJECT_ID, dataStream, timeSlices))
+            .build();
+    }
+
+    public static ProjectMetadata getProjectWithDataStream(
+        ProjectId projectId,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         getClusterStateWithDataStream(builder, dataStream, timeSlices);
-        return ClusterState.builder(new ClusterName("_name")).putProjectMetadata(builder.build()).build();
+        return builder.build();
     }
 
     public static void getClusterStateWithDataStream(

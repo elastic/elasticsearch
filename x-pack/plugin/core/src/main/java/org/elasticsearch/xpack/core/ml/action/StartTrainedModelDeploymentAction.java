@@ -169,7 +169,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 numberOfAllocations = in.readOptionalVInt();
             } else {
                 numberOfAllocations = in.readVInt();
@@ -189,7 +189,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.deploymentId = modelId;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             } else {
                 this.adaptiveAllocationsSettings = null;
@@ -297,7 +297,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalVInt(numberOfAllocations);
             } else {
                 out.writeVInt(numberOfAllocations);
@@ -313,7 +313,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
         }

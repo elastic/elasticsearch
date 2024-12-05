@@ -1457,6 +1457,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Clusters clusters
         ) {
             if (preFilter) {
+                // only for aggs we need to contact shards even if there are no matches
+                boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
                 return new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,
@@ -1468,7 +1470,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     shardIterators,
                     timeProvider,
                     task,
-                    true,
+                    requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     listener.delegateFailureAndWrap(
                         (l, iters) -> newSearchPhase(

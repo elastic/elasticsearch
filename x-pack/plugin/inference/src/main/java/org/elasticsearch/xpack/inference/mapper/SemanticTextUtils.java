@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
@@ -17,24 +16,35 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
-
 public interface SemanticTextUtils {
     /**
      * This method converts the given {@code valueObj} into a list of strings.
-     * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
      */
-    static String nodeStringValues(String field, Object valueObj) {
+    static List<String> nodeStringValues(String field, Object valueObj) {
         if (valueObj instanceof Number || valueObj instanceof Boolean) {
-            return valueObj.toString();
+            return List.of(valueObj.toString());
         } else if (valueObj instanceof String value) {
-            return value;
+            return List.of(value);
         } else if (valueObj instanceof Collection<?> values) {
-            // TODO: Define separator char someplace common to semantic text & chunking code
-            return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
+            List<String> valuesString = new ArrayList<>();
+            for (var v : values) {
+                if (v instanceof Number || v instanceof Boolean) {
+                    valuesString.add(v.toString());
+                } else if (v instanceof String value) {
+                    valuesString.add(value);
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Invalid format for field [{}], expected [String|Number|Boolean] got [{}]",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        valueObj.getClass().getSimpleName()
+                    );
+                }
+            }
+            return valuesString;
         }
         throw new ElasticsearchStatusException(
-            "Invalid format for field [{}], expected [String] got [{}]",
+            "Invalid format for field [{}], expected [String|Number|Boolean] got [{}]",
             RestStatus.BAD_REQUEST,
             field,
             valueObj.getClass().getSimpleName()

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -39,6 +40,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -235,8 +237,33 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         final boolean useInferenceMetadataFields = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
             && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
 
-        // TODO: Define separator char someplace common to semantic text & chunking code
-        // TODO: Investigate input handling with list values when using legacy semantic text format
+        final List<SemanticTextField.Chunk> chunks;
+        if (useInferenceMetadataFields) {
+            // When using the inference metadata fields format, all the input values are concatenated so that the chunk offsets are
+            // expressed in the context of a single string
+            chunks = toSemanticTextFieldChunks(
+                Strings.collectionToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR)),
+                results,
+                contentType,
+                useInferenceMetadataFields
+            );
+        } else {
+            // When using the legacy format, each input value is processed using its own inference request.
+            // In this test framework, we don't perform "real" chunking; each input generates one chunk. Thus, we can assume there is a
+            // one-to-one relationship between inputs and chunks. Iterate over the inputs and chunks to match each input with its
+            // corresponding chunk.
+            chunks = new ArrayList<>(inputs.size());
+            Iterator<String> inputsIt = inputs.iterator();
+            Iterator<ChunkedInferenceServiceResults.Chunk> chunkIt = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+            while (inputsIt.hasNext() && chunkIt.hasNext()) {
+                chunks.add(toSemanticTextFieldChunk(inputsIt.next(), chunkIt.next(), useInferenceMetadataFields));
+            }
+
+            if (inputsIt.hasNext() || chunkIt.hasNext()) {
+                throw new IllegalArgumentException("Input list size and chunk count do not match");
+            }
+        }
+
         return new SemanticTextField(
             indexVersion,
             fieldName,
@@ -244,15 +271,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),
-                Map.of(
-                    fieldName,
-                    toSemanticTextFieldChunks(
-                        Strings.collectionToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR)),
-                        List.of(results),
-                        contentType,
-                        useInferenceMetadataFields
-                    )
-                )
+                Map.of(fieldName, chunks)
             ),
             contentType
         );

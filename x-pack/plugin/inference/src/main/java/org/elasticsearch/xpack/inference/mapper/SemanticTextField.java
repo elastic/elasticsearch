@@ -401,30 +401,32 @@ public record SemanticTextField(
      */
     public static List<Chunk> toSemanticTextFieldChunks(
         String input,
-        List<ChunkedInferenceServiceResults> results,
+        ChunkedInferenceServiceResults results,
         XContentType contentType,
-        boolean withOffsets
+        boolean useInferenceMetadataFieldsFormat
     ) {
-        // TODO: Use offsets from ChunkedInferenceServiceResults
-        // TODO: Investigate input handling with list values when using legacy semantic text format
         List<Chunk> chunks = new ArrayList<>();
-        for (var result : results) {
-            for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it
-                .hasNext();) {
-                var chunkAsByteReference = it.next();
-                assert chunkAsByteReference.matchedText() != null;
-
-                int startOffset = withOffsets ? input.indexOf(chunkAsByteReference.matchedText()) : -1;
-                chunks.add(
-                    new Chunk(
-                        withOffsets ? null : input,
-                        withOffsets ? startOffset : -1,
-                        withOffsets ? startOffset + chunkAsByteReference.matchedText().length() : -1,
-                        chunkAsByteReference.bytesReference()
-                    )
-                );
-            }
+        Iterator<ChunkedInferenceServiceResults.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+        while (it.hasNext()) {
+            chunks.add(toSemanticTextFieldChunk(input, it.next(), useInferenceMetadataFieldsFormat));
         }
         return chunks;
+    }
+
+    public static Chunk toSemanticTextFieldChunk(
+        String input,
+        ChunkedInferenceServiceResults.Chunk chunk,
+        boolean useInferenceMetadataFieldsFormat
+    ) {
+        // TODO: Use offsets from ChunkedInferenceServiceResults
+        // TODO: When using legacy semantic text format, build chunk text from offsets
+        assert chunk.matchedText() != null; // TODO: Remove once offsets are available from chunk
+        int startOffset = useInferenceMetadataFieldsFormat ? input.indexOf(chunk.matchedText()) : -1;
+        return new Chunk(
+            useInferenceMetadataFieldsFormat ? null : chunk.matchedText(),
+            useInferenceMetadataFieldsFormat ? startOffset : -1,
+            useInferenceMetadataFieldsFormat ? startOffset + chunk.matchedText().length() : -1,
+            chunk.bytesReference()
+        );
     }
 }

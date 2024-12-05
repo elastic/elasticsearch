@@ -942,6 +942,22 @@ public abstract class Engine implements Closeable {
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
     /**
+     * @deprecated This method is deprecated and has been replaced by {@link Engine#newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)}.
+     *             It will be removed once #114618 is applied to the serverless repository.
+     */
+    @Deprecated
+    public Translog.Snapshot newChangesSnapshot(
+            String source,
+            long fromSeqNo,
+            long toSeqNo,
+            boolean requiredFullRange,
+            boolean singleConsumer,
+            boolean accessStats
+    ) throws IOException {
+        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, 0);
+    }
+
+    /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */

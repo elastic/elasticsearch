@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -46,7 +47,7 @@ public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChange
             mappingLookup,
             engineSearcher,
             searchBatchSize,
-            randomLongBetween(1, LuceneSyntheticSourceChangesSnapshot.DEFAULT_MEMORY_SIZE),
+            randomLongBetween(0, ByteSizeValue.ofBytes(Integer.MAX_VALUE).getBytes()),
             fromSeqNo,
             toSeqNo,
             requiredFullRange,

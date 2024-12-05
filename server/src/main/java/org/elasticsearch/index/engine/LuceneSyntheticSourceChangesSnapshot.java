@@ -41,8 +41,6 @@ import java.util.Set;
  * loaded into memory during batch retrieval.
  */
 public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnapshot {
-    public static final long DEFAULT_MEMORY_SIZE = 4 * 1024 * 1024; // 4MB
-
     private final long maxMemorySizeInBytes;
     private final StoredFieldLoader storedFieldLoader;
     private final SourceLoader sourceLoader;

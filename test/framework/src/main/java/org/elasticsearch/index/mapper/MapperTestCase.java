@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -1217,7 +1218,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         () -> {}
                     ),
                     randomIntBetween(1, maxDocs),
-                    randomLongBetween(1, LuceneSyntheticSourceChangesSnapshot.DEFAULT_MEMORY_SIZE),
+                    randomLongBetween(0, ByteSizeValue.ofBytes(Integer.MAX_VALUE).getBytes()),
                     start,
                     maxDocs,
                     true,

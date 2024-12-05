@@ -101,7 +101,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
         indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
 
-        // filter includes only test1. Columns are rows of test2 are filtered out
+        // filter includes only test1. Columns and rows of test2 are filtered out
         RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query("FROM test*");
         Map<String, Object> result = runEsql(builder);
         assertMap(
@@ -252,6 +252,9 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 "properties": {
                   "@timestamp": {
                     "type": "date"
+                  },
+                  "value": {
+                    "type": "long"
                   },
                   "%differentiator_field_name%": {
                     "type": "integer"

@@ -947,12 +947,12 @@ public abstract class Engine implements Closeable {
      */
     @Deprecated
     public abstract Translog.Snapshot newChangesSnapshot(
-            String source,
-            long fromSeqNo,
-            long toSeqNo,
-            boolean requiredFullRange,
-            boolean singleConsumer,
-            boolean accessStats
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats
     ) throws IOException;
 
     /**

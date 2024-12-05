@@ -75,8 +75,6 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.CCS_REMOTE_TELEMETRY_STATS;
-
 /**
  * Transport action implementing _cluster/stats API.
  */
@@ -461,7 +459,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
             remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
-                if (connection.getTransportVersion().before(CCS_REMOTE_TELEMETRY_STATS)) {
+                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                     responseListener.onResponse(null);
                 } else {
                     remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);

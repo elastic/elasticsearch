@@ -56,8 +56,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset APPS = new TestsDataset("apps");
     private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestsDataset LANGUAGES = new TestsDataset("languages");
-    private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
-        .withSetting("languages_lookup-settings.json");
+    // private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
+    //     .withSetting("languages_lookup-settings.json");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
@@ -72,11 +72,11 @@ public class CsvTestsDataLoader {
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
-    private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
-        .withSetting("clientips_lookup-settings.json");
+    // private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
+    //     .withSetting("clientips_lookup-settings.json");
     private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
-    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
-        .withSetting("message_types_lookup-settings.json");
+    // private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+    //     .withSetting("message_types_lookup-settings.json");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
     private static final TestsDataset AGES = new TestsDataset("ages");
     private static final TestsDataset HEIGHTS = new TestsDataset("heights");
@@ -107,7 +107,7 @@ public class CsvTestsDataLoader {
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
-        Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
+        // Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
@@ -117,9 +117,9 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
-        Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
+        // Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
         Map.entry(MESSAGE_TYPES.indexName, MESSAGE_TYPES),
-        Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
+        // Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
         Map.entry(HEIGHTS.indexName, HEIGHTS),
@@ -181,13 +181,14 @@ public class CsvTestsDataLoader {
      * </p>
      * <p>
      * Accepts an URL as first argument, eg. http://localhost:9200 or http://user:pass@localhost:9200
-     *</p>
+     * </p>
      * <p>
      * If no arguments are specified, the default URL is http://localhost:9200 without authentication
      * </p>
      * <p>
      * It also supports HTTPS
      * </p>
+     *
      * @param args the URL to connect
      * @throws IOException
      */
@@ -277,7 +278,9 @@ public class CsvTestsDataLoader {
         }
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    /**
+     * The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index.
+     */
     public static void createInferenceEndpoint(RestClient client) throws IOException {
         Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
         request.setJsonEntity("""
@@ -660,7 +663,8 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record EnrichConfig(String policyName, String policyFileName) {}
+    public record EnrichConfig(String policyName, String policyFileName) {
+    }
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

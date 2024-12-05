@@ -110,17 +110,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             test.exclude("**/*$*.class");
 
-            final String securityManager;
-            if (test.getJavaVersion().compareTo(JavaVersion.VERSION_24) < 0) {
-                securityManager = "-Djava.security.manager=allow";
-            } else {
-                securityManager = "-Djava.security.manager=disallow";
-            }
-
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                securityManager,
                 "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
@@ -135,6 +127,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
+            if (test.getJavaVersion().compareTo(JavaVersion.VERSION_24) < 0) {
+                test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-Djava.security.manager=allow"));
+            }
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.test;
 
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.invocation.Gradle;
@@ -23,8 +24,10 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
             test.systemProperty("tests.gradle", true);
             test.systemProperty("tests.task", test.getPath());
 
-            // Flag is required for later Java versions since our tests use a custom security manager
-            test.jvmArgs("-Djava.security.manager=allow");
+            if (test.getJavaVersion().compareTo(JavaVersion.VERSION_24) < 0) {
+                // Flag is required for later Java versions since our tests use a custom security manager
+                test.jvmArgs("-Djava.security.manager=allow");
+            }
 
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             // don't track these as inputs since they contain absolute paths and break cache relocatability

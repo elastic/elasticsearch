@@ -66,7 +66,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         GetDataStreamAction.Request request = new GetDataStreamAction.Request(TimeValue.MAX_VALUE, new String[] { sourceDataStream });
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
-        ReindexDataStreamClient reindexClient = new ReindexDataStreamClient(client, params.headers());
+        ExecuteWithHeadersClient reindexClient = new ExecuteWithHeadersClient(client, params.headers());
         reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {

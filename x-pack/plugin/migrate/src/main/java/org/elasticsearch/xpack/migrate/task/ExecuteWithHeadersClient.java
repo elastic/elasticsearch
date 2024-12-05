@@ -17,12 +17,12 @@ import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Map;
 
-public class ReindexDataStreamClient extends AbstractClient {
+public class ExecuteWithHeadersClient extends AbstractClient {
 
     private final Client client;
     private final Map<String, String> headers;
 
-    public ReindexDataStreamClient(Client client, Map<String, String> headers) {
+    public ExecuteWithHeadersClient(Client client, Map<String, String> headers) {
         super(client.settings(), client.threadPool());
         this.client = client;
         this.headers = headers;

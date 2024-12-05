@@ -1544,6 +1544,7 @@ public abstract class Engine implements Closeable {
         private final String id;
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
+        private final String routing;
 
         public Delete(
             String type,
@@ -1556,7 +1557,8 @@ public abstract class Engine implements Closeable {
             Origin origin,
             long startTime,
             long ifSeqNo,
-            long ifPrimaryTerm
+            long ifPrimaryTerm,
+            String routing
         ) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
             assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
@@ -1568,6 +1570,7 @@ public abstract class Engine implements Closeable {
             this.id = Objects.requireNonNull(id);
             this.ifSeqNo = ifSeqNo;
             this.ifPrimaryTerm = ifPrimaryTerm;
+            this.routing = routing;
         }
 
         public Delete(String type, String id, Term uid, long primaryTerm) {
@@ -1582,7 +1585,8 @@ public abstract class Engine implements Closeable {
                 Origin.PRIMARY,
                 System.nanoTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                null
             );
         }
 
@@ -1598,7 +1602,8 @@ public abstract class Engine implements Closeable {
                 template.origin(),
                 template.startTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                null
             );
         }
 
@@ -1628,6 +1633,10 @@ public abstract class Engine implements Closeable {
 
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
+        }
+
+        public String routing() {
+            return this.routing;
         }
     }
 

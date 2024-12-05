@@ -3,9 +3,3 @@ summary: "[WIP] Remove any references to org.elasticsearch.core.RestApiVersion#V
 area: Infra/Core
 type: enhancement
 issues: []
-deprecation:
-  title: "[WIP] Remove any references to org.elasticsearch.core.RestApiVersion#V_7"
-  area: Infra/Core
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users

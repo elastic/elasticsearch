@@ -52,7 +52,7 @@ public class InferencePluginTests extends ESTestCase {
             .map(Setting::getKey)
             .anyMatch(key -> key.startsWith(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX));
 
-        MatcherAssert.assertThat("xpack.inference.elastic settings are present", anyMatch, is(true));
+        assertThat("xpack.inference.elastic settings are present", anyMatch, is(true));
     }
 
     public void testElasticInferenceServiceSettingsNotPresent() throws Exception {

@@ -19,6 +19,7 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
@@ -108,7 +109,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(XPackPlugin.class, InferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Before

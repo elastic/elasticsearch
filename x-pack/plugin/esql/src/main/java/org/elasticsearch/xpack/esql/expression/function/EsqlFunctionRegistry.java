@@ -414,10 +414,7 @@ public class EsqlFunctionRegistry {
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
             // fulltext functions
-            new FunctionDefinition[] {
-                def(Match.class, Match::new, "match"),
-                def(QueryString.class, QueryString::new, "qstr"),
-                def(Term.class, Term::new, "term"), } };
+            new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr"), } };
 
     }
 
@@ -428,7 +425,8 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, Kql::new, "kql"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
+                def(Term.class, Term::new, "term"), } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

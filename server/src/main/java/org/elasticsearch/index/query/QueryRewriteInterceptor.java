@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.query;
 
-import java.util.List;
+import java.util.Map;
 
 /**
  * Enables modules and plugins to intercept and rewrite queries during the query rewrite phase on the coordinator node.
@@ -26,27 +26,29 @@ public interface QueryRewriteInterceptor {
      */
     QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
 
-    static QueryRewriteInterceptor multi(List<QueryRewriteInterceptor> interceptors) {
+    default String getName() {
+        return null;
+    }
+
+    static QueryRewriteInterceptor multi(Map<String, QueryRewriteInterceptor> interceptors) {
         if (interceptors.isEmpty()) {
-            return (c, q) -> q;
+            return (context, queryBuilder) -> queryBuilder;
         }
         return new Multi(interceptors);
     }
 
     class Multi implements QueryRewriteInterceptor {
-        final List<QueryRewriteInterceptor> interceptors;
+        final Map<String, QueryRewriteInterceptor> interceptors;
 
-        private Multi(List<QueryRewriteInterceptor> interceptors) {
+        private Multi(Map<String, QueryRewriteInterceptor> interceptors) {
             this.interceptors = interceptors;
         }
 
         @Override
         public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-            for (var interceptor : interceptors) {
-                var rewritten = interceptor.rewrite(context, queryBuilder);
-                if (rewritten != queryBuilder) {
-                    return rewritten;
-                }
+            QueryRewriteInterceptor interceptor = interceptors.get(queryBuilder.getName());
+            if (interceptor != null) {
+                return interceptor.rewrite(context, queryBuilder);
             }
             return queryBuilder;
         }

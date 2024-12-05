@@ -83,6 +83,11 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
         return queryBuilder;
     }
 
+    @Override
+    public String getName() {
+        return MatchQueryBuilder.NAME;
+    }
+
     private QueryBuilder createSemanticSubQuery(String indexName, String fieldName, String value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, false));

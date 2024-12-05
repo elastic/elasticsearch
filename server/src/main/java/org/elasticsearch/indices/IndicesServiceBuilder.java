@@ -245,7 +245,22 @@ public class IndicesServiceBuilder {
         var queryRewriteInterceptors = pluginsService.filterPlugins(SearchPlugin.class)
             .map(SearchPlugin::getQueryRewriteInterceptors)
             .flatMap(List::stream)
-            .toList();
+            .collect(Collectors.toMap(QueryRewriteInterceptor::getName, interceptor -> {
+                if (interceptor.getName() == null) {
+                    throw new IllegalArgumentException("QueryRewriteInterceptor [" + interceptor.getClass().getName() + "] requires name");
+                }
+                return interceptor;
+            }, (a, b) -> {
+                throw new IllegalStateException(
+                    "Conflicting rewrite interceptors ["
+                        + a.getName()
+                        + "] found in ["
+                        + a.getClass().getName()
+                        + "] and ["
+                        + b.getClass().getName()
+                        + "]"
+                );
+            }));
         queryRewriteInterceptor = QueryRewriteInterceptor.multi(queryRewriteInterceptors);
 
         return new IndicesService(this);

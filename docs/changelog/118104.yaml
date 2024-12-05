@@ -1,0 +1,12 @@
+pr: 118104
+summary: Remove old `_knn_search` tech preview API in v9
+area: Vector Search
+type: breaking
+issues: []
+breaking:
+  title: Remove old `_knn_search` tech preview API in v9
+  area: Vector Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

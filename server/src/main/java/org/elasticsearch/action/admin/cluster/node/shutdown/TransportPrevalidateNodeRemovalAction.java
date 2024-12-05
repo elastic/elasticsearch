@@ -94,6 +94,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ActionListener.run(responseListener, listener -> {
             Set<DiscoveryNode> requestNodes = resolveNodes(request, state.nodes());
             if (projectResolver.supportsMultipleProjects()) {
+                assert false : "The node removal prevalidation API does not support a multi-project setup";
                 throw new IllegalStateException("The node removal prevalidation API does not support a multi-project setup");
             }
             doPrevalidation(request, requestNodes, state, listener);
@@ -166,9 +167,10 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         assert requestNodes != null && requestNodes.isEmpty() == false;
 
         logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
+        final var projectMetadata = projectResolver.getProjectMetadata(clusterState);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
             clusterState,
-            projectResolver.getProjectMetadata(clusterState).getConcreteAllIndices(),
+            projectMetadata.getConcreteAllIndices(),
             projectResolver.getProjectId()
         );
         Metadata metadata = clusterState.metadata();
@@ -198,7 +200,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             .collect(Collectors.toSet());
         // If all red indices are searchable snapshot indices, it is safe to remove any node.
         Set<String> redNonSSIndices = redIndices.stream()
-            .map(i -> projectResolver.getProjectMetadata(metadata).index(i))
+            .map(projectMetadata::index)
             .filter(i -> i.isSearchableSnapshot() == false)
             .map(im -> im.getIndex().getName())
             .collect(Collectors.toSet());
@@ -234,7 +236,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // (Index, ClusterShardHealth) of all red shards
                 .map(
                     redIndexShardHealthTuple -> new ShardId(
-                        projectResolver.getProjectMetadata(metadata).index(redIndexShardHealthTuple.v1()).getIndex(),
+                        projectMetadata.index(redIndexShardHealthTuple.v1()).getIndex(),
                         redIndexShardHealthTuple.v2().getShardId()
                     )
                 ) // Convert to ShardId

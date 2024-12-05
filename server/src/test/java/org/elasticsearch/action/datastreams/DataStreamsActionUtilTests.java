@@ -149,11 +149,11 @@ public class DataStreamsActionUtilTests extends ESTestCase {
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[1] });
         dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
-        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+        assertThat(dataStreams, equalTo(List.of(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[0] });
         dataStreams = DataStreamsActionUtil.getDataStreamNames(resolver, cs, req.getNames(), req.indicesOptions());
-        assertThat(dataStreams, containsInAnyOrder(dataStreamNames[1], dataStreamNames[0]));
+        assertThat(dataStreams, equalTo(List.of(dataStreamNames[0])));
 
         GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "foo" });
         IndexNotFoundException e = expectThrows(

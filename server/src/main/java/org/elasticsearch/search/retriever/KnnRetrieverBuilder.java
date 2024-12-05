@@ -54,7 +54,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
-    public static final ParseField RESCORE_FIELD = new ParseField("rescore");
+    public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<KnnRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -96,7 +96,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> RescoreVectorBuilder.fromXContent(p),
-            RESCORE_FIELD,
+            RESCORE_VECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
@@ -281,7 +281,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (rescoreVectorBuilder != null) {
-            builder.field(RESCORE_FIELD.getPreferredName(), rescoreVectorBuilder);
+            builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
     }
 

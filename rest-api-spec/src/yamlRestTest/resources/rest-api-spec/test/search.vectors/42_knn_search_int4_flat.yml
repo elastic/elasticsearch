@@ -370,7 +370,7 @@ setup:
             query_vector: [-0.5, 90.0, -10, 14.8]
             k: 3
             num_candidates: 3
-            rescore:
+            rescore_vector:
               oversample: 1.5
 
   # Get rescoring scores - hit ordering may change depending on how things are distributed

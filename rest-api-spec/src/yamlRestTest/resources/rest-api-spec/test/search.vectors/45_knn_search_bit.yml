@@ -453,7 +453,7 @@ setup:
             query_vector: [127.0, -128.0, 0.0, 1.0, -1.0]
             k: 3
             num_candidates: 3
-            rescore:
+            rescore_vector:
               oversample: 1.5
 
   # Compare scores as hit IDs may change depending on how things are distributed

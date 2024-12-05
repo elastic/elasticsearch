@@ -1700,7 +1700,7 @@ public class MetadataIndexTemplateService {
                 dataStreamOptionsList.add(dataStreamOptions);
             }
         }
-        // The actual index template's lifecycle has the highest precedence.
+        // The actual index template's data stream options have the highest precedence.
         if (template.template() != null && template.template().resettableDataStreamOptions().isDefined()) {
             dataStreamOptionsList.add(template.template().resettableDataStreamOptions());
         }

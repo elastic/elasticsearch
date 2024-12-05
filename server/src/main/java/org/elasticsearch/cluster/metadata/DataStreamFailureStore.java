@@ -98,7 +98,7 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
         public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
             "failure_store_template",
             false,
-            (args, unused) -> new Template((ResettableValue<Boolean>) args[0])
+            (args, unused) -> new Template(args[0] == null ? ResettableValue.undefined() : (ResettableValue<Boolean>) args[0])
         );
 
         static {

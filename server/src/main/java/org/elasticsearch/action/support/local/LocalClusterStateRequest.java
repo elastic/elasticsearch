@@ -39,7 +39,7 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
      * This constructor exists solely for BwC purposes. It should exclusively be used by requests that used to extend
      * {@link org.elasticsearch.action.support.master.MasterNodeReadRequest} and still need to be able to serialize incoming request.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     protected LocalClusterStateRequest(StreamInput in) throws IOException {
         super(in);
         masterTimeout = in.readTimeValue();

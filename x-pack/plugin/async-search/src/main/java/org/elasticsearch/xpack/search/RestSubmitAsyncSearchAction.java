@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -37,10 +38,16 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final ThreadContext context;
 
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSubmitAsyncSearchAction(
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        ThreadContext context
+    ) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.context = context;
     }
 
     @Override
@@ -55,6 +62,10 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        // set weather data nodes should send back stack trace based on the `error_trace` query parameter
+        if (request.param("error_trace", "false").equals("true")) {
+            context.putHeader("error_trace", "true");
+        }
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
         // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll

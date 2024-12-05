@@ -531,6 +531,17 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
+     * Returns the header for the given key or defaultValue if not present
+     */
+    public String getHeaderOrDefault(String key, String defaultValue) {
+        String value = getHeader(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    /**
      * Returns all of the request headers from the thread's context.<br>
      * <b>Be advised, headers might contain credentials.</b>
      * In order to avoid storing, and erroneously exposing, such headers,

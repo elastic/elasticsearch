@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -70,10 +71,12 @@ public class RestSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final ThreadContext context;
 
-    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature, ThreadContext context) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.context = context;
     }
 
     @Override
@@ -98,7 +101,10 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
+        // set weather data nodes should send back stack trace based on the `error_trace` query parameter
+        if (request.param("error_trace", "true").equals("false")) {
+            context.putHeader("error_trace", "false");
+        }
         SearchRequest searchRequest = new SearchRequest();
         // access the BwC param, but just drop it
         // this might be set by old clients

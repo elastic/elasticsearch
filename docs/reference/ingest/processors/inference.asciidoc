@@ -743,6 +743,7 @@ In this case, {feat-imp} is exposed in the
 
 The following example uses an <<inference-apis,{infer} endpoint>> in an {infer} processor named `query_helper_pipeline` to perform a chat completion task.
 The processor generates an {es} query from natural language input using a prompt designed for a completion task type.
+Refer to <<put-inference-api-desc,this list>> for the {infer} service you use and check the corresponding examples of setting up an endpoint with the chat completion task type.
 
 
 [source,console]

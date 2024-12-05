@@ -111,7 +111,11 @@ class MapperUtils {
     }
 
     static List<Attribute> intermediateAttributes(Aggregate aggregate) {
-        return AbstractPhysicalOperationProviders.intermediateAttributes(aggregate.aggregates(), aggregate.groupings());
+        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
+            aggregate.aggregates(),
+            aggregate.groupings()
+        );
+        return intermediateAttributes;
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {

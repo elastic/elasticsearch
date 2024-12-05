@@ -66,7 +66,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 if (r instanceof PropagateEmptyRelation) {
                     newRules.add(new LocalPropagateEmptyRelation());
                     updated = true;
-                } else if (false && r instanceof ReplaceStatsFilteredAggWithEval) {
+                } else if (r instanceof ReplaceStatsFilteredAggWithEval) {
                     // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
                     updated = true;
                 } else {

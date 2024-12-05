@@ -119,7 +119,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             "modern_cluster_2",
             TransportVersion.current(),
             "old_cluster_1",
-            TransportVersions.V_7_0_0
+            TransportVersions.V_8_0_0
         );
 
         Map<String, Object> field = Map.of("runtime_field_foo", Map.of("type", "keyword", "script", ""));

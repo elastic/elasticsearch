@@ -1071,3 +1071,77 @@ setup:
 
   - match: { hits.hits.2.inner_hits.nested_data_field.hits.total.value: 0 }
   - match: { hits.hits.2.inner_hits.nested_vector_field.hits.total.value: 0 }
+
+
+---
+"rrf retriever with filters to be passed to nested rrf retrievers":
+  - requires:
+      cluster_features: 'inner_retrievers_filter_support'
+      reason: 'requires fix for properly propagating filters to nested sub-retrievers'
+
+  - do:
+      search:
+        _source: false
+        index: test
+        body:
+          retriever:
+            {
+              rrf:
+                {
+                  filter: {
+                    term: {
+                      keyword: "technology"
+                    }
+                  },
+                  retrievers: [
+                    {
+                      rrf: {
+                        retrievers: [
+                          {
+                            # this should only return docs 3 and 5 due to top level filter
+                            standard: {
+                              query: {
+                                knn: {
+                                  field: vector,
+                                  query_vector: [ 4.0 ],
+                                  k: 3
+                                }
+                              }
+                            } },
+                          {
+                            # this should return no docs as no docs match both biology and technology
+                            standard: {
+                              query: {
+                                term: {
+                                  keyword: "biology"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        rank_window_size: 10,
+                        rank_constant: 10
+                      }
+                    },
+                    # this should only return doc 5
+                    {
+                      standard: {
+                        query: {
+                          term: {
+                            text: "term5"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  rank_window_size: 10,
+                  rank_constant: 10
+                }
+            }
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "3" }
+
+

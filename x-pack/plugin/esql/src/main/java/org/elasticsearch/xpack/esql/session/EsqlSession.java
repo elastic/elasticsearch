@@ -374,10 +374,11 @@ public class EsqlSession {
             // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
             indexResolver.resolveAsMergedMapping(
                 table.index(),
-                Set.of("*"), // Current LOOKUP JOIN syntax does not allow for field selection
+                Set.of("*"), // TODO: for LOOKUP JOIN, this currently declares all lookup index fields relevant and might fetch too many.
                 null,
                 listener.map(indexResolution -> listenerResult.withLookupIndexResolution(indexResolution))
             );
+            // TODO: Verify that the resolved index actually has indexMode: "lookup"
         } else {
             try {
                 // No lookup indices specified

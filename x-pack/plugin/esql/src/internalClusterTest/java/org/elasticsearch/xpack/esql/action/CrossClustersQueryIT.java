@@ -69,7 +69,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_INDEX = "logs-2";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 

@@ -22,16 +22,21 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
-public class MapCount extends ScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MapCount", MapCount::new);
+public class MapValues extends ScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MapValues",
+        MapValues::new
+    );
 
     private final Map<String, String> map;
 
-    @FunctionInfo(returnType = "long", description = "Count the number of entries in a map")
-    public MapCount(
+    @FunctionInfo(returnType = "long", description = "Return the values in a map")
+    public MapValues(
         Source source,
         @MapParam(
             name = "map",
@@ -44,7 +49,7 @@ public class MapCount extends ScalarFunction {
         this.map = map;
     }
 
-    private MapCount(StreamInput in) throws IOException {
+    private MapValues(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
@@ -69,7 +74,7 @@ public class MapCount extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return KEYWORD;
     }
 
     @Override
@@ -88,11 +93,11 @@ public class MapCount extends ScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MapCount::new, map);
+        return NodeInfo.create(this, MapValues::new, map);
     }
 
     @Override
     public Object fold() {
-        return (long) map.size();
+        return map.values().stream().collect(Collectors.joining(", "));
     }
 }

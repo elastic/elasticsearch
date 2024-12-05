@@ -70,6 +70,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapKeys;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapValues;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -426,6 +428,8 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, Kql::new, "kql"),
                 def(MapCount.class, MapCount::new, "map_count"),
+                def(MapKeys.class, MapKeys::new, "map_keys"),
+                def(MapValues.class, MapValues::new, "map_values"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }
 

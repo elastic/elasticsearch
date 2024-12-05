@@ -4,9 +4,9 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | query | options | result
-keyword | keyword | | boolean
-keyword | text | | boolean
-text | keyword | | boolean
-text | text | | boolean
+field | query | result
+keyword | keyword | boolean
+keyword | text | boolean
+text | keyword | boolean
+text | text | boolean
 |===

@@ -50,7 +50,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * was chosen for ease of Java integration.
  */
 public class OffsetSourceFieldMapper extends FieldMapper {
-    public static final String NAME = "offset_source";
     public static final String CONTENT_TYPE = "offset_source";
 
     private static final String SOURCE_NAME_FIELD = "field";

@@ -74,15 +74,15 @@ public final class OffsetSourceField extends Field {
         private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
         private final OffsetAttribute offsetAttribute = addAttribute(OffsetAttribute.class);
         private boolean used = true;
-        private String value = null;
+        private String term = null;
         private int startOffset = 0;
         private int endOffset = 0;
 
         private OffsetTokenStream() {}
 
         /** Sets the values */
-        void setValues(String value, int startOffset, int endOffset) {
-            this.value = value;
+        void setValues(String term, int startOffset, int endOffset) {
+            this.term = term;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
         }
@@ -93,7 +93,7 @@ public final class OffsetSourceField extends Field {
                 return false;
             }
             clearAttributes();
-            termAttribute.append(value);
+            termAttribute.append(term);
             offsetAttribute.setOffset(startOffset, endOffset);
             used = true;
             return true;
@@ -106,7 +106,7 @@ public final class OffsetSourceField extends Field {
 
         @Override
         public void close() {
-            value = null;
+            term = null;
         }
     }
 

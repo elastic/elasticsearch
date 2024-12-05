@@ -317,6 +317,8 @@ public class DateUtils {
         if (millis > MAX_NANOSECOND_IN_MILLIS) {
             return -1;
         }
+        // This can't overflow, because we know millis is between 0 and  MAX_NANOSECOND_IN_MILLIS,
+        // and MAX_NANOSECOND_IN_MILLIS * 1_000_000 doesn't overflow.
         long diff = nanos - (millis * 1_000_000);
         return diff == 0 ? 0 : diff < 0 ? -1 : 1;
     }

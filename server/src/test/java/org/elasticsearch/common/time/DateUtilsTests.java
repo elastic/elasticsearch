@@ -22,6 +22,7 @@ import java.time.temporal.ChronoField;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_MINUS_9999;
 import static org.elasticsearch.common.time.DateUtils.MAX_NANOSECOND_INSTANT;
+import static org.elasticsearch.common.time.DateUtils.MAX_NANOSECOND_IN_MILLIS;
 import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
 import static org.elasticsearch.common.time.DateUtils.compareNanosToMillis;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
@@ -31,12 +32,19 @@ import static org.elasticsearch.common.time.DateUtils.toNanoSeconds;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DateUtilsTests extends ESTestCase {
 
     public void testCompareNanosToMillis() {
+        assertThat(MAX_NANOSECOND_IN_MILLIS * 1_000_000, lessThan(Long.MAX_VALUE));
+
         assertThat(compareNanosToMillis(toLong(Instant.EPOCH), Instant.EPOCH.toEpochMilli()), is(0));
 
+        // This should be 1, because the millisecond version should truncate a bit
+        assertThat(compareNanosToMillis(toLong(MAX_NANOSECOND_INSTANT), MAX_NANOSECOND_INSTANT.toEpochMilli()), is(1));
+
+        assertThat(compareNanosToMillis(toLong(MAX_NANOSECOND_INSTANT), -1000), is(1));
         // millis before epoch
         assertCompareInstants(
             randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT),

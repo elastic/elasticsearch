@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("remote_cluster");
     }
 

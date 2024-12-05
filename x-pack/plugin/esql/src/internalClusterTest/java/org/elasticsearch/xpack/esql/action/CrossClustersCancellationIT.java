@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -62,7 +61,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithTrialLicense.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(PauseFieldPlugin.class);
         return plugins;

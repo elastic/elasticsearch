@@ -339,6 +339,10 @@ public class EsqlCapabilities {
         LEAST_GREATEST_FOR_DATENANOS(),
 
         /**
+         * Support add and subtract on date nanos
+         */
+        DATE_NANOS_ADD_SUBTRACT(),
+        /**
          * Support for date_trunc function on date nanos type
          */
         DATE_TRUNC_DATE_NANOS(),
@@ -514,7 +518,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V3(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V4(false && Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-public enum FlagEntitlementType {
-    SYSTEM_EXIT,
-    CREATE_CLASSLOADER;
+public class CreateClassLoaderEntitlement implements Entitlement {
+    @ExternalEntitlement
+    public CreateClassLoaderEntitlement() {}
 }

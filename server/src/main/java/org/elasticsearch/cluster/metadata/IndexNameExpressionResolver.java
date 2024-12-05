@@ -56,7 +56,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
@@ -842,38 +841,39 @@ public class IndexNameExpressionResolver {
         boolean skipIdentity,
         Set<ResolvedExpression> resolvedExpressions
     ) {
+        // TODO: This conditional seems to never be true in production code? We resolve expressions first which will always expand _all
         if (isAllIndicesExpression(resolvedExpressions)) {
             return null;
         }
-        // PRTODO: FIX PERFORMANCE
-        Set<String> resources = resolvedExpressions.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         final IndexMetadata indexMetadata = state.metadata().getIndices().get(index);
         if (indexMetadata == null) {
             // Shouldn't happen
             throw new IndexNotFoundException(index);
         }
 
-        if (skipIdentity == false && resources.contains(index)) {
+        if (skipIdentity == false && resolvedExpressions.contains(new ResolvedExpression(index))) {
             return null;
         }
 
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            if (skipIdentity == false && resources.contains(dataStream.getName())) {
+            // TODO: This conditional also seems to never be true in production code? Data stream names are always expanded to their indices
+            if (skipIdentity == false && resolvedExpressions.contains(new ResolvedExpression(dataStream.getName()))) {
                 // skip the filters when the request targets the data stream name
                 return null;
             }
             Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
             List<DataStreamAlias> aliasesForDataStream;
-            if (iterateIndexAliases(dataStreamAliases.size(), resources.size())) {
+            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
                 aliasesForDataStream = dataStreamAliases.values()
                     .stream()
-                    .filter(dataStreamAlias -> resources.contains(dataStreamAlias.getName()))
+                    .filter(dataStreamAlias -> resolvedExpressions.contains(new ResolvedExpression(dataStreamAlias.getName())))
                     .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
             } else {
-                aliasesForDataStream = resources.stream()
+                aliasesForDataStream = resolvedExpressions.stream()
+                    .map(ResolvedExpression::resource)
                     .map(dataStreamAliases::get)
                     .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
@@ -898,15 +898,19 @@ public class IndexNameExpressionResolver {
         } else {
             final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
             final AliasMetadata[] aliasCandidates;
-            if (iterateIndexAliases(indexAliases.size(), resources.size())) {
+            if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
                 // faster to iterate indexAliases
                 aliasCandidates = indexAliases.values()
                     .stream()
-                    .filter(aliasMetadata -> resources.contains(aliasMetadata.alias()))
+                    .filter(aliasMetadata -> resolvedExpressions.contains(new ResolvedExpression(aliasMetadata.alias())))
                     .toArray(AliasMetadata[]::new);
             } else {
                 // faster to iterate resolvedExpressions
-                aliasCandidates = resources.stream().map(indexAliases::get).filter(Objects::nonNull).toArray(AliasMetadata[]::new);
+                aliasCandidates = resolvedExpressions.stream()
+                    .map(ResolvedExpression::resource)
+                    .map(indexAliases::get)
+                    .filter(Objects::nonNull)
+                    .toArray(AliasMetadata[]::new);
             }
             List<String> aliases = null;
             for (int i = 0; i < aliasCandidates.length; i++) {
@@ -1051,7 +1055,20 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array maps to all indices, false otherwise
      */
     public static boolean isAllIndicesExpression(Collection<ResolvedExpression> aliasesOrIndices) {
-        return isAllIndices(aliasesOrIndices.stream().map(ResolvedExpression::resource).toList());
+        return aliasesOrIndices == null || aliasesOrIndices.isEmpty() || isExplicitAllPatternExpression(aliasesOrIndices);
+    }
+
+    /**
+     * Identifies whether the array containing index names given as argument explicitly refers to all indices
+     * The empty or null array doesn't explicitly map to all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @return true if the provided array explicitly maps to all indices, false otherwise
+     */
+    static boolean isExplicitAllPatternExpression(Collection<ResolvedExpression> aliasesOrIndices) {
+        return aliasesOrIndices != null
+            && aliasesOrIndices.size() == 1
+            && Metadata.ALL.equals(aliasesOrIndices.iterator().next().resource());
     }
 
     /**

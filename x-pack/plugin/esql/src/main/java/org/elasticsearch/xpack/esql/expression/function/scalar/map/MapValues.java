@@ -24,18 +24,23 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
-public class MapCount extends ScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MapCount", MapCount::new);
+public class MapValues extends ScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MapValues",
+        MapValues::new
+    );
 
     private final Expression map;
 
-    @FunctionInfo(returnType = "long", description = "Count the number of entries in a map")
-    public MapCount(
+    @FunctionInfo(returnType = "keyword", description = "Return the values in a map")
+    public MapValues(
         Source source,
         @MapParam(
             name = "map",
@@ -48,7 +53,7 @@ public class MapCount extends ScalarFunction {
         this.map = v;
     }
 
-    private MapCount(StreamInput in) throws IOException {
+    private MapValues(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
@@ -74,7 +79,7 @@ public class MapCount extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return KEYWORD;
     }
 
     @Override
@@ -84,18 +89,18 @@ public class MapCount extends ScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MapCount(source(), newChildren.get(0));
+        return new MapValues(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MapCount::new, map);
+        return NodeInfo.create(this, MapValues::new, map);
     }
 
     @Override
     public Object fold() {
         if (map instanceof NamedLiterals nl) {
-            return (long) nl.args().size();
+            return nl.args().values().stream().collect(Collectors.joining(", "));
         } else {
             throw new IllegalArgumentException(
                 LoggerMessageFormat.format(null, "Invalid format for [{}], expect a map but got {}", sourceText(), map.fold())

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedLiterals;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
@@ -532,12 +531,7 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
-            Expression options = match.options();
-            if (options instanceof NamedLiterals nl) {
-                return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText(), nl.args());
-            } else {
-                return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
-            }
+            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
         }
     }
 

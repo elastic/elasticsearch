@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-query | options | result
-keyword | | boolean
-text | | boolean
+query | result
+keyword | boolean
+text | boolean
 |===

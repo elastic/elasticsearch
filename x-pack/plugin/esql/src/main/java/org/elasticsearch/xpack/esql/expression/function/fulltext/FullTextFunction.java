@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 
 import java.util.List;
 
@@ -28,16 +27,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function implements OptionalArgument {
+public abstract class FullTextFunction extends Function {
 
     private final Expression query;
 
-    private final Expression options;
-
-    protected FullTextFunction(Source source, Expression query, Expression options, List<Expression> children) {
+    protected FullTextFunction(Source source, Expression query, List<Expression> children) {
         super(source, children);
         this.query = query;
-        this.options = options;
     }
 
     @Override
@@ -74,10 +70,6 @@ public abstract class FullTextFunction extends Function implements OptionalArgum
 
     public Expression query() {
         return query;
-    }
-
-    public Expression options() {
-        return options;
     }
 
     /**

@@ -60,10 +60,8 @@ public class MatchQuery extends Query {
         this.name = name;
         this.text = text;
         this.options = options;
-        String boost = options.get("boost");
-        String fuzziness = options.get("fuzziness");
-        this.boost = boost == null ? null : Double.valueOf(options.get("boost"));
-        this.fuzziness = fuzziness == null ? null : Fuzziness.fromString(options.get("fuzziness"));
+        this.boost = null;
+        this.fuzziness = null;
     }
 
     public MatchQuery(Source source, String name, Object text, Double boost, Fuzziness fuzziness) {

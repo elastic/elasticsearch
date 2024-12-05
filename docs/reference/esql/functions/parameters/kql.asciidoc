@@ -4,6 +4,3 @@
 
 `query`::
 Query string in KQL query string format.
-
-`options`::
-

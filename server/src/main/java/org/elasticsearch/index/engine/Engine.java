@@ -946,22 +946,20 @@ public abstract class Engine implements Closeable {
      *             It will be removed once #114618 is applied to the serverless repository.
      */
     @Deprecated
-    public Translog.Snapshot newChangesSnapshot(
+    public abstract Translog.Snapshot newChangesSnapshot(
             String source,
             long fromSeqNo,
             long toSeqNo,
             boolean requiredFullRange,
             boolean singleConsumer,
             boolean accessStats
-    ) throws IOException {
-        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, 0);
-    }
+    ) throws IOException;
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
-    public abstract Translog.Snapshot newChangesSnapshot(
+    public Translog.Snapshot newChangesSnapshot(
         String source,
         long fromSeqNo,
         long toSeqNo,
@@ -969,7 +967,10 @@ public abstract class Engine implements Closeable {
         boolean singleConsumer,
         boolean accessStats,
         long maxChunkSize
-    ) throws IOException;
+    ) throws IOException {
+        // TODO: Remove this default implementation once the deprecated newChangesSnapshot is removed
+        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, 0);
+    }
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)

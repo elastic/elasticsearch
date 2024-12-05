@@ -592,16 +592,15 @@ public class Stateless extends Plugin
         if (hasSearchRole) {
             var averageSearchLoadSampler = AverageSearchLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
             var searchLoadProbe = new SearchLoadProbe(clusterService.getClusterSettings(), averageSearchLoadSampler::getExecutorLoadStats);
-            var searchLoadSampler = new SearchLoadSampler(
+            var searchLoadSampler = SearchLoadSampler.create(
                 client,
                 averageSearchLoadSampler,
                 searchLoadProbe::getSearchLoad,
                 searchLoadProbe::getSearchLoadQuality,
-                averageSearchLoadSampler.getNumProcessors(),
-                clusterService.getClusterSettings(),
-                clusterService
+                clusterService,
+                settings,
+                threadPool
             );
-            clusterService.addListener(searchLoadSampler);
             components.add(searchLoadSampler);
             var searchShardSizeCollector = createSearchShardSizeCollector(clusterService.getClusterSettings(), threadPool, client);
             clusterService.addListener(searchShardSizeCollector);

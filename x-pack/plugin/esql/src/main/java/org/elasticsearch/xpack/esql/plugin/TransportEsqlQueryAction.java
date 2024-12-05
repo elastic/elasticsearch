@@ -70,7 +70,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
-
+    // Listeners for active async queries
     private final Map<String, SubscribableListener<EsqlQueryResponse>> asyncListeners = ConcurrentCollections.newConcurrentMap();
 
     @Inject

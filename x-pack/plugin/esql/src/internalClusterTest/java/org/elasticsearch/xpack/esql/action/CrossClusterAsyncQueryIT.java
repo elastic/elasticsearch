@@ -32,6 +32,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -354,6 +355,63 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId);
                 assertThat(acknowledgedResponse.isAcknowledged(), is(true));
             }
+        }
+    }
+
+    public void testStopQuery() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters(3);
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.blocking_index.num_shards");
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
+
+        String q = "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10";
+        try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueMillis(100))) {
+            assertTrue(resp.isRunning());
+            assertNotNull("async execution id is null", resp.asyncExecutionId());
+            asyncExecutionId.set(resp.asyncExecutionId().get());
+            // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
+            // so we do not check for it here
+        }
+
+        // wait until we know that the query against 'remote-b:blocking' has started
+        PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+
+        // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
+        assertBusy(() -> {
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId.get())) {
+                EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+                assertNotNull(executionInfo);
+                EsqlExecutionInfo.Cluster clusterA = executionInfo.getCluster("cluster-a");
+                assertThat(clusterA.getStatus(), not(equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING)));
+            }
+        });
+
+        /* at this point:
+         *  the query against cluster-a should be finished
+         *  the query against remote-b should be running (blocked on the PauseFieldPlugin.allowEmitting CountDown)
+         *  the query against the local cluster should be running because it has a STATS clause that needs to wait on remote-b
+         */
+
+        // run the stop query
+        var stopRequest = new AsyncStopRequest(asyncExecutionId.get());
+        var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        // allow remoteB query to proceed
+        PauseFieldPlugin.allowEmitting.countDown();
+
+        // Since part of the query has not been stopped, we expect some result to emerge here
+        try (EsqlQueryResponse asyncResponse = stopAction.actionGet(1, TimeUnit.SECONDS)) {
+            assertThat(asyncResponse.isRunning(), is(false));
+            assertThat(asyncResponse.columns().size(), equalTo(1));
+            assertThat(asyncResponse.values().hasNext(), is(true));
+        } finally {
+            AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId.get());
+            assertThat(acknowledgedResponse.isAcknowledged(), is(true));
         }
     }
 

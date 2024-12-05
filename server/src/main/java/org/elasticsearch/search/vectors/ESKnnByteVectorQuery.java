@@ -35,4 +35,8 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
+
+    public Integer kParam() {
+        return kParam;
+    }
 }

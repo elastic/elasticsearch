@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
@@ -409,10 +410,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRescoreOversampleUsedWithoutQuantization() {
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(FLOAT, BYTE);
         DenseVectorFieldType nonQuantizedField = new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
-            randomFrom(FLOAT, BYTE),
+            elementType,
             3,
             true,
             VectorSimilarity.COSINE,
@@ -430,9 +432,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null
         );
 
-        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) knnQuery;
-        assertThat(esKnnQuery.getK(), is(100));
-        assertThat(esKnnQuery.kParam(), is(10));
+        if (elementType == BYTE) {
+            ESKnnByteVectorQuery esKnnQuery = (ESKnnByteVectorQuery) knnQuery;
+            assertThat(esKnnQuery.getK(), is(100));
+            assertThat(esKnnQuery.kParam(), is(10));
+        } else {
+            ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) knnQuery;
+            assertThat(esKnnQuery.getK(), is(100));
+            assertThat(esKnnQuery.kParam(), is(10));
+        }
     }
 
     public void testRescoreOversampleModifiesKnnParams() {

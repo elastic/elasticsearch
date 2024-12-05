@@ -119,7 +119,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     @Override
     protected final void doClose() {
-        assert watching() == false: "doStop should already have been called";
+        assert watching() == false : "doStop should already have been called";
         executor.shutdown();
     }
 

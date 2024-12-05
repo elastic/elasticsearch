@@ -166,11 +166,10 @@ public class ReservedClusterStateService {
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
-                errorState -> {
-                    throw new AssertionError();
-                },
+                errorState -> { throw new AssertionError(); },
                 listener
-            ));
+            )
+        );
 
     }
 
@@ -268,11 +267,7 @@ public class ReservedClusterStateService {
             Priority.URGENT,
             new ReservedStateUpdateTaskExecutor(rerouteService)
         );
-        updateTaskQueue.submitTask(
-            source,
-            task,
-            null
-        );
+        updateTaskQueue.submitTask(source, task, null);
     }
 
     // package private for testing

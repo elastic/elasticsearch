@@ -161,9 +161,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final List<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayList<>();
 
-    public void reduce(TopDocsStats topDocsStats, MergeResult mergeResult) {
+    public void reduce(Object[] results, TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (this) {
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
+            for (Object result : results) {
+                if (result instanceof QuerySearchResult querySearchResult) {
+                    this.results.set(querySearchResult.getShardIndex(), querySearchResult);
+                    querySearchResult.incRef();
+                }
+            }
         }
     }
 

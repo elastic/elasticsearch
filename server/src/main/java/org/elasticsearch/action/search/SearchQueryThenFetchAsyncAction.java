@@ -238,7 +238,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
      * @param queryResults           the results of the query phase
      */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        ShardSearchFailure[] failures = buildShardFailures();
+        ShardSearchFailure[] failures = AbstractSearchAsyncAction.buildShardFailures(shardFailures);
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0) {
@@ -331,57 +331,40 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         return shardRequest;
     }
 
-    private static final class ThinSearchPhaseResult extends SearchPhaseResult {
-
-        ThinSearchPhaseResult(ShardSearchContextId contextId, int shardIndex) {
-            this.contextId = contextId;
-            this.setShardIndex(shardIndex);
-        }
-
-        ThinSearchPhaseResult(StreamInput in) throws IOException {
-            super(in);
-            contextId = new ShardSearchContextId(in);
-            this.setShardIndex(in.readVInt());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            contextId.writeTo(out);
-            out.writeVInt(getShardIndex());
-        }
-    }
-
     public static class NodeQueryResponse extends TransportResponse {
-        private final Map<Integer, Exception> failedShards;
-        private final List<ThinSearchPhaseResult> results;
-        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+        private final Object[] results;
         private final SearchPhaseController.TopDocsStats topDocsStats;
+        private final QueryPhaseResultConsumer.MergeResult mergeResult;
 
         NodeQueryResponse(StreamInput in) throws IOException {
             super(in);
-            this.failedShards = in.readMap(StreamInput::readVInt, StreamInput::readException);
-            this.results = in.readCollectionAsImmutableList(ThinSearchPhaseResult::new);
+            this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
             this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
             this.topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
         }
 
         NodeQueryResponse(
-            Map<Integer, Exception> failedShards,
             QueryPhaseResultConsumer.MergeResult mergeResult,
-            SearchPhaseController.TopDocsStats topDocsStats,
-            List<ThinSearchPhaseResult> results
+            Object[] results,
+            SearchPhaseController.TopDocsStats topDocsStats
         ) {
-            this.failedShards = failedShards;
+            this.results = results;
             this.mergeResult = mergeResult;
             this.topDocsStats = topDocsStats;
-            this.results = results;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(failedShards, StreamOutput::writeVInt, StreamOutput::writeException);
-            out.writeCollection(results);
+            out.writeArray((o, v) -> {
+                if (v instanceof Exception e) {
+                    o.writeBoolean(false);
+                    o.writeException(e);
+                } else {
+                    o.writeBoolean(true);
+                    assert v instanceof QuerySearchResult : v;
+                    ((QuerySearchResult) v).writeTo(o);
+                }
+            }, results);
             mergeResult.writeTo(out);
             topDocsStats.writeTo(out);
         }
@@ -573,46 +556,22 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
                                 @Override
                                 public void handleResponse(NodeQueryResponse response) {
-                                    response.failedShards.forEach(
-                                        (sIdx, e) -> onShardFailure(
-                                            sIdx,
-                                            new SearchShardTarget(nodeId, shardIterators[sIdx].shardId(), null),
-                                            e
-                                        )
-                                    );
-                                    final int successfulShards = request.shards.size() - response.failedShards.size();
+                                    int failedShards = 0;
+                                    for (int i = 0; i < response.results.length; i++) {
+                                        var s = request.shards.get(i);
+                                        if (response.results[i] instanceof Exception e) {
+                                            onShardFailure(s.shardIndex, new SearchShardTarget(nodeId, s.shardId(), null), e);
+                                            failedShards++;
+                                        } else if (response.results[i] instanceof QuerySearchResult q) {
+                                            q.setShardIndex(s.shardIndex);
+                                        }
+                                    }
+                                    final int successfulShards = request.shards.size() - failedShards;
                                     if (successfulShards > 0) {
                                         hasShardResponse.set(true);
                                     }
                                     if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                        queryPhaseResultConsumer.reduce(response.topDocsStats, response.mergeResult);
-                                        for (ThinSearchPhaseResult result : response.results) {
-                                            var shardIt = shardsIts.get(result.getShardIndex());
-                                            queryPhaseResultConsumer.results.set(
-                                                result.getShardIndex(),
-                                                new QuerySearchResult(
-                                                    result.getContextId(),
-                                                    new SearchShardTarget(nodeId, shardIt.shardId(), null),
-                                                    buildShardSearchRequest(
-                                                        shardIt.shardId(),
-                                                        shardIt.getClusterAlias(),
-                                                        result.getShardIndex(),
-                                                        shardIt.getSearchContextId(),
-                                                        shardIt.getOriginalIndices(),
-                                                        aliasFilter.get(shardIt.shardId().getIndex().getUUID()),
-                                                        shardIt.getSearchContextKeepAlive(),
-                                                        concreteIndexBoosts.getOrDefault(
-                                                            shardIt.shardId().getIndex().getUUID(),
-                                                            DEFAULT_INDEX_BOOST
-                                                        ),
-                                                        request.searchRequest,
-                                                        results.getNumShards(),
-                                                        timeProvider.absoluteStartMillis(),
-                                                        true
-                                                    )
-                                                )
-                                            );
-                                        }
+                                        queryPhaseResultConsumer.reduce(response.results, response.topDocsStats, response.mergeResult);
                                     } else {
                                         if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
                                             var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
@@ -626,7 +585,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                     }
                                     final int numShards = results.getNumShards();
                                     successfulOps.addAndGet(successfulShards);
-                                    final int total = totalOps.addAndGet(successfulShards + response.failedShards.size());
+                                    final int total = totalOps.addAndGet(successfulShards + failedShards);
                                     if (total == numShards) {
                                         onPhaseDone();
                                     } else if (total > numShards) {
@@ -745,7 +704,12 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         } else if (totalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
+                new SearchPhaseExecutionException(
+                    getName(),
+                    "Shard failures",
+                    null,
+                    AbstractSearchAsyncAction.buildShardFailures(shardFailures)
+                )
             );
         } else {
             if (lastShard == false) {
@@ -825,7 +789,12 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
+                new SearchPhaseExecutionException(
+                    getName(),
+                    "Shard failures",
+                    null,
+                    AbstractSearchAsyncAction.buildShardFailures(shardFailures)
+                )
             );
         }
     }
@@ -840,7 +809,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
-        ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
+        ShardOperationFailedException[] shardSearchFailures = AbstractSearchAsyncAction.buildShardFailures(shardFailures);
         if (shardSearchFailures.length == results.getNumShards()) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0
@@ -915,7 +884,9 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
      * @param cause the cause of the phase failure
      */
     public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
+        raisePhaseFailure(
+            new SearchPhaseExecutionException(phase.getName(), msg, cause, AbstractSearchAsyncAction.buildShardFailures(shardFailures))
+        );
     }
 
     @Override
@@ -960,19 +931,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
         return AbstractSearchAsyncAction.isPartOfPIT(namedWriteableRegistry, request, contextId);
-    }
-
-    private ShardSearchFailure[] buildShardFailures() {
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        if (shardFailures == null) {
-            return ShardSearchFailure.EMPTY_ARRAY;
-        }
-        List<ShardSearchFailure> entries = shardFailures.asList();
-        ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
-        for (int i = 0; i < failures.length; i++) {
-            failures[i] = entries.get(i);
-        }
-        return failures;
     }
 
     private void onShardResultConsumed(SearchPhaseResult result, SearchShardIterator shardIt) {
@@ -1026,20 +984,25 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                     if (countDown.countDown()) {
                         try {
                             var mergeResult = queryPhaseResultConsumer.reduce();
+                            final Object[] results = new Object[request.shards.size()];
+                            for (int i = 0; i < results.length; i++) {
+                                var e = failures.get(i);
+                                if (e != null) {
+                                    results[i] = e;
+                                } else {
+                                    results[i] = queryPhaseResultConsumer.results.get(i);
+                                }
+                            }
                             new ChannelActionListener<>(channel).onResponse(
                                 new NodeQueryResponse(
-                                    Map.copyOf(failures),
                                     new QueryPhaseResultConsumer.MergeResult(
                                         request.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
                                         new TopDocs(mergeResult.totalHits(), mergeResult.sortedTopDocs().scoreDocs()),
                                         mergeResult.aggregations(),
                                         0L
                                     ),
-                                    queryPhaseResultConsumer.topDocsStats,
-                                    queryPhaseResultConsumer.results.asList()
-                                        .stream()
-                                        .map(s -> new ThinSearchPhaseResult(s.getContextId(), s.getShardIndex()))
-                                        .toList()
+                                    results,
+                                    queryPhaseResultConsumer.topDocsStats
                                 )
                             );
                         } catch (Exception e) {

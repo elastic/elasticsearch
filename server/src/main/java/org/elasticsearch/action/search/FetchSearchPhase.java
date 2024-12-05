@@ -110,7 +110,7 @@ final class FetchSearchPhase extends SearchPhase {
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
-        if (queryAndFetchOptimization) {
+        if (false && queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
             moveToNextPhase(searchPhaseShardResults, reducedQueryPhase);

@@ -354,7 +354,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
-        ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
+        ShardOperationFailedException[] shardSearchFailures = buildShardFailures(shardFailures);
         if (shardSearchFailures.length == getNumShards()) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0
@@ -421,8 +421,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+    static ShardSearchFailure[] buildShardFailures(SetOnce<AtomicArray<ShardSearchFailure>> shardFailuresRef) {
+        AtomicArray<ShardSearchFailure> shardFailures = shardFailuresRef.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
@@ -459,7 +459,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else if (totalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
+                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures(shardFailures))
             );
         } else {
             if (lastShard == false) {
@@ -578,7 +578,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
+                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures(shardFailures))
             );
         }
     }
@@ -673,7 +673,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @param queryResults           the results of the query phase
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        ShardSearchFailure[] failures = buildShardFailures();
+        ShardSearchFailure[] failures = buildShardFailures(shardFailures);
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0) {
@@ -704,7 +704,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param cause the cause of the phase failure
      */
     public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
+        raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures(shardFailures)));
     }
 
     /**

@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -282,7 +284,13 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(reindexResponse);
         Request statusRequest = new Request("GET", "/_reindex_data_stream_status/reindex-data-stream-" + dataStreamName + "?pretty");
         Response statusResponse = client().performRequest(statusRequest);
+        Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            statusResponse.getEntity().getContent(),
+            false
+        );
         assertOK(statusResponse);
+        assertThat(statusResponseMap.get("successes"), equalTo(11));
     }
 
     private static void performOldClustertOperations(String templateName, String dataStreamName) throws IOException {

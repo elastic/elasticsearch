@@ -168,10 +168,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            // an automaton that includes metadata fields, including join fields created by the _parent field such
-            // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            grantedFieldsAutomaton = Automatons.patterns(grantedFields);
         }
 
         Automaton deniedFieldsAutomaton;

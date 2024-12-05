@@ -284,6 +284,7 @@
         "Cluster and node setting",
         "Command line tool",
         "CRUD",
+        "ES|QL",
         "Index setting",
         "Ingest",
         "JVM option",

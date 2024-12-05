@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -218,13 +218,13 @@ public class PrivilegeTests extends ESTestCase {
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
         IndexPrivilege index = IndexPrivilege.get(name);
 
-        if (Operations.subsetOf(second.getAutomaton(), first.getAutomaton())) {
-            assertTrue(Operations.sameLanguage(index.getAutomaton(), first.getAutomaton()));
-        } else if (Operations.subsetOf(first.getAutomaton(), second.getAutomaton())) {
-            assertTrue(Operations.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+        if (Automatons.subsetOf(second.getAutomaton(), first.getAutomaton())) {
+            assertTrue(AutomatonTestUtil.sameLanguage(index.getAutomaton(), first.getAutomaton()));
+        } else if (Automatons.subsetOf(first.getAutomaton(), second.getAutomaton())) {
+            assertTrue(AutomatonTestUtil.sameLanguage(index.getAutomaton(), second.getAutomaton()));
         } else {
-            assertFalse(Operations.sameLanguage(index.getAutomaton(), first.getAutomaton()));
-            assertFalse(Operations.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+            assertFalse(AutomatonTestUtil.sameLanguage(index.getAutomaton(), first.getAutomaton()));
+            assertFalse(AutomatonTestUtil.sameLanguage(index.getAutomaton(), second.getAutomaton()));
         }
     }
 

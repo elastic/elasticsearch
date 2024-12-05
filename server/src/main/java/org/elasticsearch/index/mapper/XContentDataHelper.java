@@ -72,7 +72,7 @@ public final class XContentDataHelper {
     }
 
     /**
-     * Returns a special encoded value that signals that values of this field
+     * Returns a special encoded value that signals that this field
      * should not be present in synthetic source.
      *
      * An example is a field that has values copied to it using copy_to.
@@ -80,7 +80,7 @@ public final class XContentDataHelper {
      * synthetic _source same as it wouldn't be present in stored source.
      * @return
      */
-    public static BytesRef nothing() {
+    public static BytesRef voidValue() {
         return new BytesRef(new byte[] { VOID_ENCODING });
     }
 
@@ -112,41 +112,27 @@ public final class XContentDataHelper {
     /**
      * Writes encoded values to provided builder. If there are multiple values they are merged into
      * a single resulting array.
+     *
+     * Note that this method assumes all encoded parts have values that need to be written (are not VOID encoded).
      * @param b destination
      * @param fieldName name of the field that is written
      * @param encodedParts subset of field data encoded using methods of this class. Can contain arrays which will be flattened.
      * @throws IOException
      */
     static void writeMerged(XContentBuilder b, String fieldName, List<BytesRef> encodedParts) throws IOException {
-        var partsWithData = 0;
-        for (BytesRef encodedPart : encodedParts) {
-            if (isDataPresent(encodedPart)) {
-                partsWithData++;
-            }
-        }
-
-        if (partsWithData == 0) {
+        if (encodedParts.isEmpty()) {
             return;
         }
 
-        if (partsWithData == 1) {
+        if (encodedParts.size() == 1) {
             b.field(fieldName);
-            for (BytesRef encodedPart : encodedParts) {
-                if (isDataPresent(encodedPart)) {
-                    XContentDataHelper.decodeAndWrite(b, encodedPart);
-                }
-            }
-
+            XContentDataHelper.decodeAndWrite(b, encodedParts.get(0));
             return;
         }
 
         b.startArray(fieldName);
 
         for (var encodedValue : encodedParts) {
-            if (isDataPresent(encodedValue) == false) {
-                continue;
-            }
-
             Optional<XContentType> encodedXContentType = switch ((char) encodedValue.bytes[encodedValue.offset]) {
                 case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(
                     getXContentType(encodedValue)
@@ -235,8 +221,11 @@ public final class XContentDataHelper {
     private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
         throws IOException {
         XContentParser parser = context.parser();
+        var oldValue = context.path().isWithinLeafObject();
+        context.path().setWithinLeafObject(true);
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
+        context.path().setWithinLeafObject(oldValue);
 
         XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
             .withDeprecationHandler(parser.getDeprecationHandler())
@@ -249,9 +238,17 @@ public final class XContentDataHelper {
         XContentParserConfiguration configuration,
         XContentBuilder builder
     ) throws IOException {
-        DocumentParserContext subcontext = context.switchParser(
-            XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
+        XContentParser newParser = XContentHelper.createParserNotCompressed(
+            configuration,
+            BytesReference.bytes(builder),
+            context.parser().contentType()
         );
+        if (DotExpandingXContentParser.isInstance(context.parser())) {
+            // If we performed dot expanding originally we need to continue to do so when we replace the parser.
+            newParser = DotExpandingXContentParser.expandDots(newParser, context.path());
+        }
+
+        DocumentParserContext subcontext = context.switchParser(newParser);
         subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;

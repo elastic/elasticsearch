@@ -63,6 +63,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -85,7 +86,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CrossClusterIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 
@@ -189,7 +190,6 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108061")
     public void testCancel() throws Exception {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
         indexDocs(client(LOCAL_CLUSTER), "demo");
@@ -307,7 +307,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             }
         });
 
-        RuntimeException e = expectThrows(RuntimeException.class, () -> queryFuture.result());
+        ExecutionException e = expectThrows(ExecutionException.class, () -> queryFuture.result());
         assertNotNull(e);
         assertNotNull(e.getCause());
         Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);

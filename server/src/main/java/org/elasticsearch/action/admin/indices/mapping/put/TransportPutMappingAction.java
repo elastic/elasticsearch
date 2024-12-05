@@ -157,10 +157,13 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         });
         final PutMappingClusterStateUpdateRequest updateRequest;
         try {
-            updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(concreteIndices)
-                .ackTimeout(request.ackTimeout())
-                .masterNodeTimeout(request.masterNodeTimeout())
-                .autoUpdate(autoUpdate);
+            updateRequest = new PutMappingClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.source(),
+                autoUpdate,
+                concreteIndices
+            );
         } catch (IOException e) {
             wrappedListener.onFailure(e);
             return;

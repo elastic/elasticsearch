@@ -125,7 +125,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, vectorSimilarity);
     }
 
-    protected KnnVectorQueryBuilder(
+    public KnnVectorQueryBuilder(
         String fieldName,
         QueryVectorBuilder queryVectorBuilder,
         Integer k,
@@ -192,7 +192,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.K_FOR_KNN_QUERY_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.k = in.readOptionalVInt();
         } else {
             this.k = null;
@@ -279,7 +279,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             throw new IllegalStateException("missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.K_FOR_KNN_QUERY_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(k);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
@@ -481,10 +481,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             parentBitSet = context.bitsetFilter(parentFilter);
             if (filterQuery != null) {
-                NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
                 // We treat the provided filter as a filter over PARENT documents, so if it might match nested documents
                 // we need to adjust it.
-                if (nestedHelper.mightMatchNestedDocs(filterQuery)) {
+                if (NestedHelper.mightMatchNestedDocs(filterQuery, context)) {
                     // Ensure that the query only returns parent documents matching `filterQuery`
                     filterQuery = Queries.filtered(filterQuery, parentFilter);
                 }

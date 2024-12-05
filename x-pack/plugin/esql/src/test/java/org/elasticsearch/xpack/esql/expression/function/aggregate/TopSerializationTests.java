@@ -36,4 +36,9 @@ public class TopSerializationTests extends AbstractExpressionSerializationTests<
         }
         return new Top(source, field, limit, order);
     }
+
+    @Override
+    protected boolean alwaysEmptySource() {
+        return true;
+    }
 }

@@ -184,6 +184,10 @@ public class IndexShardSnapshotStatus {
         }
     }
 
+    public Stage getStage() {
+        return stage.get();
+    }
+
     public void addAbortListener(ActionListener<AbortStatus> listener) {
         abortListeners.addListener(listener);
     }
@@ -241,7 +245,11 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        switch (stage.get()) {
+        ensureNotAborted(stage.get());
+    }
+
+    public static void ensureNotAborted(Stage shardSnapshotStage) {
+        switch (shardSnapshotStage) {
             case ABORTED -> throw new AbortedSnapshotException();
             case PAUSING -> throw new PausedSnapshotException();
         }
@@ -428,5 +436,32 @@ public class IndexShardSnapshotStatus {
                 + '\''
                 + ')';
         }
+    }
+
+    @Override
+    public String toString() {
+        return "index shard snapshot status ("
+            + "stage="
+            + stage
+            + ", startTime="
+            + startTime
+            + ", totalTime="
+            + totalTime
+            + ", incrementalFileCount="
+            + incrementalFileCount
+            + ", totalFileCount="
+            + totalFileCount
+            + ", processedFileCount="
+            + processedFileCount
+            + ", incrementalSize="
+            + incrementalSize
+            + ", totalSize="
+            + totalSize
+            + ", processedSize="
+            + processedSize
+            + ", failure='"
+            + failure
+            + '\''
+            + ')';
     }
 }

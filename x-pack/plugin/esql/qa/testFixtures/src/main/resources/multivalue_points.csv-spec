@@ -60,6 +60,92 @@ id:l | intersects:boolean | within:boolean | st_intersects:boolean | st_within:b
 12   | true               | false          | true                  | false             | false               | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
+spatialDistance
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL distance_origin=ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)"))
+| EVAL distance_subset=ST_DISTANCE(location, subset)
+| EVAL distance_disjoint=ST_DISTANCE(location, disjoint)
+| EVAL distance_far=ST_DISTANCE(location, TO_GEOPOINT("POINT(55 55)"))
+| KEEP id, distance_origin, distance_subset, distance_disjoint, distance_far, location, subset, disjoint
+| SORT id
+;
+
+id:l | distance_origin:d  | distance_subset:d | distance_disjoint:d | distance_far:d    | location:geo_point                               | subset:geo_point               | disjoint:geo_point
+0    | 785768.2986429982  | 0.0               | 7114305.127148048   | 7114305.127148048 | ["POINT(5 5)", "POINT(-5 5)"]                    | "POINT(5 5)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+1    | 111195.07310665186 | 0.0               | 7775410.295475619   | 7775410.295475619 | ["POINT(0 1)","POINT(1 0)"]                      | "POINT(0 1)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+2    | 1412359.654429245  | 0.0               | 6511042.96320646    | 6511042.96320646  | "POINT(9 9)"                                     | "POINT(9 9)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+3    | 1412359.654429245  | 0.0               | 6511042.96320646    | 6511042.96320646  | ["POINT(-9 -9)","POINT(9 9)"]                    | "POINT(-9 -9)"                 |  ["POINT(55 55)", "POINT(65 65)"]
+4    | 785768.2986429982  | 0.0               | 5612483.563947934   | 5612483.563947934 | ["POINT(5 5)", "POINT(15 15)"]                   | "POINT(5 5)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+5    | 0.0                | 0.0               | 6210584.082742179   | 6210584.082742179 | ["POINT(0 0)","POINT(11 11)"]                    | "POINT(0 0)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+6    | 1412359.654429245  | 0.0               | 6511042.96320646    | 6511042.96320646  | ["POINT(-9 -19)","POINT(9 9)"]                   | "POINT(-9 -19)"                |  ["POINT(55 55)", "POINT(65 65)"]
+7    | 1756128.8127267    | 0.0               | 6157935.487780502   | 6157935.487780502 | ["POINT(5 15)", "POINT(15 5)"]                   | "POINT(5 15)"                  |  ["POINT(55 55)", "POINT(65 65)"]
+8    | 1223145.8694147274 | 0.0               | 6823348.604540896   | 6823348.604540896 | ["POINT(0 11)","POINT(11 0)"]                    | "POINT(0 11)"                  |  ["POINT(55 55)", "POINT(65 65)"]
+9    | 2329806.5462053656 | 0.0               | 6014935.534393433   | 6014935.534393433 | "POINT(19 9)"                                    | "POINT(19 9)"                  |  ["POINT(55 55)", "POINT(65 65)"]
+10   | 2329806.5462053656 | 0.0               | 6014935.534393433   | 6014935.534393433 | ["POINT(-9 -19)","POINT(19 9)"]                  | "POINT(-9 -19)"                |  ["POINT(55 55)", "POINT(65 65)"]
+11   | 0.0                | 0.0               | 0.0                 | 0.0               | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"] |  ["POINT(55 55)", "POINT(65 65)"]
+12   | 0.0                | 0.0               | 0.0                 | 0.0               | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"] |  ["POINT(55 55)", "POINT(65 65)"]
+;
+
+whereSpatialDistanceTwoFields
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| WHERE ST_DISTANCE(location, disjoint) < 6200000
+| KEEP id, location
+| SORT id
+;
+
+id:l | location:geo_point
+4    | ["POINT(5 5)", "POINT(15 15)"]
+7    | ["POINT(5 15)", "POINT(15 5)"]
+9    | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+whereSpatialDistanceKeyword
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL lk=lk::geo_point
+| WHERE ST_DISTANCE(lk, disjoint) < 6200000
+| KEEP id, location
+| SORT id
+;
+
+id:l | location:geo_point
+4    | ["POINT(5 5)", "POINT(15 15)"]
+7    | ["POINT(5 15)", "POINT(15 5)"]
+9    | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+spatialDistanceFilterTwoFieldStats
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL distance_disjoint=ST_DISTANCE(location, disjoint)
+| WHERE distance_disjoint > 0
+| EVAL kkm = TO_INTEGER(distance_disjoint / 1000000)
+| STATS c=COUNT(*) BY kkm
+| SORT kkm ASC
+;
+
+c:long | kkm:integer
+5      | 6
+5      | 7
+1      | 8
+;
+
 whereIntersectsPolygon
 required_capability: st_intersects
 

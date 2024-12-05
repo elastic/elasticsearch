@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -33,8 +32,8 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        for (DataType strType : Arrays.stream(DataType.values()).filter(DataType::isString).toList()) {
-            for (DataType suffixType : Arrays.stream(DataType.values()).filter(DataType::isString).toList()) {
+        for (DataType strType : DataType.stringTypes()) {
+            for (DataType suffixType : DataType.stringTypes()) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "<" + strType + ">, empty <" + suffixType + ">",

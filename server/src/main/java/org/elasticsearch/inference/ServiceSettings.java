@@ -35,6 +35,15 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     }
 
     /**
+     * Boolean signifying whether the dimensions were set by the user
+     *
+     * @return boolean signifying whether the dimensions were set by the user
+     */
+    default Boolean dimensionsSetByUser() {
+        return null;
+    }
+
+    /**
      * The data type for the embeddings this service works with. Defaults to null,
      * Text Embedding models should return a non-null value
      *

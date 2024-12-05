@@ -13,7 +13,7 @@ consumption, use the
 <<get-dfanalytics-stats,get data frame analytics jobs statistics API>>.
 ====
 
-Returns configuration and usage information about {dfanalytics-jobs}.
+Returns configuration and usage information about {ml-docs}/ml-dfanalytics.html[{dfanalytics-jobs}].
 
 
 [[cat-dfanalytics-request]]

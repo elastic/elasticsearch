@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -60,7 +61,7 @@ public class SyncPluginsAction {
      * @throws UserException if a plugins config file is found.
      */
     public static void ensureNoConfigFile(Environment env) throws UserException {
-        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
+        final Path pluginsConfig = env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
         if (Files.exists(pluginsConfig)) {
             throw new UserException(
                 ExitCodes.USAGE,
@@ -207,9 +208,8 @@ public class SyncPluginsAction {
         Optional<PluginsConfig> cachedPluginsConfig,
         List<PluginDescriptor> existingPlugins
     ) {
-        final Map<String, String> cachedPluginIdToLocation = cachedPluginsConfig.map(
-            config -> config.getPlugins().stream().collect(Collectors.toMap(InstallablePlugin::getId, InstallablePlugin::getLocation))
-        ).orElse(Map.of());
+        final Map<String, String> cachedPluginIdToLocation = new HashMap<>();
+        cachedPluginsConfig.ifPresent(config -> config.getPlugins().forEach(p -> cachedPluginIdToLocation.put(p.getId(), p.getLocation())));
 
         return pluginsToMaybeUpgrade.stream().filter(eachPlugin -> {
             final String eachPluginId = eachPlugin.getId();

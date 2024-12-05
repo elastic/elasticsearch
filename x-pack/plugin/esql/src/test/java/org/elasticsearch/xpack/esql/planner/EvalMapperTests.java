@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -75,7 +76,8 @@ public class EvalMapperTests extends ESTestCase {
         10000,
         StringUtils.EMPTY,
         false,
-        Map.of()
+        Map.of(),
+        System.nanoTime()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -114,6 +116,7 @@ public class EvalMapperTests extends ESTestCase {
             new Pow(Source.EMPTY, DOUBLE1, DOUBLE2),
             DOUBLE1,
             literal,
+            new ByteLength(Source.EMPTY, literal),
             new Length(Source.EMPTY, literal),
             new DateFormat(Source.EMPTY, datePattern, DATE, TEST_CONFIG),
             new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),

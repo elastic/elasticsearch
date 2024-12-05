@@ -51,7 +51,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        TDigestState state = TDigestState.create(compression, executionHint);
+        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
         return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 

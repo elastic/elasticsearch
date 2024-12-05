@@ -24,6 +24,7 @@ import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
+import com.azure.core.http.HttpPipelinePosition;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
@@ -37,27 +38,30 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
-import java.io.IOException;
 import java.net.URL;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
 
 class AzureClientProvider extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(AzureClientProvider.class);
+
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
@@ -161,7 +165,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
         ProxyOptions proxyOptions,
-        BiConsumer<String, URL> successfulRequestConsumer
+        RequestMetricsHandler requestMetricsHandler,
+        OperationPurpose purpose
     ) {
         if (closed) {
             throw new IllegalStateException("AzureClientProvider is already closed");
@@ -189,8 +194,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             builder.credential(credentialBuilder.build());
         }
 
-        if (successfulRequestConsumer != null) {
-            builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));
+        if (requestMetricsHandler != null) {
+            builder.addPolicy(new RequestMetricsTracker(purpose, requestMetricsHandler));
+            builder.addPolicy(RetryMetricsTracker.INSTANCE);
         }
 
         if (locationMode.isSecondary()) {
@@ -257,30 +263,151 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 
-    private static final class SuccessfulRequestTracker implements HttpPipelinePolicy {
-        private static final Logger logger = LogManager.getLogger(SuccessfulRequestTracker.class);
-        private final BiConsumer<String, URL> onSuccessfulRequest;
+    static class RequestMetrics {
+        private volatile long totalRequestTimeNanos = 0;
+        private volatile int requestCount;
+        private volatile int errorCount;
+        private volatile int throttleCount;
+        private volatile int statusCode;
 
-        private SuccessfulRequestTracker(BiConsumer<String, URL> onSuccessfulRequest) {
-            this.onSuccessfulRequest = onSuccessfulRequest;
+        int getRequestCount() {
+            return requestCount;
+        }
+
+        int getErrorCount() {
+            return errorCount;
+        }
+
+        int getStatusCode() {
+            return statusCode;
+        }
+
+        int getThrottleCount() {
+            return throttleCount;
+        }
+
+        /**
+         * Total time spent executing requests to complete operation in nanoseconds
+         */
+        long getTotalRequestTimeNanos() {
+            return totalRequestTimeNanos;
+        }
+
+        @Override
+        public String toString() {
+            return "RequestMetrics{"
+                + "totalRequestTimeNanos="
+                + totalRequestTimeNanos
+                + ", requestCount="
+                + requestCount
+                + ", errorCount="
+                + errorCount
+                + ", throttleCount="
+                + throttleCount
+                + ", statusCode="
+                + statusCode
+                + '}';
+        }
+    }
+
+    private enum RetryMetricsTracker implements HttpPipelinePolicy {
+        INSTANCE;
+
+        @Override
+        public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
+            if (requestIsPartOfABatch(context)) {
+                // Batch deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
+                // metrics at the bulk level.
+                return next.process();
+            }
+            Optional<Object> metricsData = context.getData(RequestMetricsTracker.ES_REQUEST_METRICS_CONTEXT_KEY);
+            if (metricsData.isPresent() == false) {
+                assert false : "No metrics object associated with request " + context.getHttpRequest();
+                return next.process();
+            }
+            RequestMetrics metrics = (RequestMetrics) metricsData.get();
+            metrics.requestCount++;
+            long requestStartTimeNanos = System.nanoTime();
+            return next.process().doOnError(throwable -> {
+                metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
+                logger.debug("Detected error in RetryMetricsTracker", throwable);
+                metrics.errorCount++;
+            }).doOnSuccess(response -> {
+                metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
+                if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
+                    metrics.errorCount++;
+                    // Azure always throttles with a 429 response, see
+                    // https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#error-code
+                    if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                        metrics.throttleCount++;
+                    }
+                }
+            });
+        }
+
+        @Override
+        public HttpPipelinePosition getPipelinePosition() {
+            return HttpPipelinePosition.PER_RETRY;
+        }
+    }
+
+    private static final class RequestMetricsTracker implements HttpPipelinePolicy {
+        private static final String ES_REQUEST_METRICS_CONTEXT_KEY = "_es_azure_repo_request_stats";
+        private static final Logger logger = LogManager.getLogger(RequestMetricsTracker.class);
+        private final OperationPurpose purpose;
+        private final RequestMetricsHandler requestMetricsHandler;
+
+        private RequestMetricsTracker(OperationPurpose purpose, RequestMetricsHandler requestMetricsHandler) {
+            this.purpose = purpose;
+            this.requestMetricsHandler = requestMetricsHandler;
         }
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
-            return next.process().doOnSuccess(httpResponse -> trackSuccessfulRequest(context.getHttpRequest(), httpResponse));
+            if (requestIsPartOfABatch(context)) {
+                // Batch deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
+                // metrics at the bulk level.
+                return next.process();
+            }
+            final RequestMetrics requestMetrics = new RequestMetrics();
+            context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
+            return next.process().doOnSuccess((httpResponse) -> {
+                requestMetrics.statusCode = httpResponse.getStatusCode();
+                trackCompletedRequest(context.getHttpRequest(), requestMetrics);
+            }).doOnError(throwable -> {
+                logger.debug("Detected error in RequestMetricsTracker", throwable);
+                trackCompletedRequest(context.getHttpRequest(), requestMetrics);
+            });
         }
 
-        private void trackSuccessfulRequest(HttpRequest httpRequest, HttpResponse httpResponse) {
+        private void trackCompletedRequest(HttpRequest httpRequest, RequestMetrics requestMetrics) {
             HttpMethod method = httpRequest.getHttpMethod();
-            if (httpResponse != null && method != null && httpResponse.getStatusCode() > 199 && httpResponse.getStatusCode() <= 299) {
+            if (method != null) {
                 try {
-                    onSuccessfulRequest.accept(method.name(), httpRequest.getUrl());
+                    requestMetricsHandler.requestCompleted(purpose, method, httpRequest.getUrl(), requestMetrics);
                 } catch (Exception e) {
                     logger.warn("Unable to notify a successful request", e);
                 }
             }
         }
+
+        @Override
+        public HttpPipelinePosition getPipelinePosition() {
+            return HttpPipelinePosition.PER_CALL;
+        }
+    }
+
+    private static boolean requestIsPartOfABatch(HttpPipelineCallContext context) {
+        return context.getData("Batch-Operation-Info").isPresent();
+    }
+
+    /**
+     * The {@link RequestMetricsTracker} calls this when a request completes
+     */
+    interface RequestMetricsHandler {
+
+        void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
     }
 }

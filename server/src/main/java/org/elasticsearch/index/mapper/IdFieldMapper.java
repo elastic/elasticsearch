@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -97,13 +98,13 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
-            BytesRef[] bytesRefs = values.stream().map(v -> {
+            List<BytesRef> bytesRefs = values.stream().map(v -> {
                 Object idObject = v;
                 if (idObject instanceof BytesRef) {
                     idObject = ((BytesRef) idObject).utf8ToString();
                 }
                 return Uid.encodeId(idObject.toString());
-            }).toArray(BytesRef[]::new);
+            }).toList();
             return new TermInSetQuery(name(), bytesRefs);
         }
 

@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * A MediaType can have only one query parameter representation.
  * For example "json" (case insensitive) maps back to a JSON media type.
  *
- * Additionally, a http header may optionally have parameters. For example "application/vnd.elasticsearch+json; compatible-with=7".
+ * Additionally, a http header may optionally have parameters. For example "application/vnd.elasticsearch+json; compatible-with=8".
  * This class also allows to define a regular expression for valid values of charset.
  */
 public class MediaTypeRegistry<T extends MediaType> {

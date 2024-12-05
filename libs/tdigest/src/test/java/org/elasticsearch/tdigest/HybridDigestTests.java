@@ -24,6 +24,6 @@ package org.elasticsearch.tdigest;
 public class HybridDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return () -> new HybridDigest(arrays(), compression);
+        return () -> HybridDigest.create(arrays(), compression);
     }
 }

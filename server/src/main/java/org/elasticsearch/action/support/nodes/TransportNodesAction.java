@@ -46,7 +46,7 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransportNodesAction<
-    NodesRequest extends BaseNodesRequest<NodesRequest>,
+    NodesRequest extends BaseNodesRequest,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
     NodeResponse extends BaseNodeResponse,

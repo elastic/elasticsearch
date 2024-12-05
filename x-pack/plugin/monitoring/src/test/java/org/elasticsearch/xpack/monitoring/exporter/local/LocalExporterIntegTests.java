@@ -113,7 +113,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
                     assertResponse(
                         prepareSearch(".monitoring-*"),
-                        response -> assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value))
+                        response -> assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value()))
                     );
                 });
 
@@ -260,7 +260,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 
         assertResponse(prepareSearch(".monitoring-*").setSize(100), rsp -> {
-            assertThat(rsp.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(rsp.getHits().getTotalHits().value(), greaterThan(0L));
             for (SearchHit hit : rsp.getHits().getHits()) {
                 final Map<String, Object> source = hit.getSourceAsMap();
 

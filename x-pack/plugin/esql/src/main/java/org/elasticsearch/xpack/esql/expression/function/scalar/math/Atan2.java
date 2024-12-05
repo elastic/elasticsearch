@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
@@ -118,7 +117,7 @@ public class Atan2 extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var yEval = Cast.cast(source(), y.dataType(), DataType.DOUBLE, toEvaluator.apply(y));
         var xEval = Cast.cast(source(), x.dataType(), DataType.DOUBLE, toEvaluator.apply(x));
         return new Atan2Evaluator.Factory(source(), yEval, xEval);

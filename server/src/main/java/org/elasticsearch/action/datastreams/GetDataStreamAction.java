@@ -56,7 +56,26 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private IndicesOptions indicesOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .wildcardOptions(
+                IndicesOptions.WildcardOptions.builder()
+                    .matchOpen(true)
+                    .matchClosed(true)
+                    .includeHidden(false)
+                    .resolveAliases(false)
+                    .allowEmptyExpressions(true)
+                    .build()
+            )
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder()
+                    .allowAliasToMultipleIndices(false)
+                    .allowClosedIndices(true)
+                    .ignoreThrottled(false)
+                    .allowFailureIndices(true)
+                    .build()
+            )
+            .build();
         private boolean includeDefaults = false;
         private boolean verbose = false;
 
@@ -93,7 +112,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             } else {
                 this.includeDefaults = false;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.verbose = in.readBoolean();
             } else {
                 this.verbose = false;
@@ -108,7 +127,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeBoolean(verbose);
             }
         }
@@ -256,7 +275,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
                     in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
                     in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true,
-                    in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE) ? in.readOptionalVLong() : null
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null
                 );
             }
 
@@ -309,7 +328,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                     out.writeOptionalVLong(maximumTimestamp);
                 }
             }

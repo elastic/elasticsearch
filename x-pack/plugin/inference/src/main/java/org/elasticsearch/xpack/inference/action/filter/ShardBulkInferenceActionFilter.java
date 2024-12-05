@@ -30,11 +30,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
@@ -211,9 +211,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final Releasable onFinish
         ) {
             if (inferenceProvider == null) {
-                ActionListener<ModelRegistry.UnparsedModel> modelLoadingListener = new ActionListener<>() {
+                ActionListener<UnparsedModel> modelLoadingListener = new ActionListener<>() {
                     @Override
-                    public void onResponse(ModelRegistry.UnparsedModel unparsedModel) {
+                    public void onResponse(UnparsedModel unparsedModel) {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
                             var provider = new InferenceProvider(
@@ -336,16 +336,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
             inferenceProvider.service()
-                .chunkedInfer(
-                    inferenceProvider.model(),
-                    null,
-                    inputs,
-                    Map.of(),
-                    InputType.INGEST,
-                    new ChunkingOptions(null, null),
-                    TimeValue.MAX_VALUE,
-                    completionListener
-                );
+                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
@@ -396,7 +387,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType()
                 );
-                newDocMap.put(fieldName, result);
+                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }
@@ -412,8 +403,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
-            int itemIndex = 0;
-            for (var item : bulkShardRequest.items()) {
+            for (int itemIndex = 0; itemIndex < bulkShardRequest.items().length; itemIndex++) {
+                var item = bulkShardRequest.items()[itemIndex];
                 if (item.getPrimaryResponse() != null) {
                     // item was already aborted/processed by a filter in the chain upstream (e.g. security)
                     continue;
@@ -440,12 +431,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     // ignore delete request
                     continue;
                 }
+
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
                     var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map) {
+                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                        // Inference has already been computed, or there is no inference required.
                         continue;
                     }
                     int order = 0;
@@ -481,7 +474,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                     }
                 }
-                itemIndex++;
             }
             return fieldRequestsMap;
         }

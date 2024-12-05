@@ -69,7 +69,7 @@ public class FieldUsageShardResponse implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Fields.TRACKING_ID, trackingId);
-        builder.timeField(Fields.TRACKING_STARTED_AT_MILLIS, Fields.TRACKING_STARTED_AT, trackingStartTime);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.TRACKING_STARTED_AT_MILLIS, Fields.TRACKING_STARTED_AT, trackingStartTime);
         builder.startObject(Fields.ROUTING)
             .field(Fields.STATE, shardRouting.state())
             .field(Fields.PRIMARY, shardRouting.primary())

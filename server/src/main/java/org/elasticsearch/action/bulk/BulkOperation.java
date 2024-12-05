@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -87,7 +88,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final ConcurrentLinkedQueue<BulkItemRequest> failureStoreRedirects = new ConcurrentLinkedQueue<>();
     private final long startTimeNanos;
     private final ClusterStateObserver observer;
-    private final Map<String, IndexNotFoundException> indicesThatCannotBeCreated;
     private final Executor executor;
     private final LongSupplier relativeTimeProvider;
     private final FailureStoreDocumentConverter failureStoreDocumentConverter;
@@ -107,7 +107,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         BulkRequest bulkRequest,
         NodeClient client,
         AtomicArray<BulkItemResponse> responses,
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
@@ -122,7 +121,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             bulkRequest,
             client,
             responses,
-            indicesThatCannotBeCreated,
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
@@ -141,7 +139,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         BulkRequest bulkRequest,
         NodeClient client,
         AtomicArray<BulkItemResponse> responses,
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
@@ -158,7 +155,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.bulkRequest = bulkRequest;
         this.listener = listener;
         this.startTimeNanos = startTimeNanos;
-        this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
         this.executor = executor;
         this.relativeTimeProvider = relativeTimeProvider;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -217,7 +213,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
                 rolloverRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
                         .build()
                 );
                 // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
@@ -298,9 +294,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, bulkItemRequest.id(), metadata)) {
                 continue;
             }
-            if (addFailureIfIndexCannotBeCreated(docWriteRequest, bulkItemRequest.id())) {
-                continue;
-            }
             if (addFailureIfRequiresDataStreamAndNoParentDataStream(docWriteRequest, bulkItemRequest.id(), metadata)) {
                 continue;
             }
@@ -328,6 +321,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     shard -> new ArrayList<>()
                 );
                 shardRequests.add(bulkItemRequest);
+            } catch (DataStream.TimestampError timestampError) {
+                IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, clusterState, timestampError);
+                if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
+                    String name = ia != null ? ia.getName() : docWriteRequest.index();
+                    addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, timestampError, failureStoreStatus);
+                }
             } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
                 var failureStoreStatus = isFailureStoreRequest(docWriteRequest)
@@ -545,7 +544,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             var isFailureStoreRequest = isFailureStoreRequest(docWriteRequest);
             if (isFailureStoreRequest == false
                 && failureStoreCandidate.isFailureStoreEnabled()
-                && error instanceof VersionConflictEngineException == false) {
+                && error instanceof VersionConflictEngineException == false
+                && error instanceof EsRejectedExecutionException == false) {
                 // Prepare the data stream failure store if necessary
                 maybeMarkFailureStoreForRollover(failureStoreCandidate);
 
@@ -553,6 +553,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 boolean added = addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreCandidate.getName());
                 if (added) {
                     failureStoreMetrics.incrementFailureStore(bulkItemRequest.index(), errorType, FailureStoreMetrics.ErrorLocation.SHARD);
+                    return IndexDocFailureStoreStatus.USED;
                 } else {
                     failureStoreMetrics.incrementRejected(
                         bulkItemRequest.index(),
@@ -564,8 +565,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
             } else {
                 // If we can't redirect to a failure store (because either the data stream doesn't have the failure store enabled
-                // or this request was already targeting a failure store), or this was a version conflict we increment the
-                // rejected counter.
+                // or this request was already targeting a failure store), or this was an error that is not eligible for the failure store
+                // such as a version conflict or a load rejection we increment the rejected counter.
                 failureStoreMetrics.incrementRejected(
                     bulkItemRequest.index(),
                     errorType,
@@ -754,18 +755,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 ? IndexDocFailureStoreStatus.FAILED
                 : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
             addFailureAndDiscardRequest(request, idx, request.index(), new IndexClosedException(concreteIndex), failureStoreStatus);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean addFailureIfIndexCannotBeCreated(DocWriteRequest<?> request, int idx) {
-        IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
-        if (cannotCreate != null) {
-            var failureStoreStatus = isFailureStoreRequest(request)
-                ? IndexDocFailureStoreStatus.FAILED
-                : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-            addFailureAndDiscardRequest(request, idx, request.index(), cannotCreate, failureStoreStatus);
             return true;
         }
         return false;

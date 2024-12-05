@@ -53,8 +53,4 @@ public abstract class MultiPointValues<T extends SpatialPoint> {
      */
     public abstract T nextValue() throws IOException;
 
-    /**
-     * Returns a single-valued view of the {@link MultiPointValues} if possible, otherwise null.
-     */
-    protected abstract PointValues<T> getPointValues();
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.support.master.AcknowledgedResponse.declareAcknowledgedField;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ClusterUpdateSettingsResponseTests extends AbstractXContentSerializingTestCase<ClusterUpdateSettingsResponse> {
@@ -33,7 +33,7 @@ public class ClusterUpdateSettingsResponseTests extends AbstractXContentSerializ
         args -> new ClusterUpdateSettingsResponse((boolean) args[0], (Settings) args[1], (Settings) args[2])
     );
     static {
-        declareAcknowledgedField(PARSER);
+        TestResponseParsers.declareAcknowledgedField(PARSER);
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), ClusterUpdateSettingsResponse.TRANSIENT);
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), ClusterUpdateSettingsResponse.PERSISTENT);
     }

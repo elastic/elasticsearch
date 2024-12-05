@@ -103,10 +103,6 @@ public final class GeoPointScriptFieldData implements IndexGeoPointFieldData {
                 return 0;
             }
 
-            @Override
-            public void close() {
-
-            }
         };
     }
 

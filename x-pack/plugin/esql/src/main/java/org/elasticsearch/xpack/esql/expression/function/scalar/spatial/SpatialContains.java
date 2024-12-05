@@ -26,7 +26,6 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -198,10 +196,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    public SpatialContains withDocValues(Set<FieldAttribute> attributes) {
+    public SpatialContains withDocValues(boolean foundLeft, boolean foundRight) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean leftDV = leftDocValues || foundField(left(), attributes);
-        boolean rightDV = rightDocValues || foundField(right(), attributes);
+        boolean leftDV = leftDocValues || foundLeft;
+        boolean rightDV = rightDocValues || foundRight;
         return new SpatialContains(source(), left(), right(), leftDV, rightDV);
     }
 

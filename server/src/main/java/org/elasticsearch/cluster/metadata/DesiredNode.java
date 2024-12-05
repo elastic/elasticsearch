@@ -37,7 +37,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static java.lang.String.format;
@@ -48,7 +47,6 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
 
     public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
-    public static final NodeFeature DOUBLE_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.double_processors");
     public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated");
 
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
@@ -58,7 +56,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField PROCESSORS_RANGE_FIELD = new ParseField("processors_range");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
-    @UpdateForV9 // Remove deprecated field
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
@@ -118,7 +116,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
 
-    @UpdateForV9 // Remove deprecated version field
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated version field
     private final String version;
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
@@ -278,7 +276,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         addDeprecatedVersionField(builder);
     }
 
-    @UpdateForV9 // Remove deprecated field from response
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field from response
     private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
         if (version != null) {
             builder.field(VERSION_FIELD.getPreferredName(), version);
@@ -346,10 +344,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public Set<DiscoveryNodeRole> getRoles() {
         return roles;
-    }
-
-    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
-        return (processorsRange == null && processors.hasDecimals() == false) || clusterHasFeature.test(RANGE_FLOAT_PROCESSORS_SUPPORTED);
     }
 
     @Override

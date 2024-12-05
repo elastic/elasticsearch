@@ -58,6 +58,13 @@
 # result in less optimal vector performance
 20-:--add-modules=jdk.incubator.vector
 
+# Required to workaround performance issue in JDK 23, https://github.com/elastic/elasticsearch/issues/113030
+23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
+23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached
+
+# Lucene 10: apply MADV_NORMAL advice to enable more aggressive readahead
+-Dorg.apache.lucene.store.defaultReadAdvice=normal
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps

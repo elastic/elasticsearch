@@ -78,7 +78,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
     private static long LATEST_TIMESTAMP = 1691348820000L;
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 
@@ -453,7 +453,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(null, null, aliases, null))
+                .template(Template.builder().aliases(aliases))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

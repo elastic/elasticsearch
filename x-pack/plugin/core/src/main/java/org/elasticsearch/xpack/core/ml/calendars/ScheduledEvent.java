@@ -115,7 +115,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         description = in.readString();
         startTime = in.readInstant();
         endTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             skipResult = in.readBoolean();
             skipModelUpdate = in.readBoolean();
             forceTimeShift = in.readOptionalInt();
@@ -204,7 +204,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         out.writeString(description);
         out.writeInstant(startTime);
         out.writeInstant(endTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(skipResult);
             out.writeBoolean(skipModelUpdate);
             out.writeOptionalInt(forceTimeShift);
@@ -217,8 +217,16 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DESCRIPTION.getPreferredName(), description);
-        builder.timeField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toEpochMilli());
-        builder.timeField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toEpochMilli());
+        builder.timestampFieldsFromUnixEpochMillis(
+            START_TIME.getPreferredName(),
+            START_TIME.getPreferredName() + "_string",
+            startTime.toEpochMilli()
+        );
+        builder.timestampFieldsFromUnixEpochMillis(
+            END_TIME.getPreferredName(),
+            END_TIME.getPreferredName() + "_string",
+            endTime.toEpochMilli()
+        );
         builder.field(SKIP_RESULT.getPreferredName(), skipResult);
         builder.field(SKIP_MODEL_UPDATE.getPreferredName(), skipModelUpdate);
         if (forceTimeShift != null) {

@@ -60,7 +60,4 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
         };
     }
 
-    @Override
-    public void close() {}
-
 }

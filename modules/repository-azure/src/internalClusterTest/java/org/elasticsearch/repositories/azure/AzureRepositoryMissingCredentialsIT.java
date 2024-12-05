@@ -9,7 +9,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,17 +40,13 @@ public class AzureRepositoryMissingCredentialsIT extends ESIntegTestCase {
 
     public void testMissingCredentialsException() {
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 RepositoryVerificationException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            TransportPutRepositoryAction.TYPE,
-                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").type("azure"),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    TransportPutRepositoryAction.TYPE,
+                    new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").type("azure"),
+                    l
                 )
             ).getCause().getMessage(),
             allOf(

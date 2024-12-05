@@ -198,20 +198,16 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
-        switch (targetNumericType) {
-            case HALF_FLOAT:
-            case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DATE:
-                return dateComparatorSource(missingValue, sortMode, nested);
-            case DATE_NANOSECONDS:
-                return dateNanosComparatorSource(missingValue, sortMode, nested);
-            default:
+        return switch (targetNumericType) {
+            case HALF_FLOAT, FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DOUBLE -> new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DATE -> dateComparatorSource(missingValue, sortMode, nested);
+            case DATE_NANOSECONDS -> dateNanosComparatorSource(missingValue, sortMode, nested);
+            default -> {
                 assert targetNumericType.isFloatingPoint() == false;
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
-        }
+                yield new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
+            }
+        };
     }
 
     protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {

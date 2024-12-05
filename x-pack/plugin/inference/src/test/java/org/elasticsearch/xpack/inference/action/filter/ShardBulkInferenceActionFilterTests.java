@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -266,12 +267,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ModelRegistry modelRegistry = mock(ModelRegistry.class);
         Answer<?> unparsedModelAnswer = invocationOnMock -> {
             String id = (String) invocationOnMock.getArguments()[0];
-            ActionListener<ModelRegistry.UnparsedModel> listener = (ActionListener<ModelRegistry.UnparsedModel>) invocationOnMock
-                .getArguments()[1];
+            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocationOnMock.getArguments()[1];
             var model = modelMap.get(id);
             if (model != null) {
                 listener.onResponse(
-                    new ModelRegistry.UnparsedModel(
+                    new UnparsedModel(
                         model.getInferenceEntityId(),
                         model.getTaskType(),
                         model.getServiceSettings().model(),
@@ -291,7 +291,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
             ActionListener<List<ChunkedInferenceServiceResults>> listener = (ActionListener<
-                List<ChunkedInferenceServiceResults>>) invocationOnMock.getArguments()[7];
+                List<ChunkedInferenceServiceResults>>) invocationOnMock.getArguments()[6];
             Runnable runnable = () -> {
                 List<ChunkedInferenceServiceResults> results = new ArrayList<>();
                 for (String input : inputs) {
@@ -310,7 +310,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any(), any());
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];

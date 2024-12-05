@@ -457,7 +457,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
+    private static class TestNodesRequest extends BaseNodesRequest {
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }

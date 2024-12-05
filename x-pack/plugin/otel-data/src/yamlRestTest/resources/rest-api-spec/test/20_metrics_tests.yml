@@ -123,11 +123,10 @@ setup:
                   start_time: 2024-07-01T13:03:08.138Z
             mappings:
               dynamic_templates:
-                - ip_fields:
+                - no_ip_fields:
                     mapping:
-                      type: ip
+                      type: keyword
                     match_mapping_type: string
-                    path_match: "*.ip"
   - do:
       bulk:
         index: metrics-generic.otel-default
@@ -145,5 +144,138 @@ setup:
       indices.get_mapping:
         index: $idx0name
         expand_wildcards: hidden
-  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'keyword' }
   - match: { .$idx0name.mappings.properties.attributes.properties.foo.type: "keyword" }
+---
+IP dimensions:
+  - requires:
+      cluster_features: ["routing.multi_value_routing_path"]
+      reason: support for multi-value dimensions
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                host.ip: [ "127.0.0.1", "0.0.0.0" ]
+            attributes:
+              philip: [ a, b, c ]
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.resource.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.philip.type: "keyword" }
+---
+"Long data type in attributes must be accepted":
+  - do:
+      indices.get_index_template:
+        name: metrics-otel@template
+  - length: {index_templates: 1}
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","attributes":{"processor.pid": 17}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+  - length: { hits.hits: 1 }
+---
+"Dynamic templates":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.counter_long":"counter_long","metrics.gauge_long":"gauge_long","metrics.counter_double":"counter_double","metrics.gauge_double":"gauge_double","metrics.summary":"summary","metrics.summary_minmax":"summary_minmax","metrics.histogram":"histogram"}}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            attributes:
+              foo: bar
+            metrics:
+              counter_long: 42
+              gauge_long: 42
+              counter_double: 42.42
+              gauge_double: 42.42
+              summary:
+                sum: 42.42
+                value_count: 42
+              summary_minmax:
+                sum: 42.42
+                value_count: 42
+                min: 0.42
+                max: 4.2
+              histogram:
+                counts: [1,2]
+                values: [42,4242]
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+  - length: { hits.hits: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.metrics.properties.counter_long.type: 'long' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.gauge_long.type: 'long' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.counter_double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.gauge_double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.summary.type: 'aggregate_metric_double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.summary_minmax.type: 'aggregate_metric_double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.histogram.type: 'histogram' }
+---
+Empty IP field:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                host.name: localhost
+                host.ip: ""
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.resource.properties.attributes.properties.host\.ip.type: 'ip' }
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["*"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._ignored: ["resource.attributes.host.ip"] }

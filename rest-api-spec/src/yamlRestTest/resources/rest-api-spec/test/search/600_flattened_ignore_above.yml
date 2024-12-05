@@ -9,6 +9,8 @@ flattened ignore_above single-value field:
         body:
           mappings:
             properties:
+              name:
+                type: keyword
               keyword:
                 type: keyword
                 ignore_above: 5
@@ -22,6 +24,7 @@ flattened ignore_above single-value field:
         id: "1"
         refresh: true
         body:
+          name: "A"
           keyword: "foo"
           flat: { "value": "foo", "key": "foo key" }
 
@@ -31,12 +34,14 @@ flattened ignore_above single-value field:
         id: "2"
         refresh: true
         body:
+          name: "B"
           keyword: "foo bar"
           flat: { "value": "foo bar",  "key": "foo bar key"}
 
   - do:
       search:
         index: test
+        sort: name
         body:
           fields:
             - keyword
@@ -69,6 +74,8 @@ flattened ignore_above multi-value field:
         body:
           mappings:
             properties:
+              name:
+                type: keyword
               keyword:
                 type: keyword
                 ignore_above: 5
@@ -82,6 +89,7 @@ flattened ignore_above multi-value field:
         id: "1"
         refresh: true
         body:
+          name: "A"
           keyword: ["foo","bar"]
           flat: { "value": ["foo", "bar"], "key": "foo bar array key" }
 
@@ -91,12 +99,14 @@ flattened ignore_above multi-value field:
         id: "2"
         refresh: true
         body:
+          name: "B"
           keyword: ["foobar", "foo", "bar"]
           flat: { "value": ["foobar", "foo"], "key": ["foo key", "bar key"]}
 
   - do:
       search:
         index: test
+        sort: name
         body:
           fields:
             - keyword

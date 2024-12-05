@@ -79,9 +79,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final int QUERY_TOKEN_LENGTH = 4;
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
     private static final String INFERENCE_ID = "test_service";
+    private static final String SEARCH_INFERENCE_ID = "search_test_service";
 
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
+    private static boolean useSearchInferenceId;
 
     private enum InferenceResultType {
         NONE,
@@ -100,6 +102,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             DenseVectorFieldMapper.ElementType.BIT,
             () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
         ); // TODO: Support bit elements once KNN bit vector queries are available
+        useSearchInferenceId = randomBoolean();
     }
 
     @Override
@@ -126,11 +129,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        String mappingConfig = "type=semantic_text,inference_id=" + INFERENCE_ID;
+        if (useSearchInferenceId) {
+            mappingConfig += ",search_inference_id=" + SEARCH_INFERENCE_ID;
+        }
+
         mapperService.merge(
             "_doc",
-            new CompressedXContent(
-                Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, "type=semantic_text,inference_id=" + INFERENCE_ID))
-            ),
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, mappingConfig))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
 
@@ -193,9 +199,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
-            assertThat(c.getOccur(), equalTo(SHOULD));
-            assertThat(c.getQuery(), instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) c.getQuery()).getBoost(), equalTo(TOKEN_WEIGHT));
+            assertThat(c.occur(), equalTo(SHOULD));
+            assertThat(c.query(), instanceOf(BoostQuery.class));
+            assertThat(((BoostQuery) c.query()).getBoost(), equalTo(TOKEN_WEIGHT));
         });
     }
 
@@ -217,7 +223,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         List<BooleanClause> outerMustClauses = new ArrayList<>();
         List<BooleanClause> outerFilterClauses = new ArrayList<>();
         for (BooleanClause clause : outerBooleanQuery.clauses()) {
-            BooleanClause.Occur occur = clause.getOccur();
+            BooleanClause.Occur occur = clause.occur();
             if (occur == MUST) {
                 outerMustClauses.add(clause);
             } else if (occur == FILTER) {
@@ -230,7 +236,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(outerMustClauses.size(), equalTo(1));
         assertThat(outerFilterClauses.size(), equalTo(1));
 
-        return outerMustClauses.get(0).getQuery();
+        return outerMustClauses.get(0).query();
     }
 
     @Override
@@ -244,6 +250,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         InferenceAction.Request request = (InferenceAction.Request) args[1];
         assertThat(request.getTaskType(), equalTo(TaskType.ANY));
         assertThat(request.getInputType(), equalTo(InputType.SEARCH));
+        assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
         List<String> input = request.getInput();
         assertThat(input.size(), equalTo(1));

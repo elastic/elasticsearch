@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 /**
@@ -21,16 +23,31 @@ import org.elasticsearch.transport.TransportResponse;
 public interface RemoteClusterClient {
     /**
      * Executes an action, denoted by an {@link ActionType}, on the remote cluster.
-     *
-     * @param action           The action type to execute.
-     * @param request          The action request.
-     * @param listener         A listener for the response
-     * @param <Request>        The request type.
-     * @param <Response>       the response type.
+     */
+    default <Request extends ActionRequest, Response extends TransportResponse> void execute(
+        RemoteClusterActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        getConnection(
+            request,
+            listener.delegateFailureAndWrap((responseListener, connection) -> execute(connection, action, request, responseListener))
+        );
+    }
+
+    /**
+     * Executes an action, denoted by an {@link ActionType}, using a connection to the remote cluster obtained using {@link #getConnection}.
      */
     <Request extends ActionRequest, Response extends TransportResponse> void execute(
+        Transport.Connection connection,
         RemoteClusterActionType<Response> action,
         Request request,
         ActionListener<Response> listener
     );
+
+    /**
+     * Obtain a connection to the remote cluster for use with the {@link #execute} override that allows to specify the connection. Useful
+     * for cases where you need to inspect {@link Transport.Connection#getVersion} before deciding the exact remote action to invoke.
+     */
+    <Request extends ActionRequest> void getConnection(@Nullable Request request, ActionListener<Transport.Connection> listener);
 }

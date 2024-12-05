@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -296,7 +296,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         checkDecisionState();
-        return Iterators.concat(Iterators.single((builder, p) -> {
+        return ChunkedToXContent.builder(params).append((builder, p) -> {
             builder.field("can_allocate", getAllocationDecision());
             builder.field("allocate_explanation", getExplanation());
             if (targetNode != null) {
@@ -320,7 +320,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 );
             }
             return builder;
-        }), nodeDecisionsToXContentChunked(nodeDecisions));
+        }).append(nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

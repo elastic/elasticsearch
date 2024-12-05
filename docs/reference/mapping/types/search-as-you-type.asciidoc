@@ -266,5 +266,4 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `search_as_you_type` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with
-<<copy-to,`copy_to`>>.
+default configuration.

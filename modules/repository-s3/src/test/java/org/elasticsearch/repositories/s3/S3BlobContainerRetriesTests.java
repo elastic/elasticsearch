@@ -10,10 +10,12 @@ package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
 
+import com.amazonaws.AbortedException;
 import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -21,9 +23,12 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -62,15 +67,18 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntConsumer;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -98,6 +106,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "use a http server")
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
+    private static final int MAX_NUMBER_SNAPSHOT_DELETE_RETRIES = 10;
     private S3Service service;
     private AtomicBoolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
@@ -183,7 +192,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
             S3Repository.TYPE,
-            Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
+            Settings.builder()
+                .put(S3Repository.CLIENT_NAME.getKey(), clientName)
+                .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO)
+                .build()
         );
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
@@ -196,7 +208,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),
-            new S3RepositoriesMetrics(new RepositoriesMetrics(recordingMeterRegistry))
+            new S3RepositoriesMetrics(new RepositoriesMetrics(recordingMeterRegistry)),
+            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(1), MAX_NUMBER_SNAPSHOT_DELETE_RETRIES)
         );
         return new S3BlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), s3BlobStore) {
             @Override
@@ -573,16 +586,16 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         ),
                         -1
                     );
+                    exchange.getResponseBody().flush();
                 } else if (randomBoolean()) {
                     final var bytesSent = sendIncompleteContent(exchange, bytes);
                     if (bytesSent < meaningfulProgressBytes) {
                         failuresWithoutProgress += 1;
-                    } else {
-                        exchange.getResponseBody().flush();
                     }
                 } else {
                     failuresWithoutProgress += 1;
                 }
+                exchange.getResponseBody().flush();
                 exchange.close();
             }
         }
@@ -627,6 +640,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 failureCount += 1;
                 Streams.readFully(exchange.getRequestBody());
                 sendIncompleteContent(exchange, bytes);
+                exchange.getResponseBody().flush();
                 exchange.close();
             }
         }
@@ -769,6 +783,240 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getRetryStartedMeasurements(), empty());
         assertThat(getRetryCompletedMeasurements(), empty());
         assertThat(getRetryHistogramMeasurements(), empty());
+    }
+
+    public void testSnapshotDeletesRetryOnThrottlingError() throws IOException {
+        // disable AWS-client retries
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null);
+
+        int numBlobsToDelete = randomIntBetween(500, 3000);
+        List<String> blobsToDelete = new ArrayList<>();
+        for (int i = 0; i < numBlobsToDelete; i++) {
+            blobsToDelete.add(randomIdentifier());
+        }
+        int throttleTimesBeforeSuccess = randomIntBetween(1, MAX_NUMBER_SNAPSHOT_DELETE_RETRIES);
+        logger.info("--> Throttling {} times before success", throttleTimesBeforeSuccess);
+        ThrottlingDeleteHandler handler = new ThrottlingDeleteHandler(throttleTimesBeforeSuccess, attempt -> {});
+        httpServer.createContext("/", handler);
+        blobContainer.deleteBlobsIgnoringIfNotExists(randomFrom(operationPurposesThatRetryOnDelete()), blobsToDelete.iterator());
+
+        int expectedNumberOfBatches = expectedNumberOfBatches(numBlobsToDelete);
+        assertThat(handler.numberOfDeleteAttempts.get(), equalTo(throttleTimesBeforeSuccess + expectedNumberOfBatches));
+        assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(expectedNumberOfBatches));
+    }
+
+    public void testSnapshotDeletesAbortRetriesWhenThreadIsInterrupted() {
+        // disable AWS-client retries
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null);
+
+        int numBlobsToDelete = randomIntBetween(500, 3000);
+        List<String> blobsToDelete = new ArrayList<>();
+        for (int i = 0; i < numBlobsToDelete; i++) {
+            blobsToDelete.add(randomIdentifier());
+        }
+
+        final Thread clientThread = Thread.currentThread();
+        int interruptBeforeAttempt = randomIntBetween(0, randomIntBetween(1, 10));
+        logger.info("--> Deleting {} blobs, interrupting before attempt {}", numBlobsToDelete, interruptBeforeAttempt);
+        ThrottlingDeleteHandler handler = new ThrottlingDeleteHandler(Integer.MAX_VALUE, attempt -> {
+            if (attempt == interruptBeforeAttempt) {
+                clientThread.interrupt();
+            }
+        });
+        httpServer.createContext("/", handler);
+
+        try {
+            IOException exception = assertThrows(
+                IOException.class,
+                () -> blobContainer.deleteBlobsIgnoringIfNotExists(
+                    randomFrom(operationPurposesThatRetryOnDelete()),
+                    blobsToDelete.iterator()
+                )
+            );
+            assertThat(exception.getCause(), instanceOf(AbortedException.class));
+            assertThat(handler.numberOfDeleteAttempts.get(), equalTo(interruptBeforeAttempt + 1));
+            assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
+        } finally {
+            // interrupt should be preserved, clear it to prevent it leaking between tests
+            assertTrue(Thread.interrupted());
+        }
+    }
+
+    public void testNonSnapshotDeletesAreNotRetried() {
+        // disable AWS-client retries
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null);
+
+        int numBlobsToDelete = randomIntBetween(500, 3000);
+        List<String> blobsToDelete = new ArrayList<>();
+        for (int i = 0; i < numBlobsToDelete; i++) {
+            blobsToDelete.add(randomIdentifier());
+        }
+        ThrottlingDeleteHandler handler = new ThrottlingDeleteHandler(Integer.MAX_VALUE, attempt -> {});
+        httpServer.createContext("/", handler);
+        IOException exception = assertThrows(
+            IOException.class,
+            () -> blobContainer.deleteBlobsIgnoringIfNotExists(
+                randomValueOtherThanMany(
+                    op -> operationPurposesThatRetryOnDelete().contains(op),
+                    () -> randomFrom(OperationPurpose.values())
+                ),
+                blobsToDelete.iterator()
+            )
+        );
+        assertEquals(
+            ThrottlingDeleteHandler.THROTTLING_ERROR_CODE,
+            asInstanceOf(AmazonS3Exception.class, exception.getCause()).getErrorCode()
+        );
+        assertThat(handler.numberOfDeleteAttempts.get(), equalTo(expectedNumberOfBatches(numBlobsToDelete)));
+        assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
+    }
+
+    public void testNonThrottlingErrorsAreNotRetried() {
+        // disable AWS-client retries
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null);
+
+        int numBlobsToDelete = randomIntBetween(500, 3000);
+        List<String> blobsToDelete = new ArrayList<>();
+        for (int i = 0; i < numBlobsToDelete; i++) {
+            blobsToDelete.add(randomIdentifier());
+        }
+        ThrottlingDeleteHandler handler = new ThrottlingDeleteHandler(Integer.MAX_VALUE, attempt -> {}, "NotThrottling");
+        httpServer.createContext("/", handler);
+        assertThrows(
+            IOException.class,
+            () -> blobContainer.deleteBlobsIgnoringIfNotExists(randomFrom(operationPurposesThatRetryOnDelete()), blobsToDelete.iterator())
+        );
+        assertThat(handler.numberOfDeleteAttempts.get(), equalTo(expectedNumberOfBatches(numBlobsToDelete)));
+        assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
+    }
+
+    private int expectedNumberOfBatches(int blobsToDelete) {
+        return (blobsToDelete / 1_000) + (blobsToDelete % 1_000 == 0 ? 0 : 1);
+    }
+
+    @SuppressForbidden(reason = "use a http server")
+    private class ThrottlingDeleteHandler extends S3HttpHandler {
+
+        private static final String THROTTLING_ERROR_CODE = "SlowDown";
+
+        private final AtomicInteger throttleTimesBeforeSuccess;
+        private final AtomicInteger numberOfDeleteAttempts;
+        private final AtomicInteger numberOfSuccessfulDeletes;
+        private final IntConsumer onAttemptCallback;
+        private final String errorCode;
+
+        ThrottlingDeleteHandler(int throttleTimesBeforeSuccess, IntConsumer onAttemptCallback) {
+            this(throttleTimesBeforeSuccess, onAttemptCallback, THROTTLING_ERROR_CODE);
+        }
+
+        ThrottlingDeleteHandler(int throttleTimesBeforeSuccess, IntConsumer onAttemptCallback, String errorCode) {
+            super("bucket");
+            this.numberOfDeleteAttempts = new AtomicInteger();
+            this.numberOfSuccessfulDeletes = new AtomicInteger();
+            this.throttleTimesBeforeSuccess = new AtomicInteger(throttleTimesBeforeSuccess);
+            this.onAttemptCallback = onAttemptCallback;
+            this.errorCode = errorCode;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+                onAttemptCallback.accept(numberOfDeleteAttempts.get());
+                numberOfDeleteAttempts.incrementAndGet();
+                if (throttleTimesBeforeSuccess.getAndDecrement() > 0) {
+                    final byte[] responseBytes = Strings.format("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <Error>
+                          <Code>%s</Code>
+                          <Message>This is a throttling message</Message>
+                          <Resource>/bucket/</Resource>
+                          <RequestId>4442587FB7D0A2F9</RequestId>
+                        </Error>""", errorCode).getBytes(StandardCharsets.UTF_8);
+
+                    exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, responseBytes.length);
+                    exchange.getResponseBody().write(responseBytes);
+                    exchange.close();
+                } else {
+                    numberOfSuccessfulDeletes.incrementAndGet();
+                    super.handle(exchange);
+                }
+            } else {
+                super.handle(exchange);
+            }
+        }
+    }
+
+    private Set<OperationPurpose> operationPurposesThatRetryOnDelete() {
+        return Set.of(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA);
+    }
+
+    public void testGetRegisterRetries() {
+        final var maxRetries = between(0, 3);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+
+        interface FailingHandlerFactory {
+            void addHandler(String blobName, Integer... responseCodes);
+        }
+
+        final var requestCounter = new AtomicInteger();
+        final FailingHandlerFactory countingFailingHandlerFactory = (blobName, responseCodes) -> httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, blobName),
+            exchange -> {
+                requestCounter.incrementAndGet();
+                try (exchange) {
+                    exchange.sendResponseHeaders(randomFrom(responseCodes), -1);
+                }
+            }
+        );
+
+        countingFailingHandlerFactory.addHandler("test_register_no_internal_retries", HttpStatus.SC_UNPROCESSABLE_ENTITY);
+        countingFailingHandlerFactory.addHandler(
+            "test_register_internal_retries",
+            HttpStatus.SC_INTERNAL_SERVER_ERROR,
+            HttpStatus.SC_SERVICE_UNAVAILABLE
+        );
+        countingFailingHandlerFactory.addHandler("test_register_not_found", HttpStatus.SC_NOT_FOUND);
+
+        {
+            final var exceptionWithInternalRetries = safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> blobContainer.getRegister(randomRetryingPurpose(), "test_register_internal_retries", l)
+            );
+            assertThat(exceptionWithInternalRetries, instanceOf(AmazonS3Exception.class));
+            assertEquals((maxRetries + 1) * (maxRetries + 1), requestCounter.get());
+            assertEquals(maxRetries, exceptionWithInternalRetries.getSuppressed().length);
+        }
+
+        {
+            requestCounter.set(0);
+            final var exceptionWithoutInternalRetries = safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> blobContainer.getRegister(randomRetryingPurpose(), "test_register_no_internal_retries", l)
+            );
+            assertThat(exceptionWithoutInternalRetries, instanceOf(AmazonS3Exception.class));
+            assertEquals(maxRetries + 1, requestCounter.get());
+            assertEquals(maxRetries, exceptionWithoutInternalRetries.getSuppressed().length);
+        }
+
+        {
+            requestCounter.set(0);
+            final var repoAnalysisException = safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, "test_register_no_internal_retries", l)
+            );
+            assertThat(repoAnalysisException, instanceOf(AmazonS3Exception.class));
+            assertEquals(1, requestCounter.get());
+            assertEquals(0, repoAnalysisException.getSuppressed().length);
+        }
+
+        {
+            requestCounter.set(0);
+            final OptionalBytesReference expectEmpty = safeAwait(
+                l -> blobContainer.getRegister(randomPurpose(), "test_register_not_found", l)
+            );
+            assertEquals(OptionalBytesReference.EMPTY, expectEmpty);
+            assertEquals(1, requestCounter.get());
+        }
     }
 
     @Override

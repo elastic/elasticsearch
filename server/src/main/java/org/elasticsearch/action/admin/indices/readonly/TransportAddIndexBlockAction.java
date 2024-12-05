@@ -102,13 +102,18 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             return;
         }
 
-        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
-            request.getBlock(),
-            task.getId()
-        ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
-        indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
-            delegatedListener.onFailure(t);
-        }));
+        indexStateService.addIndexBlock(
+            new AddIndexBlockClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.getBlock(),
+                task.getId(),
+                concreteIndices
+            ),
+            listener.delegateResponse((delegatedListener, t) -> {
+                logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
+                delegatedListener.onFailure(t);
+            })
+        );
     }
 }

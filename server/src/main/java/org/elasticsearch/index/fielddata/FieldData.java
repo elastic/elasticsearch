@@ -42,12 +42,12 @@ public enum FieldData {
     public static NumericDoubleValues emptyNumericDouble() {
         return new NumericDoubleValues() {
             @Override
-            public boolean advanceExact(int doc) throws IOException {
+            public boolean advanceExact(int doc) {
                 return false;
             }
 
             @Override
-            public double doubleValue() throws IOException {
+            public double doubleValue() {
                 throw new UnsupportedOperationException();
             }
 
@@ -241,14 +241,6 @@ public enum FieldData {
             return ((SingletonSortedBinaryDocValues) values).getBinaryDocValues();
         }
         return null;
-    }
-
-    /**
-     * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return {@code false} in the single-valued case.
-     */
-    public static boolean isMultiValued(SortedSetDocValues values) {
-        return DocValues.unwrapSingleton(values) == null;
     }
 
     /**
@@ -634,7 +626,7 @@ public enum FieldData {
             }
 
             @Override
-            public long longValue() throws IOException {
+            public long longValue() {
                 return value;
             }
         };
@@ -661,7 +653,7 @@ public enum FieldData {
             }
 
             @Override
-            public double doubleValue() throws IOException {
+            public double doubleValue() {
                 return value;
             }
         };

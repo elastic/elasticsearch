@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -98,8 +98,8 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
     }
 
     @Override
@@ -168,5 +168,40 @@ public final class IngestMetadata implements Metadata.Custom {
     @Override
     public int hashCode() {
         return pipelines.hashCode();
+    }
+
+    /**
+     * Returns a copy of this object with processor upgrades applied, if necessary. Otherwise, returns this object.
+     *
+     * <p>The given upgrader is applied to the config map for any processor of the given type.
+     */
+    public IngestMetadata maybeUpgradeProcessors(String processorType, ProcessorConfigUpgrader processorConfigUpgrader) {
+        Map<String, PipelineConfiguration> newPipelines = null; // as an optimization, we will lazily copy the map only if needed
+        for (Map.Entry<String, PipelineConfiguration> entry : pipelines.entrySet()) {
+            String pipelineId = entry.getKey();
+            PipelineConfiguration originalPipeline = entry.getValue();
+            PipelineConfiguration upgradedPipeline = originalPipeline.maybeUpgradeProcessors(processorType, processorConfigUpgrader);
+            if (upgradedPipeline.equals(originalPipeline) == false) {
+                if (newPipelines == null) {
+                    newPipelines = new HashMap<>(pipelines);
+                }
+                newPipelines.put(pipelineId, upgradedPipeline);
+            }
+        }
+        return newPipelines != null ? new IngestMetadata(newPipelines) : this;
+    }
+
+    /**
+     * Functional interface for upgrading processor configs. An implementation of this will be associated with a specific processor type.
+     */
+    public interface ProcessorConfigUpgrader {
+
+        /**
+         * Upgrades the config for an individual processor of the appropriate type, if necessary.
+         *
+         * @param processorConfig The config to upgrade, which will be mutated if required
+         * @return Whether an upgrade was required
+         */
+        boolean maybeUpgrade(Map<String, Object> processorConfig);
     }
 }

@@ -1,12 +1,12 @@
 [[re-ranking-overview]]
 = Re-ranking
 
-Many search systems are built on two-stage retrieval pipelines.
+Many search systems are built on multi-stage retrieval pipelines.
 
-The first stage uses cheap, fast algorithms to find a broad set of possible matches.
+Earlier stages use cheap, fast algorithms to find a broad set of possible matches.
 
-The second stage uses a more powerful model, often machine learning-based, to reorder the documents.
-This second step is called re-ranking.
+Later stages use more powerful models, often machine learning-based, to reorder the documents.
+This step is called re-ranking.
 Because the resource-intensive model is only applied to the smaller set of pre-filtered results, this approach returns more relevant results while still optimizing for search performance and computational costs.
 
 {es} supports various ranking and re-ranking techniques to optimize search relevance and performance.
@@ -18,7 +18,7 @@ Because the resource-intensive model is only applied to the smaller set of pre-f
 
 [float]
 [[re-ranking-first-stage-pipeline]]
-=== First stage: initial retrieval
+=== Initial retrieval
 
 [float]
 [[re-ranking-ranking-overview-bm25]]
@@ -45,7 +45,7 @@ Hybrid search techniques combine results from full-text and vector search pipeli
 
 [float]
 [[re-ranking-overview-second-stage]]
-=== Second stage: Re-ranking
+=== Re-ranking
 
 When using the following advanced re-ranking pipelines, first-stage retrieval mechanisms effectively generate a set of candidates.
 These candidates are funneled into the re-ranker to perform more computationally expensive re-ranking tasks.

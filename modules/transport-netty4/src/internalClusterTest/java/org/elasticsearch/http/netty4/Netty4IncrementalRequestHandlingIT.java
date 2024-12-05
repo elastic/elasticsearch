@@ -70,6 +70,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collection;
@@ -173,16 +174,20 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
 
-            // enable auto-read to receive channel close event
-            handler.stream.channel().config().setAutoRead(true);
             assertFalse(handler.streamClosed);
 
-            // terminate connection and wait resources are released
+            // terminate client connection
             ctx.clientChannel.close();
+            // read the first half of the request
+            handler.stream.next();
+            // attempt to read more data and it should notice channel being closed eventually
+            handler.stream.next();
+
+            // wait for resources to be released
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }
@@ -199,13 +204,36 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.streamClosed);
 
             // terminate connection on server and wait resources are released
             handler.channel.request().getHttpChannel().close();
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                assertEquals(0, handler.stream.bufSize());
+                assertTrue(handler.streamClosed);
+            });
+        }
+    }
+
+    public void testServerExceptionMidStream() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            var opaqueId = opaqueId(0);
+
+            // write half of http request
+            ctx.clientChannel.write(httpRequest(opaqueId, 2 * 1024));
+            ctx.clientChannel.writeAndFlush(randomContent(1024, false));
+
+            // await stream handler is ready and request full content
+            var handler = ctx.awaitRestChannelAccepted(opaqueId);
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
+            assertFalse(handler.streamClosed);
+
+            handler.shouldThrowInsideHandleChunk = true;
+            handler.stream.next();
+
+            assertBusy(() -> {
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }
@@ -451,8 +479,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                     "request end",
                     HttpBodyTracer.class.getCanonicalName(),
                     Level.TRACE,
-                    "* request body (gzip compressed, base64-encoded, and split into * parts on preceding log lines; for details see "
-                        + "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-network.html#http-rest-request-tracer)"
+                    "* request body (gzip compressed, base64-encoded, and split into * parts on preceding log lines;*)"
                 )
             );
         }
@@ -595,6 +622,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         RestChannel channel;
         boolean recvLast = false;
         volatile boolean streamClosed = false;
+        volatile boolean shouldThrowInsideHandleChunk = false;
 
         ServerRequestHandler(String opaqueId, Netty4HttpRequestBodyStream stream) {
             this.opaqueId = opaqueId;
@@ -603,6 +631,12 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
+            Transports.assertTransportThread();
+            if (shouldThrowInsideHandleChunk) {
+                // Must close the chunk. This is the contract of this method.
+                chunk.close();
+                throw new RuntimeException("simulated exception inside handleChunk");
+            }
             recvChunks.add(new Chunk(chunk, isLast));
         }
 
@@ -665,11 +699,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new BaseRestHandler() {
-                @Override
-                public boolean allowsUnsafeBuffers() {
-                    return true;
-                }
-
                 @Override
                 public String getName() {
                     return ROUTE;

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -34,7 +33,23 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         Use `RLIKE` to filter data based on string patterns using using
         <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
         the left-hand side of the operator, but it can also act on a constant (literal)
-        expression. The right-hand side of the operator represents the pattern.""", examples = @Example(file = "docs", tag = "rlike"))
+        expression. The right-hand side of the operator represents the pattern.""", detailedDescription = """
+        Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
+        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
+        it will require further escaping.
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=rlikeEscapingSingleQuotes]
+        ----
+
+        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=rlikeEscapingTripleQuotes]
+        ----
+        """, examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
@@ -79,9 +94,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
     }
 }

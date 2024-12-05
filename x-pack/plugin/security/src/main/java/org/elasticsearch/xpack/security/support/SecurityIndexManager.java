@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -46,7 +47,9 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.security.SecurityFeatures;
+import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
 import java.time.Instant;
 import java.util.List;
@@ -54,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -74,7 +78,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class SecurityIndexManager implements ClusterStateListener {
 
     public static final String SECURITY_VERSION_STRING = "security-version";
-
+    protected static final String FILE_SETTINGS_METADATA_NAMESPACE = "file_settings";
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
     /**
@@ -83,6 +87,13 @@ public class SecurityIndexManager implements ClusterStateListener {
     public enum Availability {
         SEARCH_SHARDS,
         PRIMARY_SHARDS
+    }
+
+    public enum RoleMappingsCleanupMigrationStatus {
+        READY,
+        NOT_READY,
+        SKIP,
+        DONE
     }
 
     private final Client client;
@@ -194,10 +205,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         return indexExists() && this.state.migrationsVersion.compareTo(expectedMigrationsVersion) >= 0;
     }
 
-    public boolean isCreatedOnLatestVersion() {
-        return this.state.createdOnLatestVersion;
-    }
-
     public ElasticsearchException getUnavailableReason(Availability availability) {
         // ensure usage of a local copy so all checks execute against the same state!
         if (defensiveCopy == false) {
@@ -260,11 +267,56 @@ public class SecurityIndexManager implements ClusterStateListener {
     /**
      * Check if the index was created on the latest index version available in the cluster
      */
+
     private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata) {
         final IndexVersion indexVersionCreated = indexMetadata != null
             ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
             : null;
         return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
+    }
+
+    /**
+     * Check if a role mappings cleanup migration is needed or has already been performed and if the cluster is ready for a cleanup
+     * migration
+     *
+     * @param clusterState current cluster state
+     * @param migrationsVersion current migration version
+     *
+     * @return RoleMappingsCleanupMigrationStatus
+     */
+    static RoleMappingsCleanupMigrationStatus getRoleMappingsCleanupMigrationStatus(ClusterState clusterState, int migrationsVersion) {
+        // Migration already finished
+        if (migrationsVersion >= SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION) {
+            return RoleMappingsCleanupMigrationStatus.DONE;
+        }
+
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
+        boolean hasFileSettingsMetadata = fileSettingsMetadata != null;
+        // If there is no fileSettingsMetadata, there should be no reserved state (this is to catch bugs related to
+        // name changes to FILE_SETTINGS_METADATA_NAMESPACE)
+        assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty()
+            : "ReservedStateMetadata contains unknown namespace";
+
+        // If no file based role mappings available -> migration not needed
+        if (hasFileSettingsMetadata == false || fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).isEmpty()) {
+            return RoleMappingsCleanupMigrationStatus.SKIP;
+        }
+
+        RoleMappingMetadata roleMappingMetadata = RoleMappingMetadata.getFromClusterState(clusterState);
+
+        // If there are file based role mappings, make sure they have the latest format (name available) and that they have all been
+        // synced to cluster state (same size as the reserved state keys)
+        if (roleMappingMetadata.getRoleMappings().size() == fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).size()
+            && roleMappingMetadata.hasAnyMappingWithFallbackName() == false) {
+            return RoleMappingsCleanupMigrationStatus.READY;
+        }
+
+        // If none of the above conditions are met, wait for a state change to re-evaluate if the cluster is ready for migration
+        return RoleMappingsCleanupMigrationStatus.NOT_READY;
+    }
+
+    public RoleMappingsCleanupMigrationStatus getRoleMappingsCleanupMigrationStatus() {
+        return state.roleMappingsCleanupMigrationStatus;
     }
 
     @Override
@@ -284,8 +336,12 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
-        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
+        final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus = getRoleMappingsCleanupMigrationStatus(
+            event.state(),
+            migrationsVersion
+        );
+        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
         final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), event.state());
         final String concreteIndexName = indexMetadata == null
@@ -314,6 +370,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForWrite,
             mappingIsUpToDate,
             createdOnLatestVersion,
+            roleMappingsCleanupMigrationStatus,
             migrationsVersion,
             minClusterMappingVersion,
             indexMappingVersion,
@@ -364,45 +421,80 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Notifies {@code listener} once the security index is available, or calls {@code onFailure} on {@code timeout}.
      */
     public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
-        logger.info("Will wait for security index [{}] to become available for search", getConcreteIndexName());
+        logger.info("Will wait for security index [{}] for [{}] to become available for search", getConcreteIndexName(), timeout);
 
-        final ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
+        if (state.indexAvailableForSearch) {
+            logger.debug("Security index [{}] is already available", getConcreteIndexName());
+            listener.onResponse(null);
+            return;
+        }
 
+        final AtomicBoolean isDone = new AtomicBoolean(false);
         final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
             @Override
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
                 if (nextState.indexAvailableForSearch) {
-                    assert cancellable != null;
-                    // cancel and removeStateListener are idempotent
-                    cancellable.cancel();
-                    removeStateListener(this);
-                    notifyOnceListener.onResponse(null);
+                    if (isDone.compareAndSet(false, true)) {
+                        cancel();
+                        removeStateListener(this);
+                        listener.onResponse(null);
+                    }
                 }
             }
         };
-        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
-        indexAvailableForSearchListener.cancellable = client.threadPool().schedule(() -> {
-            removeStateListener(indexAvailableForSearchListener);
-            notifyOnceListener.onFailure(
-                new ElasticsearchTimeoutException(
-                    "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
-                )
-            );
-        }, timeout, client.threadPool().generic());
+        // add listener _before_ registering timeout -- this way we are guaranteed it gets removed (either by timeout below, or successful
+        // completion above)
+        addStateListener(indexAvailableForSearchListener);
 
-        // in case the state has meanwhile changed to available, return immediately
-        if (state.indexAvailableForSearch) {
-            indexAvailableForSearchListener.cancellable.cancel();
-            notifyOnceListener.onResponse(null);
-        } else {
-            addStateListener(indexAvailableForSearchListener);
-        }
+        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
+        indexAvailableForSearchListener.setCancellable(client.threadPool().schedule(() -> {
+            if (isDone.compareAndSet(false, true)) {
+                removeStateListener(indexAvailableForSearchListener);
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
+                    )
+                );
+            }
+        }, timeout, client.threadPool().generic()));
     }
 
-    private abstract static class StateConsumerWithCancellable
+    // pkg-private for testing
+    List<BiConsumer<State, State>> getStateChangeListeners() {
+        return stateChangeListeners;
+    }
+
+    /**
+     * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled on
+     * a subsequent setCancellable() call.
+     */
+    // pkg-private for testing
+    abstract static class StateConsumerWithCancellable
         implements
-            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
-        volatile Scheduler.ScheduledCancellable cancellable;
+            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
+            Scheduler.Cancellable {
+        private volatile Scheduler.ScheduledCancellable cancellable;
+        private volatile boolean cancelled = false;
+
+        void setCancellable(Scheduler.ScheduledCancellable cancellable) {
+            this.cancellable = cancellable;
+            if (cancelled) {
+                cancel();
+            }
+        }
+
+        public boolean cancel() {
+            cancelled = true;
+            if (cancellable != null) {
+                // cancellable is idempotent, so it's fine to potentially call it multiple times
+                return cancellable.cancel();
+            }
+            return isCancelled();
+        }
+
+        public boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     private Tuple<Boolean, Boolean> checkIndexAvailable(ClusterState state) {
@@ -438,7 +530,8 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public boolean isEligibleSecurityMigration(SecurityMigrations.SecurityMigration securityMigration) {
         return state.securityFeatures.containsAll(securityMigration.nodeFeaturesRequired())
-            && state.indexMappingVersion >= securityMigration.minMappingVersion();
+            && state.indexMappingVersion >= securityMigration.minMappingVersion()
+            && securityMigration.checkPreConditions(state);
     }
 
     public boolean isReadyForSecurityMigration(SecurityMigrations.SecurityMigration securityMigration) {
@@ -559,7 +652,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("create index");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "create index",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
@@ -610,7 +706,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("updating mapping");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "updating mapping",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
@@ -642,6 +741,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         } catch (Exception e) {
             consumer.accept(e);
         }
+    }
+
+    public boolean isCreatedOnLatestVersion() {
+        return state.createdOnLatestVersion;
     }
 
     /**
@@ -678,6 +781,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             null,
             null,
             null,
+            null,
             Set.of()
         );
         public final Instant creationTime;
@@ -686,6 +790,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
+        public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
         public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
@@ -704,6 +809,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
+            RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
             Integer indexMappingVersion,
@@ -720,6 +826,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
+            this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -740,6 +847,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
                 && createdOnLatestVersion == state.createdOnLatestVersion
+                && roleMappingsCleanupMigrationStatus == state.roleMappingsCleanupMigrationStatus
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
                 && Objects.equals(minClusterMappingVersion, state.minClusterMappingVersion)
@@ -762,6 +870,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForWrite,
                 mappingUpToDate,
                 createdOnLatestVersion,
+                roleMappingsCleanupMigrationStatus,
                 migrationsVersion,
                 minClusterMappingVersion,
                 indexMappingVersion,
@@ -786,6 +895,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + mappingUpToDate
                 + ", createdOnLatestVersion="
                 + createdOnLatestVersion
+                + ", roleMappingsCleanupMigrationStatus="
+                + roleMappingsCleanupMigrationStatus
                 + ", migrationsVersion="
                 + migrationsVersion
                 + ", minClusterMappingVersion="

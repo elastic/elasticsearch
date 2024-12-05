@@ -9,27 +9,28 @@ package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.Optional;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
@@ -105,29 +106,25 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, ChunkedToXContent> {
     private static final Logger log = LogManager.getLogger(OpenAiStreamingProcessor.class);
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI chat completions response";
-    private static final String RESULT = "delta";
 
     private static final String CHOICES_FIELD = "choices";
     private static final String DELTA_FIELD = "delta";
     private static final String CONTENT_FIELD = "content";
-    private static final String FINISH_REASON_FIELD = "finish_reason";
-    private static final String STOP_MESSAGE = "stop";
     private static final String DONE_MESSAGE = "[done]";
 
     @Override
-    protected void next(Deque<ServerSentEvent> item) {
+    protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
-        var results = new ArrayDeque<ChunkedToXContent>(item.size());
+        var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
         for (ServerSentEvent event : item) {
             if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
                 try {
                     var delta = parse(parserConfig, event);
-                    delta.map(this::deltaChunk).ifPresent(results::offer);
+                    delta.forEachRemaining(results::offer);
                 } catch (Exception e) {
                     log.warn("Failed to parse event from inference provider: {}", event);
-                    onError(new IOException("Failed to parse event from inference provider.", e));
-                    return;
+                    throw e;
                 }
             }
         }
@@ -135,13 +132,14 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
         if (results.isEmpty()) {
             upstream().request(1);
         } else {
-            downstream().onNext(completionChunk(results.iterator()));
+            downstream().onNext(new StreamingChatCompletionResults.Results(results));
         }
     }
 
-    private Optional<String> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
+    private Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
+        throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
-            return Optional.empty();
+            return Collections.emptyIterator();
         }
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
@@ -150,54 +148,44 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            // choices is an array, but since we don't send 'n' in the request then we only get one value in the result
             positionParserAtTokenAfterField(jsonParser, CHOICES_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            jsonParser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, jsonParser.currentToken(), jsonParser);
+            return parseList(jsonParser, parser -> {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
-            positionParserAtTokenAfterField(jsonParser, DELTA_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
+                positionParserAtTokenAfterField(parser, DELTA_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            token = jsonParser.currentToken();
+                var currentToken = parser.currentToken();
 
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
 
-            while (token != null) {
-                if (token == XContentParser.Token.FIELD_NAME && jsonParser.currentName().equals(CONTENT_FIELD)) {
-                    jsonParser.nextToken();
-                    var contentToken = jsonParser.currentToken();
-                    ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
-                    return Optional.ofNullable(jsonParser.text());
-                } else if (token == XContentParser.Token.FIELD_NAME && jsonParser.currentName().equals(FINISH_REASON_FIELD)) {
-                    jsonParser.nextToken();
-                    var contentToken = jsonParser.currentToken();
-                    ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
-                    if (STOP_MESSAGE.equalsIgnoreCase(jsonParser.text())) {
-                        return Optional.empty();
+                currentToken = parser.nextToken();
+
+                // continue until the end of delta
+                while (currentToken != null && currentToken != XContentParser.Token.END_OBJECT) {
+                    if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
+                        parser.skipChildren();
                     }
+
+                    if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
+                        parser.nextToken();
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                        var content = parser.text();
+                        consumeUntilObjectEnd(parser); // end delta
+                        consumeUntilObjectEnd(parser); // end choices
+                        return content;
+                    }
+
+                    currentToken = parser.nextToken();
                 }
-                token = jsonParser.nextToken();
-            }
 
-            throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, CONTENT_FIELD));
+                consumeUntilObjectEnd(parser); // end choices
+                return ""; // stopped
+            }).stream()
+                .filter(Objects::nonNull)
+                .filter(Predicate.not(String::isEmpty))
+                .map(StreamingChatCompletionResults.Result::new)
+                .iterator();
         }
-    }
-
-    private ChunkedToXContent deltaChunk(String delta) {
-        return params -> Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.field(RESULT, delta),
-            ChunkedToXContentHelper.endObject()
-        );
-    }
-
-    private ChunkedToXContent completionChunk(Iterator<? extends ChunkedToXContent> delta) {
-        return params -> Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.startArray(COMPLETION),
-            Iterators.flatMap(delta, d -> d.toXContentChunked(params)),
-            ChunkedToXContentHelper.endArray(),
-            ChunkedToXContentHelper.endObject()
-        );
     }
 }

@@ -1404,7 +1404,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
             }
             builder.endArray();
-            builder.timeField("start_time_millis", "start_time", startTime);
+            builder.timestampFieldsFromUnixEpochMillis("start_time_millis", "start_time", startTime);
             builder.field("repository_state_id", repositoryStateId);
             builder.startArray("shards");
             {

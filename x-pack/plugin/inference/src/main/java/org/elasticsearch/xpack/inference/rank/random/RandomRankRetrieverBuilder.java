@@ -103,10 +103,7 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName());
-        builder.startObject();
-        builder.field(retrieverBuilder.getName(), retrieverBuilder);
-        builder.endObject();
+        builder.field(RETRIEVER_FIELD.getPreferredName(), retrieverBuilder);
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         if (seed != null) {

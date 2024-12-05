@@ -33,6 +33,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+import io.netty.util.ResourceLeakDetector;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -332,8 +333,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (tlsConfig.isTLSEnabled()) {
                 ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
             }
+            final var threadWatchdogActivityTracker = transport.threadWatchdog.getActivityTrackerForCurrentThread();
             ch.pipeline()
-                .addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()))
+                .addLast(
+                    "chunked_writer",
+                    new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext(), threadWatchdogActivityTracker)
+                )
                 .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             if (transport.readTimeoutMillis > 0) {
                 ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
@@ -375,9 +380,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             final HttpObjectAggregator aggregator = new Netty4HttpAggregator(
                 handlingSettings.maxContentLength(),
                 httpPreRequest -> enabled.get() == false
-                    || (httpPreRequest.uri().contains("_bulk") == false
-                        || httpPreRequest.uri().contains("_bulk_update")
-                        || httpPreRequest.uri().contains("/_xpack/monitoring/_bulk"))
+                    || ((httpPreRequest.rawPath().endsWith("/_bulk") == false)
+                        || httpPreRequest.rawPath().startsWith("/_xpack/monitoring/_bulk"))
             );
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline()
@@ -407,14 +411,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     }
                 });
             }
+            if (ResourceLeakDetector.isEnabled()) {
+                ch.pipeline().addLast(new Netty4LeakDetectionHandler());
+            }
             ch.pipeline()
                 .addLast(
                     "pipelining",
-                    new Netty4HttpPipeliningHandler(
-                        transport.pipeliningMaxEvents,
-                        transport,
-                        transport.threadWatchdog.getActivityTrackerForCurrentThread()
-                    )
+                    new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
         }

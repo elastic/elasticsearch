@@ -45,7 +45,6 @@ public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
     /**
      * Returns a single-valued view of the {@link MultiPointValues} if possible, otherwise null.
      */
-    @Override
     protected GeoPointValues getPointValues() {
         final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
         return singleton != null ? new GeoPointValues(singleton) : null;

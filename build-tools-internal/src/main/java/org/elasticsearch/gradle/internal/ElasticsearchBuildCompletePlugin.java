@@ -15,6 +15,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -28,6 +29,8 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -46,6 +49,8 @@ import javax.inject.Inject;
 
 public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project> {
 
+    private static final Logger log = LoggerFactory.getLogger(ElasticsearchBuildCompletePlugin.class);
+
     @Inject
     protected abstract FlowScope getFlowScope();
 
@@ -61,7 +66,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ? System.getenv("BUILD_NUMBER")
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
-        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
+        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false && OS.current() != OS.WINDOWS) {
             File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
@@ -146,12 +151,17 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         @SuppressWarnings("checkstyle:DescendantToken")
         @Override
         public void execute(BuildFinishedFlowAction.Parameters parameters) throws FileNotFoundException {
+            List<File> filesToArchive = parameters.getFilteredFiles().get();
+            if (filesToArchive.isEmpty()) {
+                return;
+            }
             File uploadFile = parameters.getUploadFile().get();
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
             uploadFile.getParentFile().mkdirs();
-            createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
+
+            createBuildArchiveTar(filesToArchive, parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = uploadFile.getName();
                 File uploadFileDir = uploadFile.getParentFile();
@@ -163,7 +173,13 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
                     // below as well
                     pb.directory(uploadFileDir);
-                    pb.start().waitFor();
+                    try {
+                        // we are very generious here, as the upload can take
+                        // a long time depending on its size
+                        pb.start().waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+                    } catch (InterruptedException e) {
+                        System.out.println("Failed to upload buildkite artifact " + e.getMessage());
+                    }
 
                     System.out.println("Generating buildscan link for artifact...");
 
@@ -229,8 +245,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
                 tOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
                 for (Path path : files.stream().map(File::toPath).toList()) {
-                    if (!Files.isRegularFile(path)) {
-                        throw new IOException("Support only file!");
+                    if (Files.exists(path) == false) {
+                        log.warn("File disappeared before it could be added to CI archive: " + path);
+                        continue;
+                    } else if (!Files.isRegularFile(path)) {
+                        throw new IOException("Support only file!: " + path);
                     }
 
                     long entrySize = Files.size(path);

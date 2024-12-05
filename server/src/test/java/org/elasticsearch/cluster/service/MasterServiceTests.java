@@ -69,6 +69,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -263,7 +264,15 @@ public class MasterServiceTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
 
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
-                final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+
+                final var expectedHeaders = new HashMap<String, String>();
+                expectedHeaders.put(randomIdentifier(), randomIdentifier());
+                for (final var copiedHeader : Task.HEADERS_TO_COPY) {
+                    if (randomBoolean()) {
+                        expectedHeaders.put(copiedHeader, randomIdentifier());
+                    }
+                }
+
                 final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
                     "testResponse",
                     Collections.singletonList("testResponse")
@@ -526,7 +535,7 @@ public class MasterServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -1343,7 +1352,6 @@ public class MasterServiceTests extends ESTestCase {
             .build();
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        threadPool.getThreadContext().markAsSystemContext();
         try (
             var masterService = createMasterService(
                 true,
@@ -1352,6 +1360,7 @@ public class MasterServiceTests extends ESTestCase {
                 new StoppableExecutorServiceWrapper(threadPool.generic())
             )
         ) {
+            threadPool.getThreadContext().markAsSystemContext();
 
             final var responseHeaderName = "test-response-header";
 

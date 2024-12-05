@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.NAME;
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.TOTAL_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -97,6 +98,16 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         );
     }
 
+    public void testCreateWithInvalidTotalShardsPerNode() {
+        int invalidTotalShardsPerNode = randomIntBetween(-100, 0);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode)
+        );
+        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1", exception.getMessage());
+    }
+
     private List<StepKey> expectedStepKeysWithForceMerge(String phase) {
         return List.of(
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
@@ -160,14 +171,23 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
     @Override
     protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) {
-        return switch (randomIntBetween(0, 1)) {
+        return switch (randomIntBetween(0, 2)) {
             case 0 -> new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), instance.isForceMergeIndex());
             case 1 -> new SearchableSnapshotAction(instance.getSnapshotRepository(), instance.isForceMergeIndex() == false);
+            case 2 -> new SearchableSnapshotAction(
+                instance.getSnapshotRepository(),
+                instance.isForceMergeIndex(),
+                instance.getTotalShardsPerNode() == null ? 1 : instance.getTotalShardsPerNode() + randomIntBetween(1, 100)
+            );
             default -> throw new IllegalArgumentException("Invalid mutation branch");
         };
     }
 
     static SearchableSnapshotAction randomInstance() {
-        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomBoolean());
+        return new SearchableSnapshotAction(
+            randomAlphaOfLengthBetween(5, 10),
+            randomBoolean(),
+            (randomBoolean() ? null : randomIntBetween(1, 100))
+        );
     }
 }

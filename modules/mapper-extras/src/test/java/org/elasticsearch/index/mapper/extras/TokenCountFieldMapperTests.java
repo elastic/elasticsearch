@@ -220,7 +220,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
                 var textArray = values.stream().map(Value::text).toList();
 
-                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).toList();
+                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).sorted().toList();
                 var blockExpected = blockExpectedList.size() == 1 ? blockExpectedList.get(0) : blockExpectedList;
 
                 return new SyntheticSourceExample(textArray, textArray, blockExpected, this::mapping);
@@ -230,7 +230,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
             private Value generateValue() {
                 if (rarely()) {
-                    return new Value(null, null);
+                    return new Value(null, nullValue);
                 }
 
                 var text = randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));

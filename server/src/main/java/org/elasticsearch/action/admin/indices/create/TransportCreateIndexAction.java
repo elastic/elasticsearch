@@ -135,11 +135,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
-            );
+            final var requiredMinimumMappingVersion = state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex());
+            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(requiredMinimumMappingVersion);
             if (descriptor == null) {
-                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index");
+                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index", requiredMinimumMappingVersion);
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;
@@ -150,6 +149,9 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         createIndexService.createIndex(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            request.ackTimeout(),
             updateRequest,
             listener.map(response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName))
         );
@@ -166,9 +168,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .settings(request.settings())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).settings(request.settings())
             .mappings(request.mappings())
             .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
@@ -196,15 +196,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             );
         }
 
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-            cause,
-            descriptor.getPrimaryIndex(),
-            request.index()
-        );
-
-        return updateRequest.ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .aliases(aliases)
+        return new CreateIndexClusterStateUpdateRequest(cause, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mappings(descriptor.getMappings())
             .settings(settings);

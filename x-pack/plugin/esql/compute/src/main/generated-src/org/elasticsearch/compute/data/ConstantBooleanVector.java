@@ -89,6 +89,22 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
         return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        return value;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        return value == false;
+    }
+
     @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;

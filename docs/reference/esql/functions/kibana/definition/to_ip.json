@@ -44,5 +44,6 @@
   "examples" : [
     "ROW str1 = \"1.1.1.1\", str2 = \"foo\"\n| EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)\n| WHERE CIDR_MATCH(ip1, \"1.0.0.0/8\")"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -122,7 +122,7 @@ preview:[]
 
     The number of shards a custom <<mapping-routing-field,routing>> value can go to.
     Defaults to 1 and can only be set at index creation time. This value must be less
-    than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
+    than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1.
     See <<routing-index-partition>> for more details about how this setting is used.
 
 [[ccr-index-soft-deletes]]

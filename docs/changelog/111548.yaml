@@ -1,6 +1,0 @@
-pr: 111548
-summary: Json parsing exceptions should not cause 500 errors
-area: Infra/Core
-type: bug
-issues:
- - 111542

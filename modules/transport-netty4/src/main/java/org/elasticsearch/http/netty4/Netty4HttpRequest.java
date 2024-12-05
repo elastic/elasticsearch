@@ -9,7 +9,6 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
@@ -17,6 +16,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
@@ -48,6 +48,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final Exception inboundException;
     private final boolean pooled;
     private final int sequence;
+    private final QueryStringDecoder queryStringDecoder;
 
     Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
         this(
@@ -94,6 +95,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this.pooled = pooled;
         this.released = released;
         this.inboundException = inboundException;
+        this.queryStringDecoder = new QueryStringDecoder(request.uri());
     }
 
     @Override
@@ -107,6 +109,11 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
+    public String rawPath() {
+        return queryStringDecoder.rawPath();
+    }
+
+    @Override
     public HttpBody body() {
         assert released.get() == false;
         return content;
@@ -117,39 +124,6 @@ public class Netty4HttpRequest implements HttpRequest {
         if (pooled && released.compareAndSet(false, true)) {
             request.release();
             content.close();
-        }
-    }
-
-    @Override
-    public HttpRequest releaseAndCopy() {
-        assert released.get() == false;
-        if (pooled == false) {
-            return this;
-        }
-        try {
-            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
-            HttpBody newContent;
-            if (content.isStream()) {
-                newContent = content;
-            } else {
-                newContent = Netty4Utils.fullHttpBodyFrom(copiedContent);
-            }
-            return new Netty4HttpRequest(
-                sequence,
-                new DefaultFullHttpRequest(
-                    request.protocolVersion(),
-                    request.method(),
-                    request.uri(),
-                    copiedContent,
-                    request.headers(),
-                    request.trailingHeaders()
-                ),
-                new AtomicBoolean(false),
-                false,
-                newContent
-            );
-        } finally {
-            release();
         }
     }
 

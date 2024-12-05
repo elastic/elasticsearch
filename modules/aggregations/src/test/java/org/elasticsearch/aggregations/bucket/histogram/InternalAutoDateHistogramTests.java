@@ -9,7 +9,6 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -457,33 +455,6 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
         assertThat(copy.getBucketInfo(), equalTo(orig.getBucketInfo()));
         assertThat(copy.getFormatter(), equalTo(orig.getFormatter()));
         assertThat(copy.getInterval(), equalTo(orig.getInterval()));
-    }
-
-    public void testSerializationPre830() throws IOException {
-        // we need to test without sub-aggregations, otherwise we need to also update the interval within the inner aggs
-        InternalAutoDateHistogram instance = createTestInstance(
-            randomAlphaOfLengthBetween(3, 7),
-            createTestMetadata(),
-            InternalAggregations.EMPTY
-        );
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_3_0)
-        );
-        InternalAutoDateHistogram deserialized = copyInstance(instance, version);
-        assertEquals(1, deserialized.getBucketInnerInterval());
-
-        InternalAutoDateHistogram modified = new InternalAutoDateHistogram(
-            deserialized.getName(),
-            deserialized.getBuckets(),
-            deserialized.getTargetBuckets(),
-            deserialized.getBucketInfo(),
-            deserialized.getFormatter(),
-            deserialized.getMetadata(),
-            instance.getBucketInnerInterval()
-        );
-        assertEqualInstances(instance, modified);
     }
 
     public void testReadFromPre830() throws IOException {

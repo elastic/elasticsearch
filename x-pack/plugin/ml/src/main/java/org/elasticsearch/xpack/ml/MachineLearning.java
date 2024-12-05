@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -49,7 +48,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -69,7 +67,6 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
-import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
@@ -327,6 +324,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationP
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
@@ -377,8 +375,6 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
-import org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder;
-import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -497,6 +493,14 @@ public class MachineLearning extends Plugin
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
+
+    /**
+     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
+     * the master node from ML code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     */
+    public static final TimeValue HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
@@ -636,14 +640,6 @@ public class MachineLearning extends Plugin
         30,
         5,
         200,
-        Property.OperatorDynamic,
-        Property.NodeScope
-    );
-
-    public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
-        "xpack.ml.max_lazy_ml_nodes",
-        0,
-        0,
         Property.OperatorDynamic,
         Property.NodeScope
     );
@@ -801,7 +797,7 @@ public class MachineLearning extends Plugin
             PROCESS_CONNECT_TIMEOUT,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
-            MAX_LAZY_ML_NODES,
+            MachineLearningField.MAX_LAZY_ML_NODES,
             MAX_MACHINE_MEMORY_PERCENT,
             AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
             MAX_OPEN_JOBS_PER_NODE,
@@ -928,15 +924,6 @@ public class MachineLearning extends Plugin
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
             return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder());
-        }
-
-        if ("darwin-x86_64".equals(Platforms.PLATFORM_NAME)) {
-            String msg = "The machine learning plugin will be permanently disabled on macOS x86_64 in new minor versions released "
-                + "from December 2024 onwards. To continue to use machine learning functionality on macOS please switch to an arm64 "
-                + "machine (Apple silicon). Alternatively, it will still be possible to run Elasticsearch with machine learning "
-                + "enabled in a Docker container on macOS x86_64.";
-            logger.warn(msg);
-            deprecationLogger.warn(DeprecationCategory.PLUGINS, "ml-darwin-x86_64", msg);
         }
 
         machineLearningExtension.get().configure(environment.settings());
@@ -1277,13 +1264,21 @@ public class MachineLearning extends Plugin
             new MlAutoscalingDeciderService(memoryTracker, settings, nodeAvailabilityZoneMapper, clusterService)
         );
 
-        MlInitializationService mlInitializationService = new MlInitializationService(
-            settings,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = new AdaptiveAllocationsScalerService(
             threadPool,
             clusterService,
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
+            machineLearningExtension.get().isNlpEnabled()
+        );
+
+        MlInitializationService mlInitializationService = new MlInitializationService(
+            settings,
+            threadPool,
+            clusterService,
+            client,
+            adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
@@ -1309,6 +1304,7 @@ public class MachineLearning extends Plugin
             jobManagerHolder,
             autodetectProcessManager,
             mlInitializationService,
+            adaptiveAllocationsScalerService,
             jobDataCountsPersister,
             datafeedRunner,
             datafeedManager,
@@ -1765,22 +1761,6 @@ public class MachineLearning extends Plugin
         );
     }
 
-    @Override
-    public List<QuerySpec<?>> getQueries() {
-        return List.of(
-            new QuerySpec<QueryBuilder>(
-                TextExpansionQueryBuilder.NAME,
-                TextExpansionQueryBuilder::new,
-                TextExpansionQueryBuilder::fromXContent
-            ),
-            new QuerySpec<QueryBuilder>(
-                SparseVectorQueryBuilder.NAME,
-                SparseVectorQueryBuilder::new,
-                SparseVectorQueryBuilder::fromXContent
-            )
-        );
-    }
-
     private <T> ContextParser<String, T> checkAggLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {
         return (parser, name) -> {
             if (feature.check(getLicenseState()) == false) {
@@ -1970,7 +1950,6 @@ public class MachineLearning extends Plugin
                 .setDescription("Contains scheduling and anomaly tracking metadata")
                 .setMappings(MlMetaIndex.mapping())
                 .setSettings(MlMetaIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
             SystemIndexDescriptor.builder()
@@ -1979,7 +1958,6 @@ public class MachineLearning extends Plugin
                 .setDescription("Contains ML configuration data")
                 .setMappings(MlConfigIndex.mapping())
                 .setSettings(MlConfigIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
             getInferenceIndexSystemIndexDescriptor()
@@ -1993,7 +1971,6 @@ public class MachineLearning extends Plugin
             .setDescription("Contains ML model configuration and statistics")
             .setMappings(InferenceIndexConstants.mapping())
             .setSettings(InferenceIndexConstants.settings())
-            .setVersionMetaKey("version")
             .setOrigin(ML_ORIGIN)
             .build();
     }

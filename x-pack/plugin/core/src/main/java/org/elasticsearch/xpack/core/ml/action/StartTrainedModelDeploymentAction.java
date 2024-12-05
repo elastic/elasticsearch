@@ -71,7 +71,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final AllocationStatus.State DEFAULT_WAITFOR_STATE = AllocationStatus.State.STARTED;
     public static final int DEFAULT_NUM_ALLOCATIONS = 1;
     public static final int DEFAULT_NUM_THREADS = 1;
-    public static final int DEFAULT_QUEUE_CAPACITY = 1024;
+    public static final int DEFAULT_QUEUE_CAPACITY = 10_000;
     public static final Priority DEFAULT_PRIORITY = Priority.NORMAL;
 
     public StartTrainedModelDeploymentAction() {
@@ -89,7 +89,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         /**
          * If the queue is created then we can OOM when we create the queue.
          */
-        private static final int MAX_QUEUE_CAPACITY = 1_000_000;
+        private static final int MAX_QUEUE_CAPACITY = 100_000;
 
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
@@ -169,7 +169,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 numberOfAllocations = in.readOptionalVInt();
             } else {
                 numberOfAllocations = in.readVInt();
@@ -189,7 +189,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.deploymentId = modelId;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             } else {
                 this.adaptiveAllocationsSettings = null;
@@ -237,7 +237,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (numberOfAllocations != null) {
                 return numberOfAllocations;
             } else {
-                if (adaptiveAllocationsSettings == null || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null) {
+                if (adaptiveAllocationsSettings == null
+                    || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null
+                    || adaptiveAllocationsSettings.getMinNumberOfAllocations() == 0) {
                     return DEFAULT_NUM_ALLOCATIONS;
                 } else {
                     return adaptiveAllocationsSettings.getMinNumberOfAllocations();
@@ -295,7 +297,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalVInt(numberOfAllocations);
             } else {
                 out.writeVInt(numberOfAllocations);
@@ -311,7 +313,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
         }
@@ -621,6 +623,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
          * @return the estimated memory (in bytes) required for the model deployment to run
          */
         public long estimateMemoryUsageBytes() {
+            if (numberOfAllocations == 0) {
+                return 0;
+            }
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
             if (cacheSize != null && cacheSize.getBytes() > modelBytes) {
@@ -794,6 +799,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         long perAllocationMemoryBytes,
         int numberOfAllocations
     ) {
+        if (numberOfAllocations == 0) {
+            return 0;
+        }
         // While loading the model in the process we need twice the model size.
 
         // 1. If ELSER v1 or v2 then 2004MB

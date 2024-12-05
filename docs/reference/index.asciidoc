@@ -6,39 +6,45 @@ include::links.asciidoc[]
 
 include::landing-page.asciidoc[]
 
-include::intro.asciidoc[]
+// overview / install
 
-include::release-notes/highlights.asciidoc[]
+include::intro.asciidoc[]
 
 include::quickstart/index.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::upgrade.asciidoc[]
-
-include::index-modules.asciidoc[]
-
-include::mapping.asciidoc[]
-
-include::analysis.asciidoc[]
-
-include::indices/index-templates.asciidoc[]
-
-include::data-streams/data-streams.asciidoc[]
-
-include::ingest.asciidoc[]
-
-include::alias.asciidoc[]
+// search solution
 
 include::search/search-your-data/search-your-data.asciidoc[]
 
 include::reranking/index.asciidoc[]
 
+// data management
+
+include::index-modules.asciidoc[]
+
+include::indices/index-templates.asciidoc[]
+
+include::alias.asciidoc[]
+
+include::mapping.asciidoc[]
+
+include::analysis.asciidoc[]
+
+include::ingest.asciidoc[]
+
+include::connector/docs/index.asciidoc[]
+
+include::data-streams/data-streams.asciidoc[]
+
+include::data-management.asciidoc[]
+
+include::data-rollup-transform.asciidoc[]
+
+// analysis tools
+
 include::query-dsl.asciidoc[]
-
-include::aggregations.asciidoc[]
-
-include::geospatial-analysis.asciidoc[]
 
 include::eql/eql.asciidoc[]
 
@@ -48,34 +54,48 @@ include::sql/index.asciidoc[]
 
 include::scripting.asciidoc[]
 
-include::data-management.asciidoc[]
+include::aggregations.asciidoc[]
 
-include::autoscaling/index.asciidoc[]
-
-include::monitoring/index.asciidoc[]
-
-include::data-rollup-transform.asciidoc[]
-
-include::high-availability.asciidoc[]
-
-include::snapshot-restore/index.asciidoc[]
-
-include::security/index.asciidoc[]
+include::geospatial-analysis.asciidoc[]
 
 include::watcher/index.asciidoc[]
 
-include::commands/index.asciidoc[]
+// cluster management
+
+include::monitoring/index.asciidoc[]
+
+include::security/index.asciidoc[]
+
+// production tasks
+
+include::high-availability.asciidoc[]
 
 include::how-to.asciidoc[]
 
-include::troubleshooting.asciidoc[]
+include::autoscaling/index.asciidoc[]
+
+include::snapshot-restore/index.asciidoc[]
+
+// reference
 
 include::rest-api/index.asciidoc[]
 
+include::commands/index.asciidoc[]
+
+include::troubleshooting.asciidoc[]
+
+// upgrades
+
+include::upgrade.asciidoc[]
+
 include::migration/index.asciidoc[]
+
+include::release-notes/highlights.asciidoc[]
 
 include::release-notes.asciidoc[]
 
 include::dependencies-versions.asciidoc[]
+
+// etc
 
 include::redirects.asciidoc[]

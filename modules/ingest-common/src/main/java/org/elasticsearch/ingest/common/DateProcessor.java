@@ -98,7 +98,7 @@ public final class DateProcessor extends AbstractProcessor {
     }
 
     private static Locale newLocale(String locale) {
-        return locale == null ? Locale.ROOT : LocaleUtils.parse(locale);
+        return locale == null ? Locale.ENGLISH : LocaleUtils.parse(locale);
     }
 
     @Override

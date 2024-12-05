@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
+    exclude group: 'org.elasticsearch', module: 'geo'
   }
 }
 

@@ -344,10 +344,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         assertEquals(
             "blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
-            asInstanceOf(
-                ClusterBlockException.class,
-                safeAwaitFailure(Response.class, listener -> action.doExecute(null, request, listener))
-            ).getMessage()
+            safeAwaitFailure(ClusterBlockException.class, Response.class, listener -> action.doExecute(null, request, listener))
+                .getMessage()
         );
     }
 
@@ -362,10 +360,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         assertEquals(
             "index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
-            asInstanceOf(
-                ClusterBlockException.class,
-                safeAwaitFailure(Response.class, listener -> action.doExecute(null, request, listener))
-            ).getMessage()
+            safeAwaitFailure(ClusterBlockException.class, Response.class, listener -> action.doExecute(null, request, listener))
+                .getMessage()
         );
     }
 

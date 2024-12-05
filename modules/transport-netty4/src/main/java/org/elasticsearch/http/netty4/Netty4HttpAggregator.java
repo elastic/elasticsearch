@@ -46,7 +46,7 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
         assert msg instanceof HttpObject;
         if (msg instanceof HttpRequest request) {
             var preReq = HttpHeadersAuthenticatorUtils.asHttpPreRequest(request);
-            aggregating = decider.test(preReq) && IGNORE_TEST.test(preReq);
+            aggregating = (decider.test(preReq) && IGNORE_TEST.test(preReq)) || request.decoderResult().isFailure();
         }
         if (aggregating || msg instanceof FullHttpRequest) {
             super.channelRead(ctx, msg);

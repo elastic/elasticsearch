@@ -65,7 +65,7 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
     }
 
     @Override
-    public BinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

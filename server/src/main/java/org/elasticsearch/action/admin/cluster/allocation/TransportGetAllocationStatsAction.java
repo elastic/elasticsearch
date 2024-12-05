@@ -118,7 +118,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)
+            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readEnumSet(Metric.class)
                 : EnumSet.of(Metric.ALLOCATIONS, Metric.FS);
         }
@@ -127,7 +127,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0);
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeEnumSet(metrics);
             }
         }
@@ -156,7 +156,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         public Response(StreamInput in) throws IOException {
             super(in);
             this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 this.diskThresholdSettings = in.readOptionalWriteable(DiskThresholdSettings::readFrom);
             } else {
                 this.diskThresholdSettings = null;
@@ -166,7 +166,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(nodeAllocationStats, StreamOutput::writeString, StreamOutput::writeWriteable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeOptionalWriteable(diskThresholdSettings);
             } else {
                 assert diskThresholdSettings == null;

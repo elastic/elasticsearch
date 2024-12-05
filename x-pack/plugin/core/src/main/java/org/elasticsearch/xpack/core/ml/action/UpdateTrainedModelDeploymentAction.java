@@ -87,7 +87,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                 numberOfAllocations = in.readVInt();
                 adaptiveAllocationsSettings = null;
                 isInternal = false;
@@ -134,7 +134,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            if (out.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                 out.writeVInt(numberOfAllocations);
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
@@ -161,7 +161,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (numberOfAllocations != null) {
-                if (numberOfAllocations < 1) {
+                if (numberOfAllocations < 0 || (isInternal == false && numberOfAllocations == 0)) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
                 if (isInternal == false

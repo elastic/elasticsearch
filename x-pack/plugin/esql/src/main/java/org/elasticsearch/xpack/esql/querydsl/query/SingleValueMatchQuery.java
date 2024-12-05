@@ -25,13 +25,13 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -69,14 +69,6 @@ final class SingleValueMatchQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
         return new ConstantScoreWeight(this, boost) {
-            @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                final ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
-            }
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
@@ -96,12 +88,12 @@ final class SingleValueMatchQuery extends Query {
                  * can't do that because we need the check the number of fields.
                  */
                 if (lfd instanceof LeafNumericFieldData n) {
-                    return scorerSupplier(context, n.getLongValues(), this, boost, scoreMode);
+                    return scorerSupplier(context, n.getLongValues(), boost, scoreMode);
                 }
                 if (lfd instanceof LeafOrdinalsFieldData o) {
-                    return scorerSupplier(context, o.getOrdinalsValues(), this, boost, scoreMode);
+                    return scorerSupplier(context, o.getOrdinalsValues(), boost, scoreMode);
                 }
-                return scorerSupplier(context, lfd.getBytesValues(), this, boost, scoreMode);
+                return scorerSupplier(context, lfd.getBytesValues(), boost, scoreMode);
             }
 
             @Override
@@ -113,7 +105,6 @@ final class SingleValueMatchQuery extends Query {
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
                 SortedNumericDocValues sortedNumerics,
-                Weight weight,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
@@ -122,16 +113,9 @@ final class SingleValueMatchQuery extends Query {
                     // check for dense field
                     final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
                     if (points != null && points.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(weight, boost, scoreMode, DocIdSetIterator.all(maxDoc));
+                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
                     } else {
-                        return new PredicateScorerSupplier(
-                            weight,
-                            boost,
-                            scoreMode,
-                            maxDoc,
-                            MULTI_VALUE_MATCH_COST,
-                            sortedNumerics::advanceExact
-                        );
+                        return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, sortedNumerics::advanceExact);
                     }
                 }
                 final CheckedIntPredicate predicate = doc -> {
@@ -144,13 +128,12 @@ final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(weight, boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
                 SortedSetDocValues sortedSetDocValues,
-                Weight weight,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
@@ -159,10 +142,9 @@ final class SingleValueMatchQuery extends Query {
                     // check for dense field
                     final Terms terms = context.reader().terms(fieldData.getFieldName());
                     if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(weight, boost, scoreMode, DocIdSetIterator.all(maxDoc));
+                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
                     } else {
                         return new PredicateScorerSupplier(
-                            weight,
                             boost,
                             scoreMode,
                             maxDoc,
@@ -181,20 +163,18 @@ final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(weight, boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
                 SortedBinaryDocValues sortedBinaryDocValues,
-                Weight weight,
                 float boost,
                 ScoreMode scoreMode
             ) {
                 final int maxDoc = context.reader().maxDoc();
                 if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null) {
                     return new PredicateScorerSupplier(
-                        weight,
                         boost,
                         scoreMode,
                         maxDoc,
@@ -212,7 +192,7 @@ final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(weight, boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
             }
         };
     }
@@ -266,13 +246,11 @@ final class SingleValueMatchQuery extends Query {
 
     private static class DocIdSetIteratorScorerSupplier extends ScorerSupplier {
 
-        private final Weight weight;
         private final float score;
         private final ScoreMode scoreMode;
         private final DocIdSetIterator docIdSetIterator;
 
-        private DocIdSetIteratorScorerSupplier(Weight weight, float score, ScoreMode scoreMode, DocIdSetIterator docIdSetIterator) {
-            this.weight = weight;
+        private DocIdSetIteratorScorerSupplier(float score, ScoreMode scoreMode, DocIdSetIterator docIdSetIterator) {
             this.score = score;
             this.scoreMode = scoreMode;
             this.docIdSetIterator = docIdSetIterator;
@@ -280,7 +258,7 @@ final class SingleValueMatchQuery extends Query {
 
         @Override
         public Scorer get(long leadCost) {
-            return new ConstantScoreScorer(weight, score, scoreMode, docIdSetIterator);
+            return new ConstantScoreScorer(score, scoreMode, docIdSetIterator);
         }
 
         @Override
@@ -290,23 +268,13 @@ final class SingleValueMatchQuery extends Query {
     }
 
     private static class PredicateScorerSupplier extends ScorerSupplier {
-
-        private final Weight weight;
         private final float score;
         private final ScoreMode scoreMode;
         private final int maxDoc;
         private final int matchCost;
         private final CheckedIntPredicate predicate;
 
-        private PredicateScorerSupplier(
-            Weight weight,
-            float score,
-            ScoreMode scoreMode,
-            int maxDoc,
-            int matchCost,
-            CheckedIntPredicate predicate
-        ) {
-            this.weight = weight;
+        private PredicateScorerSupplier(float score, ScoreMode scoreMode, int maxDoc, int matchCost, CheckedIntPredicate predicate) {
             this.score = score;
             this.scoreMode = scoreMode;
             this.maxDoc = maxDoc;
@@ -327,7 +295,7 @@ final class SingleValueMatchQuery extends Query {
                     return matchCost;
                 }
             };
-            return new ConstantScoreScorer(weight, score, scoreMode, iterator);
+            return new ConstantScoreScorer(score, scoreMode, iterator);
         }
 
         @Override

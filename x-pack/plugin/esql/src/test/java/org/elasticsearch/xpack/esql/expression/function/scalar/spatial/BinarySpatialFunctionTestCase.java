@@ -267,17 +267,8 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
 
     private static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
-        String paramSuffix = paramSuffix();
-        String channels = channelsText("left" + paramSuffix, "right" + paramSuffix);
+        String channels = channelsText("left", "right");
         return equalTo(getFunctionClassName() + crsType + "SourceAndSourceEvaluator[" + channels + "]");
-    }
-
-    private static String paramSuffix() {
-        try {
-            return getSpatialRelatesFunctionClass().getSimpleName().contains("Distance") ? "Value" : "";
-        } catch (ClassNotFoundException e) {
-            return "";
-        }
     }
 
     private static String channelsText(String... args) {

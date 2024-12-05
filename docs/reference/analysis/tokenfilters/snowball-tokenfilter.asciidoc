@@ -11,6 +11,8 @@ values: `Arabic`, `Armenian`, `Basque`, `Catalan`, `Danish`, `Dutch`, `English`,
 `Lithuanian`, `Lovins`, `Norwegian`, `Porter`, `Portuguese`, `Romanian`,
 `Russian`, `Serbian`, `Spanish`, `Swedish`, `Turkish`.
 
+deprecated:[8.16.0, `Kp` and `Lovins` support will be removed in a future version]
+
 For example:
 
 [source,console]
@@ -28,7 +30,7 @@ PUT /my-index-000001
       "filter": {
         "my_snow": {
           "type": "snowball",
-          "language": "Lovins"
+          "language": "English"
         }
       }
     }

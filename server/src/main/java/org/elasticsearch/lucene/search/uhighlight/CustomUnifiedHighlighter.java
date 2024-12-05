@@ -260,7 +260,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                  * KnnScoreDocQuery and RankDocsQuery requires the same reader that built the docs
                  * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
                  */
-                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery) {
+                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery.TopQuery) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

@@ -83,13 +83,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(context, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -131,13 +125,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(indexReader, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -155,6 +143,16 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;
+    }
+
+    private static ElasticsearchException handleCacheLoadException(Exception e) {
+        if (e instanceof ElasticsearchException ese) {
+            return ese;
+        }
+        if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException ese) {
+            throw ese;
+        }
+        throw new ElasticsearchException(e);
     }
 
     /**

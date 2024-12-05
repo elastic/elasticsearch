@@ -30,12 +30,8 @@ public abstract class CollectionUtils {
         }
 
         List<T> list = new ArrayList<>(left.size() + right.size());
-        if (left.isEmpty() == false) {
-            list.addAll(left);
-        }
-        if (right.isEmpty() == false) {
-            list.addAll(right);
-        }
+        list.addAll(left);
+        list.addAll(right);
         return list;
     }
 
@@ -71,13 +67,6 @@ public abstract class CollectionUtils {
             Collections.addAll(list, entries);
         }
         return list;
-    }
-
-    public static int mapSize(int size) {
-        if (size < 2) {
-            return size + 1;
-        }
-        return (int) (size / 0.75f + 1f);
     }
 
     @SafeVarargs

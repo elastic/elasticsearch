@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-public enum FlagEntitlementType {
-    SYSTEM_EXIT,
-    CREATE_CLASSLOADER;
-}
+/**
+ * Internal policy type (not-parseable -- not available to plugins).
+ */
+public class ExitVMEntitlement implements Entitlement {}

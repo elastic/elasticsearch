@@ -23,14 +23,12 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
 /**
- *
  * Materialize the concrete fields that need to be extracted from the storage until the last possible moment.
  * Expects the local plan to already have a projection containing the fields needed upstream.
  * <p>
@@ -102,15 +100,18 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
     private static Set<Attribute> missingAttributes(PhysicalPlan p) {
         var missing = new LinkedHashSet<Attribute>();
-        var inputSet = p.inputSet();
+        var input = p.inputSet();
 
-        // TODO: We need to extract whatever fields are missing from the left hand side.
-        // skip the lookup join since the right side is always materialized and a projection
+        // For LOOKUP JOIN we only need field-extraction on left fields used to match, since the right side is always materialized
         if (p instanceof LookupJoinExec join) {
-            return Collections.emptySet();
+            join.leftFields().forEach(f -> {
+                if (input.contains(f) == false) {
+                    missing.add(f);
+                }
+            });
+            return missing;
         }
 
-        var input = inputSet;
         // collect field attributes used inside expressions
         // TODO: Rather than going over all expressions manually, this should just call .references()
         p.forEachExpression(TypedAttribute.class, f -> {

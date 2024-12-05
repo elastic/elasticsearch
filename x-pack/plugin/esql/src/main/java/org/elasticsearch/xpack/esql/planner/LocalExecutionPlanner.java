@@ -565,6 +565,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(join.left(), context);
+        // TODO: The source builder includes incoming fields including the ones we're going to drop
         Layout.Builder layoutBuilder = source.layout.builder();
         for (Attribute f : join.addedFields()) {
             layoutBuilder.append(f);

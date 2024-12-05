@@ -432,7 +432,8 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] }
+                        "index-graveyard": { "tombstones": [] },
+                        "reserved_state": {}
                       },
                       {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
@@ -489,13 +490,15 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] }
+                        "index-graveyard": { "tombstones": [] },
+                        "reserved_state": {}
                       },
                       {
                         "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
                         "templates": {},
                         "indices": {},
-                        "index-graveyard": { "tombstones": [] }
+                        "index-graveyard": { "tombstones": [] },
+                        "reserved_state": {}
                       }
                     ],
                     "reserved_state": {}

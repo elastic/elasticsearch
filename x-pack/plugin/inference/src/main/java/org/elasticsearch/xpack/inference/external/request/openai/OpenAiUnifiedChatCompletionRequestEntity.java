@@ -69,12 +69,14 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                     switch (message.content()) {
                         case UnifiedCompletionRequest.ContentString contentString -> builder.field(CONTENT_FIELD, contentString.content());
                         case UnifiedCompletionRequest.ContentObjects contentObjects -> {
+                            builder.startArray(CONTENT_FIELD);
                             for (UnifiedCompletionRequest.ContentObject contentObject : contentObjects.contentObjects()) {
-                                builder.startObject(CONTENT_FIELD);
+                                builder.startObject();
                                 builder.field(TEXT_FIELD, contentObject.text());
                                 builder.field(TYPE_FIELD, contentObject.type());
                                 builder.endObject();
                             }
+                            builder.endArray();
                         }
                     }
 
@@ -116,7 +118,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
 
         builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);
 
-        if (unifiedRequest.stop() != null) {
+        if (unifiedRequest.stop() != null && unifiedRequest.stop().isEmpty() == false) {
             builder.field(STOP_FIELD, unifiedRequest.stop());
         }
         if (unifiedRequest.temperature() != null) {
@@ -141,7 +143,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                 builder.endObject();
             }
         }
-        if (unifiedRequest.tools() != null) {
+        if (unifiedRequest.tools() != null && unifiedRequest.tools().isEmpty() == false) {
             builder.startArray(TOOL_FIELD);
             for (UnifiedCompletionRequest.Tool t : unifiedRequest.tools()) {
                 builder.startObject();

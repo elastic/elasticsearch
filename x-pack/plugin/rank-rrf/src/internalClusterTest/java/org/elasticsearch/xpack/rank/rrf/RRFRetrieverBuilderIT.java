@@ -764,6 +764,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
             10,
             10,
+            null,
             null
         );
         source.retriever(

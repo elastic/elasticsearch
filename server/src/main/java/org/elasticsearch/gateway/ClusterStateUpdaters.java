@@ -154,6 +154,9 @@ public class ClusterStateUpdaters {
                 .coordinationMetadata(state.metadata().coordinationMetadata())
                 .build();
 
+            assert state.globalRoutingTable().hasIndices() == false
+                : "routing table is not empty: " + state.globalRoutingTable().routingTables();
+
             // metadata has been rebuilt from scratch, so clear the routing table
             final GlobalRoutingTable.Builder globalRoutingTableBuilder = GlobalRoutingTable.builder();
             metadata.projects().keySet().forEach(projectId -> globalRoutingTableBuilder.put(projectId, RoutingTable.EMPTY_ROUTING_TABLE));

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -72,19 +71,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-
-        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
-        for (ServerSentEvent event : item) {
-            if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                try {
-                    var delta = parse(parserConfig, event);
-                    delta.forEachRemaining(results::offer);
-                } catch (Exception e) {
-                    logger.warn("Failed to parse event from inference provider: {}", event);
-                    throw e;
-                }
-            }
-        }
+        var results = parseEvent(item, OpenAiUnifiedStreamingProcessor::parse, parserConfig, logger);
 
         if (results.isEmpty()) {
             upstream().request(1);
@@ -101,7 +88,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
         }
     }
 
-    private Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+    private static Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
         XContentParserConfiguration parserConfig,
         ServerSentEvent event
     ) throws IOException {

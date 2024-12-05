@@ -1402,6 +1402,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"term":{"last_name":{"query":"Smith"}}}]
      */
     public void testTermFunction() {
+        // Skip test if the term function is not enabled.
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where term(last_name, "Smith")

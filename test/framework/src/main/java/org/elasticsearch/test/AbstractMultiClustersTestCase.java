@@ -71,9 +71,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected Settings nodeSettings() {
-        return Settings.builder().put("xpack.license.self_generated.type", "trial").build();
-        // return Settings.builder().put("xpack.license.self_generated.type", "basic").build();
-        // return Settings.EMPTY;
+        return Settings.EMPTY;
     }
 
     protected final Client client() {

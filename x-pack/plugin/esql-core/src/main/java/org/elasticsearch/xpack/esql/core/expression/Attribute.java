@@ -49,7 +49,7 @@ public abstract class Attribute extends NamedExpression {
         this.nullability = nullability;
     }
 
-    public static String rawTemporaryName(String ...parts) {
+    public static String rawTemporaryName(String... parts) {
         var name = String.join("$", parts);
         return name.isEmpty() || name.startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) ? name : SYNTHETIC_ATTRIBUTE_NAME_PREFIX + name;
     }

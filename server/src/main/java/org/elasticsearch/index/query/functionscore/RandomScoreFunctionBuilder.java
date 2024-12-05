@@ -111,14 +111,6 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return this;
     }
 
-    /**
-     * Get the field to use for random number generation.
-     * @see #setField(String)
-     */
-    public String getField() {
-        return field;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());

@@ -370,7 +370,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
-    // read a list without bounds checks, assuming the the current parser is always on an array start
+    // read a list without bounds checks, assuming the current parser is always on an array start
     private static List<Object> readListUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         assert parser.currentToken() == Token.START_ARRAY;
         ArrayList<Object> list = new ArrayList<>();

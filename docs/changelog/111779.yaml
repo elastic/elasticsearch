@@ -1,7 +1,0 @@
-pr: 111779
-summary: "ESQL: Fix serialization during `can_match`"
-area: ES|QL
-type: bug
-issues:
- - 111701
- - 111726

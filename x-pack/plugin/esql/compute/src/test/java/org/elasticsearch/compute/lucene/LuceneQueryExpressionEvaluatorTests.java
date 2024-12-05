@@ -27,6 +27,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.DenseCollector;
@@ -120,8 +122,9 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     private void assertTermQuery(String term, List<Page> results) {
         int matchCount = 0;
         for (Page page : results) {
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(1).asVector();
-            BooleanVector matches = page.<BooleanBlock>getBlock(2).asVector();
+            int initialBlockIndex = initialBlockIndex(page);
+            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
+            BooleanVector matches = page.<BooleanBlock>getBlock(initialBlockIndex + 1).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
                 assertThat(matches.getBoolean(i), equalTo(termAtPosition.utf8ToString().equals(term)));
@@ -155,8 +158,9 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         List<Page> results = runQuery(values, new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_REWRITE, FIELD, matchingBytes), shuffleDocs);
         int matchCount = 0;
         for (Page page : results) {
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(1).asVector();
-            BooleanVector matches = page.<BooleanBlock>getBlock(2).asVector();
+            int initialBlockIndex = initialBlockIndex(page);
+            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
+            BooleanVector matches = page.<BooleanBlock>getBlock(initialBlockIndex + 1).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
                 assertThat(matches.getBoolean(i), equalTo(matching.contains(termAtPosition.utf8ToString())));
@@ -207,7 +211,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
                 driverContext,
-                luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
+                luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT, scoring).get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
@@ -248,7 +252,21 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }
 
-    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
+    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
+    private final boolean scoring = randomBoolean();
+
+    // Returns the initial block index, ignoring the score block if scoring is enabled
+    private int initialBlockIndex(Page page) {
+        assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+        if (scoring) {
+            assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit, boolean scoring) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
@@ -256,7 +274,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            limit
+            limit,
+            scoring
         );
     }
 }

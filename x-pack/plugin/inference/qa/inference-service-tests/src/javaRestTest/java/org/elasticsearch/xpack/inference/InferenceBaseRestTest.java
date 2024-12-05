@@ -291,26 +291,44 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getModel(String modelId) throws IOException {
         var endpoint = Strings.format("_inference/%s?error_trace", modelId);
-        return ((List<Map<String, Object>>) getInternal(endpoint).get("endpoints")).get(0);
+        return ((List<Map<String, Object>>) getInternalAsMap(endpoint).get("endpoints")).get(0);
     }
 
     @SuppressWarnings("unchecked")
     protected List<Map<String, Object>> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return (List<Map<String, Object>>) getInternal(endpoint).get("endpoints");
+        return (List<Map<String, Object>>) getInternalAsMap(endpoint).get("endpoints");
     }
 
     @SuppressWarnings("unchecked")
     protected List<Map<String, Object>> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
-        return (List<Map<String, Object>>) getInternal("_inference/_all").get("endpoints");
+        return (List<Map<String, Object>>) getInternalAsMap("_inference/_all").get("endpoints");
     }
 
-    private Map<String, Object> getInternal(String endpoint) throws IOException {
+    protected List<Object> getAllServices() throws IOException {
+        var endpoint = Strings.format("_inference/_services");
+        return getInternalAsList(endpoint);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected List<Object> getServices(TaskType taskType) throws IOException {
+        var endpoint = Strings.format("_inference/_services/%s", taskType);
+        return getInternalAsList(endpoint);
+    }
+
+    private Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
+    }
+
+    private List<Object> getInternalAsList(String endpoint) throws IOException {
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsList(response);
     }
 
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
@@ -355,12 +373,17 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferInternal(endpoint, input, queryParameters);
     }
 
-    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
+    protected Request createInferenceRequest(String endpoint, List<String> input, Map<String, String> queryParameters) {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input));
         if (queryParameters.isEmpty() == false) {
             request.addParameters(queryParameters);
         }
+        return request;
+    }
+
+    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
+        var request = createInferenceRequest(endpoint, input, queryParameters);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

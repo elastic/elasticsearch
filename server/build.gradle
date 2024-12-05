@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -39,6 +37,7 @@ dependencies {
   api project(':libs:grok')
   api project(":libs:tdigest")
   implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -132,7 +131,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.failure_store_feature_flag_enabled', 'true'

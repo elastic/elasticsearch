@@ -21,6 +21,11 @@ dependencies {
   }
 }
 
+tasks.named("test").configure {
+  // this is necessary so that VectorSystemPropertyTests can invoke java
+  systemProperty "tests.system_call_filter", "false"
+}
+
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

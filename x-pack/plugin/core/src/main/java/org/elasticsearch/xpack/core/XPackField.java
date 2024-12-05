@@ -90,6 +90,7 @@ public final class XPackField {
     public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise_geoip_downloader";
     /** Name for Universal Profiling. */
     public static final String UNIVERSAL_PROFILING = "universal_profiling";
+    public static final String LOGSDB = "logsdb";
 
     private XPackField() {}
 

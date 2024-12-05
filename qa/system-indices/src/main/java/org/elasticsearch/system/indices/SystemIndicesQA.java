@@ -10,6 +10,7 @@
 
 package org.elasticsearch.system.indices;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -77,7 +78,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
                 .setPrimaryIndex(".net-new-system-index-primary")
                 .build(),
             SystemIndexDescriptor.builder()
@@ -99,7 +99,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
                 .setPrimaryIndex(".internal-managed-index-primary")
                 .setAliasName(".internal-managed-alias")
                 .build()
@@ -179,12 +178,12 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            var content = request.requiredContent();
             IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
-            indexRequest.source(request.requiredContent(), request.getXContentType());
+            indexRequest.source(content, request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));
-
-            return channel -> client.index(indexRequest, new RestToXContentListener<>(channel));
+            return channel -> client.index(indexRequest, ActionListener.withRef(new RestToXContentListener<>(channel), content));
         }
 
         @Override

@@ -106,7 +106,6 @@ public class SynonymsManagementAPIService {
         .setIndexFormat(SYNONYMS_INDEX_FORMAT)
         .setMappings(mappings())
         .setSettings(settings())
-        .setVersionMetaKey("version")
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 

@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -31,6 +32,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.entitlement;
 
     requires hppc;
     requires HdrHistogram;
@@ -145,6 +147,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.master;
     exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
+    exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
     exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
@@ -287,7 +290,8 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.serverless.version,
             org.elasticsearch.serverless.buildinfo,
-            org.elasticsearch.serverless.constants;
+            org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.codec;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -394,6 +398,7 @@ module org.elasticsearch.server {
             org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.codec,
             org.elasticsearch.serverless.apifiltering,
             org.elasticsearch.internal.security;
 
@@ -413,18 +418,18 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses CompletionsPostingsFormatExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
 
     provides org.elasticsearch.features.FeatureSpecification
         with
+            org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures,
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.health.HealthFeatures,
-            org.elasticsearch.cluster.service.TransportFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
@@ -433,7 +438,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures;
+            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -452,8 +458,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with
@@ -469,5 +475,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
+    exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.monitor.metrics;
 
 }

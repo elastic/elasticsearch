@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
@@ -19,7 +23,11 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
 import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.USER;
 
 public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
 
@@ -120,4 +128,29 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         return new String[] { AzureOpenAiUtils.CHAT_PATH, AzureOpenAiUtils.COMPLETIONS_PATH };
     }
 
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    USER,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("User")
+                        .setOrder(1)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Specifies the user issuing the request.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setValue("")
+                        .build()
+                );
+
+                return Collections.unmodifiableMap(configurationMap);
+            });
+    }
 }

@@ -19,7 +19,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -170,7 +169,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createDocumentMapper(String mappings) throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
+        var mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService.documentMapper();
     }
@@ -283,13 +282,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
             ).getMapperRegistry();
 
-            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {}
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {}
-            });
+            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
 
             var mapperService = new MapperService(
                 () -> TransportVersion.current(),
@@ -762,17 +755,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        }),
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
@@ -890,24 +877,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
             new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
         );
-    }
-
-    protected static XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
-        return topMapping(b -> {
-            b.startObject("_source").field("mode", "synthetic").endObject();
-            b.startObject("properties");
-            buildFields.accept(b);
-            b.endObject();
-        });
-    }
-
-    protected static XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
-        throws IOException {
-        return syntheticSourceMapping(b -> {
-            b.startObject("field");
-            buildField.accept(b);
-            b.endObject();
-        });
     }
 
     protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {

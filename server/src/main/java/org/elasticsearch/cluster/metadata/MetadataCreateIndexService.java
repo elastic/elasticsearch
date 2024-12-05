@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -62,11 +63,13 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndexCreationException;
@@ -125,6 +128,16 @@ public class MetadataCreateIndexService {
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
+    /**
+     * Name of the setting used to allow blocking refreshes on newly created indices.
+     */
+    public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
+
+    @FunctionalInterface
+    interface ClusterBlocksTransformer {
+        void apply(ClusterBlocks.Builder clusterBlocks, IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion);
+    }
+
     private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -137,6 +150,7 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
+    private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -164,6 +178,7 @@ public class MetadataCreateIndexService {
         this.shardLimitValidator = shardLimitValidator;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.threadPool = threadPool;
+        this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
     }
 
     /**
@@ -538,8 +553,10 @@ public class MetadataCreateIndexService {
                 currentState,
                 indexMetadata,
                 metadataTransformer,
+                blocksTransformerUponIndexCreation,
                 allocationService.getShardRoutingRoleStrategy()
             );
+            assert assertHasRefreshBlock(indexMetadata, updated, updated.getMinTransportVersion());
             if (request.performReroute()) {
                 updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
             }
@@ -1292,6 +1309,7 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         IndexMetadata indexMetadata,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        ClusterBlocksTransformer blocksTransformer,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         final Metadata newMetadata;
@@ -1305,6 +1323,9 @@ public class MetadataCreateIndexService {
 
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
         blocksBuilder.updateBlocks(indexMetadata);
+        if (blocksTransformer != null) {
+            blocksTransformer.apply(blocksBuilder, indexMetadata, currentState.getMinTransportVersion());
+        }
 
         var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable())
             .addAsNew(newMetadata.index(indexMetadata.getIndex().getName()));
@@ -1567,6 +1588,15 @@ public class MetadataCreateIndexService {
         IndexMetadata.selectCloneShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
+    private static final Set<String> UNMODIFIABLE_SETTINGS_DURING_RESIZE = Set.of(
+        IndexSettings.MODE.getKey(),
+        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey()
+    );
+
     static IndexMetadata validateResize(
         Metadata metadata,
         ClusterBlocks clusterBlocks,
@@ -1604,13 +1634,9 @@ public class MetadataCreateIndexService {
             // of if the source shards are divisible by the number of target shards
             IndexMetadata.getRoutingFactor(sourceMetadata.getNumberOfShards(), INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
-        if (targetIndexSettings.hasValue(IndexSettings.MODE.getKey())) {
-            IndexMode oldMode = Objects.requireNonNullElse(sourceMetadata.getIndexMode(), IndexMode.STANDARD);
-            IndexMode newMode = IndexSettings.MODE.get(targetIndexSettings);
-            if (newMode != oldMode) {
-                throw new IllegalArgumentException(
-                    "can't change index.mode of index [" + sourceIndex + "] from [" + oldMode + "] to [" + newMode + "]"
-                );
+        for (String setting : UNMODIFIABLE_SETTINGS_DURING_RESIZE) {
+            if (targetIndexSettings.hasValue(setting)) {
+                throw new IllegalArgumentException("can't change setting [" + setting + "] during resize");
             }
         }
         return sourceMetadata;
@@ -1737,5 +1763,40 @@ public class MetadataCreateIndexService {
                     + "or equivalent performance to [simplefs]."
             );
         }
+    }
+
+    private static boolean useRefreshBlock(Settings settings) {
+        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, false);
+    }
+
+    static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
+        if (useRefreshBlock(settings) == false) {
+            return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {};
+        }
+        logger.debug("applying refresh block on index creation");
+        return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {
+            if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
+                // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
+                // started or a configurable delay is elapsed.
+                clusterBlocks.addIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+            }
+        };
+    }
+
+    private static boolean applyRefreshBlock(IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion) {
+        return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
+            && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
+            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty) // index is a new index
+            && minClusterTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+    }
+
+    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ClusterState clusterState, TransportVersion minTransportVersion) {
+        var hasRefreshBlock = clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata, minTransportVersion) == false) {
+            assert hasRefreshBlock == false : indexMetadata.getIndex();
+        } else {
+            assert hasRefreshBlock : indexMetadata.getIndex();
+        }
+        return true;
     }
 }

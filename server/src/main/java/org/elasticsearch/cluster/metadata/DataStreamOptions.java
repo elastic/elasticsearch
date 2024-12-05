@@ -149,7 +149,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#disableResetValues(Params)}
+         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#hideResetValues(Params)}
          * it may or may not display any explicit nulls when the value is to be reset.
          */
         @Override

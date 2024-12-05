@@ -259,7 +259,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     /**
      * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle. Depending on the
-     * {@param params} set by {@link ResettableValue#disableResetValues(Params)} it may or may not display <code>null</code> when the value
+     * {@param params} set by {@link ResettableValue#hideResetValues(Params)} it may or may not display <code>null</code> when the value
      * is to be reset.
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)

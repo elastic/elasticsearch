@@ -114,7 +114,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            resolvedTemplate.toXContent(builder, ResettableValue.disableResetValues(params), rolloverConfiguration);
+            resolvedTemplate.toXContent(builder, ResettableValue.hideResetValues(params), rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

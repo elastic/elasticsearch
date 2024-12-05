@@ -33,8 +33,8 @@ import java.util.function.Function;
 public class ResettableValue<T> {
     private static final ResettableValue<?> RESET = new ResettableValue<>(true, null);
     private static final ResettableValue<?> UNDEFINED = new ResettableValue<>(false, null);
-    private static final String SKIP_RESET_VALUES = "reset";
-    private static final Map<String, String> SKIP_RESET_VALUES_PARAMS = Map.of(SKIP_RESET_VALUES, "true");
+    private static final String DISPLAY_RESET_VALUES = "display_reset";
+    private static final Map<String, String> HIDE_RESET_VALUES_PARAMS = Map.of(DISPLAY_RESET_VALUES, "false");
 
     private final T value;
     private final boolean isDefined;
@@ -189,11 +189,11 @@ public class ResettableValue<T> {
     }
 
     public static boolean shouldDisplayResetValue(ToXContent.Params params) {
-        return params.paramAsBoolean(SKIP_RESET_VALUES, false) == false;
+        return params.paramAsBoolean(DISPLAY_RESET_VALUES, true);
     }
 
-    public static ToXContent.Params disableResetValues(ToXContent.Params params) {
-        return new ToXContent.DelegatingMapParams(SKIP_RESET_VALUES_PARAMS, params);
+    public static ToXContent.Params hideResetValues(ToXContent.Params params) {
+        return new ToXContent.DelegatingMapParams(HIDE_RESET_VALUES_PARAMS, params);
     }
 
     @Override

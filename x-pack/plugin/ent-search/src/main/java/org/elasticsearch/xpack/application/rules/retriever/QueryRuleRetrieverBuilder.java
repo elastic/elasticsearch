@@ -110,12 +110,14 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         Map<String, Object> matchCriteria,
         List<RetrieverSource> retrieverSource,
         int rankWindowSize,
-        String retrieverName
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders
     ) {
         super(retrieverSource, rankWindowSize);
         this.rulesetIds = rulesetIds;
         this.matchCriteria = matchCriteria;
         this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
     }
 
     @Override
@@ -156,8 +158,15 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     }
 
     @Override
-    protected QueryRuleRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
-        return new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, newChildRetrievers, rankWindowSize, retrieverName);
+    protected QueryRuleRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        return new QueryRuleRetrieverBuilder(
+            rulesetIds,
+            matchCriteria,
+            newChildRetrievers,
+            rankWindowSize,
+            retrieverName,
+            newPreFilterQueryBuilders
+        );
     }
 
     @Override

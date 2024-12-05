@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
@@ -78,6 +79,14 @@ public class IndexNameExpressionResolver {
     public IndexNameExpressionResolver(ThreadContext threadContext, SystemIndices systemIndices) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
         this.systemIndices = Objects.requireNonNull(systemIndices, "System Indices must not be null");
+    }
+
+    /**
+     * This represents a resolved expression in the form of the name of a resource in the cluster.
+     * Soon it will facilitate an index component selector, which will define which part of the resource the expression is targeting.
+     * @param resource the name of a resource that an expression refers to.
+     */
+    public record ResolvedExpression(String resource) {
     }
 
     /**
@@ -197,8 +206,9 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        final Collection<String> expressions = resolveExpressionsToResources(context, indexExpressions);
+        final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, indexExpressions);
         return expressions.stream()
+            .map(ResolvedExpression::resource)
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == Type.DATA_STREAM)
@@ -227,10 +237,11 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        final Collection<String> expressions = resolveExpressionsToResources(context, request.index());
+        final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.index());
 
         if (expressions.size() == 1) {
-            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
+            ResolvedExpression resolvedExpression = expressions.iterator().next();
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(resolvedExpression.resource());
             if (ia.getType() == Type.ALIAS) {
                 Index writeIndex = ia.getWriteIndex();
                 if (writeIndex == null) {
@@ -257,7 +268,7 @@ public class IndexNameExpressionResolver {
      * If {@param preserveDataStreams} is {@code true}, data streams that are covered by the wildcards from the
      * {@param expressions} are returned as-is, without expanding them further to their respective backing indices.
      */
-    protected static Collection<String> resolveExpressionsToResources(Context context, String... expressions) {
+    protected static Collection<ResolvedExpression> resolveExpressionsToResources(Context context, String... expressions) {
         // If we do not expand wildcards, then empty or _all expression result in an empty list
         boolean expandWildcards = context.getOptions().expandWildcardExpressions();
         if (expandWildcards == false) {
@@ -275,7 +286,7 @@ public class IndexNameExpressionResolver {
         }
 
         // Using ArrayList when we know we do not have wildcards is an optimisation, given that one expression result in 0 or 1 resources.
-        Collection<String> resources = expandWildcards && WildcardExpressionResolver.hasWildcards(expressions)
+        Collection<ResolvedExpression> resources = expandWildcards && WildcardExpressionResolver.hasWildcards(expressions)
             ? new LinkedHashSet<>()
             : new ArrayList<>(expressions.length);
         boolean wildcardSeen = false;
@@ -297,7 +308,7 @@ public class IndexNameExpressionResolver {
             wildcardSeen |= isWildcard;
 
             if (isWildcard) {
-                Set<String> matchingResources = WildcardExpressionResolver.matchWildcardToResources(context, baseExpression);
+                Set<ResolvedExpression> matchingResources = WildcardExpressionResolver.matchWildcardToResources(context, baseExpression);
 
                 if (context.getOptions().allowNoIndices() == false && matchingResources.isEmpty()) {
                     throw notFoundException(baseExpression);
@@ -310,9 +321,9 @@ public class IndexNameExpressionResolver {
                 }
             } else {
                 if (isExclusion) {
-                    resources.remove(baseExpression);
+                    resources.remove(new ResolvedExpression(baseExpression));
                 } else if (ensureAliasOrIndexExists(context, baseExpression)) {
-                    resources.add(baseExpression);
+                    resources.add(new ResolvedExpression(baseExpression));
                 }
             }
         }
@@ -428,12 +439,12 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        final Collection<String> expressions = resolveExpressionsToResources(context, indexExpressions);
+        final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, indexExpressions);
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
-        for (String expression : expressions) {
-            final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
+        for (ResolvedExpression expression : expressions) {
+            final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
@@ -467,7 +478,7 @@ public class IndexNameExpressionResolver {
                     throw new IllegalArgumentException(
                         indexAbstraction.getType().getDisplayName()
                             + " ["
-                            + expression
+                            + expression.resource()
                             + "] has more than one index associated with it "
                             + Arrays.toString(indexNames)
                             + ", can't execute a single index op"
@@ -682,7 +693,7 @@ public class IndexNameExpressionResolver {
      * Utility method that allows to resolve an index expression to its corresponding single write index.
      *
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
-     * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
+     * @param request           The request that defines how an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
      * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
      * @return the write index obtained as a result of the index resolution
@@ -759,7 +770,7 @@ public class IndexNameExpressionResolver {
     /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
-    public Set<String> resolveExpressions(ClusterState state, String... expressions) {
+    public Set<ResolvedExpression> resolveExpressions(ClusterState state, String... expressions) {
         return resolveExpressions(state, IndicesOptions.lenientExpandOpen(), false, expressions);
     }
 
@@ -768,7 +779,7 @@ public class IndexNameExpressionResolver {
      * If {@param preserveDataStreams} is {@code true}, datastreams that are covered by the wildcards from the
      * {@param expressions} are returned as-is, without expanding them further to their respective backing indices.
      */
-    public Set<String> resolveExpressions(
+    public Set<ResolvedExpression> resolveExpressions(
         ClusterState state,
         IndicesOptions indicesOptions,
         boolean preserveDataStreams,
@@ -786,10 +797,10 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
         // unmodifiable without creating a new collection as it might contain many items
-        Collection<String> resolved = resolveExpressionsToResources(context, expressions);
-        if (resolved instanceof Set<String>) {
+        Collection<ResolvedExpression> resolved = resolveExpressionsToResources(context, expressions);
+        if (resolved instanceof Set<ResolvedExpression>) {
             // unmodifiable without creating a new collection as it might contain many items
-            return Collections.unmodifiableSet((Set<String>) resolved);
+            return Collections.unmodifiableSet((Set<ResolvedExpression>) resolved);
         } else {
             return Set.copyOf(resolved);
         }
@@ -802,7 +813,7 @@ public class IndexNameExpressionResolver {
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
      * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressionsToResources(Context, String...)}.
      */
-    public String[] filteringAliases(ClusterState state, String index, Set<String> resolvedExpressions) {
+    public String[] filteringAliases(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
         return indexAliases(state, index, AliasMetadata::filteringRequired, DataStreamAlias::filteringRequired, false, resolvedExpressions);
     }
 
@@ -829,39 +840,40 @@ public class IndexNameExpressionResolver {
         Predicate<AliasMetadata> requiredAlias,
         Predicate<DataStreamAlias> requiredDataStreamAlias,
         boolean skipIdentity,
-        Set<String> resolvedExpressions
+        Set<ResolvedExpression> resolvedExpressions
     ) {
-        if (isAllIndices(resolvedExpressions)) {
+        if (isAllIndicesExpression(resolvedExpressions)) {
             return null;
         }
-
+        // PRTODO: FIX PERFORMANCE
+        Set<String> resources = resolvedExpressions.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         final IndexMetadata indexMetadata = state.metadata().getIndices().get(index);
         if (indexMetadata == null) {
             // Shouldn't happen
             throw new IndexNotFoundException(index);
         }
 
-        if (skipIdentity == false && resolvedExpressions.contains(index)) {
+        if (skipIdentity == false && resources.contains(index)) {
             return null;
         }
 
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            if (skipIdentity == false && resolvedExpressions.contains(dataStream.getName())) {
+            if (skipIdentity == false && resources.contains(dataStream.getName())) {
                 // skip the filters when the request targets the data stream name
                 return null;
             }
             Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
             List<DataStreamAlias> aliasesForDataStream;
-            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
+            if (iterateIndexAliases(dataStreamAliases.size(), resources.size())) {
                 aliasesForDataStream = dataStreamAliases.values()
                     .stream()
-                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()))
+                    .filter(dataStreamAlias -> resources.contains(dataStreamAlias.getName()))
                     .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
             } else {
-                aliasesForDataStream = resolvedExpressions.stream()
+                aliasesForDataStream = resources.stream()
                     .map(dataStreamAliases::get)
                     .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
@@ -886,18 +898,15 @@ public class IndexNameExpressionResolver {
         } else {
             final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
             final AliasMetadata[] aliasCandidates;
-            if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
+            if (iterateIndexAliases(indexAliases.size(), resources.size())) {
                 // faster to iterate indexAliases
                 aliasCandidates = indexAliases.values()
                     .stream()
-                    .filter(aliasMetadata -> resolvedExpressions.contains(aliasMetadata.alias()))
+                    .filter(aliasMetadata -> resources.contains(aliasMetadata.alias()))
                     .toArray(AliasMetadata[]::new);
             } else {
                 // faster to iterate resolvedExpressions
-                aliasCandidates = resolvedExpressions.stream()
-                    .map(indexAliases::get)
-                    .filter(Objects::nonNull)
-                    .toArray(AliasMetadata[]::new);
+                aliasCandidates = resources.stream().map(indexAliases::get).filter(Objects::nonNull).toArray(AliasMetadata[]::new);
             }
             List<String> aliases = null;
             for (int i = 0; i < aliasCandidates.length; i++) {
@@ -937,12 +946,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        final Collection<String> resolvedExpressions = resolveExpressionsToResources(context, expressions);
-
-        // TODO: it appears that this can never be true?
-        if (isAllIndices(resolvedExpressions)) {
-            return resolveSearchRoutingAllIndices(state.metadata(), routing);
-        }
+        final Collection<ResolvedExpression> resolvedExpressions = resolveExpressionsToResources(context, expressions);
 
         Map<String, Set<String>> routings = null;
         Set<String> paramRouting = null;
@@ -952,8 +956,8 @@ public class IndexNameExpressionResolver {
             paramRouting = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
         }
 
-        for (String expression : resolvedExpressions) {
-            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
+        for (ResolvedExpression resolvedExpression : resolvedExpressions) {
+            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(resolvedExpression.resource());
             if (indexAbstraction != null && indexAbstraction.getType() == Type.ALIAS) {
                 for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
                     Index index = indexAbstraction.getIndices().get(i);
@@ -993,7 +997,7 @@ public class IndexNameExpressionResolver {
                 }
             } else {
                 // Index
-                routings = collectRoutings(routings, paramRouting, norouting, expression);
+                routings = collectRoutings(routings, paramRouting, norouting, resolvedExpression.resource());
             }
 
         }
@@ -1037,6 +1041,17 @@ public class IndexNameExpressionResolver {
             return routings;
         }
         return null;
+    }
+
+    /**
+     * Identifies whether the array containing index names given as argument refers to all indices
+     * The empty or null array identifies all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @return true if the provided array maps to all indices, false otherwise
+     */
+    public static boolean isAllIndicesExpression(Collection<ResolvedExpression> aliasesOrIndices) {
+        return isAllIndices(aliasesOrIndices.stream().map(ResolvedExpression::resource).toList());
     }
 
     /**
@@ -1334,14 +1349,14 @@ public class IndexNameExpressionResolver {
          * Returns all the indices, data streams, and aliases, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the data streams themselves or their backing indices.
          */
-        public static Collection<String> resolveAll(Context context) {
-            List<String> concreteIndices = resolveEmptyOrTrivialWildcard(context);
+        public static Collection<ResolvedExpression> resolveAll(Context context) {
+            List<ResolvedExpression> concreteIndices = resolveEmptyOrTrivialWildcard(context);
 
             if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
                 return concreteIndices;
             }
 
-            Set<String> resolved = new HashSet<>(concreteIndices.size());
+            Set<ResolvedExpression> resolved = new HashSet<>(concreteIndices.size());
             context.getState()
                 .metadata()
                 .getIndicesLookup()
@@ -1386,10 +1401,10 @@ public class IndexNameExpressionResolver {
          * The {@param context} provides the current time-snapshot view of cluster state, as well as conditions
          * on whether to consider alias, data stream, system, and hidden resources.
          */
-        static Set<String> matchWildcardToResources(Context context, String wildcardExpression) {
+        static Set<ResolvedExpression> matchWildcardToResources(Context context, String wildcardExpression) {
             assert isWildcard(wildcardExpression);
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
-            Set<String> matchedResources = new HashSet<>();
+            Set<ResolvedExpression> matchedResources = new HashSet<>();
             // this applies an initial pre-filtering in the case where the expression is a common suffix wildcard, eg "test*"
             if (Regex.isSuffixMatchPattern(wildcardExpression)) {
                 for (IndexAbstraction ia : filterIndicesLookupForSuffixWildcard(indicesLookup, wildcardExpression).values()) {
@@ -1416,7 +1431,7 @@ public class IndexNameExpressionResolver {
             Context context,
             String wildcardExpression,
             IndexAbstraction indexAbstraction,
-            Set<String> matchedResources
+            Set<ResolvedExpression> matchedResources
         ) {
             if (shouldExpandToIndexAbstraction(context, wildcardExpression, indexAbstraction)) {
                 matchedResources.addAll(expandToOpenClosed(context, indexAbstraction));
@@ -1475,20 +1490,20 @@ public class IndexNameExpressionResolver {
          * Data streams and aliases are interpreted to refer to multiple indices,
          * then all index resources are filtered by their open/closed status.
          */
-        private static Set<String> expandToOpenClosed(Context context, IndexAbstraction indexAbstraction) {
+        private static Set<ResolvedExpression> expandToOpenClosed(Context context, IndexAbstraction indexAbstraction) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            Set<String> resources = new HashSet<>();
+            Set<ResolvedExpression> resources = new HashSet<>();
             if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
-                resources.add(indexAbstraction.getName());
+                resources.add(new ResolvedExpression(indexAbstraction.getName()));
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
-                resources.add(indexAbstraction.getName());
+                resources.add(new ResolvedExpression(indexAbstraction.getName()));
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions())) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
                         Index index = indexAbstraction.getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
-                            resources.add(index.getName());
+                            resources.add(new ResolvedExpression(index.getName()));
                         }
                     }
                 }
@@ -1498,7 +1513,7 @@ public class IndexNameExpressionResolver {
                         Index index = dataStream.getFailureIndices().getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
-                            resources.add(index.getName());
+                            resources.add(new ResolvedExpression(index.getName()));
                         }
                     }
                 }
@@ -1506,20 +1521,27 @@ public class IndexNameExpressionResolver {
             return resources;
         }
 
-        private static List<String> resolveEmptyOrTrivialWildcard(Context context) {
+        private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(Context context) {
             final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getState().metadata());
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
-                return List.of(allIndices);
+                List<ResolvedExpression> result = new ArrayList<>(allIndices.length);
+                for (int i = 0; i < allIndices.length; i++) {
+                    result.add(new ResolvedExpression(allIndices[i]));
+                }
+                return result;
             } else {
                 return resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(context, allIndices);
             }
         }
 
-        private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
-            List<String> filteredIndices = new ArrayList<>(allIndices.length);
+        private static List<ResolvedExpression> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(
+            Context context,
+            String[] allIndices
+        ) {
+            List<ResolvedExpression> filteredIndices = new ArrayList<>(allIndices.length);
             for (int i = 0; i < allIndices.length; i++) {
                 if (shouldIncludeIndexAbstraction(context, allIndices[i])) {
-                    filteredIndices.add(allIndices[i]);
+                    filteredIndices.add(new ResolvedExpression(allIndices[i]));
                 }
             }
             return filteredIndices;

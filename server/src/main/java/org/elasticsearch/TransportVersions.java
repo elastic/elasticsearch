@@ -11,16 +11,12 @@ package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.internal.VersionExtension;
-import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.lang.reflect.Field;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -284,7 +280,7 @@ public class TransportVersions {
      */
     public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_0;
 
-    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds();
+    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
 
     // the highest transport version constant defined
     static final TransportVersion LATEST_DEFINED;
@@ -294,19 +290,6 @@ public class TransportVersions {
         // see comment on IDS field
         // now we're registered all the transport versions, we can clear the map
         IDS = null;
-    }
-
-    public static NavigableMap<Integer, TransportVersion> getAllVersionIds() {
-        NavigableMap<Integer, TransportVersion> transportVersions = collectAllVersionIdsDefinedInClass(TransportVersions.class);
-        Collection<TransportVersion> extendedVersions = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
-            .map(VersionExtension::getTransportVersions)
-            .orElse(Collections.emptyList());
-
-        for (TransportVersion extendedVersion : extendedVersions) {
-            transportVersions.put(extendedVersion.id(), extendedVersion);
-        }
-
-        return Collections.unmodifiableNavigableMap(transportVersions);
     }
 
     public static NavigableMap<Integer, TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
@@ -345,11 +328,7 @@ public class TransportVersions {
             }
         }
 
-        return definedTransportVersions;
-    }
-
-    static Collection<TransportVersion> getAllVersions() {
-        return VERSION_IDS.values();
+        return Collections.unmodifiableNavigableMap(definedTransportVersions);
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());

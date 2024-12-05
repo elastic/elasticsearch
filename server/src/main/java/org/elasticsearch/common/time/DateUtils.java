@@ -311,6 +311,7 @@ public class DateUtils {
      *         1  if the nanosecond date is after the millisecond date
      */
     public static int compareNanosToMillis(long nanos, long millis) {
+        assert nanos >= 0;
         if (millis < 0) {
             return 1;
         }

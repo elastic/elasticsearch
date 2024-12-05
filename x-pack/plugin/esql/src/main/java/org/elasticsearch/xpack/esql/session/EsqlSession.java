@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -299,6 +300,7 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
+        LOGGER.debug("XPackLicenseState: " + XPackPlugin.getSharedLicenseState());  // MP TODO: remove - here for debugging
         EsqlSessionCCSUtils.checkForCcsLicense(indices, indicesExpressionGrouper, verifier.licenseState());
 
         // TODO: make a separate call for lookup indices

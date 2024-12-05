@@ -10,6 +10,13 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * This class encapsulates the input text passed by the request and indicates whether the response should be streamed.
+ * The main difference between this class and {@link UnifiedChatInput} is this should only be used for
+ * {@link org.elasticsearch.inference.TaskType#COMPLETION} originating through the
+ * {@link org.elasticsearch.inference.InferenceService#infer} code path. These are requests sent to the
+ * API without using the <code>_unified</code> route.
+ */
 public class ChatCompletionInput extends InferenceInputs {
     private final List<String> input;
 

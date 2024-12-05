@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -31,6 +32,8 @@ public record ReindexDataStreamTaskParams(
     Map<String, String> headers
 ) implements PersistentTaskParams {
 
+    private static final String API_CONTEXT = Metadata.XContentContext.API.toString();
+
     public static final String NAME = ReindexDataStreamTask.TASK_NAME;
     private static final String SOURCE_DATA_STREAM_FIELD = "source_data_stream";
     private static final String START_TIME_FIELD = "start_time";
@@ -46,7 +49,7 @@ public record ReindexDataStreamTaskParams(
             (long) args[1],
             (int) args[2],
             (int) args[3],
-            (Map<String, String>) args[4]
+            args[4] == null ? Map.of() : (Map<String, String>) args[4]
         )
     );
     static {
@@ -55,7 +58,7 @@ public record ReindexDataStreamTaskParams(
         PARSER.declareInt(constructorArg(), new ParseField(TOTAL_INDICES_FIELD));
         PARSER.declareInt(constructorArg(), new ParseField(TOTAL_INDICES_TO_BE_UPGRADED_FIELD));
         PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
+            ConstructingObjectParser.optionalConstructorArg(),
             XContentParser::mapStrings,
             new ParseField(HEADERS_FIELD),
             ObjectParser.ValueType.OBJECT
@@ -88,13 +91,17 @@ public record ReindexDataStreamTaskParams(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
+        builder.startObject()
             .field(SOURCE_DATA_STREAM_FIELD, sourceDataStream)
             .field(START_TIME_FIELD, startTime)
             .field(TOTAL_INDICES_FIELD, totalIndices)
-            .field(TOTAL_INDICES_TO_BE_UPGRADED_FIELD, totalIndicesToBeUpgraded)
-            .stringStringMap(HEADERS_FIELD, headers)
-            .endObject();
+            .field(TOTAL_INDICES_TO_BE_UPGRADED_FIELD, totalIndicesToBeUpgraded);
+        if (API_CONTEXT.equals(params.param(Metadata.CONTEXT_MODE_PARAM, API_CONTEXT)) == false) {
+            // This makes sure that we don't return the headers to an api request, like _cluster/state
+            builder.stringStringMap(HEADERS_FIELD, headers);
+        }
+        builder.endObject();
+        return builder;
     }
 
     public String getSourceDataStream() {

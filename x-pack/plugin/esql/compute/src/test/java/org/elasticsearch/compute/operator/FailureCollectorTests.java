@@ -93,7 +93,7 @@ public class FailureCollectorTests extends ESTestCase {
         );
         assertTrue(
             "remote transport exception must be unwrapped",
-            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TaskCancelledException).isEmpty()
+            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TransportException).isEmpty()
         );
     }
 

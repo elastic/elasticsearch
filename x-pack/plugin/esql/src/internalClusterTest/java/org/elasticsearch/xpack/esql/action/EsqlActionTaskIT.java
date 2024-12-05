@@ -36,6 +36,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -434,15 +435,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 allowedFetching.countDown();
             }
             Exception failure = expectThrows(Exception.class, () -> future.actionGet().close());
+            EsqlTestUtils.assertEsqlFailure(failure);
             assertThat(failure.getMessage(), containsString("failed to fetch pages"));
-            assertTrue(
-                "cancellation exceptions must be ignored",
-                ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TaskCancelledException).isEmpty()
-            );
-            assertTrue(
-                "remote transport exception must be unwrapped",
-                ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TaskCancelledException).isEmpty()
-            );
             // If we proceed without waiting for pages, we might cancel the main request before starting the data-node request.
             // As a result, the exchange sinks on data-nodes won't be removed until the inactive_timeout elapses, which is
             // longer than the assertBusy timeout.

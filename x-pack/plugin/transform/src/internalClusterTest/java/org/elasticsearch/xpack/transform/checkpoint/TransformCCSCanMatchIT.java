@@ -390,7 +390,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 

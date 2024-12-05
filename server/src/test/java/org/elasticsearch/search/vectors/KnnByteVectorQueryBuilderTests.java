@@ -25,7 +25,7 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
-        byte[] vector = new byte[VECTOR_DIMENSION];
+        byte[] vector = new byte[vectorDimensions];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomByte();
         }
@@ -33,7 +33,7 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
     }
 
     @Override
-    protected String indexType() {
+    protected String randomIndexType() {
         return randomFrom(NON_QUANTIZED_INDEX_TYPES);
     }
 }

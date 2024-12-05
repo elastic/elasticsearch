@@ -37,6 +37,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,8 +57,6 @@ import static org.hamcrest.Matchers.nullValue;
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ALIAS_FIELD = "vector_alias";
-    protected final String indexType = indexType();
-    protected final int VECTOR_DIMENSION = indexType.contains("bbq") ? 64 : 3;
     protected static final Set<String> QUANTIZED_INDEX_TYPES = Set.of(
         "int8_hnsw",
         "int4_hnsw",
@@ -69,6 +68,15 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     protected static final Set<String> NON_QUANTIZED_INDEX_TYPES = Set.of("hnsw", "flat");
     protected static final Set<String> ALL_INDEX_TYPES = Stream.concat(QUANTIZED_INDEX_TYPES.stream(), NON_QUANTIZED_INDEX_TYPES.stream())
         .collect(Collectors.toUnmodifiableSet());
+    protected static String indexType;
+    protected static int vectorDimensions;
+
+    @Before
+    private void checkIndexTypeAndDimensions() {
+        // Check that these are initialized - should be done as part of the createAdditionalMappings method
+        assertNotNull(indexType);
+        assertNotEquals(0, vectorDimensions);
+    }
 
     abstract DenseVectorFieldMapper.ElementType elementType();
 
@@ -81,20 +89,32 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     );
 
     protected boolean isQuantizedElementType() {
-        return QUANTIZED_INDEX_TYPES.contains(indexType());
+        return QUANTIZED_INDEX_TYPES.contains(indexType);
     }
 
-    protected abstract String indexType();
+    protected abstract String randomIndexType();
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+
+        // These fields are initialized here, as mappings are initialized only once per test class.
+        // We want the subclasses to be able to override the index type and vector dimensions so we don't make this static / BeforeClass
+        // for initialization.
+        indexType = randomIndexType();
+        if (indexType.contains("bbq")) {
+            vectorDimensions = 64;
+        } else if (indexType.contains("int4")) {
+            vectorDimensions = 4;
+        } else {
+            vectorDimensions = 3;
+        }
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject(VECTOR_FIELD)
             .field("type", "dense_vector")
-            .field("dims", VECTOR_DIMENSION)
+            .field("dims", vectorDimensions)
             .field("index", true)
             .field("similarity", "l2_norm")
             .field("element_type", elementType())
@@ -201,7 +221,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(
             e.getMessage(),
-            containsString("The query vector has a different number of dimensions [2] than the document vectors [3]")
+            containsString("The query vector has a different number of dimensions [2] than the document vectors [" + vectorDimensions + "]")
         );
     }
 
@@ -286,7 +306,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
             VECTOR_FIELD,
             new float[] { 1.0f, 2.0f, 3.0f },
-            VECTOR_DIMENSION,
+            vectorDimensions,
             null,
             null,
             null

@@ -426,7 +426,7 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, Kql::new, "kql"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
-                def(Term.class, Term::new, "term"), } };
+                def(Term.class, Term::new, "term") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

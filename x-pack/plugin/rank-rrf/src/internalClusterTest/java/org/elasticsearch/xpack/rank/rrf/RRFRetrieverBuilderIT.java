@@ -33,6 +33,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,7 +58,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     protected static String INDEX = "test_index";
-    protected static final String ID_FIELD = "_id";
     protected static final String DOC_FIELD = "doc";
     protected static final String TEXT_FIELD = "text";
     protected static final String VECTOR_FIELD = "vector";
@@ -741,6 +741,42 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         source.size(1);
         source.aggregation(AggregationBuilders.terms("topic_agg").field(TOPIC_FIELD));
         expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
+    }
+
+    public void testRRFFiltersPropagatedToKnnQueryVectorBuilder() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will retriever all but 7 only due to top-level filter
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        // this will too retrieve just doc 7
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "vector",
+            null,
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
+            10,
+            10,
+            null
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
+        source.size(10);
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_7"));
+        });
     }
 
     public void testRewriteOnce() {

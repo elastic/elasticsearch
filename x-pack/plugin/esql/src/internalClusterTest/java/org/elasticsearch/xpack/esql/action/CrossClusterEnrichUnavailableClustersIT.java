@@ -53,7 +53,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
     public static String REMOTE_CLUSTER_2 = "c2";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 

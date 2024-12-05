@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.BuiltInMetadataFieldsProvider;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -230,7 +231,8 @@ public class SecurityTests extends ESTestCase {
             nodeMetadata,
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
-            mock(PersistentTasksService.class)
+            mock(PersistentTasksService.class),
+            mock(BuiltInMetadataFieldsProvider.class)
         );
     }
 

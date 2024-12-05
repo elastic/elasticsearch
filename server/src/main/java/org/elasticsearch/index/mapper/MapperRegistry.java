@@ -15,8 +15,10 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -31,6 +33,8 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
     private final Function<String, FieldPredicate> fieldFilter;
+
+    private final Set<String> allMetadataFields;
 
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
@@ -50,6 +54,13 @@ public final class MapperRegistry {
         metadata5x.put(LegacyTypeFieldMapper.NAME, LegacyTypeFieldMapper.PARSER);
         this.metadataMapperParsers5x = metadata5x;
         this.fieldFilter = fieldFilter;
+
+        Set<String> allMetadataFields = new HashSet<>();
+        allMetadataFields.addAll(metadataMapperParsers.keySet());
+        allMetadataFields.addAll(metadataMapperParsers7x.keySet());
+        allMetadataFields.addAll(metadataMapperParsers6x.keySet());
+        allMetadataFields.addAll(metadataMapperParsers5x.keySet());
+        this.allMetadataFields = Collections.unmodifiableSet(allMetadataFields);
     }
 
     /**
@@ -84,6 +95,10 @@ public final class MapperRegistry {
         } else {
             throw new AssertionError("unknown version: " + indexCreatedVersion);
         }
+    }
+
+    public Set<String> getAllMetadataFields() {
+        return allMetadataFields;
     }
 
     /**

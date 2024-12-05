@@ -885,7 +885,8 @@ class NodeConstruction {
             systemIndices,
             dataStreamGlobalRetentionSettings,
             documentParsingProvider,
-            taskManager
+            taskManager,
+            indicesModule.getMapperRegistry()
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
@@ -51,5 +52,6 @@ public record PluginServiceInstances(
     SystemIndices systemIndices,
     DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
     DocumentParsingProvider documentParsingProvider,
-    TaskManager taskManager
+    TaskManager taskManager,
+    MapperRegistry mapperRegistry
 ) implements Plugin.PluginServices {}

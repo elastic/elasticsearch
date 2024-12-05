@@ -59,6 +59,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
         BASE_HASHSET_ENTRY_SIZE = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
+    private static BuiltInMetadataFieldsProvider builtInMetadataFieldsProvider = new BuiltInMetadataFieldsProvider(Set.of());
+
+    public static void setBuiltInMetadataFieldsProvider(BuiltInMetadataFieldsProvider builtInMetadataFieldsProvider) {
+        FieldPermissions.builtInMetadataFieldsProvider = builtInMetadataFieldsProvider;
+    }
+
     private final List<FieldPermissionsDefinition> fieldPermissionsDefinitions;
 
     // an automaton that represents a union of one more sets of permitted and denied fields
@@ -102,7 +108,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
             "field permission definitions cannot be null"
         );
         this.originalAutomaton = permittedFieldsAutomaton;
-        this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
+        this.permittedFieldsAutomaton = new FieldPermissionsCharacterRunAutomaton(
+            new CharacterRunAutomaton(permittedFieldsAutomaton),
+            builtInMetadataFieldsProvider
+        );
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
         this.fieldPredicate = permittedFieldsAutomatonIsTotal

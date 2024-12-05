@@ -41,6 +41,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -53,7 +56,19 @@ import static org.hamcrest.Matchers.nullValue;
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ALIAS_FIELD = "vector_alias";
-    static final int VECTOR_DIMENSION = 3;
+    protected final String indexType = indexType();
+    protected final int VECTOR_DIMENSION = indexType.contains("bbq") ? 64 : 3;
+    protected static final Set<String> QUANTIZED_INDEX_TYPES = Set.of(
+        "int8_hnsw",
+        "int4_hnsw",
+        "bbq_hnsw",
+        "int8_flat",
+        "int4_flat",
+        "bbq_flat"
+    );
+    protected static final Set<String> NON_QUANTIZED_INDEX_TYPES = Set.of("hnsw", "flat");
+    protected static final Set<String> ALL_INDEX_TYPES = Stream.concat(QUANTIZED_INDEX_TYPES.stream(), NON_QUANTIZED_INDEX_TYPES.stream())
+        .collect(Collectors.toUnmodifiableSet());
 
     abstract DenseVectorFieldMapper.ElementType elementType();
 
@@ -65,8 +80,15 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Float similarity
     );
 
+    protected boolean isQuantizedElementType() {
+        return QUANTIZED_INDEX_TYPES.contains(indexType());
+    }
+
+    protected abstract String indexType();
+
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -76,6 +98,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             .field("index", true)
             .field("similarity", "l2_norm")
             .field("element_type", elementType())
+            .startObject("index_options")
+            .field("type", indexType)
+            .endObject()
             .endObject()
             .startObject(VECTOR_ALIAS_FIELD)
             .field("type", "alias")
@@ -126,7 +151,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        if (queryBuilder.rescoreVectorBuilder() != null) {
+        if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
             query = rescoreQuery.innerQuery();
         }
@@ -154,7 +179,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         // The field should always be resolved to the concrete field
         Integer k = queryBuilder.k();
         Integer numCands = queryBuilder.numCands();
-        if (queryBuilder.rescoreVectorBuilder() != null) {
+        if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             Float rescoreOversample = queryBuilder.rescoreVectorBuilder().oversample();
             k = k == null ? null : Integer.valueOf(Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample)));
             numCands = numCands == null ? null : Math.max(k == null ? 0 : k, numCands);
@@ -330,19 +355,24 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testBWCVersionSerializationRescoreVector() throws IOException {
         KnnVectorQueryBuilder query = createTestQueryBuilder();
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_8_8_1,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)
+        );
+        VectorData vectorData = version.onOrAfter(TransportVersions.V_8_14_0)
+            ? query.queryVector()
+            : VectorData.fromFloats(query.queryVector().asFloatVector());
+        Integer k = version.before(TransportVersions.V_8_15_0) ? null : query.k();
         KnnVectorQueryBuilder queryNoRescoreVector = new KnnVectorQueryBuilder(
             query.getFieldName(),
-            query.queryVector(),
-            query.k(),
+            vectorData,
+            k,
             query.numCands(),
             null,
             query.getVectorSimilarity()
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
-        assertBWCSerialization(
-            query,
-            queryNoRescoreVector,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_8_0, TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)
-        );
+        assertBWCSerialization(query, queryNoRescoreVector, version);
     }
 
     private void assertBWCSerialization(QueryBuilder newQuery, QueryBuilder bwcQuery, TransportVersion version) throws IOException {

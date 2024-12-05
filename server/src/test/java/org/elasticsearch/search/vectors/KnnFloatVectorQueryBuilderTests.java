@@ -31,4 +31,9 @@ public class KnnFloatVectorQueryBuilderTests extends AbstractKnnVectorQueryBuild
         }
         return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, rescoreVectorBuilder, similarity);
     }
+
+    @Override
+    protected String indexType() {
+        return randomFrom(ALL_INDEX_TYPES);
+    }
 }

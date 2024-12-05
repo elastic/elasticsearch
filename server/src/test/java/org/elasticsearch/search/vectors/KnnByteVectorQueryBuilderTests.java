@@ -31,4 +31,9 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
         }
         return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, rescoreVectorBuilder, similarity);
     }
+
+    @Override
+    protected String indexType() {
+        return randomFrom(NON_QUANTIZED_INDEX_TYPES);
+    }
 }

@@ -47,7 +47,7 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(InferencePlugin.class, XPackPlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(XPackPlugin.class, InferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Override

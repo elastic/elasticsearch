@@ -57,7 +57,9 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
                     }
                 }
 
-                if (inferenceIndices.isEmpty() == false && nonInferenceIndices.isEmpty() == false) {
+                if (inferenceIndices.isEmpty()) {
+                    return rewritten;
+                } else if (nonInferenceIndices.isEmpty() == false) {
                     BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                     for (String inferenceIndexName : inferenceIndices) {
                         // Add a separate clause for each semantic query, because they may be using different inference endpoints
@@ -69,10 +71,11 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
                         createMatchSubQuery(nonInferenceIndices, matchQueryBuilder.fieldName(), matchQueryBuilder.value())
                     );
                     rewritten = boolQueryBuilder;
-                } else if (inferenceIndices.isEmpty() == false) {
+                } else {
                     rewritten = new SemanticQueryBuilder(matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value(), true);
                 }
             }
+
             return rewritten;
         }
 

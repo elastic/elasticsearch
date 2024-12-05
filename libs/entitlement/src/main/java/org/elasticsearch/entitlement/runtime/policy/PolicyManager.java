@@ -110,12 +110,14 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlementsOrThrow(callerClass, requestingModule);
         if (entitlements.hasEntitlement(entitlementClass)) {
-            logger.debug(() -> Strings.format(
-                "Entitled: caller [%s], module [%s], type [%s]",
-                callerClass,
-                requestingModule.getName(),
-                entitlementClass.getSimpleName()
-            ));
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: caller [%s], module [%s], type [%s]",
+                    callerClass,
+                    requestingModule.getName(),
+                    entitlementClass.getSimpleName()
+                )
+            );
             return;
         }
         throw new NotEntitledException(
@@ -165,12 +167,7 @@ public class PolicyManager {
         return Strings.format("Missing entitlement policy: caller [%s], module [%s]", callerClass, requestingModule.getName());
     }
 
-    private ModuleEntitlements getModuleEntitlementsOrThrow(
-        Class<?> callerClass,
-        Module module,
-        Policy policy,
-        String moduleName
-    ) {
+    private ModuleEntitlements getModuleEntitlementsOrThrow(Class<?> callerClass, Module module, Policy policy, String moduleName) {
         var entitlements = lookupEntitlementsForModule(policy, moduleName);
         if (entitlements == null) {
             // Module without entitlements - remember we don't have any

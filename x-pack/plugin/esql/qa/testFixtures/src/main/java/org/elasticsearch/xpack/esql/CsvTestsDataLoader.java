@@ -57,7 +57,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestsDataset LANGUAGES = new TestsDataset("languages");
     // private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
-    //     .withSetting("languages_lookup-settings.json");
+    // .withSetting("languages_lookup-settings.json");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
@@ -73,10 +73,10 @@ public class CsvTestsDataLoader {
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
     // private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
-    //     .withSetting("clientips_lookup-settings.json");
+    // .withSetting("clientips_lookup-settings.json");
     private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
     // private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
-    //     .withSetting("message_types_lookup-settings.json");
+    // .withSetting("message_types_lookup-settings.json");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
     private static final TestsDataset AGES = new TestsDataset("ages");
     private static final TestsDataset HEIGHTS = new TestsDataset("heights");
@@ -663,8 +663,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record EnrichConfig(String policyName, String policyFileName) {
-    }
+    public record EnrichConfig(String policyName, String policyFileName) {}
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

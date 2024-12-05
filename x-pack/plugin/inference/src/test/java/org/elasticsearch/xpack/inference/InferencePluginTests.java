@@ -6,6 +6,7 @@
  */
 
 package org.elasticsearch.xpack.inference;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -13,7 +14,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
@@ -45,7 +45,7 @@ public class InferencePluginTests extends ESTestCase {
         // set default value for elasticInferenceServiceEnabled
         setElasticInferenceServiceEnabled(true);
     }
-    
+
     public void testElasticInferenceServiceSettingsPresent() throws Exception {
         boolean anyMatch = inferencePlugin.getSettings()
             .stream()

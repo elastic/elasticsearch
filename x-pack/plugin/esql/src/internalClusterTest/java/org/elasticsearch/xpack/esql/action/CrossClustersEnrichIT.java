@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -75,7 +74,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithTrialLicense.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
@@ -648,7 +647,6 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
-
         public LocalStateEnrich(final Settings settings, final Path configPath) throws Exception {
             super(settings, configPath);
 

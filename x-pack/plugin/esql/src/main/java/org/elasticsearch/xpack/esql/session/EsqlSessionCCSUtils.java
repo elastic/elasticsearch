@@ -21,6 +21,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -323,8 +324,8 @@ class EsqlSessionCCSUtils {
                     throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }
             }
-            groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            if (groupedIndices.size() > 0) {
+            // check if it is a cross-cluster query
+            if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
                     throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }

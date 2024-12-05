@@ -25,18 +25,13 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.license.GetLicenseAction;
-import org.elasticsearch.license.GetLicenseResponse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -77,15 +72,14 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER_1, randomBoolean());
+        return Map.of(REMOTE_CLUSTER_1, randomBoolean(), REMOTE_CLUSTER_2, randomBoolean());
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithTrialLicense.class);
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(LocalStateCompositeXPackPlugin.class); // need to install and query status of an Elasticsearch license
         return plugins;
     }
 
@@ -148,45 +142,44 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertClusterMetadataInResponse(resp, responseExpectMeta);
         }
 
-        // try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats count(*) by tag | sort tag | keep tag",
-        // requestIncludeMeta)) {
-        // List<List<Object>> values = getValuesList(resp);
-        // assertThat(values, hasSize(2));
-        // assertThat(values.get(0), equalTo(List.of("local")));
-        // assertThat(values.get(1), equalTo(List.of("remote")));
-        //
-        // EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-        // assertNotNull(executionInfo);
-        // assertThat(executionInfo.isCrossClusterSearch(), is(true));
-        // long overallTookMillis = executionInfo.overallTook().millis();
-        // assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-        // assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-        //
-        // assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
-        //
-        // EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-        // assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
-        // assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-        // assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-        // assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-        // assertThat(remoteCluster.getTotalShards(), equalTo(remoteNumShards));
-        // assertThat(remoteCluster.getSuccessfulShards(), equalTo(remoteNumShards));
-        // assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-        // assertThat(remoteCluster.getFailedShards(), equalTo(0));
-        //
-        // EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-        // assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
-        // assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-        // assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-        // assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-        // assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
-        // assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
-        // assertThat(localCluster.getSkippedShards(), equalTo(0));
-        // assertThat(localCluster.getFailedShards(), equalTo(0));
-        //
-        // // ensure that the _clusters metadata is present only if requested
-        // assertClusterMetadataInResponse(resp, responseExpectMeta);
-        // }
+        try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats count(*) by tag | sort tag | keep tag", requestIncludeMeta)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of("local")));
+            assertThat(values.get(1), equalTo(List.of("remote")));
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertNotNull(executionInfo);
+            assertThat(executionInfo.isCrossClusterSearch(), is(true));
+            long overallTookMillis = executionInfo.overallTook().millis();
+            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
+
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            assertThat(remoteCluster.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteCluster.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
+            assertThat(remoteCluster.getFailedShards(), equalTo(0));
+
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
+            assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localCluster.getSkippedShards(), equalTo(0));
+            assertThat(localCluster.getFailedShards(), equalTo(0));
+
+            // ensure that the _clusters metadata is present only if requested
+            assertClusterMetadataInResponse(resp, responseExpectMeta);
+        }
     }
 
     public void testSearchesAgainstNonMatchingIndicesWithLocalOnly() {
@@ -1316,21 +1309,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .get(skipUnavailableSetting);
         clusterInfo.put("remote.skip_unavailable", skipUnavailable);
 
-        ensureTrialLicenseOnCluster(cluster(LOCAL_CLUSTER).client());
-        ensureTrialLicenseOnCluster(cluster(REMOTE_CLUSTER_1).client());
-        ensureTrialLicenseOnCluster(cluster(REMOTE_CLUSTER_2).client());
         return clusterInfo;
-    }
-
-    private void ensureTrialLicenseOnCluster(Client client) {
-        GetLicenseRequest getLicenseRequest = new GetLicenseRequest(TimeValue.timeValueSeconds(30));
-        GetLicenseResponse getLicenseResponse;
-        try {
-            getLicenseResponse = client.execute(GetLicenseAction.INSTANCE, getLicenseRequest).get(30, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        assertThat(getLicenseResponse.license().type(), equalTo("trial"));
     }
 
     /**

@@ -1,0 +1,6 @@
+pr: 117792
+summary: Avoid reusing source providers for script based block loaders
+area: Mapping
+type: bug
+issues:
+ - 117644

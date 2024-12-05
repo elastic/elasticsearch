@@ -412,7 +412,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType nonQuantizedField = new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
-            FLOAT,
+            randomFrom(FLOAT, BYTE),
             3,
             true,
             VectorSimilarity.COSINE,
@@ -439,7 +439,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType fieldType = new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
-            randomFrom(BYTE, FLOAT),
+            FLOAT,
             3,
             true,
             VectorSimilarity.COSINE,
@@ -465,7 +465,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         int expectedK,
         int expectedCandidates
     ) {
-        Query query = fieldType.createKnnQuery(new VectorData(null, new byte[] { 1, 4, 10 }), k, candidates, oversample, null, null, null);
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            k,
+            candidates,
+            oversample,
+            null,
+            null,
+            null
+        );
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
         ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) rescoreQuery.innerQuery();
         assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));

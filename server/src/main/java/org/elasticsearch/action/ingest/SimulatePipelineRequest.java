@@ -160,8 +160,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     // Unconditionally deprecate the _type field once V7 BWC support is removed
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     private static List<IngestDocument> parseDocs(Map<String, Object> config, RestApiVersion restApiVersion) {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {

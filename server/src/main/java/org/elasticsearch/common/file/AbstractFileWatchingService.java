@@ -120,6 +120,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     @Override
     protected final void doClose() {
         assert watching() == false: "doStop should already have been called";
+        executor.shutdown();
     }
 
     /**
@@ -271,7 +272,6 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     protected final synchronized void stopWatcher() {
-        executor.shutdown();
         Thread watcherThread = this.watcherThread.getAndSet(null);
         if (watcherThread != null) {
             logger.debug("stopping watcher ...");

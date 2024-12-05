@@ -127,6 +127,7 @@ FROM sample_data
 | EVAL client_ip = client_ip::keyword
 | LOOKUP JOIN clientips_lookup ON client_ip
 ;
+ignoreOrder:true;
 
 @timestamp:date          | event_duration:long | message:keyword       | client_ip:keyword | env:keyword
 2023-10-23T13:55:01.543Z | 1756467             | Connected to 10.1.0.1 | 172.21.3.15       | Production
@@ -146,6 +147,7 @@ FROM sample_data
 | LOOKUP JOIN clientips_lookup ON client_ip
 | KEEP @timestamp, client_ip, event_duration, message, env
 ;
+ignoreOrder:true;
 
 @timestamp:date          | client_ip:keyword | event_duration:long | message:keyword       | env:keyword
 2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Connected to 10.1.0.1 | Production
@@ -230,6 +232,7 @@ required_capability: join_lookup_v4
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
 ;
+ignoreOrder:true;
 
 @timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success
@@ -248,6 +251,7 @@ FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
 | KEEP @timestamp, client_ip, event_duration, message, type
 ;
+ignoreOrder:true;
 
 @timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success

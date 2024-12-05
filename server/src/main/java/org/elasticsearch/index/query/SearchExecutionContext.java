@@ -494,12 +494,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceProvider sourceProvider = isSourceSynthetic()
-                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics())
-                : SourceProvider.fromStoredFields();
+            var sourceProvider = createSourceProvider();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
+    }
+
+    public SourceProvider createSourceProvider() {
+        return isSourceSynthetic()
+            ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics())
+            : SourceProvider.fromStoredFields();
     }
 
     /**

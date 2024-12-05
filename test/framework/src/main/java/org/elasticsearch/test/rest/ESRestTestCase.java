@@ -26,6 +26,8 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -63,7 +65,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -113,7 +114,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -159,6 +159,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
+
+    private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -398,29 +400,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    /**
-     * Override to provide additional test-only historical features.
-     *
-     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
-     * must contain only historical features, otherwise an assertion error is thrown.
-     */
-    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
-        return List.of();
-    }
-
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        // Historical features information is unavailable when using legacy test plugins
-        if (ESRestTestFeatureService.hasFeatureMetadata() == false) {
-            logger.warn(
-                "This test is running on the legacy test framework; historical features from production code will not be available. "
-                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification."
-            );
-        }
-        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -1131,6 +1115,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
+
+            // If system index warning, ignore but log
+            // See: https://github.com/elastic/elasticsearch/issues/117099
+            // and: https://github.com/elastic/elasticsearch/issues/115809
+            deleteRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
+            );
+
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1141,6 +1133,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+        for (String warning : warnings) {
+            if (warning.startsWith("this request accesses system indices:")) {
+                SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
+            } else {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected static void wipeDataStreams() throws IOException {
@@ -1829,9 +1833,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        } else if (isSyntheticSourceConfiguredInMapping(mapping)) {
-            request.setOptions(expectVersionSpecificWarnings(v -> v.compatible(SourceFieldMapper.DEPRECATION_WARNING)));
-        }
+        } else if (isSyntheticSourceConfiguredInMapping(mapping)
+            && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+            }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
@@ -1892,8 +1897,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (sourceMapper == null) {
             return false;
         }
-        Object mode = sourceMapper.get("mode");
-        return mode != null && mode.toString().toLowerCase(Locale.ROOT).equals("synthetic");
+        return sourceMapper.get("mode") != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
+        if (template == null) {
+            return false;
+        }
+        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
+        for (Object value : values.values()) {
+            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
+            if (mappings == null) {
+                continue;
+            }
+            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+            if (sourceMapper == null) {
+                continue;
+            }
+            Object mode = sourceMapper.get("mode");
+            if (mode != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {

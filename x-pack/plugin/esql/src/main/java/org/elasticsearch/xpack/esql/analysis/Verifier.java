@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -19,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -54,19 +54,18 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -173,20 +172,6 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            } else if (p instanceof LookupJoin lj) {
-                // expect right side to always be a lookup index
-                lj.right().forEachUp(EsRelation.class, r -> {
-                    if (r.indexMode() != IndexMode.LOOKUP) {
-                        failures.add(
-                            fail(
-                                r,
-                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
-                                r.index().name(),
-                                r.indexMode().getName()
-                            )
-                        );
-                    }
-                });
             }
 
             else {
@@ -215,10 +200,13 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
+            checkSort(p, failures);
 
             checkFullTextQueryFunctions(p, failures);
+            checkJoin(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -230,6 +218,25 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
+        // _score can only be set as metadata attribute
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
+            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+        }
+    }
+
+    private void checkSort(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof OrderBy ob) {
+            ob.order().forEach(o -> {
+                o.forEachDown(Function.class, f -> {
+                    if (f instanceof AggregateFunction) {
+                        failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+                    }
+                });
+            });
+        }
     }
 
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
@@ -341,35 +348,35 @@ public class Verifier {
                 );
         });
 
-        // Forbid CATEGORIZE being used in the aggregations
-        agg.aggregates().forEach(a -> {
-            a.forEachDown(
-                Categorize.class,
-                categorize -> failures.add(
-                    fail(categorize, "cannot use CATEGORIZE grouping function [{}] within the aggregations", categorize.sourceText())
+        // Forbid CATEGORIZE being used in the aggregations, unless it appears as a grouping
+        agg.aggregates()
+            .forEach(
+                a -> a.forEachDown(
+                    AggregateFunction.class,
+                    aggregateFunction -> aggregateFunction.forEachDown(
+                        Categorize.class,
+                        categorize -> failures.add(
+                            fail(categorize, "cannot use CATEGORIZE grouping function [{}] within an aggregation", categorize.sourceText())
+                        )
+                    )
                 )
             );
-        });
 
-        // Forbid CATEGORIZE being referenced in the aggregation functions
-        Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
+        // Forbid CATEGORIZE being referenced as a child of an aggregation function
+        AttributeMap<Categorize> categorizeByAttribute = new AttributeMap<>();
         agg.groupings().forEach(g -> {
             g.forEachDown(Alias.class, alias -> {
                 if (alias.child() instanceof Categorize categorize) {
-                    categorizeByAliasId.put(alias.id(), categorize);
+                    categorizeByAttribute.put(alias.toAttribute(), categorize);
                 }
             });
         });
         agg.aggregates()
             .forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
-                var categorize = categorizeByAliasId.get(attribute.id());
+                var categorize = categorizeByAttribute.get(attribute);
                 if (categorize != null) {
                     failures.add(
-                        fail(
-                            attribute,
-                            "cannot reference CATEGORIZE grouping function [{}] within the aggregations",
-                            attribute.sourceText()
-                        )
+                        fail(attribute, "cannot reference CATEGORIZE grouping function [{}] within an aggregation", attribute.sourceText())
                     );
                 }
             })));
@@ -426,7 +433,7 @@ public class Verifier {
                 // check the bucketing function against the group
                 else if (c instanceof GroupingFunction gf) {
                     if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                        failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                        failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }
             });
@@ -443,7 +450,7 @@ public class Verifier {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here
             if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
             } else if (level == 0) {
                 addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
             }
@@ -772,6 +779,35 @@ public class Verifier {
     }
 
     /**
+     * Checks Joins for invalid usage.
+     *
+     * @param plan root plan to check
+     * @param failures failures found
+     */
+    private static void checkJoin(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Join join) {
+            JoinConfig config = join.config();
+            for (int i = 0; i < config.leftFields().size(); i++) {
+                Attribute leftField = config.leftFields().get(i);
+                Attribute rightField = config.rightFields().get(i);
+                if (leftField.dataType() != rightField.dataType()) {
+                    failures.add(
+                        fail(
+                            leftField,
+                            "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                            leftField.name(),
+                            leftField.dataType(),
+                            rightField.name(),
+                            rightField.dataType()
+                        )
+                    );
+                }
+            }
+
+        }
+    }
+
+    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -780,14 +816,19 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                QueryString.class,
-                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                qsf -> "[" + qsf.functionName() + "] " + qsf.functionType(),
-                failures
-            );
+
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,

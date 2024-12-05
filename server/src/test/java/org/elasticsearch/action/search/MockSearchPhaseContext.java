@@ -155,11 +155,6 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void onFailure(Exception e) {
-        Assert.fail("should not be called");
-    }
-
-    @Override
     public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         releasedSearchContexts.add(contextId);
     }

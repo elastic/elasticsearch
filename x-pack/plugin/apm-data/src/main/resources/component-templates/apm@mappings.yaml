@@ -17,7 +17,3 @@ template:
         type: constant_keyword
       data_stream.namespace:
         type: constant_keyword
-      event.ingested:
-        type: date
-        format: "strict_date_time_no_millis||strict_date_optional_time||epoch_millis"
-        ignore_malformed: false

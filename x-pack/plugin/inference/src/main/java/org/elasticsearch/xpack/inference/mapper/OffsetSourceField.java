@@ -18,17 +18,16 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * A {@link Field} for storing a {@link Term} along with its start and end offsets.
+ * Represents a {@link Field} that stores a {@link Term} along with its start and end offsets.
+ * Note: The {@link Charset} used to calculate these offsets is not associated with this field.
+ * It is the responsibility of the consumer to handle the appropriate {@link Charset}.
  */
 public final class OffsetSourceField extends Field {
     private static final FieldType FIELD_TYPE = new FieldType();
@@ -67,23 +66,23 @@ public final class OffsetSourceField extends Field {
         return stream;
     }
 
-    public static OffsetSourceLoader loader(Terms terms, String fieldName) throws IOException {
-        return new OffsetSourceLoader(terms, fieldName);
+    public static OffsetSourceLoader loader(Terms terms) throws IOException {
+        return new OffsetSourceLoader(terms);
     }
 
     private static final class OffsetTokenStream extends TokenStream {
         private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
         private final OffsetAttribute offsetAttribute = addAttribute(OffsetAttribute.class);
         private boolean used = true;
-        private String value = null;
+        private String term = null;
         private int startOffset = 0;
         private int endOffset = 0;
 
         private OffsetTokenStream() {}
 
         /** Sets the values */
-        void setValues(String value, int startOffset, int endOffset) {
-            this.value = value;
+        void setValues(String term, int startOffset, int endOffset) {
+            this.term = term;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
         }
@@ -94,7 +93,7 @@ public final class OffsetSourceField extends Field {
                 return false;
             }
             clearAttributes();
-            termAttribute.append(value);
+            termAttribute.append(term);
             offsetAttribute.setOffset(startOffset, endOffset);
             used = true;
             return true;
@@ -107,21 +106,19 @@ public final class OffsetSourceField extends Field {
 
         @Override
         public void close() {
-            value = null;
+            term = null;
         }
     }
 
     public static class OffsetSourceLoader {
         private final Map<String, PostingsEnum> postingsEnums = new LinkedHashMap<>();
 
-        private OffsetSourceLoader(Terms terms, String fieldName) throws IOException {
-            Automaton prefixAutomaton = PrefixQuery.toAutomaton(new BytesRef(fieldName + "."));
-            var termsEnum = terms.intersect(new CompiledAutomaton(prefixAutomaton, false, true, false), null);
+        private OffsetSourceLoader(Terms terms) throws IOException {
+            var termsEnum = terms.iterator();
             while (termsEnum.next() != null) {
                 var postings = termsEnum.postings(null, PostingsEnum.OFFSETS);
                 if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    String sourceFieldName = termsEnum.term().utf8ToString().substring(fieldName.length() + 1);
-                    postingsEnums.put(sourceFieldName, postings);
+                    postingsEnums.put(termsEnum.term().utf8ToString(), postings);
                 }
             }
         }

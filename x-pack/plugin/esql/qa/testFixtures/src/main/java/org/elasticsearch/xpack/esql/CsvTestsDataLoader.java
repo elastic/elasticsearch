@@ -72,6 +72,11 @@ public class CsvTestsDataLoader {
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
+    private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
+        .withSetting("clientips_lookup-settings.json");
+    private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
+    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+        .withSetting("message_types_lookup-settings.json");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
     private static final TestsDataset AGES = new TestsDataset("ages");
     private static final TestsDataset HEIGHTS = new TestsDataset("heights");
@@ -112,6 +117,9 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
+        Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
+        Map.entry(MESSAGE_TYPES.indexName, MESSAGE_TYPES),
+        Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
         Map.entry(HEIGHTS.indexName, HEIGHTS),

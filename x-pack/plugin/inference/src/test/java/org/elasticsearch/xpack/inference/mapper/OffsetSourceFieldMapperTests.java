@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.inference.mapper;
@@ -13,29 +11,36 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OffsetSourceFieldMapperTests extends MapperTestCase {
     @Override
@@ -53,20 +58,19 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         return getSampleObjectForDocument();
     }
 
-    /**
-     * Returns a sample object for the field or exception if the field does not support parsing objects
-     */
+    @Override
     protected Object getSampleObjectForDocument() {
-        return Map.of("field", "foo", "start", 0, "end", 128);
+        return Map.of("field", "foo", "start", 100, "end", 300);
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        assertThat(query, instanceOf(PrefixQuery.class));
-        PrefixQuery termQuery = (PrefixQuery) query;
-        assertEquals("_offset_source", termQuery.getField());
-        assertEquals(new Term("_offset_source", "field"), termQuery.getPrefix());
-        assertNotNull(fields.getField("_offset_source"));
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        return new OffsetSourceFieldMapper.OffsetSource("field", randomIntBetween(0, 100), randomIntBetween(101, 1000));
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 
     @Override
@@ -124,7 +128,7 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(
             source(b -> b.startObject("field").field("field", "foo").field("start", 0).field("end", 128).endObject())
         );
-        List<IndexableField> fields = doc1.rootDoc().getFields("_offset_source");
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         assertThat(fields.get(0), instanceOf(OffsetSourceField.class));
         OffsetSourceField offsetField1 = (OffsetSourceField) fields.get(0);
@@ -132,10 +136,10 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         ParsedDocument doc2 = mapper.parse(
             source(b -> b.startObject("field").field("field", "bar").field("start", 128).field("end", 512).endObject())
         );
-        OffsetSourceField offsetField2 = (OffsetSourceField) doc2.rootDoc().getFields("_offset_source").get(0);
+        OffsetSourceField offsetField2 = (OffsetSourceField) doc2.rootDoc().getFields("field").get(0);
 
-        assertTokenStream(offsetField1.tokenStream(null, null), "field.foo", 0, 128);
-        assertTokenStream(offsetField2.tokenStream(null, null), "field.bar", 128, 512);
+        assertTokenStream(offsetField1.tokenStream(null, null), "foo", 0, 128);
+        assertTokenStream(offsetField2.tokenStream(null, null), "bar", 128, 512);
     }
 
     private void assertTokenStream(TokenStream tk, String expectedTerm, int expectedStartOffset, int expectedEndOffset) throws IOException {
@@ -149,6 +153,40 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         assertFalse(tk.incrementToken());
     }
 
+    @Override
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
+            throw new UnsupportedOperationException();
+        }, fdt));
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
+            assertThat(fromNative.size(), equalTo(1));
+            assertThat("fetching " + value, fromNative.get(0), equalTo(value));
+        });
+    }
+
+    @Override
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assumeFalse("[offset_source] currently don't support multiple values in the same field", false);
+    }
+
+    public void testInvalidCharset() {
+        var exc = expectThrows(Exception.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "offset_source").field("charset", "utf_8").endObject();
+        })));
+        assertThat(exc.getCause().getMessage(), containsString("Unknown value [utf_8] for field [charset]"));
+    }
+
     public void testRejectMultiValuedFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").endObject(); }));
 
@@ -160,20 +198,19 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         })));
-        assertEquals(
-            "[offset_source] fields do not support indexing multiple values for the same field [field] in the same document",
-            exc.getCause().getMessage()
-        );
+        assertThat(exc.getCause().getMessage(), containsString("[offset_source] fields do not support indexing multiple values"));
     }
 
-    @Override
-    protected Object generateRandomInputValue(MappedFieldType ft) {
-        assumeFalse("Test implemented in a follow up", true);
-        return null;
-    }
+    public void testInvalidOffsets() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> { b.startObject("field").field("type", "offset_source").endObject(); }));
 
-    @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+        DocumentParsingException exc = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("field", "bar1").field("start", -1).field("end", 512).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(exc.getCause().getCause().getCause().getMessage(), containsString("Illegal offsets"));
     }
 }

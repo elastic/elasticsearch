@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
 public class OffsetSourceFieldTests extends ESTestCase {
@@ -22,22 +22,22 @@ public class OffsetSourceFieldTests extends ESTestCase {
             newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random().nextBoolean()))
         );
         Document doc = new Document();
-        OffsetSourceField field1 = new OffsetSourceField(OffsetSourceFieldMapper.NAME, "field1.foo", 1, 10);
+        OffsetSourceField field1 = new OffsetSourceField("field1", "foo", 1, 10);
         doc.add(field1);
         writer.addDocument(doc);
 
-        field1.setValues("field1.bar", 10, 128);
+        field1.setValues("bar", 10, 128);
         writer.addDocument(doc);
 
         writer.addDocument(new Document()); // gap
 
-        field1.setValues("field1.foo", 50, 256);
+        field1.setValues("foo", 50, 256);
         writer.addDocument(doc);
 
         writer.addDocument(new Document()); // double gap
         writer.addDocument(new Document());
 
-        field1.setValues("field1.baz", 32, 512);
+        field1.setValues("baz", 32, 512);
         writer.addDocument(doc);
 
         writer.forceMerge(1);
@@ -47,9 +47,9 @@ public class OffsetSourceFieldTests extends ESTestCase {
         var searcher = newSearcher(reader);
         var context = searcher.getIndexReader().leaves().get(0);
 
-        var terms = context.reader().terms(OffsetSourceFieldMapper.NAME);
+        var terms = context.reader().terms("field1");
         assertNotNull(terms);
-        OffsetSourceField.OffsetSourceLoader loader = OffsetSourceField.loader(terms, "field1");
+        OffsetSourceField.OffsetSourceLoader loader = OffsetSourceField.loader(terms);
 
         var offset = loader.advanceTo(0);
         assertEquals(new OffsetSourceFieldMapper.OffsetSource("foo", 1, 10), offset);

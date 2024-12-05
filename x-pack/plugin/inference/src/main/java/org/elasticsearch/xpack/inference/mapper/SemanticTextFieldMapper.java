@@ -729,7 +729,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                     dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
                     var terms = context.reader().terms(OffsetSourceMetaFieldMapper.NAME);
-                    offsetsLoader = terms != null ? OffsetSourceField.loader(terms, getOffsetsField().fullPath()) : null;
+                    offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
                 } catch (IOException exc) {
                     throw new UncheckedIOException(exc);
                 }

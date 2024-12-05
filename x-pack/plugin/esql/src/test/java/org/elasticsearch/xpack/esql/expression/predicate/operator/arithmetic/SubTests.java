@@ -10,16 +10,23 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
+import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
+import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -28,6 +35,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SubTests extends AbstractScalarFunctionTestCase {
     public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -117,13 +125,44 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
-                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
         }));
+
+        BinaryOperator<Object> nanosResult = (lhs, rhs) -> {
+            try {
+                return subtractDatesAndTemporalAmount(lhs, rhs, SubTests::subtractNanos);
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        };
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                nanosResult,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(Instant.parse("1985-01-01T00:00:00Z"), DateUtils.MAX_NANOSECOND_INSTANT),
+                TestCaseSupplier.datePeriodCases(0, 0, 0, 10, 13, 32),
+                startsWith("SubDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount="),
+                (l, r) -> List.of(),
+                true
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                nanosResult,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(Instant.parse("1985-01-01T00:00:00Z"), DateUtils.MAX_NANOSECOND_INSTANT),
+                TestCaseSupplier.timeDurationCases(0, 604800000L),
+                startsWith("SubDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount="),
+                (l, r) -> List.of(),
+                true
+            )
+        );
+
         suppliers.add(new TestCaseSupplier("Period - Period", List.of(DataType.DATE_PERIOD, DataType.DATE_PERIOD), () -> {
             Period lhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
@@ -143,9 +182,9 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
-                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
@@ -164,6 +203,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                 equalTo(lhs.minus(rhs))
             );
         }));
+
         // exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(
@@ -210,7 +250,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
             }
             return original.expectedType();
-        }, (nullPosition, nullData, original) -> original);
+        }, (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original);
 
         suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             // Ensure we don't have an overflow
@@ -235,5 +275,25 @@ public class SubTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Sub(source, args.get(0), args.get(1));
+    }
+
+    private static Object subtractDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> subtract) {
+        // this weird casting dance makes the expected value lambda symmetric
+        Instant date;
+        TemporalAmount period;
+        if (lhs instanceof Instant) {
+            date = (Instant) lhs;
+            period = (TemporalAmount) rhs;
+        } else {
+            date = (Instant) rhs;
+            period = (TemporalAmount) lhs;
+        }
+        return subtract.applyAsLong(date, period);
+    }
+
+    private static long subtractNanos(Instant date, TemporalAmount period) {
+        return DateUtils.toLong(
+            Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period))
+        );
     }
 }

@@ -153,8 +153,10 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected void doAssertLuceneQuery(SparseVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) query;
+        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
         assertThat(booleanQuery.clauses(), hasSize(NUM_TOKENS));
 
@@ -230,11 +232,19 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     private void testDoToQuery(SparseVectorQueryBuilder queryBuilder, SearchExecutionContext context) throws IOException {
         Query query = queryBuilder.doToQuery(context);
+
+        // test query builder can randomly have no vectors, which rewrites to a MatchNoneQuery - nothing more to do in this case.
+        if (query instanceof MatchNoDocsQuery) {
+            return;
+        }
+
+        assertTrue(query instanceof SparseVectorQueryWrapper);
+        var sparseQuery = (SparseVectorQueryWrapper) query;
         if (queryBuilder.shouldPruneTokens()) {
             // It's possible that all documents were pruned for aggressive pruning configurations
-            assertTrue(query instanceof BooleanQuery || query instanceof MatchNoDocsQuery);
+            assertTrue(sparseQuery.getTermsQuery() instanceof BooleanQuery || sparseQuery.getTermsQuery() instanceof MatchNoDocsQuery);
         } else {
-            assertTrue(query instanceof SparseVectorQueryWrapper);
+            assertTrue(sparseQuery.getTermsQuery() instanceof BooleanQuery);
         }
     }
 

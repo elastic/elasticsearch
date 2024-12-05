@@ -271,10 +271,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     private void assertCorrectLuceneQuery(String name, Query query, List<String> expectedFeatureFields) {
-        assertTrue(query instanceof SparseVectorQueryWrapper);
-        Query termsQuery = ((SparseVectorQueryWrapper) query).getTermsQuery();
-        assertTrue(termsQuery instanceof BooleanQuery);
-        List<BooleanClause> booleanClauses = ((BooleanQuery) termsQuery).clauses();
+        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) query;
+        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
+        List<BooleanClause> booleanClauses = booleanQuery.clauses();
         assertEquals(
             name + " had " + booleanClauses.size() + " clauses, expected " + expectedFeatureFields.size(),
             expectedFeatureFields.size(),
@@ -346,9 +347,9 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     @Override
     protected void doAssertLuceneQuery(WeightedTokensQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
-        Query termsQuery = ((SparseVectorQueryWrapper) query).getTermsQuery();
-        assertThat(termsQuery, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) termsQuery;
+        var sparseQuery = (SparseVectorQueryWrapper) query;
+        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
         assertThat(booleanQuery.clauses(), hasSize(NUM_TOKENS));
 

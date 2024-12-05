@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.inference.mapper;
@@ -25,7 +23,7 @@ public class OffsetSourceFieldTypeTests extends FieldTypeTestCase {
     @Override
     public void testFieldHasValue() {
         MappedFieldType fieldType = getMappedFieldType();
-        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_offset_source") });
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName(fieldType.name()) });
         assertTrue(fieldType.fieldHasValue(fieldInfos));
     }
 
@@ -35,14 +33,12 @@ public class OffsetSourceFieldTypeTests extends FieldTypeTestCase {
         assertFalse(fieldType.fieldHasValue(FieldInfos.EMPTY));
     }
 
-    public void testFieldEmptyIfNameIsPresentInFieldInfos() {
-        MappedFieldType fieldType = getMappedFieldType();
-        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
-        assertFalse(fieldType.fieldHasValue(fieldInfos));
-    }
-
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new OffsetSourceFieldMapper.OffsetSourceFieldType("field", Collections.emptyMap());
+        return new OffsetSourceFieldMapper.OffsetSourceFieldType(
+            "field",
+            OffsetSourceFieldMapper.CharsetFormat.UTF_16,
+            Collections.emptyMap()
+        );
     }
 }

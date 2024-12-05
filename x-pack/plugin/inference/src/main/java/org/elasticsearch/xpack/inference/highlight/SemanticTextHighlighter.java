@@ -182,7 +182,7 @@ public class SemanticTextHighlighter implements Highlighter {
             // The field is empty
             return List.of();
         }
-        var offsetReader = OffsetSourceField.loader(terms, fieldType.getOffsetsField().fullPath());
+        var offsetReader = OffsetSourceField.loader(terms);
         if (previousParent != -1) {
             if (scorer.iterator().advance(previousParent) == DocIdSetIterator.NO_MORE_DOCS) {
                 return List.of();

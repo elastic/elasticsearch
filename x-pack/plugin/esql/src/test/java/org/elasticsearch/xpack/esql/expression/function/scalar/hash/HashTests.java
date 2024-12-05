@@ -39,7 +39,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
         for (String alg : List.of("MD5", "SHA", "SHA-224", "SHA-256", "SHA-384", "SHA-512")) {
             cases.addAll(createTestCases(alg));
         }
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
     }
 
     private static List<TestCaseSupplier> createTestCases(String alg) {

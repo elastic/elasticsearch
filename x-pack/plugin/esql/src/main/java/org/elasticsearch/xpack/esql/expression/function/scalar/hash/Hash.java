@@ -29,6 +29,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+
 public class Hash extends EsqlScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hash", Hash::new);
@@ -66,6 +70,20 @@ public class Hash extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        TypeResolution resolution = isString(alg, sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isString(input, sourceText(), SECOND);
     }
 
     @Override

@@ -2928,47 +2928,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    private static void assertCreateContextValidation(
-        SearchRequest searchRequest,
-        String errorMessage,
-        IndexService indexService,
-        SearchService searchService
-    ) {
-        ShardId shardId = new ShardId(indexService.index(), 0);
-        long nowInMillis = System.currentTimeMillis();
-        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
-        searchRequest.allowPartialSearchResults(randomBoolean());
-        ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            searchRequest,
-            shardId,
-            0,
-            indexService.numberOfShards(),
-            AliasFilter.EMPTY,
-            1f,
-            nowInMillis,
-            clusterAlias
-        );
-
-        SearchShardTask task = new SearchShardTask(1, "type", "action", "description", null, emptyMap());
-
-        ReaderContext readerContext = null;
-        try {
-            ReaderContext createOrGetReaderContext = searchService.createOrGetReaderContext(request);
-            readerContext = createOrGetReaderContext;
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> searchService.createContext(createOrGetReaderContext, request, task, ResultsType.QUERY, randomBoolean())
-            );
-            assertThat(exception.getMessage(), containsString(errorMessage));
-        } finally {
-            if (readerContext != null) {
-                readerContext.close();
-                searchService.freeReaderContext(readerContext.id());
-            }
-        }
-    }
-
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),

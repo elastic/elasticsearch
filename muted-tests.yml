@@ -414,5 +414,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
-- class: org.elasticsearch.repositories.s3.RepositoryS3StsCredentialsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/117897

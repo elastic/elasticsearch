@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -212,14 +211,18 @@ class Elasticsearch {
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-            List<Tuple<Path, Boolean>> pluginData = new ArrayList<>();
+            List<EntitlementBootstrap.PluginData> pluginData = new ArrayList<>();
             Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
             for (PluginBundle moduleBundle : moduleBundles) {
-                pluginData.add(Tuple.tuple(moduleBundle.getDir(), moduleBundle.pluginDescriptor().isModular()));
+                pluginData.add(
+                    new EntitlementBootstrap.PluginData(moduleBundle.getDir(), moduleBundle.pluginDescriptor().isModular(), false)
+                );
             }
             Set<PluginBundle> pluginBundles = PluginsUtils.getPluginBundles(nodeEnv.pluginsFile());
             for (PluginBundle pluginBundle : pluginBundles) {
-                pluginData.add(Tuple.tuple(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular()));
+                pluginData.add(
+                    new EntitlementBootstrap.PluginData(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular(), true)
+                );
             }
             // TODO: add a functor to map module to plugin name
             EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);

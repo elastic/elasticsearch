@@ -37,7 +37,17 @@ public class PolicyParserTests extends ESTestCase {
     }
 
     public void testPolicyBuilder() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml")
+        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", false)
+            .parsePolicy();
+        Policy builtPolicy = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
+        );
+        assertEquals(parsedPolicy, builtPolicy);
+    }
+
+    public void testPolicyBuilderOnExternalPlugin() throws IOException {
+        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", true)
             .parsePolicy();
         Policy builtPolicy = new Policy(
             "test-policy.yaml",
@@ -50,7 +60,7 @@ public class PolicyParserTests extends ESTestCase {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - create_class_loader
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml").parsePolicy();
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         Policy builtPolicy = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))

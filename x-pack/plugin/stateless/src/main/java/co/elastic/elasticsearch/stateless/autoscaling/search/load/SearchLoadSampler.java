@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -73,9 +74,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     private final AverageSearchLoadSampler averageSearchLoadSampler;
     private final DoubleSupplier currentSearchLoadSupplier;
     private final Supplier<MetricQuality> searchLoadQualitySupplier;
-    private final double numProcessors;
     private final Client client;
-    private final ClusterService clusterService;
     private final AtomicLong seqNoSupplier = new AtomicLong();
 
     private volatile double minSensitivityRatio;
@@ -88,6 +87,34 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
     private volatile String nodeId;
+    private volatile double numProcessors;
+
+    public static SearchLoadSampler create(
+        Client client,
+        AverageSearchLoadSampler averageSearchLoadSampler,
+        DoubleSupplier currentSearchLoadSupplier,
+        Supplier<MetricQuality> searchLoadQualitySupplier,
+        ClusterService clusterService,
+        Settings settings,
+        ThreadPool threadPool
+    ) {
+        var clusterSettings = clusterService.getClusterSettings();
+        var searchLoadSampler = new SearchLoadSampler(
+            client,
+            averageSearchLoadSampler,
+            currentSearchLoadSupplier,
+            searchLoadQualitySupplier,
+            AverageSearchLoadSampler.getNumProcessors(AverageSearchLoadSampler.USE_VCPU_REQUEST.get(settings), settings),
+            clusterSettings,
+            threadPool
+        );
+        clusterSettings.addSettingsUpdateConsumer(AverageSearchLoadSampler.USE_VCPU_REQUEST, value -> {
+            var newNumProcessors = AverageSearchLoadSampler.getNumProcessors(value, settings);
+            searchLoadSampler.setNumProcessors(newNumProcessors);
+        });
+        clusterService.addListener(searchLoadSampler);
+        return searchLoadSampler;
+    }
 
     public SearchLoadSampler(
         Client client,
@@ -96,7 +123,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         Supplier<MetricQuality> searchLoadQualitySupplier,
         double numProcessors,
         ClusterSettings clusterSettings,
-        ClusterService clusterService
+        ThreadPool threadPool
     ) {
         if (numProcessors <= 0) {
             throw new IllegalArgumentException("Processors must be positive but was " + numProcessors);
@@ -107,7 +134,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         clusterSettings.initializeAndWatch(MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING, value -> this.maxTimeBetweenPublications = value);
         this.numProcessors = numProcessors;
 
-        this.threadPool = clusterService.threadPool();
+        this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.averageSearchLoadSampler = averageSearchLoadSampler;
         this.client = client;
@@ -115,7 +142,6 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         this.searchLoadQualitySupplier = searchLoadQualitySupplier;
         // To ensure that the first sample is published right away
         lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -143,6 +169,10 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
             clearInFlightPublicationTicket();
             publishCurrentLoad(nodeId); // Publish changes immediately if master node changes.
         }
+    }
+
+    public void setNumProcessors(double numProcessors) {
+        this.numProcessors = numProcessors;
     }
 
     // Visible for testing

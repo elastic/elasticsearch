@@ -530,7 +530,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         }
 
                         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
-                        yield new SparseVectorQueryBuilder(name(), textExpansionResults.getWeightedTokens(), null, null, null, null);
+                        yield new SparseVectorQueryBuilder(inferenceResultsFieldName, textExpansionResults.getWeightedTokens(), null, null, null, null);
                     }
                     case TEXT_EMBEDDING -> {
                         if (inferenceResults instanceof MlTextEmbeddingResults == false) {

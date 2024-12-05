@@ -241,7 +241,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_EIS_INTEGRATION_ADDED;
+        return TransportVersions.V_8_16_0;
     }
 
     private ElasticInferenceServiceModel createModelFromPersistent(

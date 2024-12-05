@@ -225,7 +225,7 @@ public class IbmWatsonxService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_IBM_WATSONX_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override

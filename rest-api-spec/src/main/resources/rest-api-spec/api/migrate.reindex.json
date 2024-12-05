@@ -1,8 +1,8 @@
 {
   "migrate.reindex":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
-      "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-stream-reindex.html",
+      "description":"This API reindexes all legacy backing indices for a data stream. It does this in a persistent task. The persistent task id is returned immediately, and the reindexing work is completed in that task"
     },
     "stability":"experimental",
     "visibility":"private",
@@ -21,7 +21,7 @@
       ]
     },
     "body":{
-      "description":"The search definition using the Query DSL and the prototype for the index request.",
+      "description":"The body contains the fields `mode` and `source.index, where the only mode currently supported is `upgrade`, and the `source.index` must be a data stream name"
       "required":true
     }
   }

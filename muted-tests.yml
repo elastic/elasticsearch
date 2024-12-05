@@ -29,12 +29,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithCodeFlowAndClientPost
   issue: https://github.com/elastic/elasticsearch/issues/111396
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testSingleDoc {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111434
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDataStreams {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
 - class: org.elasticsearch.upgrades.FullClusterRestartIT

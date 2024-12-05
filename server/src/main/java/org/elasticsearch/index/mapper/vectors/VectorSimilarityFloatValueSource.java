@@ -50,18 +50,14 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource impleme
         final KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
 
         return new DoubleValues() {
-            private int docId = -1;
-
             @Override
             public double doubleValue() throws IOException {
                 vectorOpsCount++;
-                return vectorSimilarityFunction.compare(target, vectorValues.vectorValue(docId));
+                return vectorSimilarityFunction.compare(target, vectorValues.vectorValue(iterator.index()));
             }
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                assert doc > iterator.docID();
-                docId = doc;
                 return doc >= iterator.docID() && iterator.docID() != DocIdSetIterator.NO_MORE_DOCS && iterator.advance(doc) == doc;
             }
         };

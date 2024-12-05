@@ -1095,6 +1095,23 @@ c:long | a:long
 1      | 1
 ;
 
+evalGroupAfterStatsOverRow
+ROW type = ["one", "two"]
+| STATS BY type
+| EVAL is_one = type == "one"
+| EVAL is_two = type == "two"
+;
+
+warning:Line 3:17: evaluation of [type == \"one\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:17: evaluation of [type == \"two\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+type:keyword   |is_one:boolean |is_two:boolean
+one            |true           |false
+two            |false          |true
+;
+
 docsGettingStartedStats
 // tag::gs-stats[]
 FROM sample_data

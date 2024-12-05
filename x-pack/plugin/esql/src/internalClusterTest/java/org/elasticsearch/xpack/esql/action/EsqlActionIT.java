@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -1645,6 +1646,44 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testScriptField() throws Exception {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("runtime");
+            {
+                mapping.startObject("k1");
+                mapping.field("type", "long");
+                mapping.endObject();
+                mapping.startObject("k2");
+                mapping.field("type", "long");
+                mapping.endObject();
+            }
+            mapping.endObject();
+            {
+                mapping.startObject("properties");
+                mapping.startObject("meter").field("type", "double").endObject();
+                mapping.endObject();
+            }
+        }
+        mapping.endObject();
+        String sourceMode = randomBoolean() ? "stored" : "synthetic";
+        Settings.Builder settings = indexSettings(1, 0).put(indexSettings()).put("index.mapping.source.mode", sourceMode);
+        client().admin().indices().prepareCreate("test-script").setMapping(mapping).setSettings(settings).get();
+        for (int i = 0; i < 10; i++) {
+            index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-" + i, "meter", 10000 * i));
+        }
+        refresh("test-script");
+        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 |  LIMIT 10")) {
+            List<Object> k1Column = Iterators.toList(resp.column(0));
+            assertThat(k1Column, contains(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L));
+            List<Object> k2Column = Iterators.toList(resp.column(1));
+            assertThat(k2Column, contains(null, null, null, null, null, null, null, null, null, null));
+            List<Object> meterColumn = Iterators.toList(resp.column(2));
+            assertThat(meterColumn, contains(0.0, 10000.0, 20000.0, 30000.0, 40000.0, 50000.0, 60000.0, 70000.0, 80000.0, 90000.0));
         }
     }
 

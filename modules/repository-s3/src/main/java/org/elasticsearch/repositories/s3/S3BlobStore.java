@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -146,13 +147,18 @@ class S3BlobStore implements BlobStore {
     // issue
     class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
-        final LongAdder counter = new LongAdder();
+        final LongAdder requests = new LongAdder();
+        final LongAdder operations = new LongAdder();
         private final Operation operation;
         private final Map<String, Object> attributes;
 
         private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
+        }
+
+        BlobStoreActionStats getEndpointStats() {
+            return new BlobStoreActionStats(operations.sum(), requests.sum());
         }
 
         @Override
@@ -167,8 +173,9 @@ class S3BlobStore implements BlobStore {
             // For stats reported by API, do not collect stats for null response for BWC.
             // See https://github.com/elastic/elasticsearch/pull/71406
             // TODO Is this BWC really necessary?
+            // This behaviour needs to be updated, see https://elasticco.atlassian.net/browse/ES-10223
             if (response != null) {
-                counter.add(requestCount);
+                requests.add(requestCount);
             }
 
             // We collect all metrics regardless whether response is null
@@ -196,6 +203,7 @@ class S3BlobStore implements BlobStore {
             }
 
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
+            operations.increment();
             if (numberOfAwsErrors == requestCount) {
                 s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
@@ -450,11 +458,11 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        this.service.close();
+        service.onBlobStoreClose();
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, BlobStoreActionStats> stats() {
         return statsCollectors.statsMap(service.isStateless);
     }
 
@@ -558,14 +566,19 @@ class S3BlobStore implements BlobStore {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
-        Map<String, Long> statsMap(boolean isStateless) {
+        Map<String, BlobStoreActionStats> statsMap(boolean isStateless) {
             if (isStateless) {
                 return collectors.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().counter.sum()));
+                    .collect(
+                        Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().getEndpointStats())
+                    );
             } else {
-                final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
-                collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
+                final Map<String, BlobStoreActionStats> m = Arrays.stream(Operation.values())
+                    .collect(Collectors.toMap(Operation::getKey, e -> BlobStoreActionStats.ZERO));
+                collectors.forEach(
+                    (sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c).add(v.getEndpointStats()))
+                );
                 return Map.copyOf(m);
             }
         }

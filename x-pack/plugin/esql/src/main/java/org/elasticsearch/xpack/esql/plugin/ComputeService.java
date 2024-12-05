@@ -45,6 +45,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -82,6 +83,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
@@ -428,12 +430,17 @@ public class ComputeService {
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts.size());
         for (int i = 0; i < context.searchContexts.size(); i++) {
             SearchContext searchContext = context.searchContexts.get(i);
+            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
+
+                @Override
+                public SourceProvider createSourceProvider() {
+                    final Supplier<SourceProvider> supplier = () -> super.createSourceProvider();
+                    return new ReinitializingSourceProvider(supplier);
+
+                }
+            };
             contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext.getSearchExecutionContext(),
-                    searchContext.request().getAliasFilter()
-                )
+                new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
         final List<Driver> drivers;

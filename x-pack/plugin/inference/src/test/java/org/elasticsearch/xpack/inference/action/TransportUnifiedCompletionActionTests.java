@@ -80,4 +80,45 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
         }));
     }
+
+    public void testThrows_IncompatibleTaskTypeException_WhenUsingRequestIsAny_ModelIsTextEmbedding() {
+        var modelTaskType = TaskType.ANY;
+        var requestTaskType = TaskType.TEXT_EMBEDDING;
+        mockModelRegistry(modelTaskType);
+        when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
+
+        var listener = doExecute(requestTaskType);
+
+        verify(listener).onFailure(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(
+                e.getMessage(),
+                is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [completion]")
+            );
+            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+        }));
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("service"), is(serviceId));
+            assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
+            assertThat(attributes.get("model_id"), nullValue());
+            assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+        }));
+    }
+
+    public void testMetricsAfterUnifiedInferSuccess_WithRequestTaskTypeAny() {
+        mockModelRegistry(TaskType.COMPLETION);
+        mockService(listener -> listener.onResponse(mock()));
+
+        var listener = doExecute(TaskType.ANY);
+
+        verify(listener).onResponse(any());
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("service"), is(serviceId));
+            assertThat(attributes.get("task_type"), is(taskType.toString()));
+            assertThat(attributes.get("model_id"), nullValue());
+            assertThat(attributes.get("status_code"), is(200));
+            assertThat(attributes.get("error.type"), nullValue());
+        }));
+    }
 }

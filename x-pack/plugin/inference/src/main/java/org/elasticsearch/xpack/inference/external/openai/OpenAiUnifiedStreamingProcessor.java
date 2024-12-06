@@ -60,9 +60,9 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
 
     @Override
-    protected void onRequest(long n) {
+    protected void upstreamRequest(long n) {
         if (buffer.isEmpty()) {
-            super.onRequest(n);
+            super.upstreamRequest(n);
         } else {
             downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(singleItem(buffer.poll())));
         }
@@ -75,8 +75,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
 
         if (results.isEmpty()) {
             upstream().request(1);
-        }
-        if (results.size() == 1) {
+        } else if (results.size() == 1) {
             downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         } else {
             // results > 1, but openai spec only wants 1 chunk per SSE event
@@ -281,7 +280,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     private Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> singleItem(
         StreamingUnifiedChatCompletionResults.ChatCompletionChunk result
     ) {
-        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(2);
+        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(1);
         deque.offer(result);
         return deque;
     }

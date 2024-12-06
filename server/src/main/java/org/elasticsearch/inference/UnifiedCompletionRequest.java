@@ -231,10 +231,6 @@ public record UnifiedCompletionRequest(
             return NAME;
         }
 
-        public void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.value(content);
-        }
-
         public String toString() {
             return content;
         }

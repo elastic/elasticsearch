@@ -49,7 +49,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
 
     @Override
     protected boolean isInvalidTaskTypeForInferenceEndpoint(UnifiedCompletionAction.Request request, UnparsedModel unparsedModel) {
-        return request.getTaskType() != TaskType.COMPLETION;
+        return request.getTaskType().isAnyOrSame(TaskType.COMPLETION) == false || unparsedModel.taskType() != TaskType.COMPLETION;
     }
 
     @Override

@@ -66,6 +66,10 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             return unifiedCompletionRequest;
         }
 
+        /**
+         * The Unified API only supports streaming so we always return true here.
+         * @return true
+         */
         public boolean isStreaming() {
             return true;
         }
@@ -88,7 +92,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
                 return e;
             }
 
-            if (taskType != TaskType.COMPLETION) {
+            if (taskType.isAnyOrSame(TaskType.COMPLETION) == false) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError("Field [taskType] must be [completion]");
                 return e;

@@ -85,7 +85,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
                 if (isClosed.get()) {
                     downstream.onComplete();
                 } else if (upstream != null) {
-                    onRequest(n);
+                    upstreamRequest(n);
                 } else {
                     pendingRequests.accumulateAndGet(n, Long::sum);
                 }
@@ -104,7 +104,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
     /**
      * Guaranteed to be called when the upstream is set and this processor had not been closed.
      */
-    protected void onRequest(long n) {
+    protected void upstreamRequest(long n) {
         upstream.request(n);
     }
 

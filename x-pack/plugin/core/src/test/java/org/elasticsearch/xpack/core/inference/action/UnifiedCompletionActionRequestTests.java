@@ -55,6 +55,16 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         assertThat(exception.getMessage(), is("Validation Failed: 1: Field [taskType] must be [completion];"));
     }
 
+    public void testValidation_ReturnsNull_When_TaskType_IsAny() {
+        var request = new UnifiedCompletionAction.Request(
+            "inference_id",
+            TaskType.ANY,
+            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            TimeValue.timeValueSeconds(10)
+        );
+        assertNull(request.validate());
+    }
+
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
         return instance;

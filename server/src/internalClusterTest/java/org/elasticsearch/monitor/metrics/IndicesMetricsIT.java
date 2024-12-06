@@ -11,9 +11,11 @@ package org.elasticsearch.monitor.metrics;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
@@ -329,6 +331,10 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L)
             )
         );
+
+        verifyStatsPerIndexMode(
+            Map.of(IndexMode.STANDARD, numStandardDocs, IndexMode.LOGSDB, numLogsdbDocs, IndexMode.TIME_SERIES, numTimeSeriesDocs)
+        );
     }
 
     void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {
@@ -432,6 +438,16 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             refresh(indexName);
         }
         return totalDocs;
+    }
+
+    private void verifyStatsPerIndexMode(Map<IndexMode, Long> expectedDocs) {
+        var nodes = clusterService().state().nodes().stream().toArray(DiscoveryNode[]::new);
+        var request = new IndexModeStatsActionType.StatsRequest(nodes);
+        var resp = client().execute(IndexModeStatsActionType.TYPE, request).actionGet();
+        var stats = resp.stats();
+        for (Map.Entry<IndexMode, Long> e : expectedDocs.entrySet()) {
+            assertThat(stats.get(e.getKey()).numDocs(), equalTo(e.getValue()));
+        }
     }
 
     private Map<String, Object> parseMapping(String mapping) throws IOException {

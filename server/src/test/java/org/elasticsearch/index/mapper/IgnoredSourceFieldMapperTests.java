@@ -638,7 +638,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.field("bool_value", true);
         });
         assertEquals("""
-            {"bool_value":true,"path":{"int_value":[10,20]}}""", syntheticSource);
+            {"bool_value":true,"path":{"int_value":[20,10]}}""", syntheticSource);
     }
 
     public void testIndexStoredArraySourceNestedValueArray() throws IOException {
@@ -702,7 +702,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertEquals("""
-            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[1,2]}}}""", syntheticSource);
+            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[2,1]}}}""", syntheticSource);
     }
 
     public void testFieldStoredArraySourceNestedValueArray() throws IOException {
@@ -992,7 +992,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertEquals("""
-            {"path":{"to":{"obj":[{"id":[1,20,3]},{"id":10}]}}}""", syntheticSource);
+            {"path":{"to":{"obj":{"id":[1,20,3,10]}}}}""", syntheticSource);
     }
 
     public void testObjectArrayWithinNestedObjectsArray() throws IOException {
@@ -1043,7 +1043,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertEquals("""
-            {"path":{"to":[{"obj":[{"id":[1,20,3]},{"id":10}]},{"obj":[{"id":[200,300,500]},{"id":100}]}]}}""", syntheticSource);
+            {"path":{"to":[{"obj":{"id":[1,20,3,10]}},{"obj":{"id":[200,300,500,100]}}]}}""", syntheticSource);
     }
 
     public void testArrayWithinArray() throws IOException {

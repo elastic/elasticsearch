@@ -82,12 +82,15 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             .sorted(Comparator.comparing(Dependency::getGroup))
             .filter(d -> d instanceof ProjectDependency)
             .map(d -> (ProjectDependency) d)
-            .filter(p -> p.getDependencyProject() != null)
             .forEach(projectDependency -> configureDependency(project, shadow, projectDependency));
     }
 
     private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
-        var upstreamProject = dep.getDependencyProject();
+        // we should use variant aware dependency management to resolve artifacts required for javadoc here
+        Project upstreamProject = project.project(dep.getPath());
+        if (upstreamProject == null) {
+            return;
+        }
         if (shadowed) {
             /*
              * Include the source of shadowed upstream projects so we don't

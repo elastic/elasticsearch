@@ -7,19 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googlevertexai.GoogleVertexAiActionVisitor;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class GoogleVertexAiModel extends Model {
 
     private final GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings;
+
+    protected URI uri;
 
     public GoogleVertexAiModel(
         ModelConfigurations configurations,
@@ -34,13 +39,24 @@ public abstract class GoogleVertexAiModel extends Model {
     public GoogleVertexAiModel(GoogleVertexAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
+        uri = model.uri();
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
-    public abstract ExecutableAction accept(GoogleVertexAiActionVisitor creator, Map<String, Object> taskSettings);
+    public GoogleVertexAiModel(GoogleVertexAiModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+
+        uri = model.uri();
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
+    }
+
+    public abstract ExecutableAction accept(GoogleVertexAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
 
     public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
     }
 
+    public URI uri() {
+        return uri;
+    }
 }

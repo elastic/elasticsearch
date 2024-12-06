@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 ignore_above mapping level setting:
   - requires:
@@ -10,10 +15,9 @@ ignore_above mapping level setting:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -53,10 +57,9 @@ ignore_above mapping level setting on arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -97,10 +100,9 @@ ignore_above mapping overrides setting:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -143,10 +145,9 @@ ignore_above mapping overrides setting on arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword

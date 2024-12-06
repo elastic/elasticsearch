@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
@@ -91,7 +94,6 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
@@ -101,7 +103,6 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
@@ -114,6 +115,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
@@ -136,11 +140,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
 
+    private static final Logger log = LogManager.getLogger(InferencePlugin.class);
+
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
-    private final SetOnce<ElasticInferenceServiceComponents> eisComponents = new SetOnce<>();
+    private final SetOnce<ElasticInferenceServiceComponents> elasticInferenceServiceComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
@@ -208,12 +214,35 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            ElasticInferenceServiceSettings eisSettings = new ElasticInferenceServiceSettings(settings);
-            eisComponents.set(new ElasticInferenceServiceComponents(eisSettings.getEisGatewayUrl()));
+        // Set elasticInferenceUrl based on feature flags to support transitioning to the new Elastic Inference Service URL without exposing
+        // internal names like "eis" or "gateway".
+        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+
+        String elasticInferenceUrl = null;
+
+        if (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
+        } else if (DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            log.warn(
+                "Deprecated flag {} detected for enabling {}. Please use {}.",
+                ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
+                DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG,
+                ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG
+            );
+            elasticInferenceUrl = inferenceServiceSettings.getEisGatewayUrl();
+        }
+
+        if (elasticInferenceUrl != null) {
+            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
 
             inferenceServices.add(
-                () -> List.of(context -> new ElasticInferenceService(httpFactory.get(), serviceComponents.get(), eisComponents.get()))
+                () -> List.of(
+                    context -> new ElasticInferenceService(
+                        httpFactory.get(),
+                        serviceComponents.get(),
+                        elasticInferenceServiceComponents.get()
+                    )
+                )
             );
         }
 
@@ -228,10 +257,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         registry.init(services.client());
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            for (var service : registry.getServices().values()) {
-                service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
-            }
+        for (var service : registry.getServices().values()) {
+            service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
         }
         inferenceServiceRegistry.set(registry);
 
@@ -239,7 +266,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var stats = new PluginComponentBinding<>(InferenceStats.class, ApmInferenceStats.create(meterRegistry));
+        var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         return List.of(modelRegistry, registry, httpClientManager, stats);
     }
@@ -288,7 +315,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             .setDescription("Contains inference service and model configuration")
             .setMappings(InferenceIndex.mappingsV1())
             .setSettings(InferenceIndex.settings())
-            .setVersionMetaKey("version")
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
 
@@ -301,7 +327,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(InferenceIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -312,7 +337,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
                 .setSettings(InferenceSecretsIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()
@@ -369,7 +393,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        return Map.of(
+            SemanticTextFieldMapper.CONTENT_TYPE,
+            SemanticTextFieldMapper.PARSER,
+            OffsetSourceFieldMapper.CONTENT_TYPE,
+            OffsetSourceFieldMapper.PARSER
+        );
     }
 
     @Override

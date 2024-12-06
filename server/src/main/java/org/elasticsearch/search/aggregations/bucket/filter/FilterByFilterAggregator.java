@@ -132,7 +132,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         }
 
         /**
-         * Build the the adapter or {@code null} if the this isn't a valid rewrite.
+         * Build the adapter or {@code null} if this isn't a valid rewrite.
          */
         public final T build() throws IOException {
             if (false == valid || aggCtx.enableRewriteToFilterByFilter() == false) {

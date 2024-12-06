@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -205,7 +206,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testTwoQueriesExecuted() {
         Metrics metrics = new Metrics(new EsqlFunctionRegistry());
-        Verifier verifier = new Verifier(metrics);
+        Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
                | where languages > 2
@@ -252,7 +253,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testMultipleFunctions() {
         Metrics metrics = new Metrics(new EsqlFunctionRegistry());
-        Verifier verifier = new Verifier(metrics);
+        Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
                | where languages > 2
@@ -526,7 +527,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Metrics metrics = null;
         if (v == null) {
             metrics = new Metrics(new EsqlFunctionRegistry());
-            verifier = new Verifier(metrics);
+            verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         analyzer(verifier).analyze(parser.createStatement(esql));
 

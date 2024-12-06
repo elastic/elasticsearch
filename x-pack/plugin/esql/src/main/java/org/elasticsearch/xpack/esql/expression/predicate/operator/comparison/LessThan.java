@@ -37,6 +37,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Map.entry(DataType.DATE_NANOS, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.SEMANTIC_TEXT, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, LessThanKeywordsEvaluator.Factory::new)
     );
@@ -52,12 +53,12 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Source source,
         @Param(
             name = "lhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = { "boolean", "date_nanos", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
             description = "An expression."
         ) Expression left,
         @Param(
             name = "rhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = { "boolean", "date_nanos", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
             description = "An expression."
         ) Expression right
     ) {

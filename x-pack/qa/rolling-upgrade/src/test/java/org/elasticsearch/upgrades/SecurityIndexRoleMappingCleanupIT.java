@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -24,8 +25,14 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     public void testCleanupDuplicateMappings() throws Exception {
+        // see build.gradle where we set operator/settings.json for more details on this skip
+        assumeTrue(
+            "Cluster requires version higher than since operator/settings.json is only set then: " + Version.V_8_7_0,
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
+        );
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // If we're in a state where the same operator-defined role mappings can exist both in cluster state and the native store
             // (V_8_15_0 transport added to security.role_mapping_cleanup feature added), create a state

@@ -15,8 +15,8 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
@@ -184,8 +184,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                     ll.onResponse(null);
                 }));
             });
-            var rewritten = new KnnRetrieverBuilder(this, () -> toSet.get(), null);
-            return rewritten;
+            return new KnnRetrieverBuilder(this, () -> toSet.get(), null);
         }
         return super.rewrite(ctx);
     }

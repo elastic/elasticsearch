@@ -157,21 +157,15 @@ FROM employees
 ==== Timespan literals
 
 Datetime intervals and timespans can be expressed using timespan literals.
-Timespan literals are a combination of a number and a qualifier. These
-qualifiers are supported:
+Timespan literals are a combination of a number and a temporal unit. The
+supported temporal units are listed in <<esql-time-spans-table, time span unit>>.
+More examples of the usages of time spans can be found in
+<<esql-time-spans, Use time spans in ES|QL>>.
 
-* `millisecond`/`milliseconds`/`ms`
-* `second`/`seconds`/`sec`/`s`
-* `minute`/`minutes`/`min`
-* `hour`/`hours`/`h`
-* `day`/`days`/`d`
-* `week`/`weeks`/`w`
-* `month`/`months`/`mo`
-* `quarter`/`quarters`/`q`
-* `year`/`years`/`yr`/`y`
 
 Timespan literals are not whitespace sensitive. These expressions are all valid:
 
 * `1day`
 * `1 day`
 * `1       day`
+

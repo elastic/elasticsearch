@@ -15,13 +15,17 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -121,13 +125,38 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCount() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
-        int threshold = randomIntBetween(1, 10000);
-        assumeTrue("bug with single collection & single segment: https://github.com/elastic/elasticsearch/issues/106647", threshold > 1);
-        // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will not cause early termination
+        int threshold = randomIntBetween(2, 10000);
+        // there's one doc matching the query: any totalHitsThreshold greater than 1 will not cause early termination
         CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(new HitsThresholdChecker(threshold));
         Result result = searcher.search(query, collectorManager);
         assertEquals(1, result.totalHits);
         assertFalse(result.terminatedAfter);
+    }
+
+    public void testThresholdOne() throws Exception {
+        Query query = new NonCountingTermQuery(new Term("string", "a1"));
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 0f);
+        CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(new HitsThresholdChecker(1));
+        // threshold 1 behaves differently depending on whether there is a single segment (no early termination) or multiple segments.
+        // With inter-segment concurrency the behaviour is not deterministic and depends on the timing of the different threads.
+        // Without inter-segment concurrency the behaviour depends on which segment holds the matching document.
+        // This is because the check for early termination is performed every time a leaf collector is pulled for a segment, as well
+        // as for every collected doc.
+        PartialHitCountCollector partialHitCountCollector = collectorManager.newCollector();
+        int i = 0;
+        while (partialHitCountCollector.getTotalHits() == 0 && i < searcher.getLeafContexts().size()) {
+            LeafReaderContext ctx = searcher.getLeafContexts().get(i++);
+            LeafCollector leafCollector = partialHitCountCollector.getLeafCollector(ctx);
+            BulkScorer bulkScorer = weight.bulkScorer(ctx);
+            bulkScorer.score(leafCollector, ctx.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
+        }
+        assertEquals(1, partialHitCountCollector.getTotalHits());
+        assertFalse(partialHitCountCollector.hasEarlyTerminated());
+        expectThrows(
+            CollectionTerminatedException.class,
+            () -> partialHitCountCollector.getLeafCollector(randomFrom(searcher.getLeafContexts()))
+        );
+        assertTrue(partialHitCountCollector.hasEarlyTerminated());
     }
 
     public void testCollectedHitCountEarlyTerminated() throws Exception {

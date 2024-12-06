@@ -8,4 +8,3 @@ template:
     index:
       lifecycle:
         name: logs-apm.app_logs-default_policy
-        prefer_ilm: false

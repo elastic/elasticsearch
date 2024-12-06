@@ -10,7 +10,10 @@
 package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.env.BuildVersion;
+
+import java.io.IOException;
 
 /**
  * Allows plugging in current build info.
@@ -40,7 +43,19 @@ public interface BuildExtension {
     BuildVersion fromVersionId(int versionId);
 
     /**
+     * Returns the {@link BuildVersion} as read from node metadata
+     */
+    default BuildVersion fromNodeMetadata(String version) {
+        return fromVersionId(Integer.parseInt(version));
+    }
+
+    /**
      * Returns the {@link BuildVersion} for a given version string.
      */
     BuildVersion fromString(String version);
+
+    /**
+     * Reads a {@link BuildVersion} from the given stream
+     */
+    BuildVersion fromStream(StreamInput in) throws IOException;
 }

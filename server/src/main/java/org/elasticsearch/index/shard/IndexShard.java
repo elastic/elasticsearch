@@ -2274,8 +2274,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
         final MappedFieldType mappedFieldType = mapperService().fieldType(fieldName);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
-            return ShardLongFieldRange.UNKNOWN; // field missing or not a date
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
+            return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
         if (mappedFieldType.isIndexed() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
@@ -3860,8 +3860,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * listener handles all exception cases internally.
      */
     public final void syncAfterWrite(Translog.Location location, Consumer<Exception> syncListener) {
-        // TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/97183
-        // assert indexShardOperationPermits.getActiveOperationsCount() != 0;
+        assert indexShardOperationPermits.getActiveOperationsCount() != 0;
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }

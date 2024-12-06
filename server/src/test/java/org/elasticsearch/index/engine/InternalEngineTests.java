@@ -1282,13 +1282,11 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             globalCheckpoint::get
         );
-        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), new BytesArray("{}"), null);
         engine.index(indexForDoc(doc));
         globalCheckpoint.set(0L);
         engine.flush();
-        syncFlush(indexWriterHolder.get(), engine, syncId);
-        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        syncFlush(indexWriterHolder.get(), engine);
         EngineConfig config = engine.config();
         if (randomBoolean()) {
             engine.close();
@@ -1306,7 +1304,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
         engine = new InternalEngine(config);
         recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
-        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
     }
 
     public void testSyncedFlushVanishesOnReplay() throws IOException {
@@ -1327,31 +1324,21 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             globalCheckpoint::get
         );
-        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), new BytesArray("{}"), null);
         globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
         engine.index(indexForDoc(doc));
         engine.flush();
-        syncFlush(indexWriterHolder.get(), engine, syncId);
-        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        syncFlush(indexWriterHolder.get(), engine);
         doc = testParsedDocument("2", null, testDocumentWithTextField(), new BytesArray("{}"), null);
         engine.index(indexForDoc(doc));
         EngineConfig config = engine.config();
         engine.close();
         engine = new InternalEngine(config);
         recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
-        assertNull(
-            "Sync ID must be gone since we have a document to replay",
-            engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID)
-        );
     }
 
-    void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
+    void syncFlush(IndexWriter writer, InternalEngine engine) throws IOException {
         try (var ignored = engine.acquireEnsureOpenRef()) {
-            Map<String, String> userData = new HashMap<>();
-            writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
-            userData.put(Engine.SYNC_COMMIT_ID, syncId);
-            writer.setLiveCommitData(userData.entrySet());
             writer.commit();
         }
     }

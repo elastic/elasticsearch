@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -19,10 +20,34 @@ import java.util.Objects;
  * The desired balance of the cluster, indicating which nodes should hold a copy of each shard.
  *
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
+ * @param weightsPerNode The node weights calculated based on
+ * {@link org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction#nodeWeight}
  */
-public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
+public record DesiredBalance(
+    long lastConvergedIndex,
+    Map<ShardId, ShardAssignment> assignments,
+    Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
+    ComputationFinishReason finishReason
+) {
 
-    public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
+    enum ComputationFinishReason {
+        CONVERGED,
+        YIELD_TO_NEW_INPUT,
+        STOP_EARLY
+    }
+
+    public DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
+    }
+
+    /**
+     * The placeholder value for {@link DesiredBalance} when the node stands down as master.
+     */
+    public static final DesiredBalance NOT_MASTER = new DesiredBalance(-2, Map.of());
+    /**
+     * The starting value for {@link DesiredBalance} when the node becomes the master.
+     */
+    public static final DesiredBalance BECOME_MASTER_INITIAL = new DesiredBalance(-1, Map.of());
 
     public ShardAssignment getAssignment(ShardId shardId) {
         return assignments.get(shardId);

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -63,12 +64,19 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
+    private final IncrementalBulkService.Enabled incrementalEnabled;
     private final Set<String> capabilities;
 
-    public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
+    public RestBulkAction(Settings settings, ClusterSettings clusterSettings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
+        this.incrementalEnabled = new IncrementalBulkService.Enabled(clusterSettings);
         this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
+    }
+
+    @Override
+    public boolean supportContentStream() {
+        return incrementalEnabled.get();
     }
 
     @Override
@@ -122,10 +130,10 @@ public class RestBulkAction extends BaseRestHandler {
             } catch (Exception e) {
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-            return channel -> {
-                content.mustIncRef();
-                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
-            };
+            return channel -> client.bulk(
+                bulkRequest,
+                ActionListener.withRef(new RestRefCountedChunkedToXContentListener<>(channel), content)
+            );
         } else {
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);

@@ -117,11 +117,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 assertTrue(recvChunk.isLast);
                 assertEquals(0, recvChunk.chunk.length());
                 recvChunk.chunk.close();
-                assertFalse(handler.streamClosed);
+                assertBusy(() -> assertTrue(handler.streamClosed));
 
                 // send response to process following request
                 handler.sendResponse(new RestResponse(RestStatus.OK, ""));
-                assertBusy(() -> assertTrue(handler.streamClosed));
             }
             assertBusy(() -> assertEquals("should receive all server responses", totalRequests, ctx.clientRespQueue.size()));
         }
@@ -154,10 +153,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                     }
                 }
 
-                assertFalse(handler.streamClosed);
+                assertBusy(() -> assertTrue(handler.streamClosed));
                 assertEquals("sent and received payloads are not the same", sendData, recvData);
                 handler.sendResponse(new RestResponse(RestStatus.OK, ""));
-                assertBusy(() -> assertTrue(handler.streamClosed));
             }
             assertBusy(() -> assertEquals("should receive all server responses", totalRequests, ctx.clientRespQueue.size()));
         }
@@ -333,32 +331,27 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensures that oversized chunked encoded request has no limits at http layer
-    // rest handler is responsible for oversized requests
-    public void testOversizedChunkedEncodingNoLimits() throws Exception {
+    // ensures that oversized chunked encoded request has limits at http layer
+    public void testOversizedChunkedEncodingLimits() throws Exception {
         try (var ctx = setupClientCtx()) {
-            for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
-                var id = opaqueId(reqNo);
-                var contentSize = maxContentLength() + 1;
-                var content = randomByteArrayOfLength(contentSize);
-                var is = new ByteBufInputStream(Unpooled.wrappedBuffer(content));
-                var chunkedIs = new ChunkedStream(is);
-                var httpChunkedIs = new HttpChunkedInput(chunkedIs, LastHttpContent.EMPTY_LAST_CONTENT);
-                var req = httpRequest(id, 0);
-                HttpUtil.setTransferEncodingChunked(req, true);
+            var id = opaqueId(0);
+            var contentSize = maxContentLength() + 1;
+            var content = randomByteArrayOfLength(contentSize);
+            var is = new ByteBufInputStream(Unpooled.wrappedBuffer(content));
+            var chunkedIs = new ChunkedStream(is);
+            var httpChunkedIs = new HttpChunkedInput(chunkedIs, LastHttpContent.EMPTY_LAST_CONTENT);
+            var req = httpRequest(id, 0);
+            HttpUtil.setTransferEncodingChunked(req, true);
 
-                ctx.clientChannel.pipeline().addLast(new ChunkedWriteHandler());
-                ctx.clientChannel.writeAndFlush(req);
-                ctx.clientChannel.writeAndFlush(httpChunkedIs);
-                var handler = ctx.awaitRestChannelAccepted(id);
-                var consumed = handler.readAllBytes();
-                assertEquals(contentSize, consumed);
-                handler.sendResponse(new RestResponse(RestStatus.OK, ""));
+            ctx.clientChannel.pipeline().addLast(new ChunkedWriteHandler());
+            ctx.clientChannel.writeAndFlush(req);
+            ctx.clientChannel.writeAndFlush(httpChunkedIs);
+            var handler = ctx.awaitRestChannelAccepted(id);
+            handler.readAllBytes();
 
-                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
-                assertEquals(HttpResponseStatus.OK, resp.status());
-                resp.release();
-            }
+            var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+            resp.release();
         }
     }
 
@@ -655,24 +648,27 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             channel.sendResponse(response);
         }
 
-        int readBytes(int bytes) {
+        int readBytes(int bytes) throws InterruptedException {
             var consumed = 0;
             if (recvLast == false) {
-                while (consumed < bytes) {
-                    stream.next();
-                    var recvChunk = safePoll(recvChunks);
-                    consumed += recvChunk.chunk.length();
-                    recvChunk.chunk.close();
-                    if (recvChunk.isLast) {
-                        recvLast = true;
-                        break;
+                stream.next();
+                while (consumed < bytes && streamClosed == false) {
+                    var recvChunk = recvChunks.poll(10, TimeUnit.MILLISECONDS);
+                    if (recvChunk != null) {
+                        consumed += recvChunk.chunk.length();
+                        recvChunk.chunk.close();
+                        if (recvChunk.isLast) {
+                            recvLast = true;
+                            break;
+                        }
+                        stream.next();
                     }
                 }
             }
             return consumed;
         }
 
-        int readAllBytes() {
+        int readAllBytes() throws InterruptedException {
             return readBytes(Integer.MAX_VALUE);
         }
 
@@ -702,6 +698,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 @Override
                 public String getName() {
                     return ROUTE;
+                }
+
+                @Override
+                public boolean supportContentStream() {
+                    return true;
                 }
 
                 @Override

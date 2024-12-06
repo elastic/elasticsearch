@@ -116,7 +116,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
+    public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         activityTracker.startActivity();
         try {
             if (msg instanceof HttpRequest request) {
@@ -130,7 +130,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     } else {
                         nonError = (Exception) cause;
                     }
-                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, nonError);
                 } else {
                     assert currentRequestStream == null : "current stream must be null for new request";
                     if (request instanceof FullHttpRequest fullHttpRequest) {
@@ -139,7 +139,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     } else {
                         var contentStream = new Netty4HttpRequestBodyStream(
                             ctx.channel(),
-                            serverTransport.getThreadPool().getThreadContext()
+                            serverTransport.getThreadPool().getThreadContext(),
+                            activityTracker
                         );
                         currentRequestStream = contentStream;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);

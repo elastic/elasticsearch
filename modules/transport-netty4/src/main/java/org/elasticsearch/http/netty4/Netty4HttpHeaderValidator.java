@@ -37,12 +37,19 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private final HttpValidator validator;
     private final ThreadContext threadContext;
+    private AutoReadSync.Handle autoRead;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private State state = WAITING_TO_START;
 
     public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
         this.validator = validator;
         this.threadContext = threadContext;
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        autoRead = AutoReadSync.from(ctx.channel());
+        super.channelRegistered(ctx);
     }
 
     State getState() {
@@ -61,7 +68,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 pending.add(ReferenceCountUtil.retain(httpObject));
                 requestStart(ctx);
                 assert state == QUEUEING_DATA;
-                assert ctx.channel().config().isAutoRead() == false;
+                assert autoRead.isEnabled() == false;
                 break;
             case QUEUEING_DATA:
                 pending.add(ReferenceCountUtil.retain(httpObject));
@@ -83,7 +90,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             case DROPPING_DATA_PERMANENTLY:
                 assert pending.isEmpty();
                 ReferenceCountUtil.release(httpObject); // consume without enqueuing
-                ctx.channel().config().setAutoRead(false);
+                autoRead.disable();
                 break;
         }
     }
@@ -106,7 +113,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
 
         state = QUEUEING_DATA;
-        ctx.channel().config().setAutoRead(false);
+        autoRead.disable();
 
         if (httpRequest == null) {
             // this looks like a malformed request and will forward without validation
@@ -149,10 +156,10 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     private void forwardFullRequest(ChannelHandlerContext ctx) {
         Transports.assertDefaultThreadContext(threadContext);
         assert ctx.channel().eventLoop().inEventLoop();
-        assert ctx.channel().config().isAutoRead() == false;
+        assert autoRead.isEnabled() == false;
         assert state == QUEUEING_DATA;
 
-        ctx.channel().config().setAutoRead(true);
+        autoRead.enable();
         boolean fullRequestForwarded = forwardData(ctx, pending);
 
         assert fullRequestForwarded || pending.isEmpty();
@@ -169,7 +176,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
         Transports.assertDefaultThreadContext(threadContext);
         assert ctx.channel().eventLoop().inEventLoop();
-        assert ctx.channel().config().isAutoRead() == false;
+        assert autoRead.isEnabled() == false;
         assert state == QUEUEING_DATA;
 
         HttpObject messageToForward = pending.getFirst();
@@ -180,7 +187,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
 
-        ctx.channel().config().setAutoRead(true);
+        autoRead.enable();
         ctx.fireChannelRead(messageToForward);
 
         assert fullRequestDropped || pending.isEmpty();

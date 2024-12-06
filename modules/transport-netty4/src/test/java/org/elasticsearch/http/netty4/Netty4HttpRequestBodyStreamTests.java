@@ -19,13 +19,13 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,11 +45,11 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         super.setUp();
         channel = new EmbeddedChannel();
         threadContext.putHeader("header1", "value1");
-        stream = new Netty4HttpRequestBodyStream(channel, threadContext);
+        stream = new Netty4HttpRequestBodyStream(channel, threadContext, new ThreadWatchdog.ActivityTracker());
         stream.setHandler(discardHandler); // set default handler, each test might override one
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
-            protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) {
+            protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) throws Exception {
                 stream.handleNettyContent(msg);
             }
         });
@@ -169,16 +169,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         assertThat(headers.get(), hasEntry("header1", "value1"));
         assertThat(headers.get(), hasEntry("header2", "value2"));
         assertThat(headers.get(), hasEntry("header3", "value3"));
-
         assertTrue("should receive last content", gotLast.get());
-
-        headers.set(new HashMap<>());
-
-        stream.close();
-
-        assertThat(headers.get(), hasEntry("header1", "value1"));
-        assertThat(headers.get(), hasEntry("header2", "value2"));
-        assertThat(headers.get(), hasEntry("header3", "value3"));
     }
 
     HttpContent randomContent(int size, boolean isLast) {

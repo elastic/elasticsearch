@@ -862,6 +862,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public int contentLength() {
+                return body().asFull().bytes().length();
+            }
+
+            @Override
             public HttpBody body() {
                 if (hasContent) {
                     return HttpBody.fromBytesReference(new BytesArray("test"));

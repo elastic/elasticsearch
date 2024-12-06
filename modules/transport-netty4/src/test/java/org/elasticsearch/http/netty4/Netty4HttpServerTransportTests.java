@@ -1057,9 +1057,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final SubscribableListener<Void> transportClosedFuture = new SubscribableListener<>();
         final CountDownLatch handlingRequestLatch = new CountDownLatch(1);
 
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,

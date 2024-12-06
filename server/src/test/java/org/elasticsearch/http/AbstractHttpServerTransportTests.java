@@ -459,7 +459,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
                 "/",
-                null,
+                BytesArray.EMPTY,
                 headers
             );
 
@@ -475,7 +475,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
                 "/",
-                null,
+                BytesArray.EMPTY,
                 headers
             );
 

@@ -2,4 +2,4 @@
 
 *Description*
 
-Computes the hash of the input using the supplied algorithm.
+Computes the hash of the input using java.security.MessageDigest.

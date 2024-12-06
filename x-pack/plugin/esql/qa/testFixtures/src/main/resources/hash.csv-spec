@@ -4,6 +4,7 @@ required_capability: hash_function
 FROM languages 
 | EVAL md5 = hash("md5", language_name), sha256 = hash("sha256", language_name) 
 | KEEP language_name, md5, sha256;
+ignoreOrder:true
 
 language_name:keyword | md5:keyword                      | sha256:keyword
 English               | 78463a384a5aa4fad5fa73e2f506ecfc | ba118bf7fc9c1aedc1edb28a0aa86e0b43b681f222af6616e13c43be87815b06

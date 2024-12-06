@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -41,7 +42,7 @@ public class Hash extends EsqlScalarFunction {
     private final Expression alg;
     private final Expression input;
 
-    @FunctionInfo(returnType = "keyword", description = "Computes the hash of the input using the supplied algorithm.")
+    @FunctionInfo(returnType = "keyword", description = "Computes the hash of the input using java.security.MessageDigest.")
     public Hash(
         Source source,
         @Param(name = "alg", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression alg,
@@ -119,7 +120,7 @@ public class Hash extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (alg.foldable() && alg.dataType() == DataType.KEYWORD) {
+        if (alg.foldable()) {
             try {
                 var md = MessageDigest.getInstance(((BytesRef) alg.fold()).utf8ToString());
                 return new HashConstantEvaluator.Factory(
@@ -129,7 +130,7 @@ public class Hash extends EsqlScalarFunction {
                     toEvaluator.apply(input)
                 );
             } catch (NoSuchAlgorithmException e) {
-                throw new IllegalArgumentException(e);
+                throw new InvalidArgumentException(e, "invalid alg for [{}]: {}", sourceText(), e.getMessage());
             }
         } else {
             return new HashEvaluator.Factory(

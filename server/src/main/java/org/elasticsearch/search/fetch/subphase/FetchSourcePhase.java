@@ -22,6 +22,8 @@ import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
+
 public final class FetchSourcePhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
@@ -94,9 +96,11 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (fetchContext.getSearchExecutionContext()
                     .getIndexSettings()
                     .getIndexVersionCreated()
-                    .before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                    .before(IndexVersions.INFERENCE_METADATA_FIELDS)
+                    || INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() == false) {
                     return source;
                 }
+
                 var field = hit.removeMetadataFields(InferenceMetadataFieldsMapper.NAME);
                 if (field == null || field.getValues().isEmpty()) {
                     return source;

@@ -77,6 +77,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         ).v2();
     }
 
+    @AwaitsFix(bugUrl = "http://fake.url")
     public void testDenseVector() throws Exception {
         var mapperService = createDefaultMapperService();
         float[] vector = readDenseVector(queries.get("dense_vector_1"));

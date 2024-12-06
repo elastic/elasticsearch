@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic;
+package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
@@ -15,23 +15,45 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
-public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
+public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceModel {
+
+    public static ElasticInferenceServiceCompletionModel of(ElasticInferenceServiceCompletionModel model, UnifiedCompletionRequest request) {
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        return new ElasticInferenceServiceCompletionModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            model.getTaskSettings(),
+            model.getSecretSettings()
+        );
+    }
 
     private final URI uri;
 
-    public ElasticInferenceServiceSparseEmbeddingsModel(
+    public ElasticInferenceServiceCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -52,8 +74,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         );
     }
 
-    public ElasticInferenceServiceSparseEmbeddingsModel(
-        ElasticInferenceServiceSparseEmbeddingsModel model,
+    public ElasticInferenceServiceCompletionModel(
+        ElasticInferenceServiceCompletionModel model,
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
@@ -65,7 +87,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         }
     }
 
-    ElasticInferenceServiceSparseEmbeddingsModel(
+    ElasticInferenceServiceCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -89,11 +111,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     }
 
     @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this);
-    }
-
-    @Override
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings getServiceSettings() {
         return (ElasticInferenceServiceSparseEmbeddingsServiceSettings) super.getServiceSettings();
     }
@@ -104,17 +121,18 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
 
     private URI createUri() throws URISyntaxException {
         String modelId = getServiceSettings().modelId();
-        String modelIdUriPath;
+//        String modelIdUriPath;
+//
+//        switch (modelId) {
+//            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
+//            default -> throw new IllegalArgumentException(
+//                String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
+//            );
+//        }
 
-        switch (modelId) {
-            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
-            );
-        }
+        // TODO what is the url?
+//        return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/completion/" + modelIdUriPath);
 
-        return new URI(
-            elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embedding/" + modelIdUriPath
-        );
+        return
     }
 }

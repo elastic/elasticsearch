@@ -97,7 +97,7 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof ElasticInferenceServiceModel == false) {
+        if (model instanceof ElasticInferenceServiceExecutableActionModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
@@ -107,7 +107,7 @@ public class ElasticInferenceService extends SenderService {
         // generating a different "traceparent" as every task and every REST request creates a new span).
         var currentTraceInfo = getCurrentTraceInfo();
 
-        ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
+        ElasticInferenceServiceExecutableActionModel elasticInferenceServiceModel = (ElasticInferenceServiceExecutableActionModel) model;
         var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);

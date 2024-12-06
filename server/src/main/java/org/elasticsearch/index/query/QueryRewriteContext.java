@@ -159,6 +159,32 @@ public class QueryRewriteContext {
         );
     }
 
+    public QueryRewriteContext getInterceptedQueryRewriteContext() {
+
+        if (queryRewriteInterceptor == null) {
+            return this;
+        }
+
+        return new QueryRewriteContext(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            mappingLookup,
+            runtimeMappings,
+            indexSettings,
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            writeableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService,
+            resolvedIndices,
+            pit,
+            null
+        );
+    }
+
     /**
      * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
      *
@@ -438,4 +464,5 @@ public class QueryRewriteContext {
     public QueryRewriteInterceptor getQueryRewriteInterceptor() {
         return queryRewriteInterceptor;
     }
+
 }

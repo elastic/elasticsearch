@@ -46,6 +46,17 @@ public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> e
     }
 
     @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // Ensure that we only perform interception once in a query's rewrite phase
+        QueryRewriteContext interceptedContext = queryRewriteContext.getInterceptedQueryRewriteContext();
+        var rewritten = queryBuilder.rewrite(interceptedContext);
+        if (rewritten == queryBuilder) {
+            return this;
+        }
+        return rewritten;
+    }
+
+    @Override
     protected boolean doEquals(T other) {
         // Handle the edge case where we need to unwrap the incoming query builder
         if (other instanceof InterceptedQueryBuilderWrapper) {

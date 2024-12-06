@@ -129,6 +129,8 @@ public class SemanticTextHighlighter implements Highlighter {
             if (content == null) {
                 throw new IllegalStateException(
                     String.format(
+                        Locale.ROOT,
+
                         "Invalid content detected for field [%s]: missing text for the chunk at offset [%d].",
                         fieldType.name(),
                         chunk.offset

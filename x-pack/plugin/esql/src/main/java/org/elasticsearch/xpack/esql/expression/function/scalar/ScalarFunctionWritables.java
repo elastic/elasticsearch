@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
-import org.elasticsearch.xpack.esql.expression.function.scalar.hash.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
@@ -64,6 +64,7 @@ public class ScalarFunctionWritables {
         entries.add(Concat.ENTRY);
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
+        entries.add(Hash.ENTRY);
         entries.add(Greatest.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
@@ -93,7 +94,6 @@ public class ScalarFunctionWritables {
         entries.add(Tau.ENTRY);
         entries.add(ToLower.ENTRY);
         entries.add(ToUpper.ENTRY);
-        entries.add(Hash.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());
         return entries;

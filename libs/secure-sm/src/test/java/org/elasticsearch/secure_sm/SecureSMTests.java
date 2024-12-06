@@ -9,6 +9,7 @@
 
 package org.elasticsearch.secure_sm;
 
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -27,8 +28,8 @@ public class SecureSMTests {
 
     @BeforeClass
     public static void initializeSM() {
-        if (Runtime.version().feature() >= 24) {
-            throw new AssumptionViolatedException("SecurityManager has been removed in JDK 24");
+        if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
+            throw new AssumptionViolatedException("SecurityManager has been permanently removed in JDK 24");
         }
         // install a mock security policy:
         // AllPermission to source code

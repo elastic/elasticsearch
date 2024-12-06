@@ -21,6 +21,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -722,7 +723,7 @@ final class BootstrapChecks {
         }
 
         boolean isAllPermissionGranted() {
-            if (Runtime.version().feature() >= 24) {
+            if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
                 return false;
             }
             final SecurityManager sm = System.getSecurityManager();

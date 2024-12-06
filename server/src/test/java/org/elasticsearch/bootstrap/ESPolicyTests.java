@@ -9,6 +9,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.test.ESTestCase;
 
 import java.security.AccessControlContext;
@@ -27,7 +28,7 @@ public class ESPolicyTests extends ESTestCase {
      * test restricting privileges to no permissions actually works
      */
     public void testRestrictPrivileges() {
-        assumeTrue("test requires security manager", Runtime.version().feature() < 24 && System.getSecurityManager() != null);
+        assumeTrue("test requires security manager", RuntimeVersionFeature.isSecurityManagerAvailable() && System.getSecurityManager() != null);
         try {
             System.getProperty("user.home");
         } catch (SecurityException e) {

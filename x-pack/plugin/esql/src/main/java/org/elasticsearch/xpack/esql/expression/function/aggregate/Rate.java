@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -156,7 +157,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         }
         final Object foldValue;
         try {
-            foldValue = unit.fold();
+            foldValue = unit.fold(FoldContext.unbounded() /* TODO remove me */);
         } catch (Exception e) {
             throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
         }

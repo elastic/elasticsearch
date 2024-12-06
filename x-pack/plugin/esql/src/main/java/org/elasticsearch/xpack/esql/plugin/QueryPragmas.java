@@ -12,12 +12,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -56,6 +58,8 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", false);
+
+    public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -132,6 +136,13 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean nodeLevelReduction() {
         return NODE_LEVEL_REDUCTION.get(settings);
+    }
+
+    /**
+     * The maximum amount of memory we can use for {@link Expression#fold} during planing.
+     */
+    public ByteSizeValue foldLimit() {
+        return FOLD_LIMIT.get(settings);
     }
 
     public boolean isEmpty() {

@@ -146,7 +146,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
 
         if (number.foldable()) {
-            int num = (int) number.fold();
+            int num = (int) number.fold(toEvaluator.foldCtx());
             if (num < 0) {
                 throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
             }

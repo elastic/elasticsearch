@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.TopIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -115,11 +116,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private int limitValue() {
-        return (int) limitField().fold();
+        return (int) limitField().fold(FoldContext.unbounded() /* TODO remove me */);
     }
 
     private String orderRawValue() {
-        return BytesRefs.toString(orderField().fold());
+        return BytesRefs.toString(orderField().fold(FoldContext.unbounded() /* TODO remove me */));
     }
 
     private boolean orderValue() {

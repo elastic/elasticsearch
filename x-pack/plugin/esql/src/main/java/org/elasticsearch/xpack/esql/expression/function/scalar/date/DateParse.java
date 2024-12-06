@@ -146,7 +146,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         }
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(), zone);
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), zone);
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());

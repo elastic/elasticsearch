@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -71,12 +72,11 @@ public class EvalBenchmark {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
+    private static final FoldContext FOLD_CONTEXT = FoldContext.unbounded();
+
     private static final int BLOCK_LENGTH = 8 * 1024;
 
-    static final DriverContext driverContext = new DriverContext(
-        BigArrays.NON_RECYCLING_INSTANCE,
-        BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
-    );
+    static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
@@ -114,11 +114,12 @@ public class EvalBenchmark {
         return switch (operation) {
             case "abs" -> {
                 FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(new Abs(Source.EMPTY, longField), layout(longField)).get(driverContext);
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Abs(Source.EMPTY, longField), layout(longField)).get(driverContext);
             }
             case "add" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
                     new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataType.LONG)),
                     layout(longField)
                 ).get(driverContext);
@@ -126,6 +127,7 @@ public class EvalBenchmark {
             case "add_double" -> {
                 FieldAttribute doubleField = doubleField();
                 yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
                     new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE)),
                     layout(doubleField)
                 ).get(driverContext);
@@ -140,7 +142,8 @@ public class EvalBenchmark {
                     lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
                     rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
                 }
-                yield EvalMapper.toEvaluator(new Case(Source.EMPTY, condition, List.of(lhs, rhs)), layout(f1, f2)).get(driverContext);
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Case(Source.EMPTY, condition, List.of(lhs, rhs)), layout(f1, f2))
+                    .get(driverContext);
             }
             case "date_trunc" -> {
                 FieldAttribute timestamp = new FieldAttribute(
@@ -149,6 +152,7 @@ public class EvalBenchmark {
                     new EsField("timestamp", DataType.DATETIME, Map.of(), true)
                 );
                 yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
                     new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION), timestamp),
                     layout(timestamp)
                 ).get(driverContext);
@@ -156,6 +160,7 @@ public class EvalBenchmark {
             case "equal_to_const" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
                     new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataType.LONG)),
                     layout(longField)
                 ).get(driverContext);
@@ -163,21 +168,21 @@ public class EvalBenchmark {
             case "long_equal_to_long" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = longField();
-                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
             }
             case "long_equal_to_int" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = intField();
-                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
             }
             case "mv_min", "mv_min_ascending" -> {
                 FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext);
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext);
             }
             case "rlike" -> {
                 FieldAttribute keywordField = keywordField();
                 RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
-                yield EvalMapper.toEvaluator(rlike, layout(keywordField)).get(driverContext);
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
             }
             default -> throw new UnsupportedOperationException();
         };

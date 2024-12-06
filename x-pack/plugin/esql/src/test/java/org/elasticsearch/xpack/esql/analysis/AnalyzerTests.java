@@ -945,7 +945,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             """);
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         as(limit.child(), EsRelation.class);
     }
 
@@ -953,7 +953,7 @@ public class AnalyzerTests extends ESTestCase {
         for (int i = -1; i <= 1; i++) {
             var plan = analyze("from test | limit " + (MAX_LIMIT + i));
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
             limit = as(limit.child(), Limit.class);
             as(limit.child(), EsRelation.class);
         }
@@ -970,7 +970,7 @@ public class AnalyzerTests extends ESTestCase {
         for (int i = -1; i <= 1; i++) {
             var plan = analyze("from test | limit " + (MAX_LIMIT + i) + " | eval s = salary * 10 | where s > 0");
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
             var filter = as(limit.child(), Filter.class);
             var eval = as(filter.child(), Eval.class);
             limit = as(eval.child(), Limit.class);
@@ -982,7 +982,7 @@ public class AnalyzerTests extends ESTestCase {
         for (var breaker : List.of("stats c = count(salary) by last_name", "sort salary")) {
             var plan = analyze("from test | limit 100000 | " + breaker);
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
         }
     }
 
@@ -990,7 +990,7 @@ public class AnalyzerTests extends ESTestCase {
         for (var breaker : List.of("stats c = count(salary) by last_name", "eval c = salary | sort c")) {
             var plan = analyze("from test | " + breaker + " | eval cc = c * 10 | where cc > 0");
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         }
     }
 
@@ -1296,7 +1296,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzeWithEmptyFieldCapsResponse(query);
         var limit = as(plan, Limit.class);
         limit = as(limit.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(0));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(0));
         var orderBy = as(limit.child(), OrderBy.class);
         var agg = as(orderBy.child(), Aggregate.class);
         assertEmptyEsRelation(agg.child());
@@ -1311,7 +1311,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzeWithEmptyFieldCapsResponse(query);
         var limit = as(plan, Limit.class);
         limit = as(limit.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(2));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(2));
         var project = as(limit.child(), EsqlProject.class);
         var eval = as(project.child(), Eval.class);
         assertEmptyEsRelation(eval.child());
@@ -1328,7 +1328,7 @@ public class AnalyzerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         var eval = as(agg.child(), Eval.class);
         limit = as(eval.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(10));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(10));
         assertEmptyEsRelation(limit.child());
     }
 
@@ -1922,10 +1922,10 @@ public class AnalyzerTests extends ESTestCase {
         }
         LogicalPlan plan = analyze(query);
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
 
         var lookup = as(limit.child(), Lookup.class);
-        assertThat(lookup.tableName().fold(), equalTo("int_number_names"));
+        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo("int_number_names"));
         assertMap(lookup.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(
             lookup.localRelation().output().stream().map(Object::toString).toList(),
@@ -2144,7 +2144,7 @@ public class AnalyzerTests extends ESTestCase {
         projection = as(projections.get(3), ReferenceAttribute.class);
         assertEquals(projection.name(), "w");
         assertEquals(projection.dataType(), DataType.DOUBLE);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
     }
 
     public void testNamedParamsForIdentifiers() {

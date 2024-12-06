@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -244,25 +245,25 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isWholeNumber()) {
-                int b = ((Number) buckets.fold()).intValue();
-                long f = foldToLong(from);
-                long t = foldToLong(to);
+                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
+                long f = foldToLong(toEvaluator.foldCtx(), from);
+                long t = foldToLong(toEvaluator.foldCtx(), to);
                 preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
             } else {
                 assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-                preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
+                preparedRounding = DateTrunc.createRounding(buckets.fold(toEvaluator.foldCtx()), DEFAULT_TZ);
             }
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo;
             if (from != null) {
-                int b = ((Number) buckets.fold()).intValue();
-                double f = ((Number) from.fold()).doubleValue();
-                double t = ((Number) to.fold()).doubleValue();
+                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
+                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
+                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                roundTo = ((Number) buckets.fold()).doubleValue();
+                roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
@@ -405,8 +406,8 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             .add(to != null ? isFoldable(to, operation, FOURTH) : null);
     }
 
-    private long foldToLong(Expression e) {
-        Object value = Foldables.valueOf(e);
+    private long foldToLong(FoldContext ctx, Expression e) {
+        Object value = Foldables.valueOf(ctx, e);
         return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 

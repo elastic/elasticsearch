@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
@@ -23,6 +28,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 public interface EvaluatorMapper {
     interface ToEvaluator {
         ExpressionEvaluator.Factory apply(Expression expression);
+
+        FoldContext foldCtx();
     }
 
     /**
@@ -35,8 +42,8 @@ public interface EvaluatorMapper {
      * <p>
      * Note for Callers:
      * If you are attempting to call this method, and you have an
-     * {@link Expression} and a {@link org.elasticsearch.xpack.esql.planner.Layout},
-     * you likely want to call {@link org.elasticsearch.xpack.esql.evaluator.EvalMapper#toEvaluator(Expression, Layout)}
+     * {@link Expression} and a {@link Layout},
+     * you likely want to call {@link EvalMapper#toEvaluator}
      * instead.  On the other hand, if you already have something that
      * looks like the parameter for this method, you should call this method
      * with that function.
@@ -60,15 +67,37 @@ public interface EvaluatorMapper {
      * in that it'll always call {@link Expression#fold}, but that's
      * good enough.
      */
-    default Object fold() {
-        return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+    default Object fold(Source source, FoldContext ctx) {
+        ToEvaluator toEvaluator = new ToEvaluator() {
             @Override
-            public Block eval(Page page) {
-                return fromArrayRow(driverContext.blockFactory(), e.fold())[0];
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return driverContext -> new ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        return fromArrayRow(driverContext.blockFactory(), expression.fold(ctx))[0];
+                    }
+
+                    @Override
+                    public void close() {}
+                };
             }
 
             @Override
-            public void close() {}
-        }).get(DriverContext.getLocalDriver()).eval(new Page(1)), 0);
+            public FoldContext foldCtx() {
+                return ctx;
+            }
+        };
+
+        DriverContext driverCtx = new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new BlockFactory(ctx.circuitBreakerView(source), BigArrays.NON_RECYCLING_INSTANCE)
+        );
+        Block block = toEvaluator(toEvaluator).get(driverCtx).eval(new Page(1));
+        if (block.getPositionCount() != 1) {
+            throw new IllegalStateException("generated odd block from fold [" + block + "]");
+        }
+        return
+
+        toJavaObject(block, 0);
     }
 }

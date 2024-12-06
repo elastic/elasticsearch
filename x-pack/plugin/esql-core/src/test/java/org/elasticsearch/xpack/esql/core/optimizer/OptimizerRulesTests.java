@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
@@ -104,7 +105,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Range r = rangeOf(fa, SIX, false, FIVE, true);
         assertTrue(r.foldable());
-        assertEquals(Boolean.FALSE, r.fold());
+        assertEquals(Boolean.FALSE, r.fold(FoldContext.unbounded()));
     }
 
     // 6 < a <= 5.5 -> FALSE
@@ -113,7 +114,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Range r = rangeOf(fa, SIX, false, L(5.5d), true);
         assertTrue(r.foldable());
-        assertEquals(Boolean.FALSE, r.fold());
+        assertEquals(Boolean.FALSE, r.fold(FoldContext.unbounded()));
     }
 
     // Conjunction

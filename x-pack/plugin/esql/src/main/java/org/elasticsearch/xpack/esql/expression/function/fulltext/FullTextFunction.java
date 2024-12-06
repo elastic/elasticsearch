@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -78,7 +79,7 @@ public abstract class FullTextFunction extends Function {
      * @return query expression as a string
      */
     public final String queryAsText() {
-        Object queryAsObject = query().fold();
+        Object queryAsObject = query().fold(FoldContext.unbounded() /* TODO remove me */);
         if (queryAsObject instanceof BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }

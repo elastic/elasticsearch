@@ -140,7 +140,7 @@ public final class TypeResolutions {
             return resolution;
         }
 
-        if (e.dataType() == DataType.NULL || e.fold() == null) {
+        if (e.dataType() == DataType.NULL || e.fold(FoldContext.unbounded() /* TODO remove this */) == null) {
             resolution = new TypeResolution(
                 format(
                     null,

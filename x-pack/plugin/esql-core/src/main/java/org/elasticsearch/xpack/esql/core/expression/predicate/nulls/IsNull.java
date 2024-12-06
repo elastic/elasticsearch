@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.nulls;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -45,8 +46,8 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     }
 
     @Override
-    public Object fold() {
-        return field().fold() == null || DataType.isNull(field().dataType());
+    public Object fold(FoldContext ctx) {
+        return DataType.isNull(field().dataType()) || field().fold(ctx) == null;
     }
 
     @Override

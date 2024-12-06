@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -683,12 +684,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         RegexMatch<?> result = switch (type) {
             case EsqlBaseParser.LIKE -> {
                 try {
-                    yield new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+                    yield new WildcardLike(
+                        source,
+                        left,
+                        new WildcardPattern(pattern.fold(FoldContext.unbounded() /* TODO remove me */).toString())
+                    );
                 } catch (InvalidArgumentException e) {
                     throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
                 }
             }
-            case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
+            case EsqlBaseParser.RLIKE -> new RLike(
+                source,
+                left,
+                new RLikePattern(pattern.fold(FoldContext.unbounded() /* TODO remove me */).toString())
+            );
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
         return ctx.NOT() == null ? result : new Not(source, result);

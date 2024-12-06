@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -36,7 +37,10 @@ public final class OptimizerRules {
         protected abstract LogicalPlan rule(SubPlan plan);
     }
 
-    public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
+    public abstract static class OptimizerExpressionRule<E extends Expression> extends ParameterizedRule<
+        LogicalPlan,
+        LogicalPlan,
+        LogicalOptimizerContext> {
 
         private final TransformDirection direction;
         // overriding type token which returns the correct class but does an uncheck cast to LogicalPlan due to its generic bound
@@ -49,17 +53,17 @@ public final class OptimizerRules {
         }
 
         @Override
-        public final LogicalPlan apply(LogicalPlan plan) {
+        public final LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
             return direction == TransformDirection.DOWN
-                ? plan.transformExpressionsDown(expressionTypeToken, this::rule)
-                : plan.transformExpressionsUp(expressionTypeToken, this::rule);
+                ? plan.transformExpressionsDown(expressionTypeToken, e -> rule(e, ctx))
+                : plan.transformExpressionsUp(expressionTypeToken, e -> rule(e, ctx));
         }
 
         protected LogicalPlan rule(LogicalPlan plan) {
             return plan;
         }
 
-        protected abstract Expression rule(E e);
+        protected abstract Expression rule(E e, LogicalOptimizerContext ctx);
 
         public Class<E> expressionToken() {
             return expressionTypeToken;
@@ -82,6 +86,7 @@ public final class OptimizerRules {
             this.direction = direction;
         }
 
+        @Override
         public final LogicalPlan apply(LogicalPlan plan, P context) {
             return direction == TransformDirection.DOWN
                 ? plan.transformDown(typeToken(), t -> rule(t, context))

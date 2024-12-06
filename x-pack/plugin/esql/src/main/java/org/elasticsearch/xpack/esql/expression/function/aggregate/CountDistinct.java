@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -210,7 +211,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
+        int precision = this.precision == null
+            ? DEFAULT_PRECISION
+            : ((Number) this.precision.fold(FoldContext.unbounded() /* TODO remove me */)).intValue();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);

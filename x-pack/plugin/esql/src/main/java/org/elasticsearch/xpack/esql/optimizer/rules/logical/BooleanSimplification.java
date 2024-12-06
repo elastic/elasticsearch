@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.util.List;
 
@@ -35,7 +36,7 @@ public final class BooleanSimplification extends OptimizerRules.OptimizerExpress
     }
 
     @Override
-    public Expression rule(ScalarFunction e) {
+    public Expression rule(ScalarFunction e, LogicalOptimizerContext ctx) {
         if (e instanceof And || e instanceof Or) {
             return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
         }

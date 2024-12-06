@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -289,7 +290,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = (String) plan.policyName().fold();
+            final String policyName = (String) plan.policyName().fold(FoldContext.unbounded() /* TODO remove me */);
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -1247,16 +1248,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
             String message = format(
                 "Cannot convert string [{}] to [{}], error [{}]",
-                value.fold(),
+                value.fold(FoldContext.unbounded() /* TODO remove me */),
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold()), message);
+            return new UnresolvedAttribute(
+                value.source(),
+                String.valueOf(value.fold(FoldContext.unbounded() /* TODO remove me */)),
+                message
+            );
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                TemporalAmount result = maybeParseTemporalAmount(from.fold().toString().strip());
+                TemporalAmount result = maybeParseTemporalAmount(
+                    from.fold(FoldContext.unbounded() /* TODO remove me */).toString().strip()
+                );
                 if (result == null) {
                     return from;
                 }
@@ -1272,7 +1279,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             try {
                 return isTemporalAmount(target)
                     ? castStringLiteralToTemporalAmount(from)
-                    : new Literal(from.source(), EsqlDataTypeConverter.convert(from.fold(), target), target);
+                    : new Literal(
+                        from.source(),
+                        EsqlDataTypeConverter.convert(from.fold(FoldContext.unbounded() /* TODO remove me */), target),
+                        target
+                    );
             } catch (Exception e) {
                 return unresolvedAttribute(from, target.toString(), e);
             }

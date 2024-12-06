@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -204,8 +205,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     @Override
-    public Boolean fold() {
-        return (Boolean) EvaluatorMapper.super.fold();
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

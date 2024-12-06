@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -295,7 +296,12 @@ public class EsqlSession {
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
-            .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
+            .map(
+                e -> new EnrichPolicyResolver.UnresolvedPolicy(
+                    (String) e.policyName().fold(FoldContext.unbounded() /* TODO remove me*/),
+                    e.mode()
+                )
+            )
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
         // TODO: make a separate call for lookup indices

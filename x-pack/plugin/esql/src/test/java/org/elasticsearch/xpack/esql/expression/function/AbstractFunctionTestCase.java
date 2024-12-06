@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -97,6 +99,7 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
@@ -530,14 +533,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return build(testCase.getSource(), testCase.getDataAsLiterals());
     }
 
+    public static EvaluatorMapper.ToEvaluator toEvaluator() {
+        return new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return evaluator(expression);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.unbounded();
+            }
+        };
+    }
+
     /**
      * Convert an {@link Expression} tree into a {@link ExpressionEvaluator.Factory}
      * for {@link ExpressionEvaluator}s in the same way as our planner.
      */
     public static ExpressionEvaluator.Factory evaluator(Expression e) {
-        e = new FoldNull().rule(e);
+        e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
         if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(), e.dataType());
+            e = new Literal(e.source(), e.fold(FoldContext.unbounded()), e.dataType());
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
@@ -545,7 +562,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        return EvalMapper.toEvaluator(e, builder.build());
+        return EvalMapper.toEvaluator(FoldContext.unbounded(), e, builder.build());
     }
 
     protected final Page row(List<Object> values) {

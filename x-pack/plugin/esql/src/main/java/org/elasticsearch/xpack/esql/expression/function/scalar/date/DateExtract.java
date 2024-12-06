@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -110,9 +111,9 @@ public class DateExtract extends EsqlConfigurationFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(children().get(1));
         if (children().get(0).foldable()) {
-            ChronoField chrono = chronoField();
+            ChronoField chrono = chronoField(toEvaluator.foldCtx());
             if (chrono == null) {
-                BytesRef field = (BytesRef) children().get(0).fold();
+                BytesRef field = (BytesRef) children().getFirst().fold(toEvaluator.foldCtx());
                 throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
             return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
@@ -121,14 +122,14 @@ public class DateExtract extends EsqlConfigurationFunction {
         return new DateExtractEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
     }
 
-    private ChronoField chronoField() {
+    private ChronoField chronoField(FoldContext ctx) {
         // chronoField's never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
         // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);
             try {
                 if (field.foldable() && DataType.isString(field.dataType())) {
-                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
+                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
                 }
             } catch (Exception e) {
                 return null;

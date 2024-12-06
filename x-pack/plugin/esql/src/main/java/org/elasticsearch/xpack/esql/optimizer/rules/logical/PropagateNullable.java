@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,7 +34,7 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
     }
 
     @Override
-    public Expression rule(And and) {
+    public Expression rule(And and, LogicalOptimizerContext ctx) {
         List<Expression> splits = Predicates.splitAnd(and);
 
         Set<Expression> nullExpressions = new LinkedHashSet<>();

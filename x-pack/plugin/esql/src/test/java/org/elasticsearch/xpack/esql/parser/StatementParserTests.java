@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -1128,51 +1129,51 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("x"));
         assertThat(field, instanceOf(Alias.class));
         Alias alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(1));
 
         field = row.fields().get(1);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is("2"));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is("2"));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is("2 days"));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is("2 days"));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is("4 hours"));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is("4 hours"));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(String.class));
-        assertThat(alias.child().fold().toString(), is("1.2.3"));
+        assertThat(alias.child().fold(FoldContext.unbounded()).getClass(), is(String.class));
+        assertThat(alias.child().fold(FoldContext.unbounded()).toString(), is("1.2.3"));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(String.class));
-        assertThat(alias.child().fold().toString(), is("127.0.0.1"));
+        assertThat(alias.child().fold(FoldContext.unbounded()).getClass(), is(String.class));
+        assertThat(alias.child().fold(FoldContext.unbounded()).toString(), is("127.0.0.1"));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is(9));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(9));
 
         field = row.fields().get(7);
         assertThat(field.name(), is("f"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is(11));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(11));
     }
 
     public void testMissingInputParams() {
@@ -1189,13 +1190,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("x"));
         assertThat(field, instanceOf(Alias.class));
         Alias alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(1));
 
         field = row.fields().get(1);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(1));
     }
 
     public void testInvalidNamedParams() {
@@ -1236,13 +1237,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("x"));
         assertThat(field, instanceOf(Alias.class));
         Alias alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(1));
 
         field = row.fields().get(1);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
+        assertThat(alias.child().fold(FoldContext.unbounded()), is(1));
     }
 
     public void testInvalidPositionalParams() {
@@ -2056,7 +2057,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(), equalTo(string));
+        assertThat(tableName.fold(FoldContext.unbounded()), equalTo(string));
     }
 
     public void testIdPatternUnquoted() throws Exception {
@@ -2124,7 +2125,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(), equalTo("t"));
+        assertThat(tableName.fold(FoldContext.unbounded()), equalTo("t"));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -2305,7 +2306,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (Match) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(), equalTo("value"));
+        assertThat(match.query().fold(FoldContext.unbounded()), equalTo("value"));
     }
 
     public void testInvalidMatchOperator() {

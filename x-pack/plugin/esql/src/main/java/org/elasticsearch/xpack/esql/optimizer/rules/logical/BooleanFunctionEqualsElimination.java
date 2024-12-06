@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -28,7 +29,7 @@ public final class BooleanFunctionEqualsElimination extends OptimizerRules.Optim
     }
 
     @Override
-    public Expression rule(BinaryComparison bc) {
+    public Expression rule(BinaryComparison bc, LogicalOptimizerContext ctx) {
         if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
             // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
 

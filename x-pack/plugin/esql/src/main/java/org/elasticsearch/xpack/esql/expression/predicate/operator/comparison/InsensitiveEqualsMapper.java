@@ -14,6 +14,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
@@ -28,15 +29,15 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         InsensitiveEqualsEvaluator.Factory::new;
 
     @Override
-    public final ExpressionEvaluator.Factory map(InsensitiveEquals bc, Layout layout) {
+    public final ExpressionEvaluator.Factory map(FoldContext foldCtx, InsensitiveEquals bc, Layout layout) {
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();
 
-        var leftEval = toEvaluator(bc.left(), layout);
-        var rightEval = toEvaluator(bc.right(), layout);
+        var leftEval = toEvaluator(foldCtx, bc.left(), layout);
+        var rightEval = toEvaluator(foldCtx, bc.right(), layout);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
-                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold());
+                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(FoldContext.unbounded() /* TODO remove me */));
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
                 return dvrCtx -> new InsensitiveEqualsConstantEvaluator(
                     bc.source(),
@@ -51,13 +52,14 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
     }
 
     public static ExpressionEvaluator.Factory castToEvaluator(
+        FoldContext foldCtx,
         InsensitiveEquals op,
         Layout layout,
         DataType required,
         TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factory
     ) {
-        var lhs = Cast.cast(op.source(), op.left().dataType(), required, toEvaluator(op.left(), layout));
-        var rhs = Cast.cast(op.source(), op.right().dataType(), required, toEvaluator(op.right(), layout));
+        var lhs = Cast.cast(op.source(), op.left().dataType(), required, toEvaluator(foldCtx, op.left(), layout));
+        var rhs = Cast.cast(op.source(), op.right().dataType(), required, toEvaluator(foldCtx, op.right(), layout));
         return factory.apply(op.source(), lhs, rhs);
     }
 }

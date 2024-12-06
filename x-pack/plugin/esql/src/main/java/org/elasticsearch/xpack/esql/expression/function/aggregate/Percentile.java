@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -170,7 +171,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     private int percentileValue() {
-        return ((Number) percentile.fold()).intValue();
+        return ((Number) percentile.fold(FoldContext.unbounded() /* TODO remove me */)).intValue();
     }
 
     @Override

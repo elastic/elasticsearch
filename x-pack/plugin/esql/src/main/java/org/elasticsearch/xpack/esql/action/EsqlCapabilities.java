@@ -550,7 +550,12 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot());
+        METADATA_SCORE(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES;
 
         private final boolean enabled;
 

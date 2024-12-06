@@ -528,6 +528,29 @@ public class RestResponseTests extends ESTestCase {
         assertThat(response.content().utf8ToString(), containsString("connection already closed"));
     }
 
+    public void testRetriableCodesShouldTakePrecedence() throws IOException {
+        RestRequest request = new FakeRestRequest();
+        RestChannel channel = new DetailedExceptionRestChannel(request);
+        ShardSearchFailure shardFailure1 = new ShardSearchFailure(
+            new ParsingException(1, 1, "shard1", null),
+            new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 1), null)
+        );
+
+        ShardSearchFailure shardFailure2 = new ShardSearchFailure(
+            new NodeDisconnectedException(null, "unused message", "unused action", null),
+            new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 2), null)
+        );
+
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure1, shardFailure2 }
+        );
+
+        RestResponse response = new RestResponse(channel, new RemoteTransportException("unused message", ex));
+        assertThat(response.status(), is(RestStatus.BAD_REQUEST));
+    }
+
     private void assertLogging(
         RestChannel channel,
         Exception exception,

@@ -93,17 +93,7 @@ public final class ExceptionsHelper {
             result = result.getCause();
         }
 
-        // Traverse through the stacktrace and check if the error is caused by NodeNotConnectedException.
-        Throwable nodeNotConnEx = result;
-        while (nodeNotConnEx != null) {
-            if (nodeNotConnEx instanceof NodeNotConnectedException nn && nn.getMessage().equals("connection already closed")) {
-                break;
-            }
-
-            nodeNotConnEx = nodeNotConnEx.getCause();
-        }
-
-        return nodeNotConnEx != null ? nodeNotConnEx : result;
+        return result;
     }
 
     public static String stackTrace(Throwable e) {

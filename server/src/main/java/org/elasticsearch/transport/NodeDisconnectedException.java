@@ -9,8 +9,10 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -33,5 +35,11 @@ public class NodeDisconnectedException extends ConnectTransportException {
     @Override
     public Throwable fillInStackTrace() {
         return this;
+    }
+
+    @Override
+    public RestStatus status() {
+        Throwable cause = getCause();
+        return cause != null ? ExceptionsHelper.status(cause) : RestStatus.BAD_GATEWAY;
     }
 }

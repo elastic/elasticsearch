@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -89,6 +92,8 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
+        new KqlFunctionTranslator(),
+        new TermFunctionTranslator(),
         new Scalars()
     );
 
@@ -538,4 +543,19 @@ public final class EsqlExpressionTranslators {
             return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), Map.of());
         }
     }
+
+    public static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
+        @Override
+        protected Query asQuery(Kql kqlFunction, TranslatorHandler handler) {
+            return new KqlQuery(kqlFunction.source(), kqlFunction.queryAsText());
+        }
+    }
+
+    public static class TermFunctionTranslator extends ExpressionTranslator<Term> {
+        @Override
+        protected Query asQuery(Term term, TranslatorHandler handler) {
+            return new TermQuery(term.source(), ((FieldAttribute) term.field()).name(), term.queryAsText());
+        }
+    }
+
 }

@@ -297,15 +297,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected String[] getParseMinimalWarnings(IndexVersion indexVersion) {
-        String[] additionalWarnings = null;
-        if (indexVersion.before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
-            additionalWarnings = new String[] { SparseVectorFieldMapper.ERROR_MESSAGE_7X };
-        }
-        return Strings.concatStringArrays(super.getParseMinimalWarnings(indexVersion), additionalWarnings);
-    }
-
-    @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
         return NEW_SPARSE_VECTOR_INDEX_VERSION;
     }

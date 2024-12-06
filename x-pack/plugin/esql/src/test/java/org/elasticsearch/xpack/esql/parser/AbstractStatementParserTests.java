@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedLiterals;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -24,6 +25,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -123,6 +125,10 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     static Literal literalStrings(String... strings) {
         return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
+    }
+
+    static NamedLiterals namedLiterals(Map<String, String> keyValuePairs) {
+        return new NamedLiterals(EMPTY, keyValuePairs);
     }
 
     void expectError(String query, String errorMessage) {

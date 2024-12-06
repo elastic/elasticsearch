@@ -550,7 +550,12 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot());
+        METADATA_SCORE(Build.current().isSnapshot()),
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

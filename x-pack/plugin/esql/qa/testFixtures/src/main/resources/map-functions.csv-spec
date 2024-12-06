@@ -1,0 +1,70 @@
+// Tests to validate maps as inputs to functions, these functions are under snapshot only
+
+mapCount
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| EVAL c = map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true})
+;
+
+x:integer |c:long
+1         |4
+;
+
+mapCountIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| EVAL c = map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true})
+| KEEP emp_no, c
+| SORT emp_no
+| LIMIT 1
+;
+
+emp_no:integer |c:long
+10001          |4
+;
+
+mapKeys
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| EVAL k = map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true})
+;
+
+x:integer |k:keyword
+1         |"option1, option2, option3, option4"
+;
+
+mapKeysIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| EVAL k = map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true})
+| KEEP emp_no, k
+| SORT emp_no
+| LIMIT 1
+;
+
+emp_no:integer |k:keyword
+10001          |"option1, option2, option3, option4"
+;
+
+mapValues
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| EVAL v = map_values({"option1":"value1", "option2":2, "option3":3.0, "option4":true})
+;
+
+x:integer |v:keyword
+1         |"value1, 2, 3.0, true"
+;
+
+mapKeysIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| EVAL v = map_values({"option1":"value1", "option2":2, "option3":3.0, "option4":true})
+| KEEP emp_no, v
+| SORT emp_no
+| LIMIT 1
+;
+
+emp_no:integer |v:keyword
+10001          |"value1, 2, 3.0, true"
+;

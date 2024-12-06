@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentImplUtils;
+import org.simdjson.SimdJsonParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -99,6 +100,10 @@ public class JsonXContentImpl implements XContent {
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
+        if (offset == 0) {
+            var parser = new SimdJsonParser();
+            return new JsonSimdXContentParser(config, parser.parse(data, length));
+        }
         return new JsonXContentParser(config, jsonFactory.createParser(data, offset, length));
     }
 

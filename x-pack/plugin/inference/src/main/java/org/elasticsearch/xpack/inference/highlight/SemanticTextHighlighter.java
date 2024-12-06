@@ -117,7 +117,8 @@ public class SemanticTextHighlighter implements Highlighter {
                 throw new IllegalStateException(
                     String.format(
                         Locale.ROOT,
-                        "Invalid content detected for field [%s]: the chunks size is [%d], but a reference to offset [%d] was found in the result.",
+                        "Invalid content detected for field [%s]: the chunks size is [%d], " +
+                        "but a reference to offset [%d] was found in the result.",
                         fieldType.name(),
                         nestedSources.size(),
                         chunk.offset

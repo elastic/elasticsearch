@@ -40,7 +40,6 @@ tasks.named("yamlRestTest").configure {
     '^cluster.desired_balance/10_basic/*',
     '^cluster.health/10_basic/cluster health with closed index', // closed index
     '^cluster.health/30_indices_options/cluster health with expand_wildcards', // closed index
-    '^cluster.prevalidate_node_removal/*/*',
     '^cluster.state/20_filtering/*',
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
@@ -117,7 +116,12 @@ tasks.named("yamlRestTest").configure {
     '^synonyms/*/*',
     '^tsdb/10_settings/*',
     '^tsdb/30_snapshot/*',
-    '^tsdb/80_index_resize/*'
+    '^tsdb/80_index_resize/*',
+
+    // The following tests are muted because the functionality that they are testing is not available in a multi-project setup
+
+    // The node removal prevalidation is only available for a Stateful deployment.
+    '^cluster.prevalidate_node_removal/*/*'
   ];
   if (buildParams.isSnapshotBuild() == false) {
     blacklist += [];

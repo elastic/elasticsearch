@@ -48,7 +48,8 @@ PUT semantic-embeddings
 // TEST[skip:TBD]
 <1> The name of the field to contain the generated embeddings.
 <2> The field to contain the embeddings is a `semantic_text` field.
-Since no `inference_id` is provided, the default endpoint `.elser-2-elasticsearch` for the <<infer-service-elasticsearch,`elasticsearch` service>> is used. To use a different {infer} service, you must create an {infer} endpoint first using the <<put-inference-api>> and then specify it in the `semantic_text` field mapping using the `inference_id` parameter.
+Since no `inference_id` is provided, the default endpoint `.elser-2-elasticsearch` for the <<infer-service-elasticsearch,`elasticsearch` service>> is used.
+To use a different {infer} service, you must create an {infer} endpoint first using the <<put-inference-api>> and then specify it in the `semantic_text` field mapping using the `inference_id` parameter.
 
 [NOTE]
 ====

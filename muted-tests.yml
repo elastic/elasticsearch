@@ -245,6 +245,9 @@ tests:
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test30KeystorePasswordFromFile
   issue: https://github.com/elastic/elasticsearch/issues/118123
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test31WrongKeystorePasswordFromFile
+  issue: https://github.com/elastic/elasticsearch/issues/118123
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test41AutoconfigurationNotTriggeredWhenNodeCannotContainData
   issue: https://github.com/elastic/elasticsearch/issues/118110
@@ -257,6 +260,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/118170
 
 # Examples:
 #

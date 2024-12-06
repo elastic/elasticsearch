@@ -263,6 +263,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/118184
+- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
+  method: testCancelRequestWhenFailingFetchingPages
+  issue: https://github.com/elastic/elasticsearch/issues/118193
 
 # Examples:
 #

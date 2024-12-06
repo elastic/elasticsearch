@@ -79,12 +79,6 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
-    public void restartNode(int index, boolean forcibly) {
-        checkHandle();
-        handle.restartNode(index, forcibly);
-    }
-
-    @Override
     public void restart(boolean forcibly) {
         checkHandle();
         handle.restart(forcibly);

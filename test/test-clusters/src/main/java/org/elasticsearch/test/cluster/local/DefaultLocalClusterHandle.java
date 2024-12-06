@@ -181,13 +181,6 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         nodes.get(index).stop(forcibly);
     }
 
-    public void restartNode(int index, boolean forcibly) {
-        Node node = nodes.get(index);
-        node.stop(forcibly);
-        node.start(null);
-        writeUnicastHostsFile();
-    }
-
     @Override
     public InputStream getNodeLog(int index, LogType logType) {
         return nodes.get(index).getLog(logType);

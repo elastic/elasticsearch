@@ -477,7 +477,7 @@ public class ExchangeServiceTests extends ESTestCase {
             }
         }, false, between(1, 3), sinkCompleted);
         threadPool.schedule(
-            () -> sourceHandler.finishEarly(ActionListener.noop()),
+            () -> sourceHandler.finishEarly(randomBoolean(), ActionListener.noop()),
             TimeValue.timeValueMillis(between(0, 10)),
             threadPool.generic()
         );
@@ -487,8 +487,10 @@ public class ExchangeServiceTests extends ESTestCase {
             assertSame(p, pages.poll());
             p.releaseBlocks();
         }
+        while ((p = pages.poll()) != null) {
+            p.releaseBlocks();
+        }
         assertTrue(exchangeSource.isFinished());
-        assertNull(pages.poll());
         exchangeSource.finish();
     }
 

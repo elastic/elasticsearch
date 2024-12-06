@@ -67,7 +67,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("task", getTaskId());
+            builder.field("acknowledged", true);
             builder.endObject();
             return builder;
         }

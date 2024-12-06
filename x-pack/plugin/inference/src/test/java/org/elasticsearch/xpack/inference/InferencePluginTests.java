@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 

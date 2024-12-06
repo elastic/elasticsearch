@@ -111,9 +111,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchPhaseControllerTests
   method: testProgressListener
   issue: https://github.com/elastic/elasticsearch/issues/116149
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=terms_enum/10_basic/Test security}
-  issue: https://github.com/elastic/elasticsearch/issues/116178
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/116175
@@ -248,6 +245,27 @@ tests:
 - class: org.elasticsearch.datastreams.ResolveClusterDataStreamIT
   method: testClusterResolveWithDataStreamsUsingAlias
   issue: https://github.com/elastic/elasticsearch/issues/118124
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test30KeystorePasswordFromFile
+  issue: https://github.com/elastic/elasticsearch/issues/118123
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test31WrongKeystorePasswordFromFile
+  issue: https://github.com/elastic/elasticsearch/issues/118123
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test41AutoconfigurationNotTriggeredWhenNodeCannotContainData
+  issue: https://github.com/elastic/elasticsearch/issues/118110
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndexKeepReordered SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118150
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndexKeepReordered ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118151
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
+  method: testEsqlRcs2UnavailableRemoteScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/117419
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/118170
 
 # Examples:
 #

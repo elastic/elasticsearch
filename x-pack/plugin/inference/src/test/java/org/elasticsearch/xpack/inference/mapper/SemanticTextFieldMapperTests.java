@@ -1111,7 +1111,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
 
-        return new ESToParentBlockJoinQuery(new SparseVectorQueryWrapper(fieldName, queryBuilder.build()), parentFilter, ScoreMode.Total, null);
+        return new ESToParentBlockJoinQuery(
+            new SparseVectorQueryWrapper(fieldName, queryBuilder.build()),
+            parentFilter,
+            ScoreMode.Total,
+            null
+        );
     }
 
     private static void assertChildLeafNestedDocument(

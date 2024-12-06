@@ -117,9 +117,6 @@ tests:
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/116249
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
@@ -242,9 +239,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ConfigurationTests
   method: test30SymlinkedDataPath
   issue: https://github.com/elastic/elasticsearch/issues/118111
-- class: org.elasticsearch.datastreams.ResolveClusterDataStreamIT
-  method: testClusterResolveWithDataStreamsUsingAlias
-  issue: https://github.com/elastic/elasticsearch/issues/118124
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test30KeystorePasswordFromFile
   issue: https://github.com/elastic/elasticsearch/issues/118123
@@ -263,6 +257,21 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/118170
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultRerank
+  issue: https://github.com/elastic/elasticsearch/issues/118184
+- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
+  method: testCancelRequestWhenFailingFetchingPages
+  issue: https://github.com/elastic/elasticsearch/issues/118193
+- class: org.elasticsearch.packaging.test.MemoryLockingTests
+  method: test20MemoryLockingEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/118195
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
+  issue: https://github.com/elastic/elasticsearch/issues/118196
 
 # Examples:
 #

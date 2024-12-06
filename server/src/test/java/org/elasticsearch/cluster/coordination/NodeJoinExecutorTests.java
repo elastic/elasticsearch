@@ -162,7 +162,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testPreventJoinClusterWithMissingFeatures() throws Exception {
         AllocationService allocationService = createAllocationService();
         RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
                 return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
@@ -201,7 +201,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testCanJoinClusterWithMissingIncompleteFeatures() throws Exception {
         AllocationService allocationService = createAllocationService();
         RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
                 return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
@@ -934,7 +934,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     private static FeatureService createFeatureService() {
-        return new FeatureService(List.of());
+        return new FeatureService(Settings.EMPTY, List.of());
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

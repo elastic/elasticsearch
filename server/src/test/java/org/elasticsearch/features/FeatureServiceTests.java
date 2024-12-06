@@ -11,6 +11,7 @@ package org.elasticsearch.features;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -43,7 +44,7 @@ public class FeatureServiceTests extends ESTestCase {
         };
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs1, fs2))).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(Settings.EMPTY, List.of(fs1, fs2))).getMessage(),
             containsString("Duplicate feature")
         );
     }
@@ -56,7 +57,7 @@ public class FeatureServiceTests extends ESTestCase {
             new TestFeatureSpecification(Set.of())
         );
 
-        FeatureService service = new FeatureService(specs);
+        FeatureService service = new FeatureService(Settings.EMPTY, specs);
         assertThat(service.getNodeFeatures().keySet(), containsInAnyOrder("f1", "f2", "f3", "f4", "f5"));
     }
 
@@ -74,7 +75,7 @@ public class FeatureServiceTests extends ESTestCase {
             )
             .build();
 
-        FeatureService service = new FeatureService(specs);
+        FeatureService service = new FeatureService(Settings.EMPTY, specs);
         assertTrue(service.clusterHasFeature(state, new NodeFeature("f1")));
         assertTrue(service.clusterHasFeature(state, new NodeFeature("f2")));
         assertFalse(service.clusterHasFeature(state, new NodeFeature("nf1")));

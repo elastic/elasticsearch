@@ -219,7 +219,7 @@ public class ClusterStateChanges {
         }
 
         // services
-        featureService = new FeatureService(List.of());
+        featureService = new FeatureService(SETTINGS, List.of());
 
         transportService = new TransportService(
             SETTINGS,

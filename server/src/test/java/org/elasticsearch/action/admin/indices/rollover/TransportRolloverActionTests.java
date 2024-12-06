@@ -121,7 +121,7 @@ public class TransportRolloverActionTests extends ESTestCase {
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
         Settings.EMPTY,
         mockClusterService,
-        new FeatureService(List.of()),
+        new FeatureService(Settings.EMPTY, List.of()),
         System::currentTimeMillis
     );
 

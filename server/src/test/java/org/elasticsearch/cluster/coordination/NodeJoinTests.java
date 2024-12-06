@@ -233,7 +233,7 @@ public class NodeJoinTests extends ESTestCase {
             LeaderHeartbeatService.NO_OP,
             StatefulPreVoteCollector::new,
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(Settings.EMPTY, List.of())
         );
         transportService.start();
         transportService.acceptIncomingRequests();

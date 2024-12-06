@@ -352,8 +352,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     }
 
     private Set<String> calculateAllAssumedClusterFeatures(DiscoveryNodes nodes, Map<String, Set<String>> nodeFeatures) {
-        int nextMajor = Version.CURRENT.major + 1;
-        if (nodes.isMixedVersionCluster() && nodes.getMaxNodeVersion().major == nextMajor) {
+        if (featureService.featuresCanBeAssumedForNodes(nodes)) {
             Set<String> assumedFeatures = featureService.getNodeFeatures()
                 .values()
                 .stream()
@@ -364,11 +363,10 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // add all assumed features to the featureset of all nodes of the next major version
             nodeFeatures = new HashMap<>(nodeFeatures);
             for (var node : nodes.getNodes().entrySet()) {
-                if (node.getValue().getVersion().major == nextMajor) {
+                if (featureService.featuresCanBeAssumedForNode(node.getValue())) {
                     nodeFeatures.compute(node.getKey(), (k, v) -> {
-                        v = new HashSet<>(v);
-                        v.addAll(assumedFeatures);
-                        return v;
+                        var newFeatures = new HashSet<>(v);
+                        return newFeatures.addAll(assumedFeatures) ? newFeatures : v;
                     });
                 }
             }
@@ -498,7 +496,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             return newNodeFeatures;
         }
 
-        if (node.getVersion().major == Version.CURRENT.major + 1) {
+        if (featureService.featuresCanBeAssumedForNode(node)) {
             // it might still be ok for this node to join if this is a node of the next major version,
             // and all the missing features are assumed
             // we can get the NodeFeature object direct from this node's registered features

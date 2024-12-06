@@ -94,7 +94,7 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(Settings.EMPTY, List.of())
         );
         transportService.start();
 
@@ -262,7 +262,7 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(Settings.EMPTY, List.of())
         );
         transportService.start();
 
@@ -339,7 +339,7 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(Settings.EMPTY, List.of())
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();

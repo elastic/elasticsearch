@@ -119,7 +119,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         client = mock(Client.class);
 
-        FeatureService featureService = new FeatureService(List.of(new HealthFeatures()));
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new HealthFeatures()));
 
         mockHealthTracker = new MockHealthTracker();
 

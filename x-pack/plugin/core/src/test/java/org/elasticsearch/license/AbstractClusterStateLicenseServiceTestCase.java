@@ -72,7 +72,7 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
             clusterService,
             clock,
             licenseState,
-            new FeatureService(List.of())
+            new FeatureService(settings, List.of())
         );
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();

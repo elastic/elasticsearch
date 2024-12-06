@@ -13,16 +13,15 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 
-// MP TODO: should this be limited to EsqlCcsLicenseChecker?
 public class EsqlLicenseChecker {
 
-    public static final LicensedFeature.Momentary ESQL_FEATURE = LicensedFeature.momentary(null, "ES|QL", License.OperationMode.ENTERPRISE);
+    public static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(null, "ES|QL", License.OperationMode.ENTERPRISE);
 
     public static boolean isCcsAllowed(XPackLicenseState licenseState) {
         if (licenseState == null) {
             return false;
         }
-        return ESQL_FEATURE.checkWithoutTracking(licenseState);
+        return CCS_FEATURE.checkWithoutTracking(licenseState);
     }
 
     public static ElasticsearchStatusException invalidLicenseForCcsException(XPackLicenseState licenseState) {

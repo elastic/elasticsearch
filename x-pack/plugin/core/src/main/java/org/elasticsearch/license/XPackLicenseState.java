@@ -94,7 +94,6 @@ public class XPackLicenseState {
      */
     static final Map<String, BiFunction<OperationMode, OperationMode, String[]>> ACKNOWLEDGMENT_MESSAGES;
     static {
-        // MP TODO: do we need add an entry here for ES|QL CCS? Or is the entry in
         Map<String, BiFunction<OperationMode, OperationMode, String[]>> messages = new LinkedHashMap<>();
         messages.put(XPackField.SECURITY, XPackLicenseState::securityAcknowledgementMessages);
         messages.put(XPackField.WATCHER, XPackLicenseState::watcherAcknowledgementMessages);
@@ -107,7 +106,6 @@ public class XPackLicenseState {
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
         messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
         messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
-        // MP TODO: do we need this? What is this used for?
         messages.put(XPackField.ESQL, XPackLicenseState::esqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }

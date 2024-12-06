@@ -2,12 +2,6 @@ tests:
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testSingleDoc {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111434
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDataStreams {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
@@ -103,9 +97,6 @@ tests:
 - class: org.elasticsearch.search.StressSearchServiceReaperIT
   method: testStressReaper
   issue: https://github.com/elastic/elasticsearch/issues/115816
-- class: org.elasticsearch.search.SearchServiceTests
-  method: testParseSourceValidation
-  issue: https://github.com/elastic/elasticsearch/issues/115936
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -248,6 +239,20 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/118040
+- class: org.elasticsearch.packaging.test.ConfigurationTests
+  method: test20HostnameSubstitution
+  issue: https://github.com/elastic/elasticsearch/issues/118028
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster
+  issue: https://github.com/elastic/elasticsearch/issues/118029
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/117981
+- class: org.elasticsearch.packaging.test.ConfigurationTests
+  method: test30SymlinkedDataPath
+  issue: https://github.com/elastic/elasticsearch/issues/118111
+- class: org.elasticsearch.datastreams.ResolveClusterDataStreamIT
+  method: testClusterResolveWithDataStreamsUsingAlias
+  issue: https://github.com/elastic/elasticsearch/issues/118124
 
 # Examples:
 #

@@ -22,7 +22,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -92,7 +91,6 @@ public final class ExceptionsHelper {
             }
             result = result.getCause();
         }
-
         return result;
     }
 

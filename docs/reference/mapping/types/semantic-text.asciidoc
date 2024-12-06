@@ -82,7 +82,10 @@ PUT my-index-000003
 
 `inference_id`::
 (Required, string)
-{infer-cap} endpoint that will be used to generate embeddings for the field. By default, `.elser-2-elasticsearch` is used. This parameter cannot be updated. Use the <<put-inference-api>> to create the endpoint.
+{infer-cap} endpoint that will be used to generate embeddings for the field.
+By default, `.elser-2-elasticsearch` is used.
+This parameter cannot be updated.
+Use the <<put-inference-api>> to create the endpoint.
 If `search_inference_id` is specified, the {infer} endpoint will only be used at index time.
 
 `search_inference_id`::

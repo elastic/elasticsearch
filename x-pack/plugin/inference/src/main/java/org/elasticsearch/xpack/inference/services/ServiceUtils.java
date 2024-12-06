@@ -70,6 +70,20 @@ public final class ServiceUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public static <T> T removeAsTypeOrThrowIfNull(Map<String, Object> sourceMap, String key, Class<T> type) {
+        Object o = sourceMap.remove(key);
+        if (o == null) {
+            throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, key);
+        }
+
+        if (type.isAssignableFrom(o.getClass())) {
+            return (T) o;
+        } else {
+            throw new ElasticsearchStatusException(invalidTypeErrorMsg(key, o, type.getSimpleName()), RestStatus.BAD_REQUEST);
+        }
+    }
+
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type and error is added to the
@@ -156,8 +170,8 @@ public final class ServiceUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
-        return (Map<String, Object>) sourceMap.remove(fieldName);
+    public static <T> Map<String, T> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
+        return (Map<String, T>) sourceMap.remove(fieldName);
     }
 
     @SuppressWarnings("unchecked")
@@ -179,11 +193,7 @@ public final class ServiceUtils {
     }
 
     public static String removeStringOrThrowIfNull(Map<String, Object> sourceMap, String key) {
-        String value = removeAsType(sourceMap, key, String.class);
-        if (value == null) {
-            throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, key);
-        }
-        return value;
+        return removeAsTypeOrThrowIfNull(sourceMap, key, String.class);
     }
 
     public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String serviceName) {

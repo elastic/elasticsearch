@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
+import org.elasticsearch.index.query.AbstractQueryBuilderWrapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -92,13 +92,13 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
 
     private QueryBuilder createMatchSubQuery(List<String> indices, String fieldName, Object value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new InterceptedSemanticMatchQueryWrapper(fieldName, value));
+        boolQueryBuilder.must(new AbstractSemanticMatchQueryWrapper(fieldName, value));
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }
 
-    static class InterceptedSemanticMatchQueryWrapper extends InterceptedQueryBuilderWrapper<MatchQueryBuilder> {
-        InterceptedSemanticMatchQueryWrapper(String fieldName, Object value) {
+    static class AbstractSemanticMatchQueryWrapper extends AbstractQueryBuilderWrapper<MatchQueryBuilder> {
+        AbstractSemanticMatchQueryWrapper(String fieldName, Object value) {
             super(new MatchQueryBuilder(fieldName, value));
         }
     }

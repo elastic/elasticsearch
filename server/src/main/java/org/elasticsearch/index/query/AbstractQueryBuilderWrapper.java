@@ -17,15 +17,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Wrapper for queries that have been intercepted using the {@link QueryRewriteInterceptor} that may need to
- * break out of the rewrite phase.
+ * Wrapper for instances of {@link AbstractQueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
+ * break out of the rewrite phase. These instances are unwrapped on serialization. 
  * @param <T>
  */
-public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
+public class AbstractQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
 
     protected final T queryBuilder;
 
-    public InterceptedQueryBuilderWrapper(T queryBuilder) {
+    public AbstractQueryBuilderWrapper(T queryBuilder) {
         super();
         this.queryBuilder = queryBuilder;
     }
@@ -59,9 +59,9 @@ public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> e
     @Override
     protected boolean doEquals(T other) {
         // Handle the edge case where we need to unwrap the incoming query builder
-        if (other instanceof InterceptedQueryBuilderWrapper) {
+        if (other instanceof AbstractQueryBuilderWrapper) {
             @SuppressWarnings("unchecked")
-            InterceptedQueryBuilderWrapper<T> wrapper = (InterceptedQueryBuilderWrapper<T>) other;
+            AbstractQueryBuilderWrapper<T> wrapper = (AbstractQueryBuilderWrapper<T>) other;
             return queryBuilder.doEquals(wrapper.queryBuilder);
         } else {
             return queryBuilder.doEquals(other);

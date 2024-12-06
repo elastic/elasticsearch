@@ -180,6 +180,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     /**
+     * Enables the super thin indexing shards feature in order to hollow inactive indexing shards and decrease their memory footprint.
+     */
+    public static final Setting<Boolean> STATELESS_HOLLOW_INDEX_SHARDS_ENABLED = Setting.boolSetting(
+        "stateless.commit.hollow_index_shards.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * How long to wait for a global checkpoint listener to be notified before triggering a translog sync and retrying (without timeout).
      */
     public static final Setting<TimeValue> STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT = Setting.positiveTimeSetting(
@@ -228,6 +237,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final long bccUploadMaxSizeInBytes;
     private final int bccUploadMaxIoRetries;
     private final boolean useInternalFilesReplicatedContent;
+    private final boolean areHollowIndexShardsEnabled;
     private final int cacheRegionSizeInBytes;
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
@@ -304,6 +314,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
+        this.areHollowIndexShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
         this.cacheRegionSizeInBytes = cacheService.getRegionSize();
         this.estimatedMaxHeaderSizeInBytes = BlobCacheUtils.toIntBytes(Math.max(0L, cacheRegionSizeInBytes - bccUploadMaxSizeInBytes));
         logger.info(
@@ -333,6 +344,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public boolean useReplicatedRanges() {
         return useInternalFilesReplicatedContent;
+    }
+
+    public boolean areHollowIndexShardsEnabled() {
+        return areHollowIndexShardsEnabled;
     }
 
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {

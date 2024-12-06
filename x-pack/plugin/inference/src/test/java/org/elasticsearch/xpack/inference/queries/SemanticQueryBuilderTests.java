@@ -195,10 +195,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private void assertSparseEmbeddingLuceneQuery(Query query) {
-        Query innerQuery = assertOuterSparseVectorQuery(query);
-        assertThat(innerQuery, instanceOf(BooleanQuery.class));
+        Query innerQuery = assertOuterBooleanQuery(query);
+        assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
+        assertThat(((SparseVectorQueryWrapper) innerQuery).getTermsQuery(), instanceOf(BooleanQuery.class));
 
-        BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
+        BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
             assertThat(c.occur(), equalTo(SHOULD));
@@ -208,7 +210,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private void assertTextEmbeddingLuceneQuery(Query query) {
-        Query innerQuery = assertOuterSparseVectorQuery(query);
+        Query innerQuery = assertOuterBooleanQuery(query);
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
             case FLOAT -> KnnFloatVectorQuery.class;
@@ -218,11 +220,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
     }
 
-    private Query assertOuterSparseVectorQuery(Query query) {
-        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
-        var wrapper = (SparseVectorQueryWrapper) query;
-        assertThat(wrapper.getTermsQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery outerBooleanQuery = (BooleanQuery) wrapper.getTermsQuery();
+    private Query assertOuterBooleanQuery(Query query) {
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery outerBooleanQuery = (BooleanQuery) query;
 
         List<BooleanClause> outerMustClauses = new ArrayList<>();
         List<BooleanClause> outerFilterClauses = new ArrayList<>();

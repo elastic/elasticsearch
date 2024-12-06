@@ -18,7 +18,7 @@ import java.io.IOException;
 
 /**
  * Wrapper for instances of {@link AbstractQueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
- * break out of the rewrite phase. These instances are unwrapped on serialization. 
+ * break out of the rewrite phase. These instances are unwrapped on serialization.
  * @param <T>
  */
 public class AbstractQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {

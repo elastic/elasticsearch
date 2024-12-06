@@ -16,11 +16,11 @@ import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -375,7 +375,7 @@ public class ComputeService {
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
-            try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
+            try (EsqlRefCountingListener refs = new EsqlRefCountingListener(lookupListener)) {
                 // update ExecutionInfo with shard counts (total and skipped)
                 executionInfo.swapCluster(
                     clusterAlias,
@@ -436,7 +436,7 @@ public class ComputeService {
     ) {
         var queryPragmas = configuration.pragmas();
         var linkExchangeListeners = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        try (RefCountingListener refs = new RefCountingListener(linkExchangeListeners)) {
+        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(linkExchangeListeners)) {
             for (RemoteCluster cluster : clusters) {
                 final var childSessionId = newChildSession(sessionId);
                 ExchangeService.openExchange(

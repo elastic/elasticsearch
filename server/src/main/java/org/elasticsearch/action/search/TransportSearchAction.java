@@ -70,6 +70,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -153,6 +154,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final RemoteClusterService remoteClusterService;
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
+    private final ResponseCollectorService responseCollectorService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
@@ -170,6 +172,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         CircuitBreakerService circuitBreakerService,
         TransportService transportService,
         SearchService searchService,
+        ResponseCollectorService responseCollectorService,
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
         ClusterService clusterService,
@@ -191,6 +194,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
+        this.responseCollectorService = responseCollectorService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
@@ -1853,7 +1857,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteIndices,
                 routingMap,
                 searchRequest.preference(),
-                searchService.getResponseCollectorService(),
+                responseCollectorService,
                 searchTransportService.getPendingSearchRequests()
             );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(

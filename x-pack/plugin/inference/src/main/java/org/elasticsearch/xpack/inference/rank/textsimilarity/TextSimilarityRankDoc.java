@@ -98,6 +98,6 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TEXT_SIMILARITY_RERANKER_QUERY_REWRITE;
+        return TransportVersions.V_8_16_0;
     }
 }

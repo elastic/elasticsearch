@@ -52,8 +52,6 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -73,7 +71,7 @@ import java.util.concurrent.Executor;
  * @see org.elasticsearch.node.Node#client()
  */
 public interface Client extends ElasticsearchClient {
-    
+
     /**
      * The admin client that can be used to perform administrative operations.
      */

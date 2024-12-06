@@ -8,35 +8,21 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT.enrichHosts;
-import static org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT.enrichVendors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -46,149 +32,24 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * This IT test is the dual of CrossClustersEnrichIT, which tests "happy path"
  * and this one tests unavailable cluster scenarios using (most of) the same tests.
  */
-public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiClustersTestCase {
-
-    public static String REMOTE_CLUSTER_1 = "c1";
-    public static String REMOTE_CLUSTER_2 = "c2";
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
-    }
+public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBasedCrossClusterTestCase {
 
     @Override
     protected boolean reuseClusters() {
         return false;
     }
 
-    private Collection<String> allClusters() {
-        return CollectionUtils.appendToCopy(remoteClusterAlias(), LOCAL_CLUSTER);
+    @Override
+    protected boolean tolerateErrorsWhenWipingEnrichPolicies() {
+        // attempt to wipe will fail since some clusters are already closed
+        return true;
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(CrossClustersEnrichIT.LocalStateEnrich.class);
-        plugins.add(IngestCommonPlugin.class);
-        plugins.add(ReindexPlugin.class);
         return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-    }
-
-    @Before
-    public void setupHostsEnrich() {
-        // the hosts policy are identical on every node
-        Map<String, String> allHosts = Map.of(
-            "192.168.1.2",
-            "Windows",
-            "192.168.1.3",
-            "MacOS",
-            "192.168.1.4",
-            "Linux",
-            "192.168.1.5",
-            "Android",
-            "192.168.1.6",
-            "iOS",
-            "192.168.1.7",
-            "Windows",
-            "192.168.1.8",
-            "MacOS",
-            "192.168.1.9",
-            "Linux",
-            "192.168.1.10",
-            "Linux",
-            "192.168.1.11",
-            "Windows"
-        );
-        for (String cluster : allClusters()) {
-            Client client = client(cluster);
-            client.admin().indices().prepareCreate("hosts").setMapping("ip", "type=ip", "os", "type=keyword").get();
-            for (Map.Entry<String, String> h : allHosts.entrySet()) {
-                client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
-            }
-            client.admin().indices().prepareRefresh("hosts").get();
-            client.execute(
-                PutEnrichPolicyAction.INSTANCE,
-                new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", CrossClustersEnrichIT.hostPolicy)
-            ).actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
-                .actionGet();
-            assertAcked(client.admin().indices().prepareDelete("hosts"));
-        }
-    }
-
-    @Before
-    public void setupVendorPolicy() {
-        var localVendors = Map.of("Windows", "Microsoft", "MacOS", "Apple", "iOS", "Apple", "Android", "Samsung", "Linux", "Redhat");
-        var c1Vendors = Map.of("Windows", "Microsoft", "MacOS", "Apple", "iOS", "Apple", "Android", "Google", "Linux", "Suse");
-        var c2Vendors = Map.of("Windows", "Microsoft", "MacOS", "Apple", "iOS", "Apple", "Android", "Sony", "Linux", "Ubuntu");
-        var vendors = Map.of(LOCAL_CLUSTER, localVendors, "c1", c1Vendors, "c2", c2Vendors);
-        for (Map.Entry<String, Map<String, String>> e : vendors.entrySet()) {
-            Client client = client(e.getKey());
-            client.admin().indices().prepareCreate("vendors").setMapping("os", "type=keyword", "vendor", "type=keyword").get();
-            for (Map.Entry<String, String> v : e.getValue().entrySet()) {
-                client.prepareIndex("vendors").setSource("os", v.getKey(), "vendor", v.getValue()).get();
-            }
-            client.admin().indices().prepareRefresh("vendors").get();
-            client.execute(
-                PutEnrichPolicyAction.INSTANCE,
-                new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors", CrossClustersEnrichIT.vendorPolicy)
-            ).actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors"))
-                .actionGet();
-            assertAcked(client.admin().indices().prepareDelete("vendors"));
-        }
-    }
-
-    @Before
-    public void setupEventsIndices() {
-        record Event(long timestamp, String user, String host) {}
-
-        List<Event> e0 = List.of(
-            new Event(1, "matthew", "192.168.1.3"),
-            new Event(2, "simon", "192.168.1.5"),
-            new Event(3, "park", "192.168.1.2"),
-            new Event(4, "andrew", "192.168.1.7"),
-            new Event(5, "simon", "192.168.1.20"),
-            new Event(6, "kevin", "192.168.1.2"),
-            new Event(7, "akio", "192.168.1.5"),
-            new Event(8, "luke", "192.168.1.2"),
-            new Event(9, "jack", "192.168.1.4")
-        );
-        List<Event> e1 = List.of(
-            new Event(1, "andres", "192.168.1.2"),
-            new Event(2, "sergio", "192.168.1.6"),
-            new Event(3, "kylian", "192.168.1.8"),
-            new Event(4, "andrew", "192.168.1.9"),
-            new Event(5, "jack", "192.168.1.3"),
-            new Event(6, "kevin", "192.168.1.4"),
-            new Event(7, "akio", "192.168.1.7"),
-            new Event(8, "kevin", "192.168.1.21"),
-            new Event(9, "andres", "192.168.1.8")
-        );
-        List<Event> e2 = List.of(
-            new Event(1, "park", "192.168.1.25"),
-            new Event(2, "akio", "192.168.1.5"),
-            new Event(3, "park", "192.168.1.2"),
-            new Event(4, "kevin", "192.168.1.3")
-        );
-        for (var c : Map.of(LOCAL_CLUSTER, e0, "c1", e1, "c2", e2).entrySet()) {
-            Client client = client(c.getKey());
-            client.admin()
-                .indices()
-                .prepareCreate("events")
-                .setMapping("timestamp", "type=long", "user", "type=keyword", "host", "type=ip")
-                .get();
-            for (var e : c.getValue()) {
-                client.prepareIndex("events").setSource("timestamp", e.timestamp, "user", e.user, "host", e.host).get();
-            }
-            client.admin().indices().prepareRefresh("events").get();
-        }
     }
 
     public void testEnrichWithHostsPolicyAndDisconnectedRemotesWithSkipUnavailableTrue() throws IOException {
@@ -642,19 +503,6 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         } finally {
             clearSkipUnavailable();
         }
-    }
-
-    protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
-        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
-        if (randomBoolean()) {
-            request.profile(true);
-        }
-        if (ccsMetadataInResponse != null) {
-            request.includeCCSMetadata(ccsMetadataInResponse);
-        }
-        return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {

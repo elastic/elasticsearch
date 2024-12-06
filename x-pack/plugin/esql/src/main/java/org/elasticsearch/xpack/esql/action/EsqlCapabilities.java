@@ -432,7 +432,7 @@ public class EsqlCapabilities {
         /**
          * Hash function
          */
-        HASH_FUNCTION(Build.current().isSnapshot()),
+        HASH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.

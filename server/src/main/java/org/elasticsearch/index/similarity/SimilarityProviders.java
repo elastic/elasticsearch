@@ -38,11 +38,8 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
 import java.util.Arrays;
@@ -54,7 +51,6 @@ final class SimilarityProviders {
 
     private SimilarityProviders() {} // no instantiation
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityProviders.class);
     static final String DISCOUNT_OVERLAPS = "discount_overlaps";
 
     private static final Map<String, BasicModel> BASIC_MODELS = Map.of(
@@ -68,13 +64,7 @@ final class SimilarityProviders {
         new BasicModelIne()
     );
 
-    // TODO: be and g and both based on the bose-einstein model.
-    // Is there a better replacement for d and p which use the binomial model?
-    private static final Map<String, String> LEGACY_BASIC_MODELS = Map.of("be", "g", "d", "ine", "p", "ine");
-
     private static final Map<String, AfterEffect> AFTER_EFFECTS = Map.of("b", new AfterEffectB(), "l", new AfterEffectL());
-    // l is simpler than b, so this should be a better replacement for "no"
-    private static final Map<String, String> LEGACY_AFTER_EFFECTS = Map.of("no", "l");
 
     private static final Map<String, Independence> INDEPENDENCE_MEASURES = Map.of(
         "standardized",
@@ -95,33 +85,9 @@ final class SimilarityProviders {
      * @param settings Settings to parse
      * @return {@link BasicModel} referred to in the Settings
      */
-    private static BasicModel parseBasicModel(IndexVersion indexCreatedVersion, Settings settings) {
+    private static BasicModel parseBasicModel(Settings settings) {
         String basicModel = settings.get("basic_model");
         BasicModel model = BASIC_MODELS.get(basicModel);
-
-        if (model == null) {
-            String replacement = LEGACY_BASIC_MODELS.get(basicModel);
-            if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
-                    throw new IllegalArgumentException(
-                        "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
-                    );
-                } else {
-                    deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
-                        basicModel + "_similarity_model_replaced",
-                        "Basic model ["
-                            + basicModel
-                            + "] isn't supported anymore and has arbitrarily been replaced with ["
-                            + replacement
-                            + "]."
-                    );
-                    model = BASIC_MODELS.get(replacement);
-                    assert model != null;
-                }
-            }
-        }
-
         if (model == null) {
             throw new IllegalArgumentException("Unsupported BasicModel [" + basicModel + "], expected one of " + BASIC_MODELS.keySet());
         }
@@ -134,33 +100,9 @@ final class SimilarityProviders {
      * @param settings Settings to parse
      * @return {@link AfterEffect} referred to in the Settings
      */
-    private static AfterEffect parseAfterEffect(IndexVersion indexCreatedVersion, Settings settings) {
+    private static AfterEffect parseAfterEffect(Settings settings) {
         String afterEffect = settings.get("after_effect");
         AfterEffect effect = AFTER_EFFECTS.get(afterEffect);
-
-        if (effect == null) {
-            String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
-            if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
-                    throw new IllegalArgumentException(
-                        "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
-                    );
-                } else {
-                    deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
-                        afterEffect + "_after_effect_replaced",
-                        "After effect ["
-                            + afterEffect
-                            + "] isn't supported anymore and has arbitrarily been replaced with ["
-                            + replacement
-                            + "]."
-                    );
-                    effect = AFTER_EFFECTS.get(replacement);
-                    assert effect != null;
-                }
-            }
-        }
-
         if (effect == null) {
             throw new IllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "], expected one of " + AFTER_EFFECTS.keySet());
         }
@@ -241,15 +183,7 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(IndexVersions.V_7_0_0)) {
-                throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
-            } else {
-                deprecationLogger.warn(
-                    DeprecationCategory.INDICES,
-                    "unknown_similarity_setting",
-                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings
-                );
-            }
+            throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
         }
     }
 
@@ -283,8 +217,8 @@ final class SimilarityProviders {
         );
 
         return new DFRSimilarity(
-            parseBasicModel(indexCreatedVersion, settings),
-            parseAfterEffect(indexCreatedVersion, settings),
+            parseBasicModel(settings),
+            parseAfterEffect(settings),
             parseNormalization(settings)
         );
     }

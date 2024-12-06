@@ -564,6 +564,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                             failedShards++;
                                         } else if (response.results[i] instanceof QuerySearchResult q) {
                                             q.setShardIndex(s.shardIndex);
+                                            q.setSearchShardTarget(new SearchShardTarget(nodeId, s.shardId(), null));
                                         }
                                     }
                                     final int successfulShards = request.shards.size() - failedShards;

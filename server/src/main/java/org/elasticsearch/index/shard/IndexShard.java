@@ -345,8 +345,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
+        var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
-            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats),
+            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
         this.bulkOperationListener = new ShardBulkStats();

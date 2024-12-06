@@ -26,14 +26,14 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 /**
  * Defines the task settings for internal rerank service.
  */
-public class CustomElandRerankTaskSettings implements TaskSettings {
+public class RerankTaskSettings implements TaskSettings {
 
     public static final String NAME = "custom_eland_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
 
-    static final CustomElandRerankTaskSettings DEFAULT_SETTINGS = new CustomElandRerankTaskSettings(Boolean.TRUE);
+    static final RerankTaskSettings DEFAULT_SETTINGS = new RerankTaskSettings(Boolean.TRUE);
 
-    public static CustomElandRerankTaskSettings defaultsFromMap(Map<String, Object> map) {
+    public static RerankTaskSettings defaultsFromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         if (map == null || map.isEmpty()) {
@@ -49,7 +49,7 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
             returnDocuments = true;
         }
 
-        return new CustomElandRerankTaskSettings(returnDocuments);
+        return new RerankTaskSettings(returnDocuments);
     }
 
     /**
@@ -57,13 +57,13 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
      * @param map source map
      * @return Task settings
      */
-    public static CustomElandRerankTaskSettings fromMap(Map<String, Object> map) {
+    public static RerankTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return DEFAULT_SETTINGS;
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, new ValidationException());
-        return new CustomElandRerankTaskSettings(returnDocuments);
+        return new RerankTaskSettings(returnDocuments);
     }
 
     /**
@@ -74,20 +74,17 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
      * @return Either {@code originalSettings} or {@code requestTaskSettings}
      */
-    public static CustomElandRerankTaskSettings of(
-        CustomElandRerankTaskSettings originalSettings,
-        CustomElandRerankTaskSettings requestTaskSettings
-    ) {
+    public static RerankTaskSettings of(RerankTaskSettings originalSettings, RerankTaskSettings requestTaskSettings) {
         return requestTaskSettings.returnDocuments() != null ? requestTaskSettings : originalSettings;
     }
 
     private final Boolean returnDocuments;
 
-    public CustomElandRerankTaskSettings(StreamInput in) throws IOException {
+    public RerankTaskSettings(StreamInput in) throws IOException {
         this(in.readOptionalBoolean());
     }
 
-    public CustomElandRerankTaskSettings(@Nullable Boolean doReturnDocuments) {
+    public RerankTaskSettings(@Nullable Boolean doReturnDocuments) {
         if (doReturnDocuments == null) {
             this.returnDocuments = true;
         } else {
@@ -133,7 +130,7 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        CustomElandRerankTaskSettings that = (CustomElandRerankTaskSettings) o;
+        RerankTaskSettings that = (RerankTaskSettings) o;
         return Objects.equals(returnDocuments, that.returnDocuments);
     }
 
@@ -144,7 +141,7 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CustomElandRerankTaskSettings updatedSettings = CustomElandRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        RerankTaskSettings updatedSettings = RerankTaskSettings.fromMap(new HashMap<>(newSettings));
         return of(this, updatedSettings);
     }
 }

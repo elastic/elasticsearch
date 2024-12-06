@@ -723,7 +723,7 @@ final class BootstrapChecks {
 
         boolean isAllPermissionGranted() {
             if (Runtime.version().feature() >= 24) {
-                return true;
+                return false;
             }
             final SecurityManager sm = System.getSecurityManager();
             assert sm != null;

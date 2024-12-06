@@ -119,7 +119,7 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
         breakers.add(breaker);
         BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
         blockFactories.add(factory);
-        return new DriverContext(bigArrays, factory);
+        return new DriverContext(bigArrays, factory, () -> false, () -> {});
     }
 
     public void testAllNull() throws IOException {

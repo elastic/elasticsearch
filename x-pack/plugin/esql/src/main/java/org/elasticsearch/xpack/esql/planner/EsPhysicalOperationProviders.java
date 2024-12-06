@@ -298,15 +298,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Query toQuery(QueryBuilder queryBuilder) {
             Query query = ctx.toQuery(queryBuilder).query();
-            NestedLookup nestedLookup = ctx.nestedLookup();
-            if (nestedLookup != NestedLookup.EMPTY) {
-                NestedHelper nestedHelper = new NestedHelper(nestedLookup, ctx::isFieldMapped);
-                if (nestedHelper.mightMatchNestedDocs(query)) {
-                    // filter out nested documents
-                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                        .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
-                        .build();
-                }
+            if (ctx.nestedLookup() != NestedLookup.EMPTY && NestedHelper.mightMatchNestedDocs(query, ctx)) {
+                // filter out nested documents
+                query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                    .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                    .build();
             }
             if (aliasFilter != AliasFilter.EMPTY) {
                 Query filterQuery = ctx.toQuery(aliasFilter.getQueryBuilder()).query();

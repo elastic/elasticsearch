@@ -88,12 +88,15 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
                 // Although this status code cannot be retried, it should be tracked anyway so that
                 // it can be returned.
                 case RestStatus.INTERNAL_SERVER_ERROR:
+                case RestStatus.NOT_IMPLEMENTED:
                 case RestStatus.HTTP_VERSION_NOT_SUPPORTED:
                 case RestStatus.INSUFFICIENT_STORAGE:
                     status = shardStatus;
             }
         }
-        return status;
+
+        // TODO: Maybe return an appropriate RestStatus?
+        return status == null ? shardFailures[0].status() : status;
     }
 
     public ShardSearchFailure[] shardFailures() {

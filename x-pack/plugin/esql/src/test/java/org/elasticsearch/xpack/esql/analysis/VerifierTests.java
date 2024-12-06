@@ -1337,6 +1337,11 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
+    public void testTermFunctionOnlyAllowedInWhere() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
+    }
+
     public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
     }
@@ -1401,6 +1406,11 @@ public class VerifierTests extends ESTestCase {
         checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
+    public void testTermFunctionWithDisjunctions() {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
+    }
+
     public void testMatchOperatorWithDisjunctions() {
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
     }
@@ -1461,6 +1471,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchFunctionWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
+    }
+
+    public void testTermFunctionWithNonBooleanFunctions() {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
     }
 
     public void testMatchOperatorWithNonBooleanFunctions() {
@@ -1561,6 +1576,45 @@ public class VerifierTests extends ESTestCase {
     public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
         assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
+    }
+
+    public void testTermFunctionArgNotConstant() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        assertEquals(
+            "1:19: second argument of [term(first_name, first_name)] must be a constant, received [first_name]",
+            error("from test | where term(first_name, first_name)")
+        );
+        assertEquals(
+            "1:59: second argument of [term(first_name, query)] must be a constant, received [query]",
+            error("from test | eval query = concat(\"first\", \" name\") | where term(first_name, query)")
+        );
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testTermFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        assertEquals(
+            "1:67: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where term(first_name, \"Anna\")")
+        );
+    }
+
+    public void testTermFunctionNullArgs() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        assertEquals(
+            "1:19: first argument of [term(null, \"query\")] cannot be null, received [null]",
+            error("from test | where term(null, \"query\")")
+        );
+        assertEquals(
+            "1:19: second argument of [term(first_name, null)] cannot be null, received [null]",
+            error("from test | where term(first_name, null)")
+        );
+    }
+
+    public void testTermTargetsExistingField() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        assertEquals("1:38: Unknown column [first_name]", error("from test | keep emp_no | where term(first_name, \"Anna\")"));
     }
 
     public void testCoalesceWithMixedNumericTypes() {
@@ -1924,6 +1978,17 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
         assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
         assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
+    }
+
+    public void testLookupJoinDataTypeMismatch() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V4.isEnabled());
+
+        query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+
+        assertEquals(
+            "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
+            error("FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code")
+        );
     }
 
     private void query(String query) {

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -23,7 +24,7 @@ public class FunctionDefinition {
      */
     @FunctionalInterface
     public interface Builder {
-        Function build(UnresolvedFunction uf, Configuration configuration, Object... extras);
+        Function build(UnresolvedFunction uf, Configuration configuration, Map<String, String> options, Object... extras);
     }
 
     private final String name;

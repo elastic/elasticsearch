@@ -21,11 +21,11 @@ import java.io.IOException;
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  * @param <T>
  */
-public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
+class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
 
     protected final T queryBuilder;
 
-    public InterceptedQueryBuilderWrapper(T queryBuilder) {
+    InterceptedQueryBuilderWrapper(T queryBuilder) {
         super();
         this.queryBuilder = queryBuilder;
     }

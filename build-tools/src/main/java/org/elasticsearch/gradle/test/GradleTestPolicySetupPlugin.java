@@ -15,6 +15,8 @@ import org.gradle.api.Project;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.List;
+
 public class GradleTestPolicySetupPlugin implements Plugin<Project> {
 
     @Override
@@ -24,10 +26,13 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
             test.systemProperty("tests.gradle", true);
             test.systemProperty("tests.task", test.getPath());
 
-            if (test.getJavaVersion().compareTo(JavaVersion.VERSION_24) < 0) {
-                // Flag is required for later Java versions since our tests use a custom security manager
-                test.jvmArgs("-Djava.security.manager=allow");
-            }
+            test.getJvmArgumentProviders().add(() -> {
+                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
+                    return List.of("-Djava.security.manager=allow");
+                } else {
+                    return List.of();
+                }
+            });
 
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             // don't track these as inputs since they contain absolute paths and break cache relocatability

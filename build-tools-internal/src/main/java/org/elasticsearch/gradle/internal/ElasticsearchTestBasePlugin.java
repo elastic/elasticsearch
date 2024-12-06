@@ -127,9 +127,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
-            if (test.getJavaVersion().compareTo(JavaVersion.VERSION_24) < 0) {
-                test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-Djava.security.manager=allow"));
-            }
+            test.getJvmArgumentProviders().add(() -> {
+                if (buildParams.get().getRuntimeJavaVersion().get().compareTo(JavaVersion.VERSION_23) <= 0) {
+                    return List.of("-Djava.security.manager=allow");
+                } else {
+                    return List.of();
+                }
+            });
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

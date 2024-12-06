@@ -13,7 +13,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper.MultiDenseVectorFieldType;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper.RankVectorsFieldType;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -27,11 +27,11 @@ public class MultiDenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
-    private MultiDenseVectorFieldType createFloatFieldType() {
-        return new MultiDenseVectorFieldType(
+    private RankVectorsFieldType createFloatFieldType() {
+        return new RankVectorsFieldType(
             "f",
             DenseVectorFieldMapper.ElementType.FLOAT,
             BBQ_MIN_DIMS,
@@ -40,66 +40,60 @@ public class MultiDenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    private MultiDenseVectorFieldType createByteFieldType() {
-        return new MultiDenseVectorFieldType(
-            "f",
-            DenseVectorFieldMapper.ElementType.BYTE,
-            5,
-            IndexVersion.current(),
-            Collections.emptyMap()
-        );
+    private RankVectorsFieldType createByteFieldType() {
+        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.BYTE, 5, IndexVersion.current(), Collections.emptyMap());
     }
 
     public void testHasDocValues() {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         assertTrue(fft.hasDocValues());
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         assertTrue(bft.hasDocValues());
     }
 
     public void testIsIndexed() {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         assertFalse(fft.isIndexed());
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         assertFalse(bft.isIndexed());
     }
 
     public void testIsSearchable() {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         assertFalse(fft.isSearchable());
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         assertFalse(bft.isSearchable());
     }
 
     public void testIsAggregatable() {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         assertFalse(fft.isAggregatable());
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         assertFalse(bft.isAggregatable());
     }
 
     public void testFielddataBuilder() {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         FieldDataContext fdc = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
         assertNotNull(fft.fielddataBuilder(fdc));
 
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         FieldDataContext bdc = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
         assertNotNull(bft.fielddataBuilder(bdc));
     }
 
     public void testDocValueFormat() {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat(null, null));
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {
-        MultiDenseVectorFieldType fft = createFloatFieldType();
+        RankVectorsFieldType fft = createFloatFieldType();
         List<List<Double>> vector = List.of(List.of(0.0, 1.0, 2.0, 3.0, 4.0, 6.0));
         assertEquals(vector, fetchSourceValue(fft, vector));
-        MultiDenseVectorFieldType bft = createByteFieldType();
+        RankVectorsFieldType bft = createByteFieldType();
         assertEquals(vector, fetchSourceValue(bft, vector));
     }
 }

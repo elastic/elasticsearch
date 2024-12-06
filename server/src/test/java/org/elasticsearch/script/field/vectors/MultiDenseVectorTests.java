@@ -11,7 +11,7 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -23,7 +23,7 @@ public class MultiDenseVectorTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     public void testByteUnsupported() {

@@ -31,7 +31,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     public void testFloatGetVectorValueAndGetMagnitude() throws IOException {
@@ -48,7 +48,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.FLOAT,
             dims
         );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(vectors[i].length, field.size());
@@ -78,7 +78,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.BYTE,
             dims
         );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(vectors[i].length, field.size());
@@ -115,7 +115,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
             UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
-            assertEquals("Cannot iterate over single valued multi_dense_vector field, use get() instead", e.getMessage());
+            assertEquals("Cannot iterate over single valued rank_vectors field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
         MultiDenseVector dv = field.get();
@@ -142,7 +142,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
             UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
-            assertEquals("Cannot iterate over single valued multi_dense_vector field, use get() instead", e.getMessage());
+            assertEquals("Cannot iterate over single valued rank_vectors field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
         MultiDenseVector dv = field.get();
@@ -171,7 +171,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.FLOAT,
             dims
         );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
@@ -195,7 +195,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.BYTE,
             dims
         );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
@@ -219,7 +219,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.FLOAT,
             dims
         );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
@@ -245,7 +245,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.BYTE,
             dims
         );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
@@ -22,7 +22,7 @@ public abstract class MultiDenseVectorDocValuesField extends AbstractScriptField
     implements
         Field<MultiDenseVector>,
         DocValuesScriptFieldFactory,
-        MultiDenseVectorScriptDocValues.MultiDenseVectorSupplier {
+        RankVectorsScriptDocValues.MultiDenseVectorSupplier {
     protected final String name;
     protected final ElementType elementType;
 
@@ -47,11 +47,11 @@ public abstract class MultiDenseVectorDocValuesField extends AbstractScriptField
 
     public abstract MultiDenseVector get(MultiDenseVector defaultValue);
 
-    public abstract MultiDenseVectorScriptDocValues toScriptDocValues();
+    public abstract RankVectorsScriptDocValues toScriptDocValues();
 
     // DenseVector fields are single valued, so Iterable does not make sense.
     @Override
     public Iterator<MultiDenseVector> iterator() {
-        throw new UnsupportedOperationException("Cannot iterate over single valued multi_dense_vector field, use get() instead");
+        throw new UnsupportedOperationException("Cannot iterate over single valued rank_vectors field, use get() instead");
     }
 }

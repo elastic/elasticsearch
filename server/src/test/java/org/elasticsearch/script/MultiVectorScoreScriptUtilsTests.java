@@ -11,8 +11,8 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
 import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimDotProduct;
 import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimInvHamming;
 import org.elasticsearch.script.field.vectors.BitMultiDenseVectorDocValuesField;
@@ -35,7 +35,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     public void testFloatMultiVectorClassBindings() throws IOException {

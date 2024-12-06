@@ -12,7 +12,7 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -63,8 +63,8 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
     }
 
     @Override
-    public MultiDenseVectorScriptDocValues toScriptDocValues() {
-        return new MultiDenseVectorScriptDocValues(this, dims);
+    public RankVectorsScriptDocValues toScriptDocValues() {
+        return new RankVectorsScriptDocValues(this, dims);
     }
 
     protected MultiDenseVector getVector() {

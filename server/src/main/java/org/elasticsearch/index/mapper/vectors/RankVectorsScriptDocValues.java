@@ -15,14 +15,14 @@ import org.elasticsearch.script.field.vectors.MultiDenseVector;
 
 import java.util.Iterator;
 
-public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
+public class RankVectorsScriptDocValues extends ScriptDocValues<BytesRef> {
 
-    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a multi-vector field!";
+    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
 
     private final int dims;
     protected final MultiDenseVectorSupplier dvSupplier;
 
-    public MultiDenseVectorScriptDocValues(MultiDenseVectorSupplier supplier, int dims) {
+    public RankVectorsScriptDocValues(MultiDenseVectorSupplier supplier, int dims) {
         super(supplier);
         this.dvSupplier = supplier;
         this.dims = dims;
@@ -41,7 +41,7 @@ public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     }
 
     /**
-     * Get multi-dense vector's value as an array of floats
+     * Get rank-vectors's value as an array of floats
      */
     public Iterator<float[]> getVectorValues() {
         return getCheckedVector().getVectors();
@@ -57,7 +57,7 @@ public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     @Override
     public BytesRef get(int index) {
         throw new UnsupportedOperationException(
-            "accessing a multi-vector field's value through 'get' or 'value' is not supported, use 'vectorValues' or 'magnitudes' instead."
+            "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValues' or 'magnitudes' instead."
         );
     }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -114,8 +113,21 @@ public class Hash extends EsqlScalarFunction {
         var digest = alg.digest();
         scratch.clear();
         scratch.grow(digest.length * 2);
-        scratch.append(new BytesRef(HexFormat.of().formatHex(digest)));
+        appendUtf8HexDigest(scratch, digest);
         return scratch.bytesRefView();
+    }
+
+    private static final byte[] ASCII_HEX_BYTES = new byte[] { 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102 };
+
+    /**
+     * This function allows to append hex bytes dirrectly to the {@link BreakingBytesRefBuilder}
+     * bypassing unnecessary array allocations and byte array copying.
+     */
+    private static void appendUtf8HexDigest(BreakingBytesRefBuilder scratch, byte[] bytes) {
+        for (byte b : bytes) {
+            scratch.append(ASCII_HEX_BYTES[b >> 4 & 0xf]);
+            scratch.append(ASCII_HEX_BYTES[b & 0xf]);
+        }
     }
 
     @Override

@@ -2710,8 +2710,14 @@ public class MetadataTests extends ESTestCase {
             .mapToInt(project -> ProjectMetadataTests.expectedChunkCount(params, project))
             .sum();
 
+        int reservedStateSize = metadata.reservedStateMetadata().size();
+        if (params.paramAsBoolean("multi-project", false) == false) {
+            // only one project if not multi-project, add its reserved state to the cluster's collection
+            reservedStateSize += metadata.projects().values().iterator().next().reservedStateMetadata().size();
+        }
+
         // 2 chunks for wrapping reserved state + 1 chunk for each item
-        chunkCount += 2 + metadata.reservedStateMetadata().size();
+        chunkCount += 2 + reservedStateSize;
         // 1 chunk to close metadata
         chunkCount += 1;
 

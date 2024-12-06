@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public final class DiffableUtils {
@@ -151,9 +152,9 @@ public final class DiffableUtils {
         T1 extends T,
         T2 extends T> Tuple<MapDiff<K, T1, ImmutableOpenMap<K, T1>>, MapDiff<K, T2, ImmutableOpenMap<K, T2>>> split(
             MapDiff<K, T, ? extends Map<K, T>> diff,
-            Set<K> keysT1,
+            Predicate<K> keysT1,
             ValueSerializer<K, T1> serializer1,
-            Set<K> keysT2,
+            Predicate<K> keysT2,
             ValueSerializer<K, T2> serializer2
         ) {
         final List<K> deletes1 = new ArrayList<>();
@@ -191,19 +192,19 @@ public final class DiffableUtils {
     private static <K, E> void split(
         List<E> source,
         Function<E, K> getKey,
-        Set<K> keys1,
+        Predicate<K> keys1,
         Consumer<E> dest1,
-        Set<K> keys2,
+        Predicate<K> keys2,
         Consumer<E> dest2
     ) {
         for (E e : source) {
             K k = getKey.apply(e);
-            if (keys1.contains(k)) {
+            if (keys1.test(k)) {
                 dest1.accept(e);
-            } else if (keys2.contains(k)) {
+            } else if (keys2.test(k)) {
                 dest2.accept(e);
             } else {
-                throw new IllegalStateException("Found diff key [" + k + "] which is not in either [" + keys1 + "] or [" + keys2 + "]");
+                throw new IllegalStateException("Found diff key [" + k + "] which does not match [" + keys1 + "] nor [" + keys2 + "]");
             }
         }
     }

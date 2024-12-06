@@ -309,15 +309,17 @@ public record SemanticTextField(
         args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (Map<String, List<Chunk>>) args[2])
     );
 
-    private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<Chunk, ParserContext> CHUNKS_PARSER = new ConstructingObjectParser<>(
         CHUNKS_FIELD,
         true,
-        args -> new Chunk(
-            args[0] != null ? (String) args[0] : null,
-            args[1] != null ? (int) args[1] : -1,
-            args[2] != null ? (int) args[2] : -1,
-            (BytesReference) args[3]
-        )
+        (args, context) -> {
+            String text = (String) args[0];
+            if ((context.indexVersionCreated.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+                || INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() == false) && text == null) {
+                throw new IllegalArgumentException("Missing chunk text");
+            }
+            return new Chunk(text, args[1] != null ? (int) args[1] : -1, args[2] != null ? (int) args[2] : -1, (BytesReference) args[3]);
+        }
     );
 
     private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
@@ -351,9 +353,9 @@ public record SemanticTextField(
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
                 && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
-                return parseChunksMap(p);
+                return parseChunksMap(p, c);
             } else {
-                return Map.of(c.fieldName, parseChunksArrayLegacy(p));
+                return Map.of(c.fieldName, parseChunksArrayLegacy(p, c));
             }
         }, new ParseField(CHUNKS_FIELD), ObjectParser.ValueType.OBJECT_ARRAY);
 
@@ -372,7 +374,7 @@ public record SemanticTextField(
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
     }
 
-    private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser) throws IOException {
+    private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser, ParserContext context) throws IOException {
         Map<String, List<Chunk>> resultMap = new LinkedHashMap<>();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -381,17 +383,17 @@ public record SemanticTextField(
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             var chunks = resultMap.computeIfAbsent(fieldName, k -> new ArrayList<>());
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                chunks.add(CHUNKS_PARSER.parse(parser, null));
+                chunks.add(CHUNKS_PARSER.parse(parser, context));
             }
         }
         return resultMap;
     }
 
-    private static List<Chunk> parseChunksArrayLegacy(XContentParser parser) throws IOException {
+    private static List<Chunk> parseChunksArrayLegacy(XContentParser parser, ParserContext context) throws IOException {
         List<Chunk> results = new ArrayList<>();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            results.add(CHUNKS_PARSER.parse(parser, null));
+            results.add(CHUNKS_PARSER.parse(parser, context));
         }
         return results;
     }

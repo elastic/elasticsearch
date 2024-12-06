@@ -101,6 +101,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
     public static final String DEFAULT_ELSER_ID = ".elser-2-elasticsearch";
     public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
+    public static final String DEFAULT_RERANK_ID = ".rerank-v1-elasticsearch";
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.RERANK,
@@ -225,7 +226,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     )
                 );
             } else if (RERANKER_ID.equals(modelId)) {
-                rerankerCase(inferenceEntityId, taskType, config, serviceSettingsMap, chunkingSettings, modelListener);
+                rerankerCase(inferenceEntityId, taskType, config, serviceSettingsMap, taskSettingsMap, modelListener);
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, modelListener);
             }
@@ -308,7 +309,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 elandServiceSettings(serviceSettings, context),
-                CustomElandRerankTaskSettings.fromMap(taskSettings)
+                RerankTaskSettings.fromMap(taskSettings)
             );
             default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         };
@@ -331,7 +332,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> serviceSettingsMap,
-        ChunkingSettings chunkingSettings,
+        Map<String, Object> taskSettingsMap,
         ActionListener<Model> modelListener
     ) {
 
@@ -346,7 +347,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 new ElasticRerankerServiceSettings(esServiceSettingsBuilder.build()),
-                chunkingSettings
+                RerankTaskSettings.fromMap(taskSettingsMap)
             )
         );
     }
@@ -512,6 +513,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 ElserMlNodeTaskSettings.DEFAULT,
                 chunkingSettings
             );
+        } else if (modelId.equals(RERANKER_ID)) {
+            return new ElasticRerankerModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                new ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
+                RerankTaskSettings.fromMap(taskSettingsMap)
+            );
         } else {
             return createCustomElandModel(
                 inferenceEntityId,
@@ -653,21 +662,23 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     ) {
         var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
-        var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
-        var requestSettings = CustomElandRerankTaskSettings.fromMap(requestTaskSettings);
-        Boolean returnDocs = CustomElandRerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
+        var returnDocs = Boolean.TRUE;
+        if (model.getTaskSettings() instanceof RerankTaskSettings modelSettings) {
+            var requestSettings = RerankTaskSettings.fromMap(requestTaskSettings);
+            returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
+        }
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(
-                    textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier)
-                )
-            )
+        ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
+            (l, inferenceResult) -> l.onResponse(textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier))
         );
+
+        var maybeDeployListener = mlResultsListener.delegateResponse(
+            (l, exception) -> maybeStartDeployment(model, exception, request, mlResultsListener)
+        );
+
+        client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
     }
 
     public void chunkedInfer(
@@ -811,7 +822,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public List<DefaultConfigId> defaultConfigIds() {
         return List.of(
             new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this)
+            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this),
+            new DefaultConfigId(DEFAULT_RERANK_ID, TaskType.RERANK, this)
         );
     }
 
@@ -904,12 +916,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
-        return List.of(defaultElser, defaultE5);
+        var defaultRerank = new ElasticRerankerModel(
+            DEFAULT_RERANK_ID,
+            TaskType.RERANK,
+            NAME,
+            new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
+            RerankTaskSettings.DEFAULT_SETTINGS
+        );
+        return List.of(defaultElser, defaultE5, defaultRerank);
     }
 
     @Override
     boolean isDefaultId(String inferenceId) {
-        return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId);
+        return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId) || DEFAULT_RERANK_ID.equals(inferenceId);
     }
 
     static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(

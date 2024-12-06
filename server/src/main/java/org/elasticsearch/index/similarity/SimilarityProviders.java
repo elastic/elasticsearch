@@ -216,11 +216,7 @@ final class SimilarityProviders {
             "normalization.z.z"
         );
 
-        return new DFRSimilarity(
-            parseBasicModel(settings),
-            parseAfterEffect(settings),
-            parseNormalization(settings)
-        );
+        return new DFRSimilarity(parseBasicModel(settings), parseAfterEffect(settings), parseNormalization(settings));
     }
 
     public static DFISimilarity createDfiSimilarity(Settings settings, IndexVersion indexCreatedVersion) {

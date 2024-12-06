@@ -558,6 +558,38 @@ public class TransportBulkActionTests extends ESTestCase {
         assertNull(bulkRequest.requests.get(2));
     }
 
+    public void testFailureStoreFromTemplateResolution() {
+        Metadata metadata = Metadata.builder()
+            .indexTemplates(
+                Map.of(
+                    "my-index-template",
+                    ComposableIndexTemplate.builder().indexPatterns(List.of("my-index*")).build(),
+                    "my-enabled-fs-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-enabled*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+                        .build(),
+                    "my-disabled-fs-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-disabled*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(false)))
+                        .build(),
+                    "my-no-fs-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-no*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+            .build();
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-index", metadata), nullValue());
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-enabled-fs", metadata), equalTo(true));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-disabled-fs", metadata), equalTo(false));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-no-fs", metadata), equalTo(false));
+    }
+
     private BulkRequest buildBulkRequest(List<String> indices) {
         BulkRequest request = new BulkRequest();
         for (String index : indices) {

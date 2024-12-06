@@ -378,7 +378,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                     }
                     if (searchShardsResponse != null) {
                         for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                            assertFalse("no shard should be marked as skipped", group.skipped());
+                            assertTrue("the shard is skipped because index value is outside the query time range", group.skipped());
                         }
                     }
                 }

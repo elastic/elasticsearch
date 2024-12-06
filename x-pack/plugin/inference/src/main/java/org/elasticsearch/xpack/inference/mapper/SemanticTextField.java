@@ -237,6 +237,7 @@ public record SemanticTextField(
             && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
 
         builder.startObject();
+        List<String> originalValues = originalValues();
         if (useInferenceMetadataFieldsFormat == false && originalValues.isEmpty() == false) {
             builder.field(TEXT_FIELD, originalValues.size() == 1 ? originalValues.get(0) : originalValues);
         }

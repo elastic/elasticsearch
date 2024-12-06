@@ -145,7 +145,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // field
         SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType, denseVectorElementType);
         if (sourceToParse != null) {
-            System.out.println(sourceToParse.source().utf8ToString());
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
             mapperService.merge(
                 "_doc",

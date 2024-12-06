@@ -16,6 +16,8 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 
 class OptimizedScalarQuantizer {
+    // The initial interval is set to the minimum MSE grid for each number of bits
+    // these starting points are derived from the optimal MSE grid for a uniform distribution
     static final float[][] MINIMUM_MSE_GRID = new float[][] {
         { -0.798f, 0.798f },
         { -1.493f, 1.493f },
@@ -72,6 +74,7 @@ class OptimizedScalarQuantizer {
         for (int i = 0; i < bits.length; ++i) {
             assert bits[i] > 0 && bits[i] <= 8;
             int points = (1 << bits[i]);
+            // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
             intervalScratch[0] = (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][0] + vecMean) * vecStd, min, max);
             intervalScratch[1] = (float) clamp((MINIMUM_MSE_GRID[bits[i] - 1][1] + vecMean) * vecStd, min, max);
             optimizeIntervals(intervalScratch, vector, norm2, points);
@@ -80,6 +83,7 @@ class OptimizedScalarQuantizer {
             float b = intervalScratch[1];
             float step = (b - a) / nSteps;
             int sumQuery = 0;
+            // Now we have the optimized intervals, quantize the vector
             for (int h = 0; h < vector.length; h++) {
                 float xi = (float) clamp(vector[h], a, b);
                 int assignment = Math.round((xi - a) / step);
@@ -123,10 +127,12 @@ class OptimizedScalarQuantizer {
         }
         vecVar /= vector.length;
         double vecStd = Math.sqrt(vecVar);
+        // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
         intervalScratch[0] = (float) clamp((MINIMUM_MSE_GRID[bits - 1][0] + vecMean) * vecStd, min, max);
         intervalScratch[1] = (float) clamp((MINIMUM_MSE_GRID[bits - 1][1] + vecMean) * vecStd, min, max);
         optimizeIntervals(intervalScratch, vector, norm2, points);
         float nSteps = ((1 << bits) - 1);
+        // Now we have the optimized intervals, quantize the vector
         float a = intervalScratch[0];
         float b = intervalScratch[1];
         float step = (b - a) / nSteps;
@@ -145,6 +151,15 @@ class OptimizedScalarQuantizer {
         );
     }
 
+    /**
+     * Compute the loss of the vector given the interval. Effectively, we are computing the MSE of a dequantized vector with the raw
+     * vector.
+     * @param vector raw vector
+     * @param interval interval to quantize the vector
+     * @param points number of quantization points
+     * @param norm2 squared norm of the vector
+     * @return the loss
+     */
     private double loss(float[] vector, float[] interval, int points, float norm2) {
         double a = interval[0];
         double b = interval[1];
@@ -153,16 +168,27 @@ class OptimizedScalarQuantizer {
         double xe = 0.0;
         double e = 0.0;
         for (double xi : vector) {
+            // this is quantizing and then dequantizing the vector
             double xiq = (a + step * Math.round((clamp(xi, a, b) - a) * stepInv));
+            // how much does the de-quantized value differ from the original value
             xe += xi * (xi - xiq);
             e += (xi - xiq) * (xi - xiq);
         }
         return (1.0 - lambda) * xe * xe / norm2 + lambda * e;
     }
 
+    /**
+     * Optimize the quantization interval for the given vector. This is done via a coordinate descent trying to minimize the quantization
+     * loss. Note, the loss is not always guaranteed to decrease, so we have a maximum number of iterations and will exit early if the
+     * loss increases.
+     * @param initInterval initial interval, the optimized interval will be stored here
+     * @param vector raw vector
+     * @param norm2 squared norm of the vector
+     * @param points number of quantization points
+     */
     private void optimizeIntervals(float[] initInterval, float[] vector, float norm2, int points) {
         double initialLoss = loss(vector, initInterval, points, norm2);
-        float scale = (1.0f - lambda) / norm2;
+        final float scale = (1.0f - lambda) / norm2;
         if (Float.isFinite(scale) == false) {
             return;
         }
@@ -170,6 +196,7 @@ class OptimizedScalarQuantizer {
             float a = initInterval[0];
             float b = initInterval[1];
             float stepInv = (points - 1.0f) / (b - a);
+            // calculate the grid points for coordinate descent
             double daa = 0;
             double dab = 0;
             double dbb = 0;
@@ -187,6 +214,7 @@ class OptimizedScalarQuantizer {
             double m0 = scale * dax * dax + lambda * daa;
             double m1 = scale * dax * dbx + lambda * dab;
             double m2 = scale * dbx * dbx + lambda * dbb;
+            // its possible that the determinant is 0, in which case we can't update the interval
             double det = m0 * m2 - m1 * m1;
             if (det == 0) {
                 return;

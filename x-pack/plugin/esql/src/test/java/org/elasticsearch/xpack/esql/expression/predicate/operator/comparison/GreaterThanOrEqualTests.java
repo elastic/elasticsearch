@@ -122,6 +122,34 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
         }, DataType.BOOLEAN, TestCaseSupplier.dateNanosCases(), TestCaseSupplier.dateNanosCases(), List.of(), false));
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "GreaterThanOrEqualNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> (((Instant) lhs).isAfter((Instant) rhs) || lhs.equals(rhs)),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "GreaterThanOrEqualMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> (((Instant) lhs).isAfter((Instant) rhs) || lhs.equals(rhs)),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) >= 0,
                 (lhsType, rhsType) -> "GreaterThanOrEqualKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",

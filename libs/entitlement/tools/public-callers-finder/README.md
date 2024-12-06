@@ -1,6 +1,16 @@
 This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `securitymanager-scanner` tool), and looks for the "public surface" of these methods (i.e. any class/method accessible from regular Java code that calls into the original list, directly or transitively).
 
 It acts basically as a recursive "Find Usages" in Intellij, stopping at the first fully accessible point (public method on a public class).
+The tool scans every method in every class inside the same java module; e.g.
+if you have a private method `File#normalizedList`, it will scan `java.base` to find
+public methods like `File#list(String)`, `File#list(FilenameFilter, String)` and
+`File#listFiles(File)`.
+
+The tool considers implemented interfaces (directly); e.g. if we're looking at a
+method `C.m`, where `C implements I`, it will look for calls to `I.m`. It will
+also consider (indirectly) calls to `S.m` (where `S` is a supertype of `C`), as
+it treats calls to `super` in `S.m` as regular calls (e.g. `example() -> S.m() -> C.m()`).
+
 
 In order to run the tool, use:
 ```shell

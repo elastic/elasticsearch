@@ -222,8 +222,9 @@ public class ComputeService {
             var exchangeSource = new ExchangeSourceHandler(
                 queryPragmas.exchangeBufferSize(),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                computeListener.acquireAvoid()
+                ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.removeExchangeSourceHandler(sessionId))
             );
+            exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 runCompute(

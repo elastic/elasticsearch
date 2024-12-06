@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -45,6 +47,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
 
     private final TransportEsqlQueryAction queryAction;
     private final TransportEsqlAsyncGetResultsAction getResultsAction;
+    private final ExchangeService exchangeService;
     private final BlockFactory blockFactory;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -58,11 +61,13 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         TransportEsqlQueryAction queryAction,
         TransportEsqlAsyncGetResultsAction getResultsAction,
         Client client,
+        ExchangeService exchangeService,
         BlockFactory blockFactory
     ) {
         super(EsqlAsyncStopAction.NAME, transportService, actionFilters, AsyncStopRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.queryAction = queryAction;
         this.getResultsAction = getResultsAction;
+        this.exchangeService = exchangeService;
         this.blockFactory = blockFactory;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -92,6 +97,15 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         }
     }
 
+    /**
+    * Returns the ID for this compute session. The ID is unique within the cluster, and is used
+    * to identify the compute-session across nodes. The ID is just the TaskID of the task that
+    * initiated the session.
+    */
+    final String sessionID(AsyncExecutionId asyncId) {
+        return new TaskId(clusterService.localNode().getId(), asyncId.getTaskId().getId()).toString();
+    }
+
     private void stopQueryAndReturnResult(Task task, AsyncExecutionId asyncId, ActionListener<EsqlQueryResponse> listener) {
         String asyncIdStr = asyncId.getEncoded();
         var asyncListener = queryAction.getAsyncListener(asyncIdStr);
@@ -114,6 +128,6 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             throw new ResourceNotFoundException(asyncId + " not found", e);
         }
         asyncListener.addListener(listener);
-        // TODO: send the finish signal to the source
+        exchangeService.finishSessionEarly(sessionID(asyncId), ActionListener.noop());
     }
 }

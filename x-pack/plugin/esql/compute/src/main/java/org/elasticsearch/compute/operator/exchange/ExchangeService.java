@@ -76,6 +76,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -170,6 +171,21 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
         );
+    }
+
+    public void addExchangeSourceHandler(String sessionId, ExchangeSourceHandler sourceHandler) {
+        exchangeSources.put(sessionId, sourceHandler);
+    }
+
+    public ExchangeSourceHandler removeExchangeSourceHandler(String sessionId) {
+        return exchangeSources.remove(sessionId);
+    }
+
+    public void finishSessionEarly(String sessionId, ActionListener<Void> listener) {
+        ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
+        if (exchangeSource != null) {
+            exchangeSource.finishEarly(true, listener);
+        }
     }
 
     private static class OpenExchangeRequest extends TransportRequest {

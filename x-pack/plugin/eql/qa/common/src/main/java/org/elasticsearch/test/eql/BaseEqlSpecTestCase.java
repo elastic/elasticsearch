@@ -193,9 +193,22 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 if (allowPartialSequenceResults != null) {
                     builder.field("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
                 }
+            } else {
+                // these will be overwritten by the query params, that have higher priority than the body params
+                if (allowPartialSearchResults != null) {
+                    builder.field("allow_partial_search_results", randomBoolean());
+                }
+                if (allowPartialSequenceResults != null) {
+                    builder.field("allow_partial_sequence_results", randomBoolean());
+                }
             }
-        } else if (randomBoolean()) {
-            builder.field("allow_partial_search_results", randomBoolean());
+        } else {
+            if (randomBoolean()) {
+                builder.field("allow_partial_search_results", randomBoolean());
+            }
+            if (randomBoolean()) {
+                builder.field("allow_partial_sequence_results", randomBoolean());
+            }
         }
         builder.endObject();
 
@@ -211,8 +224,13 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                     request.addParameter("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
                 }
             }
-        } else if (randomBoolean()) {
-            request.addParameter("allow_partial_search_results", String.valueOf(randomBoolean()));
+        } else {
+            if (randomBoolean()) {
+                request.addParameter("allow_partial_search_results", String.valueOf(randomBoolean()));
+            }
+            if (randomBoolean()) {
+                request.addParameter("allow_partial_sequence_results", String.valueOf(randomBoolean()));
+            }
         }
         int timeout = Math.toIntExact(timeout().millis());
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)

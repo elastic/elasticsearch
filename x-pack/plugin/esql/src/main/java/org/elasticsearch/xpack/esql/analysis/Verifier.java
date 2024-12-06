@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -833,6 +834,14 @@ public class Verifier {
                 plan,
                 condition,
                 Match.class,
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                m -> "[" + m.functionName() + "] " + m.functionType(),
+                failures
+            );
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                Term.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures

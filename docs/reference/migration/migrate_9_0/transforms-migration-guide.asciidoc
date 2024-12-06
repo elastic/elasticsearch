@@ -1,9 +1,9 @@
 [[transforms-migration-guide]]
-== Transforms migration guide
-This migration guide helps you upgrade your transforms to work with the 9.0 release. Each section will outline a breaking change along with any manual steps you need to take to upgrade your transforms to be compatible with 9.0.
+== {transforms-cap} migration guide
+This migration guide helps you upgrade your {transforms} to work with the 9.0 release. Each section outlines a breaking change and any manual steps needed to upgrade your {transforms} to be compatible with 9.0.
 
 
-=== Updating deprecated transform roles (`data_frame_transforms_admin` and `data_frame_transforms_user`)
-If you have existing transforms that use deprecated transform roles (`data_frame_transforms_admin` or `data_frame_transforms_user`) you must update them to use the new equivalent transform roles (`transform_admin` or `transform_user`). To update your transform roles:
+=== Updating deprecated {transform} roles (`data_frame_transforms_admin` and `data_frame_transforms_user`)
+If you have existing {transforms} that use deprecated {transform} roles (`data_frame_transforms_admin` or `data_frame_transforms_user`) you must update them to use the new equivalent {transform} roles (`transform_admin` or `transform_user`). To update your {transform} roles:
 1. Switch to a user with the `transform_admin` role (to replace `data_frame_transforms_admin`) or the `transform_user` role (to replace `data_frame_transforms_user`).
-2. Call the [update API](https://www.elastic.co/guide/en/elasticsearch/reference/current/update-transform.html) with that user.
+2. Call the <<update-transform, update {transforms} API>> with that user.

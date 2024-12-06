@@ -263,6 +263,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/118170
 
 # Examples:
 #

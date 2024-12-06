@@ -68,7 +68,7 @@ public final class MachineLearningField {
     );
 
     // This is the last version when we changed the ML job snapshot format.
-    public static final MlConfigVersion MIN_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.V_8_3_0;
+    public static final MlConfigVersion MIN_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.V_8_4_0;
 
     private MachineLearningField() {}
 

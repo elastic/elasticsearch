@@ -21,11 +21,11 @@ import java.io.IOException;
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  * @param <T>
  */
-public class AbstractQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
+public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
 
     protected final T queryBuilder;
 
-    public AbstractQueryBuilderWrapper(T queryBuilder) {
+    public InterceptedQueryBuilderWrapper(T queryBuilder) {
         super();
         this.queryBuilder = queryBuilder;
     }
@@ -59,9 +59,9 @@ public class AbstractQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> exte
     @Override
     protected boolean doEquals(T other) {
         // Handle the edge case where we need to unwrap the incoming query builder
-        if (other instanceof AbstractQueryBuilderWrapper) {
+        if (other instanceof InterceptedQueryBuilderWrapper) {
             @SuppressWarnings("unchecked")
-            AbstractQueryBuilderWrapper<T> wrapper = (AbstractQueryBuilderWrapper<T>) other;
+            InterceptedQueryBuilderWrapper<T> wrapper = (InterceptedQueryBuilderWrapper<T>) other;
             return queryBuilder.doEquals(wrapper.queryBuilder);
         } else {
             return queryBuilder.doEquals(other);

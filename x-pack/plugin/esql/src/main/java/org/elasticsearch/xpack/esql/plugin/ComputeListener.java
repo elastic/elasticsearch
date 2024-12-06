@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -39,8 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class ComputeListener implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
 
-    private final RefCountingListener refs;
-    private final FailureCollector failureCollector = new FailureCollector();
+    private final EsqlRefCountingListener refs;
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final CancellableTask task;
     private final TransportService transportService;
@@ -105,7 +104,7 @@ final class ComputeListener implements Releasable {
             : "clusterAlias and executionInfo must both be null or both non-null";
 
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
+        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
             ComputeResponse result;
 
@@ -136,7 +135,7 @@ final class ComputeListener implements Releasable {
                 }
             }
             delegate.onResponse(result);
-        }, e -> delegate.onFailure(failureCollector.getFailure())));
+        }));
     }
 
     /**
@@ -176,7 +175,6 @@ final class ComputeListener implements Releasable {
      */
     ActionListener<Void> acquireAvoid() {
         return refs.acquire().delegateResponse((l, e) -> {
-            failureCollector.unwrapAndCollect(e);
             try {
                 if (cancelled.compareAndSet(false, true)) {
                     LOGGER.debug("cancelling ESQL task {} on failure", task);

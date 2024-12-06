@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -56,7 +55,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
@@ -173,20 +173,6 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            } else if (p instanceof LookupJoin lj) {
-                // expect right side to always be a lookup index
-                lj.right().forEachUp(EsRelation.class, r -> {
-                    if (r.indexMode() != IndexMode.LOOKUP) {
-                        failures.add(
-                            fail(
-                                r,
-                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
-                                r.index().name(),
-                                r.indexMode().getName()
-                            )
-                        );
-                    }
-                });
             }
 
             else {
@@ -218,6 +204,7 @@ public class Verifier {
             checkSort(p, failures);
 
             checkFullTextQueryFunctions(p, failures);
+            checkJoin(p, failures);
         });
         checkRemoteEnrich(plan, failures);
         checkMetadataScoreNameReserved(plan, failures);
@@ -790,6 +777,35 @@ public class Verifier {
                 fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
             );
         });
+    }
+
+    /**
+     * Checks Joins for invalid usage.
+     *
+     * @param plan root plan to check
+     * @param failures failures found
+     */
+    private static void checkJoin(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Join join) {
+            JoinConfig config = join.config();
+            for (int i = 0; i < config.leftFields().size(); i++) {
+                Attribute leftField = config.leftFields().get(i);
+                Attribute rightField = config.rightFields().get(i);
+                if (leftField.dataType() != rightField.dataType()) {
+                    failures.add(
+                        fail(
+                            leftField,
+                            "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                            leftField.name(),
+                            leftField.dataType(),
+                            rightField.name(),
+                            rightField.dataType()
+                        )
+                    );
+                }
+            }
+
+        }
     }
 
     /**

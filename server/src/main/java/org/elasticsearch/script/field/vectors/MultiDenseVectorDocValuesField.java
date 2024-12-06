@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
@@ -22,7 +22,7 @@ public abstract class MultiDenseVectorDocValuesField extends AbstractScriptField
     implements
         Field<MultiDenseVector>,
         DocValuesScriptFieldFactory,
-        RankVectorsScriptDocValues.MultiDenseVectorSupplier {
+        MultiDenseVectorScriptDocValues.MultiDenseVectorSupplier {
     protected final String name;
     protected final ElementType elementType;
 
@@ -47,7 +47,7 @@ public abstract class MultiDenseVectorDocValuesField extends AbstractScriptField
 
     public abstract MultiDenseVector get(MultiDenseVector defaultValue);
 
-    public abstract RankVectorsScriptDocValues toScriptDocValues();
+    public abstract MultiDenseVectorScriptDocValues toScriptDocValues();
 
     // DenseVector fields are single valued, so Iterable does not make sense.
     @Override

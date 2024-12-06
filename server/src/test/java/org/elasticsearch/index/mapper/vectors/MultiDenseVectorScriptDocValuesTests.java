@@ -48,7 +48,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.FLOAT,
             dims
         );
-        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(vectors[i].length, field.size());
@@ -78,7 +78,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.BYTE,
             dims
         );
-        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(vectors[i].length, field.size());
@@ -171,7 +171,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.FLOAT,
             dims
         );
-        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
@@ -195,7 +195,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.BYTE,
             dims
         );
-        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
@@ -219,7 +219,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.FLOAT,
             dims
         );
-        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
@@ -245,7 +245,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             ElementType.BYTE,
             dims
         );
-        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));

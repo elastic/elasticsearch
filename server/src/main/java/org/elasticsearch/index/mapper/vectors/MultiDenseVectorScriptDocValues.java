@@ -15,14 +15,14 @@ import org.elasticsearch.script.field.vectors.MultiDenseVector;
 
 import java.util.Iterator;
 
-public class RankVectorsScriptDocValues extends ScriptDocValues<BytesRef> {
+public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
 
     private final int dims;
     protected final MultiDenseVectorSupplier dvSupplier;
 
-    public RankVectorsScriptDocValues(MultiDenseVectorSupplier supplier, int dims) {
+    public MultiDenseVectorScriptDocValues(MultiDenseVectorSupplier supplier, int dims) {
         super(supplier);
         this.dvSupplier = supplier;
         this.dims = dims;

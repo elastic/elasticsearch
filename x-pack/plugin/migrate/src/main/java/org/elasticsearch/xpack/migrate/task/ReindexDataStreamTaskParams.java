@@ -49,7 +49,7 @@ public record ReindexDataStreamTaskParams(
             (long) args[1],
             (int) args[2],
             (int) args[3],
-            (Map<String, String>) args[4]
+            args[4] == null ? Map.of() : (Map<String, String>) args[4]
         )
     );
     static {
@@ -97,7 +97,7 @@ public record ReindexDataStreamTaskParams(
             .field(TOTAL_INDICES_FIELD, totalIndices)
             .field(TOTAL_INDICES_TO_BE_UPGRADED_FIELD, totalIndicesToBeUpgraded);
         if (API_CONTEXT.equals(params.param(Metadata.CONTEXT_MODE_PARAM, API_CONTEXT)) == false) {
-            // This makes sure that we don't retrieve this from the cluster state
+            // This makes sure that we don't return the headers to an api request, like _cluster/state
             builder.stringStringMap(HEADERS_FIELD, headers);
         }
         builder.endObject();

@@ -481,10 +481,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             parentBitSet = context.bitsetFilter(parentFilter);
             if (filterQuery != null) {
-                NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
                 // We treat the provided filter as a filter over PARENT documents, so if it might match nested documents
                 // we need to adjust it.
-                if (nestedHelper.mightMatchNestedDocs(filterQuery)) {
+                if (NestedHelper.mightMatchNestedDocs(filterQuery, context)) {
                     // Ensure that the query only returns parent documents matching `filterQuery`
                     filterQuery = Queries.filtered(filterQuery, parentFilter);
                 }

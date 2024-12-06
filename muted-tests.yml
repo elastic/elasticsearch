@@ -266,6 +266,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DebPreservationTests
   method: test40RestartOnUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/118170
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultRerank
+  issue: https://github.com/elastic/elasticsearch/issues/118184
 
 # Examples:
 #

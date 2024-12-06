@@ -11,6 +11,8 @@ package org.elasticsearch.features;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -70,6 +72,12 @@ public class FeatureServiceTests extends ESTestCase {
         );
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("node1"))
+                    .add(DiscoveryNodeUtils.create("node2"))
+                    .add(DiscoveryNodeUtils.create("node3"))
+            )
             .nodeFeatures(
                 Map.of("node1", Set.of("f1", "f2", "nf1"), "node2", Set.of("f1", "f2", "nf2"), "node3", Set.of("f1", "f2", "nf1"))
             )

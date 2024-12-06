@@ -41,7 +41,10 @@ public class Hash extends EsqlScalarFunction {
     private final Expression alg;
     private final Expression input;
 
-    @FunctionInfo(returnType = "keyword", description = "Computes the hash of the input using java.security.MessageDigest.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512."
+    )
     public Hash(
         Source source,
         @Param(name = "alg", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression alg,

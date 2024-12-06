@@ -155,6 +155,6 @@ You can https://www.elastic.co/contact[contact us] for an estimate and recommend
 
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/scalability.html[{es} - Get ready for production]
 
-* https://www.elastic.co/guide/en/cloud/current/ec-prepare-production.html[{ecloud - Preparing a deployment for production]
+* https://www.elastic.co/guide/en/cloud/current/ec-prepare-production.html[{ecloud} - Preparing a deployment for production]
 
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html[Size your shards]

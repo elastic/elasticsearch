@@ -971,6 +971,7 @@ public class Stateless extends Plugin
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            StatelessCommitService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             USE_INDEX_REFRESH_BLOCK_SETTING
         );
     }

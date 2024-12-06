@@ -256,7 +256,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public Settings.Builder createRecoverySettingsChunkPerSecond(long chunkSizeBytes) {
         return Settings.builder()
             // Set the chunk size in bytes
-            .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
+            .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
             // Set one chunk of bytes per second.
             .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSizeBytes, ByteSizeUnit.BYTES);
     }
@@ -279,7 +279,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Settings.builder()
                 // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
-                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
         );
     }
 

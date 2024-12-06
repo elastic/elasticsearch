@@ -24,6 +24,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoveryFilesInfoRequest;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -61,7 +62,11 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      */
     public void testCancelRecoveryAndResume() throws Exception {
         updateClusterSettings(
-            Settings.builder().put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
+            Settings.builder()
+                .put(
+                    RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(),
+                    new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)
+                )
         );
 
         NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();

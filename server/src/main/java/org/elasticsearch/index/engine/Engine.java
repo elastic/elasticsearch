@@ -942,8 +942,8 @@ public abstract class Engine implements Closeable {
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
     /**
-     * @deprecated This method is deprecated and has been replaced by {@link Engine#newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)}.
-     *             It will be removed once #114618 is applied to the serverless repository.
+     * @deprecated This method is deprecated will and be removed once #114618 is applied to the serverless repository.
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     @Deprecated
     public abstract Translog.Snapshot newChangesSnapshot(

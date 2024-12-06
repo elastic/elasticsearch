@@ -346,6 +346,11 @@ public class EsqlCapabilities {
         DATE_NANOS_BINARY_COMPARISON(),
 
         /**
+         * Support for mixed comparisons between nanosecond and millisecond dates
+         */
+        DATE_NANOS_COMPARE_TO_MILLIS(),
+
+        /**
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),

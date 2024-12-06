@@ -3244,7 +3244,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String dataMathIndex1 = ".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(now));
         String dateMathIndex2 = ".logstash-" + formatDate("uuuu.MM", dateFromMillis(now).withDayOfMonth(1));
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-            ProjectMetadata.builder(randomProjectId())
+            ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(indexBuilder("name1"))
                 .put(indexBuilder("name2"))
                 .put(indexBuilder(dataMathIndex1))

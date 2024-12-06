@@ -47,7 +47,7 @@ public class OperationRoutingTests extends ESTestCase {
         try {
             threadPool = new TestThreadPool("testPreferNodes");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
-            final ProjectId projectId = randomProjectId();
+            final ProjectId projectId = randomProjectIdOrDefault();
             final String indexName = "test";
             ClusterServiceUtils.setState(
                 clusterService,
@@ -95,7 +95,7 @@ public class OperationRoutingTests extends ESTestCase {
         try {
             threadPool = new TestThreadPool("testPreferCombine");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
-            final ProjectId projectId = randomProjectId();
+            final ProjectId projectId = randomProjectIdOrDefault();
             final String indexName = "test";
             ClusterServiceUtils.setState(
                 clusterService,
@@ -157,7 +157,7 @@ public class OperationRoutingTests extends ESTestCase {
         final int numIndices = randomIntBetween(1, 3);
         final int numShards = randomIntBetween(2, 10);
         final int numReplicas = randomIntBetween(1, 3);
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indexNames[i] = "test" + i;
@@ -222,7 +222,7 @@ public class OperationRoutingTests extends ESTestCase {
         try {
             threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
-            final ProjectId projectId = randomProjectId();
+            final ProjectId projectId = randomProjectIdOrDefault();
             final String indexName = "test";
             ClusterServiceUtils.setState(
                 clusterService,
@@ -289,7 +289,7 @@ public class OperationRoutingTests extends ESTestCase {
         final int numIndices = 1;
         final int numShards = 1;
         final int numReplicas = 2;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indexNames[i] = "test" + i;
@@ -376,7 +376,7 @@ public class OperationRoutingTests extends ESTestCase {
         int numIndices = 1;
         int numShards = 1;
         int numReplicas = 1;
-        ProjectId projectId = randomProjectId();
+        ProjectId projectId = randomProjectIdOrDefault();
         String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indexNames[i] = "test" + i;
@@ -437,7 +437,7 @@ public class OperationRoutingTests extends ESTestCase {
         int numIndices = 1;
         int numShards = 2;
         int numReplicas = 1;
-        ProjectId projectId = randomProjectId();
+        ProjectId projectId = randomProjectIdOrDefault();
         String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indexNames[i] = "test" + i;

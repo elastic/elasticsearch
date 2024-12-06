@@ -91,7 +91,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             emptySet()
         );
 
-        ProjectId projectId = randomProjectId();
+        ProjectId projectId = randomProjectIdOrDefault();
         projectResolver = TestProjectResolvers.singleProject(projectId);
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());

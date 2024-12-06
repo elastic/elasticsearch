@@ -111,7 +111,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testHappyCluster() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
@@ -182,7 +182,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testRetryThenOk() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(2, 10);
@@ -304,7 +304,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testRetryButFails() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
@@ -428,7 +428,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testSuccessWithAnyMatch() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
@@ -526,7 +526,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testStopAfterAllShardsUnmatched() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
@@ -619,7 +619,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testFailWithSameException() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);

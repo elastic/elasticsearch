@@ -88,7 +88,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
     }
 
     public void testResyncDoesNotBlockOnPrimaryAction() throws Exception {
-        ProjectId projectId = randomProjectId();
+        ProjectId projectId = randomProjectIdOrDefault();
         try (ClusterService clusterService = createClusterService(threadPool)) {
             final String indexName = randomAlphaOfLength(5);
             setState(clusterService, state(projectId, indexName, true, ShardRoutingState.STARTED));

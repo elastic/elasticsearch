@@ -60,7 +60,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
@@ -98,7 +98,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .template(new Template(Settings.builder().put("index.mode", "logsdb").build(), null, null))
             .dataStreamTemplate(new DataStreamTemplate())
             .build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
@@ -142,7 +142,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .dataStreamTemplate(new DataStreamTemplate())
             .template(new Template(null, null, aliases))
             .build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
@@ -199,7 +199,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
         List<String> ctNames = new ArrayList<>();
         List<Map<String, AliasMetadata>> allAliases = new ArrayList<>();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         var metadataBuilder = ProjectMetadata.builder(projectId);
         for (int k = 0; k < componentTemplateCount; k++) {
             final String ctName = randomAlphaOfLength(5);
@@ -278,7 +278,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
             .build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
@@ -320,7 +320,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
             .build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
@@ -359,7 +359,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
             .build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
@@ -389,7 +389,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateSystemDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = ".system-data-stream";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -429,7 +429,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId).dataStreams(Map.of(dataStreamName, existingDataStream), Map.of()).build()
@@ -455,7 +455,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamWithInvalidName() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "_My-da#ta- ,stream-";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -478,7 +478,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamWithUppercaseCharacters() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "MAY_NOT_USE_UPPERCASE";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -501,7 +501,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamStartingWithPeriod() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = ".ds-may_not_start_with_ds";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -524,7 +524,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamNoTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -548,7 +548,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(List.of(dataStreamName + "*")).build();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();

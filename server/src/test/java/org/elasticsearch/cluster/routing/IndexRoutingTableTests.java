@@ -32,7 +32,7 @@ public class IndexRoutingTableTests extends ESTestCase {
     public void testReadyForSearch() {
         Index index = new Index(randomIdentifier(), UUIDs.randomBase64UUID());
 
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = mock(ClusterState.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterState.metadata().getProject(eq(projectId)).index(any(Index.class)).getSettings()).thenReturn(
             Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean()).build()

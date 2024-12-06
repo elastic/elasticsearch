@@ -229,7 +229,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testUpdatePipelines() {
         IngestService ingestService = createWithProcessors();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -258,7 +258,7 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1));
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ingestService.innerUpdatePipelines(projectId, ingestMetadata);
         assertThat(ingestService.pipelines().get(projectId).size(), is(1));
         {
@@ -357,7 +357,7 @@ public class IngestServiceTests extends ESTestCase {
             PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
                 {"processors": [{"fail_validation" : {}}]}"""), XContentType.JSON);
             IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
             ClusterState previousClusterState = clusterState;
             clusterState = ClusterState.builder(clusterState)
@@ -381,7 +381,7 @@ public class IngestServiceTests extends ESTestCase {
             PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
                 {"processors": [{"fail_extra_validation" : {}}]}"""), XContentType.JSON);
             IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
             ClusterState previousClusterState = clusterState;
             clusterState = ClusterState.builder(clusterState)
@@ -402,7 +402,7 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState)
@@ -514,7 +514,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testGetProcessorsInPipeline() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -561,7 +561,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testGetPipelineWithProcessorType() throws Exception {
         IngestService ingestService = createWithProcessors();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -627,7 +627,7 @@ public class IngestServiceTests extends ESTestCase {
         });
 
         IngestService ingestService = createWithProcessors(processorFactories);
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -694,7 +694,7 @@ public class IngestServiceTests extends ESTestCase {
 
         IngestService ingestService = createWithProcessors(processors);
         String id = "_id";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -720,7 +720,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testCrud() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -750,7 +750,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testPut() {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -784,7 +784,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testPutWithErrorResponse() throws IllegalAccessException {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
         ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -826,7 +826,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         clusterState = ClusterState.builder(clusterState)
             .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
@@ -880,7 +880,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         clusterState = ClusterState.builder(clusterState)
             .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
@@ -906,7 +906,7 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             builder.put(
@@ -2255,7 +2255,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"test\" : {}}]}");
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build(); // Start empty
@@ -2868,7 +2868,7 @@ public class IngestServiceTests extends ESTestCase {
         final Integer existingVersion = randomInt();
         var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         var ingestMetadata = new IngestMetadata(Map.of(pipelineId, existingPipeline));
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
@@ -2897,7 +2897,7 @@ public class IngestServiceTests extends ESTestCase {
         final Integer existingVersion = randomInt();
         var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         var ingestMetadata = new IngestMetadata(Map.of(pipelineId, existingPipeline));
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())

@@ -89,7 +89,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testIterator1() {
-        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectId())
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -116,7 +116,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testIterator2() {
-        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectId())
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -196,7 +196,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testRandomRouting() {
-        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectId())
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -230,7 +230,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                 .build()
         );
 
-        ProjectId projectId = randomProjectId();
+        ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata metadata = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -436,7 +436,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        ProjectId projectId = randomProjectId();
+        ProjectId projectId = randomProjectIdOrDefault();
         Metadata metadata = Metadata.builder()
             .put(
                 ProjectMetadata.builder(projectId)

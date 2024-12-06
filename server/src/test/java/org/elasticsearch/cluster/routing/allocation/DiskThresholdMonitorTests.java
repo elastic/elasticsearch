@@ -72,7 +72,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder("test")
@@ -461,7 +461,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata project = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
@@ -812,7 +812,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
@@ -1343,7 +1343,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     public void testSkipDiskThresholdMonitorWhenStateNotRecovered() {
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         boolean shutdownMetadataInState = randomBoolean();
         final Metadata.Builder metadataBuilder = Metadata.builder()
             .put(

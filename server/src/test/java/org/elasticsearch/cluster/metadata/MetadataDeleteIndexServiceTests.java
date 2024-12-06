@@ -188,7 +188,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteBackingIndexForDataStream() {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, numBackingIndices)),
@@ -215,7 +215,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         long now = System.currentTimeMillis();
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, numBackingIndices)),
@@ -250,7 +250,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(3, 5);
         int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, numBackingIndices)),
@@ -283,7 +283,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteCurrentWriteIndexForDataStream() {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, numBackingIndices)),
@@ -312,7 +312,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         long ts = System.currentTimeMillis();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, numBackingIndices)),
@@ -351,7 +351,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         long ts = System.currentTimeMillis();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, numBackingIndices)),
@@ -392,7 +392,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         for (int p = 0; p < numProjects; p++) {
             final int numberOfIndicesToCreate = randomIntBetween(1, 10);
             final int numberOfIndicesToDelete = randomIntBetween(1, numberOfIndicesToCreate);
-            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomUniqueProjectId());
             for (int i = 0; i < numberOfIndicesToCreate; i++) {
                 final Index index = new Index(randomAlphaOfLengthBetween(8, 12), randomUUID());
                 projectBuilder.put(
@@ -436,11 +436,11 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersionUtils.randomVersion(random()), index.getUUID(), 1, 1))
             .build();
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
 
         if (randomBoolean()) {
-            final ProjectMetadata.Builder secondProject = ProjectMetadata.builder(randomProjectId());
+            final ProjectMetadata.Builder secondProject = ProjectMetadata.builder(randomUniqueProjectId());
             if (randomBoolean()) {
                 secondProject.put(
                     IndexMetadata.builder(index.getName()).settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1))

@@ -140,7 +140,7 @@ public class BulkOperationTests extends ESTestCase {
         )
         .build();
 
-    private final ProjectId projectId = randomProjectId();
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
         .putProjectMetadata(
             ProjectMetadata.builder(projectId)

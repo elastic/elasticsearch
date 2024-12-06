@@ -116,7 +116,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(
             systemIndices,
             client,
@@ -163,7 +163,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             )
         );
 
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(
             systemIndices,
             client,
@@ -316,7 +316,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static ProjectState createProjectState(String mappings, int format, IndexMetadata.State state) {
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         IndexMetadata.Builder indexMeta = getIndexMetadata(SystemIndexMappingUpdateServiceTests.DESCRIPTOR, mappings, format, state);
 
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);

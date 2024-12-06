@@ -105,7 +105,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
     private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
 
-    private final ProjectId projectId = randomProjectId();
+    private final ProjectId projectId = randomProjectIdOrDefault();
 
     /** Services needed by bulk action */
     TransportService transportService;

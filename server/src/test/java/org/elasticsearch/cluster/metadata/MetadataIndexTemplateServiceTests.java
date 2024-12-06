@@ -89,7 +89,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testLegacyNoopUpdate() throws IOException {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -423,7 +423,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testAddComponentTemplate() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -482,7 +482,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateComponentTemplateWithIndexHiddenSetting() throws Exception {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -536,7 +536,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAddIndexTemplateV2() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -565,7 +565,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateIndexTemplateV2() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -590,7 +590,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testRemoveIndexTemplateV2() throws Exception {
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -611,7 +611,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testRemoveIndexTemplateV2Wildcards() throws Exception {
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -639,7 +639,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -666,7 +666,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -699,7 +699,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(v1Template).build())
             .build();
@@ -797,7 +797,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -829,7 +829,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -867,7 +867,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(v1Template).build())
             .build();
@@ -914,7 +914,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(v1Template))
             .build();
@@ -958,7 +958,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testPuttingOverlappingV2Template() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1012,7 +1012,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testFindV2Templates() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1041,7 +1041,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testFindV2TemplatesForHiddenIndex() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1072,7 +1072,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testFindV2TemplatesForDateMathIndex() throws Exception {
         String indexName = "<index-{now/d}>";
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1111,7 +1111,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(5L)
                 .version(1L)
                 .build();
-            ProjectMetadata invalidGlobalTemplateMetadata = ProjectMetadata.builder(randomProjectId())
+            ProjectMetadata invalidGlobalTemplateMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .putCustom(
                     ComposableIndexTemplateMetadata.TYPE,
                     new ComposableIndexTemplateMetadata(Map.of("invalid_global_template", invalidGlobalTemplate))
@@ -1133,7 +1133,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testResolveConflictingMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1202,7 +1202,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testResolveMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1265,7 +1265,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testDefinedTimestampMappingIsAddedForDataStreamTemplates() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1401,7 +1401,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testUserDefinedMappingTakesPrecedenceOverDefault() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1523,7 +1523,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testResolveSettings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1560,7 +1560,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testResolveAliases() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1812,7 +1812,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate bar = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
         ComponentTemplate baz = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1863,7 +1863,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1888,7 +1888,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1925,7 +1925,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2001,7 +2001,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testIndexTemplateFailsToAdd() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2037,7 +2037,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testUpdateComponentTemplateFailsIfResolvedIndexTemplatesWouldBeInvalid() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2120,7 +2120,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testPutExistingComponentTemplateIsNoop() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2136,7 +2136,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testPutExistingComposableTemplateIsNoop() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2151,7 +2151,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testUnreferencedDataStreamsWhenAddingTemplate() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
@@ -2267,7 +2267,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testDataStreamsUsingTemplates() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
@@ -2342,7 +2342,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testDataStreamsUsingMatchAllTemplate() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2368,7 +2368,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemovingHigherOrderTemplateOfDataStreamWithMultipleTemplates() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2421,7 +2421,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testV2TemplateOverlaps() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2515,7 +2515,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2542,7 +2542,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .build();
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2627,7 +2627,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testComposableTemplateWithSubobjectsFalse() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -2685,7 +2685,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();

@@ -27,6 +27,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -42,6 +43,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -121,7 +123,15 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Settings createTestIndexSettings() {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        IndexVersion indexVersion = randomFrom(
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
+            ),
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
+        );
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build();
     }
 
     @Override
@@ -143,7 +153,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private void applyRandomInferenceResults(MapperService mapperService) throws IOException {
         // Parse random inference results (or no inference results) to set up the dynamic inference result mappings under the semantic text
         // field
-        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType, denseVectorElementType);
+        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(
+            inferenceResultType,
+            denseVectorElementType,
+            mapperService.getIndexSettings().getIndexVersionCreated()
+        );
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
             mapperService.merge(
@@ -328,7 +342,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private static SourceToParse buildSemanticTextFieldWithInferenceResults(
         InferenceResultType inferenceResultType,
-        DenseVectorFieldMapper.ElementType denseVectorElementType
+        DenseVectorFieldMapper.ElementType denseVectorElementType,
+        IndexVersion indexVersion
     ) throws IOException {
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
@@ -344,7 +359,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SourceToParse sourceToParse = null;
         if (modelSettings != null) {
             SemanticTextField semanticTextField = new SemanticTextField(
-                IndexVersion.current(),
+                indexVersion,
                 SEMANTIC_TEXT_FIELD,
                 null,
                 new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, Map.of(SEMANTIC_TEXT_FIELD, List.of())),

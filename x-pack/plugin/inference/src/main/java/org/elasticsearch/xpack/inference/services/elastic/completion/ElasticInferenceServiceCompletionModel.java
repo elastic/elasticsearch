@@ -16,39 +16,30 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
-
 public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceModel {
 
-    public static ElasticInferenceServiceCompletionModel of(ElasticInferenceServiceCompletionModel model, UnifiedCompletionRequest request) {
+    public static ElasticInferenceServiceCompletionModel of(
+        ElasticInferenceServiceCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
             Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
             originalModelServiceSettings.rateLimitSettings()
         );
 
-        return new ElasticInferenceServiceCompletionModel(
-            model.getInferenceEntityId(),
-            model.getTaskType(),
-            model.getConfigurations().getService(),
-            overriddenServiceSettings,
-            model.getTaskSettings(),
-            model.getSecretSettings()
-        );
+        return new ElasticInferenceServiceCompletionModel(model, overriddenServiceSettings);
     }
 
     private final URI uri;
@@ -76,7 +67,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 
     public ElasticInferenceServiceCompletionModel(
         ElasticInferenceServiceCompletionModel model,
-        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
 
@@ -121,18 +112,17 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 
     private URI createUri() throws URISyntaxException {
         String modelId = getServiceSettings().modelId();
-//        String modelIdUriPath;
-//
-//        switch (modelId) {
-//            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-//            default -> throw new IllegalArgumentException(
-//                String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
-//            );
-//        }
+        // String modelIdUriPath;
+        //
+        // switch (modelId) {
+        // case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
+        // default -> throw new IllegalArgumentException(
+        // String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
+        // );
+        // }
 
         // TODO what is the url?
-//        return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/completion/" + modelIdUriPath);
-
-        return
+        // return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/completion/" + modelId);
+        return OpenAiUnifiedChatCompletionRequest.buildDefaultUri();
     }
 }

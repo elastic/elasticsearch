@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.inference.external.request.openai;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,15 +48,17 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
-    private final OpenAiChatCompletionModel model;
+    private final ModelFields modelFields;
 
-    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
+    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, ModelFields modelFields) {
         Objects.requireNonNull(unifiedChatInput);
 
         this.unifiedRequest = unifiedChatInput.getRequest();
         this.stream = unifiedChatInput.stream();
-        this.model = Objects.requireNonNull(model);
+        this.modelFields = Objects.requireNonNull(modelFields);
     }
+
+    public record ModelFields(String modelId, @Nullable String user) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -111,7 +113,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         }
         builder.endArray();
 
-        builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
+        builder.field(MODEL_FIELD, modelFields.modelId());
         if (unifiedRequest.maxCompletionTokens() != null) {
             builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
         }
@@ -168,8 +170,8 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }
 
-        if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
-            builder.field(USER_FIELD, model.getTaskSettings().user());
+        if (Strings.isNullOrEmpty(modelFields.user()) == false) {
+            builder.field(USER_FIELD, modelFields.user());
         }
 
         builder.field(STREAM_FIELD, stream);

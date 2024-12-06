@@ -51,23 +51,6 @@ setup:
           }
 
   - do:
-      inference.put:
-        task_type: text_embedding
-        inference_id: dense-inference-id-2
-        body: >
-          {
-            "service": "text_embedding_test_service",
-            "service_settings": {
-              "model": "my_model",
-              "dimensions": 10,
-              "api_key": "abc64",
-              "similarity": "COSINE"
-            },
-            "task_settings": {
-            }
-          }
-
-  - do:
       indices.create:
         index: test-sparse-index
         body:
@@ -124,21 +107,6 @@ setup:
         index: test-sparse-index
         body:
           query:
-            semantic:
-              field: "inference_field"
-              query: "inference test"
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "doc_1" }
-
-  - do:
-      headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-        Content-Type: application/json
-      search:
-        index: test-sparse-index
-        body:
-          query:
             match:
               inference_field:
                 query: "inference test"
@@ -159,21 +127,6 @@ setup:
           inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
-
-  - do:
-      headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-        Content-Type: application/json
-      search:
-        index: test-dense-index
-        body:
-          query:
-            semantic:
-              field: "inference_field"
-              query: "inference test"
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "doc_1" }
 
   - do:
       headers:

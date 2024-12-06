@@ -503,6 +503,35 @@ setup:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Field [non_inference_field] of type [text] does not support semantic queries" }
 
+---
+"Query the wrong field type with lenient: true":
+  - requires:
+      cluster_features: "search.semantic_match_query_rewrite_interception_supported"
+      reason: lenient introduced in 8.18.0
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "non_inference_field"
+              query: "inference test"
+
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [non_inference_field] of type [text] does not support semantic queries" }
+
   - do:
       search:
         index: test-sparse-index
@@ -514,6 +543,7 @@ setup:
               lenient: true
 
   - match: { hits.total.value: 0 }
+
 
 ---
 "Query a missing field":

@@ -351,7 +351,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null, mode));
-
     }
 
     public void testCSVMode() throws IOException {
@@ -1004,53 +1003,35 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlAsync(requestObject, new AssertWarnings.NoWarnings());
+        return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
     static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
         if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, assertWarnings);
+            return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
         } else {
             return runEsqlSync(requestObject, assertWarnings);
         }
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        requestObject.build();
-        Request request = prepareRequest(SYNC);
-        String mediaType = attachBody(requestObject, request);
-
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
-        options.addHeader("Content-Type", mediaType);
-
-        if (randomBoolean()) {
-            options.addHeader("Accept", mediaType);
-        } else {
-            request.addParameter("format", requestObject.contentType().queryParameter());
-        }
-        request.setOptions(options);
+        Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         HttpEntity entity = performRequest(request, assertWarnings);
         return entityToMap(entity, requestObject.contentType());
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        addAsyncParameters(requestObject);
-        requestObject.build();
-        Request request = prepareRequest(ASYNC);
-        String mediaType = attachBody(requestObject, request);
+        return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
+    }
 
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
-        options.addHeader("Content-Type", mediaType);
-
-        if (randomBoolean()) {
-            options.addHeader("Accept", mediaType);
-        } else {
-            request.addParameter("format", requestObject.contentType().queryParameter());
-        }
-        request.setOptions(options);
+    public static Map<String, Object> runEsqlAsync(
+        RequestObjectBuilder requestObject,
+        boolean keepOnCompletion,
+        AssertWarnings assertWarnings
+    ) throws IOException {
+        addAsyncParameters(requestObject, keepOnCompletion);
+        Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
         if (shouldLog()) {
             LOGGER.info("REQUEST={}", request);
@@ -1062,7 +1043,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Object initialColumns = null;
         Object initialValues = null;
         var json = entityToMap(entity, requestObject.contentType());
-        checkKeepOnCompletion(requestObject, json);
+        checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
@@ -1102,7 +1083,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
-            getRequest.setOptions(options);
+            getRequest.setOptions(request.getOptions());
             response = performRequest(getRequest);
             entity = response.getEntity();
         }
@@ -1118,6 +1099,66 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
+    }
+
+    public void testAsyncGetWithoutContentType() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var requestObject = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+
+        addAsyncParameters(requestObject, true);
+        Request request = prepareRequestWithOptions(requestObject, ASYNC);
+
+        if (shouldLog()) {
+            LOGGER.info("REQUEST={}", request);
+        }
+
+        Response response = performRequest(request);
+        HttpEntity entity = response.getEntity();
+
+        var json = entityToMap(entity, requestObject.contentType());
+        checkKeepOnCompletion(requestObject, json, true);
+        String id = (String) json.get("id");
+        // results won't be returned since keepOnCompletion is true
+        assertThat(id, is(not(emptyOrNullString())));
+
+        // issue an "async get" request with no Content-Type
+        Request getRequest = prepareAsyncGetRequest(id);
+        response = performRequest(getRequest);
+        entity = response.getEntity();
+        var result = entityToMap(entity, XContentType.JSON);
+
+        ListMatcher values = matchesList();
+        for (int i = 0; i < count; i++) {
+            values = values.item(matchesList().item("keyword" + i).item(i));
+        }
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                matchesList().item(matchesMap().entry("name", "keyword").entry("type", "keyword"))
+                    .item(matchesMap().entry("name", "integer").entry("type", "integer"))
+            ).entry("values", values).entry("took", greaterThanOrEqualTo(0)).entry("id", id).entry("is_running", false)
+        );
+
+    }
+
+    static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
+        requestObject.build();
+        Request request = prepareRequest(mode);
+        String mediaType = attachBody(requestObject, request);
+
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
+        options.addHeader("Content-Type", mediaType);
+
+        if (randomBoolean()) {
+            options.addHeader("Accept", mediaType);
+        } else {
+            request.addParameter("format", requestObject.contentType().queryParameter());
+        }
+        request.setOptions(options);
+        return request;
     }
 
     // Removes async properties, otherwise consuming assertions would need to handle sync and async differences
@@ -1140,17 +1181,20 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    static void addAsyncParameters(RequestObjectBuilder requestObject) throws IOException {
+    static void addAsyncParameters(RequestObjectBuilder requestObject, boolean keepOnCompletion) throws IOException {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
-        requestObject.keepOnCompletion(randomBoolean());
+        requestObject.keepOnCompletion(keepOnCompletion);
         requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
-    static void checkKeepOnCompletion(RequestObjectBuilder requestObject, Map<String, Object> json) {
+    static void checkKeepOnCompletion(RequestObjectBuilder requestObject, Map<String, Object> json, boolean keepOnCompletion) {
         if (requestObject.keepOnCompletion()) {
+            assertTrue(keepOnCompletion);
             assertThat((String) json.get("id"), not(emptyOrNullString()));
+        } else {
+            assertFalse(keepOnCompletion);
         }
     }
 
@@ -1172,7 +1216,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         throws IOException {
         Request request = prepareRequest(mode);
         if (mode == ASYNC) {
-            addAsyncParameters(builder);
+            addAsyncParameters(builder, randomBoolean());
         }
         String mediaType = attachBody(builder.build(), request);
 
@@ -1193,6 +1237,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             request.addParameter("delimiter", String.valueOf(delimiter));
         }
         request.setOptions(options);
+
+        if (shouldLog()) {
+            LOGGER.info("REQUEST={}", request);
+        }
 
         Response response = performRequest(request);
         HttpEntity entity = assertWarnings(response, new AssertWarnings.NoWarnings());

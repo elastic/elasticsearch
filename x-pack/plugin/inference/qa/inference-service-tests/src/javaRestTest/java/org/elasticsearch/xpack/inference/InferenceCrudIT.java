@@ -44,7 +44,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = 11;
+        int numModels = 12;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -482,7 +482,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testGetZeroModels() throws IOException {
-        var models = getModels("_all", TaskType.RERANK);
+        var models = getModels("_all", TaskType.COMPLETION);
         assertThat(models, empty());
     }
 }

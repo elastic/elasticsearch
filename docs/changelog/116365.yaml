@@ -1,0 +1,5 @@
+pr: 116365
+summary: Ignore remote ES|QL execution failures when skip_unavailable=true
+area: ES|QL
+type: enhancement
+issues: []

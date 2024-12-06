@@ -149,7 +149,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         Settings settings,
         SynonymsManagementAPIService synonymsManagementAPIService
     ) {
-        super(name, settings);
+        super(name);
         this.settings = settings;
 
         if (settings.get("ignore_case") != null) {

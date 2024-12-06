@@ -60,10 +60,7 @@ public final class ExchangeSourceHandler {
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
         final PendingInstances closingSinks = new PendingInstances(() -> {});
         closingSinks.trackNewInstance();
-        this.outstandingSources = new PendingInstances(() -> {
-            buffer.finish(true);
-            finishEarly(ActionListener.running(closingSinks::finishInstance));
-        });
+        this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.running(closingSinks::finishInstance)));
         buffer.addCompletionListener(ActionListener.running(() -> {
             final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener);
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
@@ -310,8 +307,11 @@ public final class ExchangeSourceHandler {
      * Gracefully terminates the exchange source early by instructing all remote exchange sinks to stop their computations.
      * This can happen when the exchange source has accumulated enough data (e.g., reaching the LIMIT) or when users want to
      * see the current result immediately.
+     *
+     * @param drainingPages whether to discard pages already fetched in the exchange
      */
-    public void finishEarly(ActionListener<Void> listener) {
+    public void finishEarly(boolean drainingPages, ActionListener<Void> listener) {
+        buffer.finish(drainingPages);
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
             for (RemoteSink remoteSink : remoteSinks.values()) {
                 remoteSink.close(refs.acquire());

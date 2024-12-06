@@ -366,13 +366,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             );
             actual.addListener(listener);
             if (candidate == actual) {
-                doFetchPageAsync(true, candidate.delegateFailure((l, r) -> {
+                doFetchPageAsync(true, ActionListener.wrap(r -> {
                     final Page page = r.takePage();
                     if (page != null) {
                         page.releaseBlocks();
                     }
-                    l.onResponse(null);
-                }));
+                    candidate.onResponse(null);
+                }, e -> candidate.onResponse(null)));
             }
         }
     }

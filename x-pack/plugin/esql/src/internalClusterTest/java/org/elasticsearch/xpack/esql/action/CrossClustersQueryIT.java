@@ -78,7 +78,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPluginWithTrialLicense.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(InternalExchangePlugin.class);
         return plugins;
     }

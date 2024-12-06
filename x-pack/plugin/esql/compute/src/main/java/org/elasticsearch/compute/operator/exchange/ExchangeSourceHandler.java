@@ -9,9 +9,10 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -54,20 +55,20 @@ public final class ExchangeSourceHandler {
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
         this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
         buffer.addCompletionListener(ActionListener.running(() -> {
-            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener).delegateFailure((l, unused) -> {
+            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener);
+            try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
                 final Exception e = failure.getFailure();
                 if (e != null) {
-                    l.onFailure(e);
+                    listener.onFailure(e);
                 } else {
-                    l.onResponse(null);
+                    listener.onResponse(null);
                 }
-            });
-            try (RefCountingListener refs = new RefCountingListener(listener)) {
+            })) {
                 for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
                     // Create an outstanding instance and then finish to complete the completionListener
                     // if we haven't registered any instances of exchange sinks or exchange sources before.
                     pending.trackNewInstance();
-                    pending.completion.addListener(refs.acquire());
+                    pending.completion.addListener(refs.acquireListener());
                     pending.finishInstance();
                 }
             }
@@ -269,7 +270,7 @@ public final class ExchangeSourceHandler {
 
             @Override
             protected void doRun() {
-                try (RefCountingListener refs = new RefCountingListener(sinkListener)) {
+                try (EsqlRefCountingListener refs = new EsqlRefCountingListener(sinkListener)) {
                     for (int i = 0; i < instances; i++) {
                         var fetcher = new RemoteSinkFetcher(remoteSink, failFast, refs.acquire());
                         fetcher.fetchPage();

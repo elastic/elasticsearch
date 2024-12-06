@@ -667,19 +667,26 @@ public final class IndexSettings {
                 if (enabled == false) {
                     return;
                 }
-                var mode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
-                if (mode != SourceFieldMapper.Mode.SYNTHETIC) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
-                            RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
-                            INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
-                            SourceFieldMapper.Mode.SYNTHETIC.name(),
-                            mode.name()
-                        )
-                    );
+
+                // Verify if synthetic source is enabled on the index; fail if it is not
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
+                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                                SourceFieldMapper.Mode.SYNTHETIC.name(),
+                                sourceMode.name()
+                            )
+                        );
+                    }
                 }
+
+                // Verify that all nodes can handle this setting
                 var version = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
                 if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)) {
                     throw new IllegalArgumentException(
@@ -696,7 +703,7 @@ public final class IndexSettings {
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, SETTING_INDEX_VERSION_CREATED);
+                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, SETTING_INDEX_VERSION_CREATED, MODE);
                 return res.iterator();
             }
         },

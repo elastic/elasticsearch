@@ -6,7 +6,7 @@ issues: []
 breaking:
   title: Remove old `_knn_search` tech preview API in v9
   area: Vector Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: The original, tech-preview api for vector search, `_knn_search`, has been removed in v9. For all vector search
+    operations, you should utilize the `_search` endpoint.
+  impact: The `_knn_search` API is now inaccessible without providing a compatible-with flag for v8.
   notable: false

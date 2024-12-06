@@ -94,7 +94,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    private final ProjectId projectId = randomProjectId();
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private ClusterService clusterService;
     private IndexShard indexShard;
 

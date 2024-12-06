@@ -665,7 +665,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testBuildAliasFilter() {
         var indicesService = getIndicesService();
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(projectId)
             .put(
                 indexBuilder("test-0").state(IndexMetadata.State.OPEN)
@@ -746,7 +746,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String dataStreamName2 = "logs-foobaz";
         IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
         IndexMetadata backingIndex2 = createBackingIndex(dataStreamName2, 1).build();
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(projectId)
             .put(backingIndex1, false)
             .put(backingIndex2, false)

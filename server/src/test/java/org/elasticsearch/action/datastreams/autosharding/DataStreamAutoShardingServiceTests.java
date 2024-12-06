@@ -99,7 +99,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     }
 
     public void testCalculateValidations() {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         DataStream dataStream = createDataStream(
             builder,
@@ -187,7 +187,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         // all 4 backing indices have a write load of 2.0
         // we'll recreate it across the test and add an auto sharding event as we iterate
         {
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -223,7 +223,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         {
             // let's add a pre-existing sharding event so that we'll return some cool down period that's preventing an INCREASE_SHARDS
             // event so the result type we're expecting is COOLDOWN_PREVENTED_INCREASE
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -262,7 +262,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // let's test a subsequent increase in the number of shards after a previos auto sharding event
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -304,7 +304,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         {
             // testing a decrease shards events prevented by the cool down period not lapsing due to the oldest generation index being
             // "too new" (i.e. the cool down period hasn't lapsed since the oldest generation index)
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -339,7 +339,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
 
         {
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -381,7 +381,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // let's test a decrease in number of shards after a previous decrease event
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -429,7 +429,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         {
             // let's test a decrease in number of shards that's prevented by the cool down period due to a previous sharding event
             // the expected result type here is COOLDOWN_PREVENTED_DECREASE
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -475,7 +475,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // no change required
-            var projectId = randomProjectId();
+            var projectId = randomProjectIdOrDefault();
             ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,

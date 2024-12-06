@@ -144,7 +144,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .findFirst()
             .get();
         descriptorSpy = spy(descriptor);
-        projectId = randomProjectId();
+        projectId = randomProjectIdOrDefault();
         manager = SecurityIndexManager.buildSecurityIndexManager(
             client,
             clusterService,
@@ -879,9 +879,9 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testAddRemoveProjects() {
-        final ProjectId projectId1 = randomProjectId();
-        final ProjectId projectId2 = randomProjectId();
-        final ProjectId projectId3 = randomProjectId();
+        final ProjectId projectId1 = randomUniqueProjectId();
+        final ProjectId projectId2 = randomUniqueProjectId();
+        final ProjectId projectId3 = randomUniqueProjectId();
 
         final Map<ProjectId, Tuple<IndexState, IndexState>> listeners = new HashMap<>();
         manager.addStateListener((projId, oldState, newState) -> listeners.put(projId, Tuple.tuple(oldState, newState)));

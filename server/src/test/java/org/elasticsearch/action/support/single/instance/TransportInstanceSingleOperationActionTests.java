@@ -169,7 +169,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        projectId = randomProjectId();
+        projectId = randomProjectIdOrDefault();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         projectResolver = TestProjectResolvers.singleProject(projectId);

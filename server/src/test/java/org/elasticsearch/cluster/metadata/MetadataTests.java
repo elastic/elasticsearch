@@ -1583,7 +1583,7 @@ public class MetadataTests extends ESTestCase {
             .mapToObj(i -> randomProject(new ProjectId("p_" + i), between(0, 5)))
             .toList();
         final Metadata metadata = randomMetadata(projects);
-        expectThrows(IllegalArgumentException.class, () -> metadata.getProject(randomProjectId()));
+        expectThrows(IllegalArgumentException.class, () -> metadata.getProject(randomProjectIdOrDefault()));
     }
 
     public void testValidateDataStreamsNoConflicts() {
@@ -2960,7 +2960,7 @@ public class MetadataTests extends ESTestCase {
 
         final Map<ProjectId, ProjectMetadata> projectMetadataMap = new HashMap<>();
         for (int i = 0; i < numProjects; i++) {
-            final var projectId = i == 0 ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+            final var projectId = i == 0 ? Metadata.DEFAULT_PROJECT_ID : randomUniqueProjectId();
             projectMetadataMap.put(
                 projectId,
                 ProjectMetadata.builder(projectId)

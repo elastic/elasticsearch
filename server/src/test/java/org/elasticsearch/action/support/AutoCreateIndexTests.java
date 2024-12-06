@@ -129,7 +129,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("+index*", "index*"))
             .build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("index" + randomAlphaOfLengthBetween(1, 5), projectMetadata), equalTo(true));
         expectNotMatch(projectMetadata, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
     }
@@ -137,7 +137,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationPatternDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "-index*").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         expectForbidden(projectMetadata, autoCreateIndex, "index" + randomAlphaOfLengthBetween(1, 5), "-index*");
         /* When patterns are specified, even if the are all negative, the default is can't create. So a pure negative pattern is the same
          * as false, really. */
@@ -157,7 +157,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("+test*,-index*", "test*,-index*"))
             .build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         expectForbidden(projectMetadata, autoCreateIndex, "index" + randomAlphaOfLengthBetween(1, 5), "-index*");
         assertThat(autoCreateIndex.shouldAutoCreate("test" + randomAlphaOfLengthBetween(1, 5), projectMetadata), equalTo(true));
         expectNotMatch(projectMetadata, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
@@ -166,7 +166,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationMultiplePatternsNoWildcards() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "+test1,-index1").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", projectMetadata), equalTo(true));
         expectNotMatch(projectMetadata, autoCreateIndex, "index" + randomAlphaOfLengthBetween(1, 5));
         expectNotMatch(projectMetadata, autoCreateIndex, "test" + randomAlphaOfLengthBetween(2, 5));
@@ -176,7 +176,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationMultipleIndexNames() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "test1,test2").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", projectMetadata), equalTo(true));
         assertThat(autoCreateIndex.shouldAutoCreate("test2", projectMetadata), equalTo(true));
         expectNotMatch(projectMetadata, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
@@ -187,7 +187,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "+test1,-test1,-test2,+test2")
             .build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", projectMetadata), equalTo(true));
         expectForbidden(projectMetadata, autoCreateIndex, "test2", "-test2");
         expectNotMatch(projectMetadata, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
@@ -237,7 +237,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .metadata(Map.of())
             .build();
 
-        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId())
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of("test_template", template))
             .build();
 
@@ -259,7 +259,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .metadata(Map.of())
             .build();
 
-        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId())
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of("test_template", template))
             .build();
 
@@ -285,7 +285,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .allowAutoCreate(false)
             .build();
 
-        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId())
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of("test_template", template))
             .build();
 
@@ -311,7 +311,7 @@ public class AutoCreateIndexTests extends ESTestCase {
             .allowAutoCreate(true)
             .build();
 
-        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId())
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of("test_template", template))
             .build();
 
@@ -329,7 +329,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     // }
 
     private static ProjectMetadata buildProjectMetadata(String... indices) {
-        final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (String index : indices) {
             builder.put(IndexMetadata.builder(index).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1));
         }

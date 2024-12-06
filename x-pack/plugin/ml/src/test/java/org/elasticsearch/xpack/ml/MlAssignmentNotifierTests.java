@@ -194,11 +194,11 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask("job_id", null, JobState.OPENED, tasksBuilder);
 
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final Metadata.Builder metadataBuilder = Metadata.builder()
             .put(ProjectMetadata.builder(projectId).putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build());
         for (int p = randomIntBetween(1, 5); p > 0; p--) {
-            metadataBuilder.put(ProjectMetadata.builder(randomProjectId()));
+            metadataBuilder.put(ProjectMetadata.builder(randomUniqueProjectId()));
         }
         final ClusterState previous = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder.build()).build();
         final ClusterState newState = ClusterState.builder(previous)

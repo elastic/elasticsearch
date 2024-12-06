@@ -31,7 +31,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
 
         {
             // Test where policy does not exist
-            var project = ProjectMetadata.builder(randomProjectId()).build();
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             assertThat(
                 LifecyclePolicyUtils.calculateUsage(iner, project, "mypolicy"),
                 equalTo(new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))
@@ -40,7 +40,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
 
         {
             // Test where policy is not used by anything
-            var project = ProjectMetadata.builder(randomProjectId())
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .putCustom(
                     IndexLifecycleMetadata.TYPE,
                     new IndexLifecycleMetadata(
@@ -57,7 +57,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
 
         {
             // Test where policy exists and is used by an index
-            var project = ProjectMetadata.builder(randomProjectId())
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .putCustom(
                     IndexLifecycleMetadata.TYPE,
                     new IndexLifecycleMetadata(
@@ -78,7 +78,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
 
         {
             // Test where policy exists and is used by an index, and template
-            var project = ProjectMetadata.builder(randomProjectId())
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .putCustom(
                     IndexLifecycleMetadata.TYPE,
                     new IndexLifecycleMetadata(
@@ -113,7 +113,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
         }
 
         {
-            var projectBuilder = ProjectMetadata.builder(randomProjectId())
+            var projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .putCustom(
                     IndexLifecycleMetadata.TYPE,
                     new IndexLifecycleMetadata(

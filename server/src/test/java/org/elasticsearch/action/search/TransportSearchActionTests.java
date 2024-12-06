@@ -1630,7 +1630,7 @@ public class TransportSearchActionTests extends ESTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 2);
         final String[] indices = { "test-1", "test-2" };
-        final ProjectId project = randomProjectId();
+        final ProjectId project = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
             project,
             indices,

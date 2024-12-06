@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportGetAliasesActionTests extends ESTestCase {
 
     public void testPostProcess() {
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectId());
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         builder.put(IndexMetadata.builder("a").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
         builder.put(IndexMetadata.builder("b").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
         builder.put(IndexMetadata.builder("c").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
@@ -311,7 +311,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     }
 
     public ProjectMetadata systemIndexTestProjectMetadata() {
-        return ProjectMetadata.builder(randomProjectId())
+        return ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("a").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .put(
                 IndexMetadata.builder(".b")

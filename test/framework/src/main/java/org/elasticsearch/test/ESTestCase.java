@@ -1218,12 +1218,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
-    public static ProjectId randomProjectId() {
-        return new ProjectId(randomUUID());
+    /**
+     * Returns a project id. This may be {@link Metadata#DEFAULT_PROJECT_ID}, or it may be a randomly-generated id.
+     */
+    public static ProjectId randomProjectIdOrDefault() {
+        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
     }
 
-    public static ProjectId randomProjectIdOrDefault() {
-        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+    /**
+     * Returns a new randomly-generated project id
+     */
+    public static ProjectId randomUniqueProjectId() {
+        return new ProjectId(randomUUID());
     }
 
     public static String randomUUID() {

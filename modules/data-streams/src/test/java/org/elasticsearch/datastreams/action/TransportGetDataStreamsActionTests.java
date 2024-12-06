@@ -51,7 +51,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = getClusterStateWithDataStreams(projectId, List.of(new Tuple<>(dataStreamName, 1)), List.of());
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs.metadata().getProject(projectId), resolver, req);
@@ -60,7 +60,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     public void testGetDataStreamsWithWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
@@ -89,7 +89,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     public void testGetDataStreamsWithoutWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
@@ -121,7 +121,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build();
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         IndexNotFoundException e = expectThrows(
@@ -140,7 +140,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state;
         {
             var mBuilder = ProjectMetadata.builder(projectId);
@@ -232,7 +232,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state;
         {
             var mBuilder = ProjectMetadata.builder(projectId);
@@ -275,7 +275,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = instant.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = instant.plus(2, ChronoUnit.HOURS);
 
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = getClusterStateWithDataStreams(
             projectId,
             List.of(Tuple.tuple(dataStream1, 2)),
@@ -318,7 +318,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testPassingGlobalRetention() {
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = getClusterStateWithDataStreams(projectId, List.of(Tuple.tuple("data-stream-1", 2)), List.of());
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});

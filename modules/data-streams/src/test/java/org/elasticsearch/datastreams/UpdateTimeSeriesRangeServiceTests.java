@@ -65,7 +65,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(2, ChronoUnit.HOURS);
         Instant end = now.plus(40, ChronoUnit.MINUTES);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         final var metadata = DataStreamTestHelper.getProjectWithDataStream(
             projectId,
             dataStreamName,
@@ -110,7 +110,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(2, ChronoUnit.HOURS);
         Instant end = now.plus(1, ChronoUnit.HOURS);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         final var projectBuilder = ProjectMetadata.builder(projectId);
         DataStreamTestHelper.getClusterStateWithDataStream(
             projectBuilder,
@@ -145,7 +145,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(2, ChronoUnit.HOURS);
         Instant end = now.plus(31, ChronoUnit.MINUTES);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         final var projectBuilder = ProjectMetadata.builder(projectId);
         DataStreamTestHelper.getClusterStateWithDataStream(
             projectBuilder,
@@ -180,7 +180,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
         Instant start = now.minus(90, ChronoUnit.MINUTES);
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder mbBuilder = ProjectMetadata.builder(projectId);
         for (String dataStreamName : List.of(dataStreamName1, dataStreamName2, dataStreamName3)) {
             Instant end = start.plus(30, ChronoUnit.MINUTES);
@@ -204,7 +204,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(90, ChronoUnit.MINUTES);
         Instant end = now.plus(40, ChronoUnit.MINUTES);
-        final var projectIds = randomList(1, 3, ESTestCase::randomProjectId);
+        final var projectIds = randomList(1, 3, ESTestCase::randomProjectIdOrDefault);
         final var builder = ClusterState.builder(ClusterState.EMPTY_STATE);
         for (ProjectId projectId : projectIds) {
             builder.putProjectMetadata(

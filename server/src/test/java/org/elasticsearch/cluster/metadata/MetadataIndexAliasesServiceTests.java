@@ -70,7 +70,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     public void setupServices() {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         service = new MetadataIndexAliasesService(clusterService, null, xContentRegistry());
-        projectId = randomProjectId();
+        projectId = randomProjectIdOrDefault();
     }
 
     @After

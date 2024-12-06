@@ -446,7 +446,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexMetadata backingIndex2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithoutFailureStore, testTime).build();
         IndexMetadata failureStoreIndex1 = DataStreamTestHelper.createFirstFailureStore(dataStreamWithFailureStore, testTime).build();
 
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId())
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .dataStreams(
                 Map.of(
                     dataStreamWithFailureStore,
@@ -508,7 +508,7 @@ public class TransportBulkActionTests extends ESTestCase {
         String indexTemplate = "test-index";
         long testTime = randomMillisUpToYear9999();
 
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectId())
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(
                 Map.of(
                     dsTemplateWithFailureStore,

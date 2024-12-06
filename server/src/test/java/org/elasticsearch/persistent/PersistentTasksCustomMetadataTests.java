@@ -301,7 +301,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests")).build();
         if (randomBoolean()) {
             originalState = ClusterState.builder(originalState)
-                .metadata(Metadata.builder(originalState.metadata()).put(ProjectMetadata.builder(randomProjectId())))
+                .metadata(Metadata.builder(originalState.metadata()).put(ProjectMetadata.builder(randomProjectIdOrDefault())))
                 .build();
         }
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);

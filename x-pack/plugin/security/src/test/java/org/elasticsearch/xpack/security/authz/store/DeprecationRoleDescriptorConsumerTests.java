@@ -55,7 +55,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testSimpleAliasAndIndexPair() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index", "alias");
         final RoleDescriptor roleOverAlias = new RoleDescriptor(
             "roleOverAlias",
@@ -82,7 +82,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testRoleGrantsOnIndexAndAliasPair() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index", "alias");
         addIndex(projectBuilder, "index1", "alias2");
         final RoleDescriptor roleOverIndexAndAlias = new RoleDescriptor(
@@ -103,7 +103,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testMultiplePrivilegesLoggedOnce() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index", "alias");
         addIndex(projectBuilder, "index2", "alias2");
         final RoleDescriptor roleOverAlias = new RoleDescriptor(
@@ -125,7 +125,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testMultiplePrivilegesLoggedForEachAlias() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index", "alias", "alias3");
         addIndex(projectBuilder, "index2", "alias2", "alias", "alias4");
         addIndex(projectBuilder, "index3", "alias3", "alias");
@@ -155,7 +155,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testPermissionsOverlapping() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index1", "alias1", "bar");
         addIndex(projectBuilder, "index2", "alias2", "baz");
         addIndex(projectBuilder, "foo", "bar");
@@ -179,7 +179,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testOverlappingAcrossMultipleRoleDescriptors() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index1", "alias1", "bar");
         addIndex(projectBuilder, "index2", "alias2", "baz");
         addIndex(projectBuilder, "foo", "bar");
@@ -216,7 +216,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testDailyRoleCaching() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index1", "alias1", "far");
         addIndex(projectBuilder, "index2", "alias2", "baz");
         addIndex(projectBuilder, "foo", "bar");
@@ -260,7 +260,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testWildcards() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index", "alias", "alias3");
         addIndex(projectBuilder, "index2", "alias", "alias2", "alias4");
         addIndex(projectBuilder, "index3", "alias", "alias3");
@@ -320,7 +320,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testMultipleIndicesSameAlias() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectId());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addIndex(projectBuilder, "index1", "alias1");
         addIndex(projectBuilder, "index2", "alias1", "alias2");
         addIndex(projectBuilder, "index3", "alias2");

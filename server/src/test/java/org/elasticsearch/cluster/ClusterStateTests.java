@@ -155,7 +155,7 @@ public class ClusterStateTests extends ESTestCase {
             .toList();
         final Metadata metadata = MetadataTests.randomMetadata(projects);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        expectThrows(IllegalArgumentException.class, () -> clusterState.projectState(randomProjectId()));
+        expectThrows(IllegalArgumentException.class, () -> clusterState.projectState(randomProjectIdOrDefault()));
     }
 
     public void testToStringWithMultipleProjects() throws IOException {

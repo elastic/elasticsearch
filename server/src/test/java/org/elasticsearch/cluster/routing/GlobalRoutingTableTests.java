@@ -259,7 +259,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         }
 
         {
-            final ProjectId projectId = randomProjectId();
+            final ProjectId projectId = randomProjectIdOrDefault();
             final RoutingTable projectRouting = randomRoutingTable();
             final var instance = GlobalRoutingTable.builder(initial).put(projectId, projectRouting).build();
             assertThat(instance.routingTables(), aMapWithSize(initial.size() + 1));
@@ -387,7 +387,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         Map<ProjectId, RoutingTable> map = randomMap(
             projectCount,
             projectCount,
-            () -> new Tuple<>(randomProjectId(), randomRoutingTable())
+            () -> new Tuple<>(randomUniqueProjectId(), randomRoutingTable())
         );
         return new GlobalRoutingTableWithEquals(randomLong(), ImmutableOpenMap.builder(map).build());
     }
@@ -399,7 +399,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
     private ImmutableOpenMap<ProjectId, RoutingTable> mutate(ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {
         if (routingTables.isEmpty()) {
-            return ImmutableOpenMap.builder(Map.of(randomProjectId(), randomRoutingTable())).build();
+            return ImmutableOpenMap.builder(Map.of(randomProjectIdOrDefault(), randomRoutingTable())).build();
         }
         final Set<ProjectId> existingProjects = routingTables.keySet();
         final ImmutableOpenMap.Builder<ProjectId, RoutingTable> builder = ImmutableOpenMap.builder(routingTables);
@@ -410,7 +410,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
                 builder.put(project, modified);
             }
             case 2 -> {
-                final var project = randomValueOtherThanMany(existingProjects::contains, GlobalRoutingTableTests::randomProjectId);
+                final var project = randomValueOtherThanMany(existingProjects::contains, GlobalRoutingTableTests::randomProjectIdOrDefault);
                 final var routingTable = randomRoutingTable();
                 builder.put(project, routingTable);
             }

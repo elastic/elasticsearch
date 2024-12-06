@@ -56,7 +56,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final CacheInvalidator invalidator3 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("service3", invalidator3);
 
-        final ProjectId projectId = randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final SecurityIndexManager indexManager = mock(SecurityIndexManager.class);
         final SecurityIndexManager.IndexState previousState = indexManager.new IndexState(
             projectId, SecurityIndexManager.ProjectStatus.CLUSTER_NOT_RECOVERED, null, false, false, false, false, false, null, null, null,

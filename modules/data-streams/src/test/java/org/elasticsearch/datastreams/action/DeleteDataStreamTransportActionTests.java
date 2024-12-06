@@ -47,7 +47,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, 2)),
@@ -74,7 +74,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, 2)),
@@ -101,7 +101,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
     public void testDeleteMultipleDataStreams() {
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(
@@ -135,7 +135,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         final String dataStreamName2 = "my-data-stream2";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
@@ -181,7 +181,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
     public void testDeleteNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
             List.of(

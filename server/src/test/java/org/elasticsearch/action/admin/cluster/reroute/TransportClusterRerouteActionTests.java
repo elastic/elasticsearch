@@ -106,11 +106,11 @@ public class TransportClusterRerouteActionTests extends ESTestCase {
             mock(AllocationService.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            TestProjectResolvers.singleProject(randomProjectId())
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final var request = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-        IntStream.range(0, between(1, 3)).forEach(i -> request.add(randomAllocationCommand(randomProjectId())));
+        IntStream.range(0, between(1, 3)).forEach(i -> request.add(randomAllocationCommand(randomUniqueProjectId())));
 
         final var e = expectThrows(
             IllegalStateException.class,

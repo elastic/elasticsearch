@@ -212,7 +212,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
         MetadataIndexTemplateService.validateLifecycle(
-            ProjectMetadata.builder(randomProjectId())
+            ProjectMetadata.builder(randomProjectIdOrDefault())
                 .componentTemplates(
                     Map.of(
                         "component-template",
@@ -269,7 +269,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         Settings settingsWithDefaultRetention = Settings.builder()
             .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), defaultRetention)
             .build();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();

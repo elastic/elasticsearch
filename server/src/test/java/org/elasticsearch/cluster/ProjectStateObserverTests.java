@@ -34,12 +34,12 @@ import static org.mockito.Mockito.when;
 public class ProjectStateObserverTests extends ESTestCase {
 
     public void testObserveProjectRemoval() {
-        final var projectId = randomProjectId();
+        final var projectId = randomProjectIdOrDefault();
 
         final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId));
         final int otherProjectCount = randomIntBetween(1, 5);
         for (int i = 0; i < otherProjectCount; i++) {
-            metadataBuilder.put(ProjectMetadata.builder(randomProjectId()));
+            metadataBuilder.put(ProjectMetadata.builder(randomProjectIdOrDefault()));
         }
         final Metadata metadata = metadataBuilder.generateClusterUuidIfNeeded().build();
 

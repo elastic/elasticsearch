@@ -58,7 +58,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireRoutingPath() throws Exception {
         final var service = getMetadataIndexTemplateService();
-        var projectId = randomProjectId();
+        var projectId = randomProjectIdOrDefault();
         ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();

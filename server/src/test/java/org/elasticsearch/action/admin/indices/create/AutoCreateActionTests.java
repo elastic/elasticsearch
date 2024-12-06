@@ -24,7 +24,7 @@ public class AutoCreateActionTests extends ESTestCase {
     public void testResolveTemplates() {
         ProjectMetadata projectMetadata;
         {
-            ProjectMetadata.Builder mdBuilder = ProjectMetadata.builder(randomProjectId());
+            ProjectMetadata.Builder mdBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
             mdBuilder.put("1", ComposableIndexTemplate.builder().indexPatterns(List.of("legacy-logs-*")).priority(10L).build());
             mdBuilder.put(

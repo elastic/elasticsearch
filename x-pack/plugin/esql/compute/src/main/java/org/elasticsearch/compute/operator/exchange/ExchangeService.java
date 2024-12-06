@@ -184,7 +184,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public void finishSessionEarly(String sessionId, ActionListener<Void> listener) {
         ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
         if (exchangeSource != null) {
-            exchangeSource.finishEarly(true, listener);
+            exchangeSource.finishEarly(false, listener);
+        } else {
+            listener.onResponse(null);
         }
     }
 

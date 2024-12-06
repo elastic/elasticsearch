@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -123,7 +125,15 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         } catch (IOException e) {
             throw new ResourceNotFoundException(asyncId + " not found", e);
         }
-        asyncListener.addListener(listener);
-        exchangeService.finishSessionEarly(sessionID(asyncId), ActionListener.noop());
+        // Here we will wait for both the response to become available and for the finish operation to complete
+        var responseHolder = new AtomicReference<EsqlQueryResponse>();
+        ActionListener<Void> resultListener = listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responseHolder.get()));
+        try (var refs = new EsqlRefCountingListener(resultListener)) {
+            asyncListener.addListener(refs.acquire().map(r -> {
+                responseHolder.set(r);
+                return null;
+            }));
+            exchangeService.finishSessionEarly(sessionID(asyncId), refs.acquire());
+        }
     }
 }

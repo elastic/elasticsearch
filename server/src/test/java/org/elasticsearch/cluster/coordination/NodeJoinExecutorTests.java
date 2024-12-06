@@ -905,44 +905,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
         assertEquals(0L, resultingState.nodes().getNodeLeftGeneration());
     }
 
-    public void testSetsNodeFeaturesWhenRejoining() throws Exception {
-        final AllocationService allocationService = createAllocationService();
-        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
-
-        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-
-        final DiscoveryNode rejoinNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(
-                DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(rejoinNode)
-            )
-            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), rejoinNode.getId(), Set.of()))
-            .build();
-
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(false));
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(false));
-
-        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-            clusterState,
-            executor,
-            List.of(
-                JoinTask.singleNode(
-                    rejoinNode,
-                    CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of("f1", "f2"),
-                    TEST_REASON,
-                    NO_FAILURE_LISTENER,
-                    0L
-                )
-            )
-        );
-
-        assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(true));
-        assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(true));
-    }
-
     private DesiredNodeWithStatus createActualizedDesiredNode() {
         return new DesiredNodeWithStatus(randomDesiredNode(), DesiredNodeWithStatus.Status.ACTUALIZED);
     }

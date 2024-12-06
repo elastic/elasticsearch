@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -39,6 +40,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -138,7 +140,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
         Map<String, CompatibilityVersions> compatibilityVersionsMap = new HashMap<>(newState.compatibilityVersions());
         Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures());
-        Set<String> allNodesFeatures = ClusterFeatures.calculateAllNodeFeatures(nodeFeatures.values());
+        Set<String> allAssumedNodesFeatures = calculateAllAssumedClusterFeatures(newState.nodes(), nodeFeatures);
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -155,15 +157,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 final DiscoveryNode node = nodeJoinTask.node();
                 if (currentNodes.nodeExistsWithSameRoles(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
-
-                    // update the node's feature set if it has one
-                    // this can happen if the master has just moved from a pre-features version to a post-features version
-                    assert Version.V_8_12_0.onOrBefore(Version.CURRENT) : "This can be removed once 8.12.0 is no longer a valid version";
-                    if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
-                        logger.debug("updating node [{}] features {}", node.getId(), nodeJoinTask.features());
-                        nodeFeatures.put(node.getId(), nodeJoinTask.features());
-                        nodesChanged = true;
-                    }
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
@@ -174,14 +167,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
-                        enforceNodeFeatureBarrier(node.getId(), allNodesFeatures, features);
+                        Set<String> assumedNewNodeFeatures = enforceNodeFeatureBarrier(node, allAssumedNodesFeatures, features);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
+
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
+                        // store the actual node features here, not including assumed features, as this is persisted in cluster state
                         nodeFeatures.put(node.getId(), features);
-                        allNodesFeatures.retainAll(features);
+
+                        allAssumedNodesFeatures.retainAll(assumedNewNodeFeatures);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -355,6 +351,32 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
+    private Set<String> calculateAllAssumedClusterFeatures(DiscoveryNodes nodes, Map<String, Set<String>> nodeFeatures) {
+        int nextMajor = Version.CURRENT.major + 1;
+        if (nodes.isMixedVersionCluster() && nodes.getMaxNodeVersion().major == nextMajor) {
+            Set<String> assumedFeatures = featureService.getNodeFeatures()
+                .values()
+                .stream()
+                .filter(NodeFeature::assumedInNextMajor)
+                .map(NodeFeature::id)
+                .collect(Collectors.toSet());
+
+            // add all assumed features to the featureset of all nodes of the next major version
+            nodeFeatures = new HashMap<>(nodeFeatures);
+            for (var node : nodes.getNodes().entrySet()) {
+                if (node.getValue().getVersion().major == nextMajor) {
+                    nodeFeatures.compute(node.getKey(), (k, v) -> {
+                        v = new HashSet<>(v);
+                        v.addAll(assumedFeatures);
+                        return v;
+                    });
+                }
+            }
+        }
+
+        return ClusterFeatures.calculateAllNodeFeatures(nodeFeatures.values());
+    }
+
     /**
      * Ensures that all indices are compatible with the given index version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
@@ -461,13 +483,44 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    private void enforceNodeFeatureBarrier(String nodeId, Set<String> existingNodesFeatures, Set<String> newNodeFeatures) {
+    /**
+     * Enforces the feature join barrier - a joining node should have all features already present in all existing nodes in the cluster
+     *
+     * @return The set of features that this node has (including assumed features)
+     */
+    private Set<String> enforceNodeFeatureBarrier(DiscoveryNode node, Set<String> existingNodesFeatures, Set<String> newNodeFeatures) {
         // prevent join if it does not have one or more features that all other nodes have
         Set<String> missingFeatures = new HashSet<>(existingNodesFeatures);
         missingFeatures.removeAll(newNodeFeatures);
 
-        if (missingFeatures.isEmpty() == false) {
-            throw new IllegalStateException("Node " + nodeId + " is missing required features " + missingFeatures);
+        if (missingFeatures.isEmpty()) {
+            // nothing missing - all ok
+            return newNodeFeatures;
+        }
+
+        if (node.getVersion().major == Version.CURRENT.major + 1) {
+            // it might still be ok for this node to join if this is a node of the next major version,
+            // and all the missing features are assumed
+            // we can get the NodeFeature object direct from this node's registered features
+            // as all existing nodes in the cluster have the features present in existingNodesFeatures, including this one
+            newNodeFeatures = new HashSet<>(newNodeFeatures);
+            for (Iterator<String> it = missingFeatures.iterator(); it.hasNext();) {
+                String feature = it.next();
+                NodeFeature nf = featureService.getNodeFeatures().get(feature);
+                if (nf.assumedInNextMajor()) {
+                    // its ok for this feature to be missing from this node
+                    it.remove();
+                    // and it should be assumed to still be in the cluster
+                    newNodeFeatures.add(feature);
+                }
+                // even if we don't remove it, still continue, so the set in the exception message below is accurate
+            }
+        }
+
+        if (missingFeatures.isEmpty()) {
+            return newNodeFeatures;
+        } else {
+            throw new IllegalStateException("Node " + node.getId() + " is missing required features " + missingFeatures);
         }
     }
 

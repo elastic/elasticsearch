@@ -58,6 +58,6 @@ public class FeatureService {
      */
     @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-        return state.clusterFeatures().clusterHasFeature(feature);
+        return state.clusterFeatures().clusterHasFeature(state.nodes(), feature);
     }
 }

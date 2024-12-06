@@ -9,11 +9,12 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -79,13 +80,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         return nodeFeatures;
     }
 
-    /**
-     * The features in all nodes in the cluster.
-     * <p>
-     * NOTE: This should not be used directly.
-     * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
-     */
-    public Set<String> allNodeFeatures() {
+    private Set<String> allNodeFeatures() {
         if (allNodeFeatures == null) {
             allNodeFeatures = Set.copyOf(calculateAllNodeFeatures(nodeFeatures.values()));
         }
@@ -98,9 +93,34 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
-    @SuppressForbidden(reason = "directly reading cluster features")
-    public boolean clusterHasFeature(NodeFeature feature) {
-        return allNodeFeatures().contains(feature.id());
+    public boolean clusterHasFeature(DiscoveryNodes discoveryNodes, NodeFeature feature) {
+        assert discoveryNodes.getNodes().keySet().equals(nodeFeatures.keySet())
+            : "Cluster features nodes " + nodeFeatures.keySet() + " is different to discovery nodes " + discoveryNodes.getNodes().keySet();
+
+        // basic case
+        boolean allNodesHaveFeature = allNodeFeatures().contains(feature.id());
+        if (allNodesHaveFeature) {
+            return true;
+        }
+
+        // if its a mixed version cluster, and the feature is assumed, check the major versions more closely
+        // TODO: do we need some kind of transient cache of this calculation?
+        if (feature.assumedInNextMajor() && discoveryNodes.isMixedVersionCluster()) {
+            int nextMajor = Version.CURRENT.major + 1;
+            for (var nf : nodeFeatures.entrySet()) {
+                // if this node is missing the feature, this is actually acceptable if the node is of the next major version
+                // (we don't consider major + 2, as that is not possible with ES's compatibility policy)
+                if (nf.getValue().contains(feature.id()) == false
+                    && discoveryNodes.getNodes().get(nf.getKey()).getVersion().major != nextMajor) {
+                    return false;
+                }
+            }
+
+            // all nodes missing the feature are the next major - so that's alright then
+            return true;
+        }
+
+        return false;
     }
 
     /**

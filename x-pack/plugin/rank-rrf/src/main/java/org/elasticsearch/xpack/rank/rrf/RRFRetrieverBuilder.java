@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -83,7 +84,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         if (context.clusterSupportsFeature(RRF_RETRIEVER_COMPOSITION_SUPPORTED) == false) {
-            throw new UnsupportedOperationException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
+            throw new IllegalArgumentException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
@@ -108,8 +109,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        return clone;
     }
 
     @Override

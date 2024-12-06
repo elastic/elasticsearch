@@ -275,7 +275,6 @@ public class IngestGeoIpPlugin extends Plugin
                     .build()
             )
             .setOrigin(INGEST_ORIGIN)
-            .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)
             .setNetNew()
             .build();

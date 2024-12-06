@@ -35,6 +35,8 @@
   <!-- Intentionally have multi line string for a bulk request, otherwise this needs to fallback to string concatenation  -->
   <suppress files="modules[/\\]data-streams[/\\]src[/\\]javaRestTest[/\\]java[/\\]org[/\\]elasticsearch[/\\]datastreams[/\\]TsdbDataStreamRestIT.java" checks="LineLength" />
   <suppress files="qa[/\\]rolling-upgrade[/\\]src[/\\]javaRestTest[/\\]java[/\\]org[/\\]elasticsearch[/\\]upgrades[/\\]TsdbIT.java" checks="LineLength" />
+  <suppress files="qa[/\\]rolling-upgrade[/\\]src[/\\]javaRestTest[/\\]java[/\\]org[/\\]elasticsearch[/\\]upgrades[/\\]TsdbIndexingRollingUpgradeIT.java" checks="LineLength" />
+  <suppress files="qa[/\\]rolling-upgrade[/\\]src[/\\]javaRestTest[/\\]java[/\\]org[/\\]elasticsearch[/\\]upgrades[/\\]LogsdbIndexingRollingUpgradeIT.java" checks="LineLength" />
 
   <!-- Gradle requires inputs to be seriablizable -->
   <suppress files="build-tools-internal[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]internal[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />

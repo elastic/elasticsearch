@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -132,7 +131,6 @@ public class SimulateIngestServiceTests extends ESTestCase {
             List.of(ingestPlugin),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
             FailureStoreMetrics.NOOP
         );
     }

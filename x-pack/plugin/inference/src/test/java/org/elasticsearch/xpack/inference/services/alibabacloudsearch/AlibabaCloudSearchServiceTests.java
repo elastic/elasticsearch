@@ -10,19 +10,24 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
@@ -46,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -56,6 +62,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -63,7 +71,6 @@ import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.c
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -110,34 +117,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-                }
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
-                    AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                    createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
@@ -164,8 +144,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
@@ -191,30 +170,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getPersistedConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
-                    AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                    createRandomChunkingSettingsMap()
-                ).config()
-            );
-
-            assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
-            var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             var model = service.parsePersistedConfig(
                 "id",
@@ -235,8 +191,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             var model = service.parsePersistedConfig(
                 "id",
@@ -256,36 +211,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
-            var persistedConfig = getPersistedConfigMap(
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
-                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
-            );
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
-            var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             var persistedConfig = getPersistedConfigMap(
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
@@ -310,9 +236,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             var persistedConfig = getPersistedConfigMap(
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
@@ -403,31 +327,56 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_TextEmbeddingBatches() throws IOException {
-        testChunkedInfer(TaskType.TEXT_EMBEDDING, null);
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
     }
 
-    public void testChunkedInfer_TextEmbeddingChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testUpdateModelWithEmbeddingDetails_UpdatesEmbeddingSizeAndSimilarity() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomFrom(TaskType.values()),
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.createRandom(),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.createRandom(),
+                null
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            assertEquals(SimilarityMeasure.DOT_PRODUCT, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
+    public void testChunkedInfer_TextEmbeddingChunkingSettingsSet() throws IOException {
         testChunkedInfer(TaskType.TEXT_EMBEDDING, ChunkingSettingsTests.createRandomChunkingSettings());
     }
 
-    public void testChunkedInfer_TextEmbeddingChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_TextEmbeddingChunkingSettingsNotSet() throws IOException {
         testChunkedInfer(TaskType.TEXT_EMBEDDING, null);
     }
 
-    public void testChunkedInfer_SparseEmbeddingBatches() throws IOException {
-        testChunkedInfer(TaskType.SPARSE_EMBEDDING, null);
-    }
-
-    public void testChunkedInfer_SparseEmbeddingChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_SparseEmbeddingChunkingSettingsSet() throws IOException {
         testChunkedInfer(TaskType.SPARSE_EMBEDDING, ChunkingSettingsTests.createRandomChunkingSettings());
     }
 
-    public void testChunkedInfer_SparseEmbeddingChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_SparseEmbeddingChunkingSettingsNotSet() throws IOException {
         testChunkedInfer(TaskType.SPARSE_EMBEDDING, null);
     }
 
@@ -451,7 +400,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     List.of("foo", "bar"),
                     new HashMap<>(),
                     InputType.INGEST,
-                    new ChunkingOptions(null, null),
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );
@@ -470,16 +418,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
@@ -490,6 +429,235 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
                 assertThat(firstResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
             }
+        }
+    }
+
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws Exception {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                       "provider": "alibabacloud-ai-search",
+                       "task_types": [
+                             {
+                                 "task_type": "text_embedding",
+                                 "configuration": {
+                                     "input_type": {
+                                         "default_value": null,
+                                         "depends_on": [],
+                                         "display": "dropdown",
+                                         "label": "Input Type",
+                                         "options": [
+                                             {
+                                                 "label": "ingest",
+                                                 "value": "ingest"
+                                             },
+                                             {
+                                                 "label": "search",
+                                                 "value": "search"
+                                             }
+                                         ],
+                                         "order": 1,
+                                         "required": false,
+                                         "sensitive": false,
+                                         "tooltip": "Specifies the type of input passed to the model.",
+                                         "type": "str",
+                                         "ui_restrictions": [],
+                                         "validations": [],
+                                         "value": ""
+                                     }
+                                 }
+                             },
+                             {
+                                 "task_type": "sparse_embedding",
+                                 "configuration": {
+                                     "return_token": {
+                                         "default_value": null,
+                                         "depends_on": [],
+                                         "display": "toggle",
+                                         "label": "Return Token",
+                                         "order": 2,
+                                         "required": false,
+                                         "sensitive": false,
+                                         "tooltip": "If `true`, the token name will be returned in the response. Defaults to `false` which means only the token ID will be returned in the response.",
+                                         "type": "bool",
+                                         "ui_restrictions": [],
+                                         "validations": [],
+                                         "value": true
+                                     },
+                                     "input_type": {
+                                         "default_value": null,
+                                         "depends_on": [],
+                                         "display": "dropdown",
+                                         "label": "Input Type",
+                                         "options": [
+                                             {
+                                                 "label": "ingest",
+                                                 "value": "ingest"
+                                             },
+                                             {
+                                                 "label": "search",
+                                                 "value": "search"
+                                             }
+                                         ],
+                                         "order": 1,
+                                         "required": false,
+                                         "sensitive": false,
+                                         "tooltip": "Specifies the type of input passed to the model.",
+                                         "type": "str",
+                                         "ui_restrictions": [],
+                                         "validations": [],
+                                         "value": ""
+                                     }
+                                 }
+                             },
+                             {
+                                 "task_type": "rerank",
+                                 "configuration": {}
+                             },
+                             {
+                                 "task_type": "completion",
+                                 "configuration": {}
+                             }
+                       ],
+                       "configuration": {
+                         "workspace": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "textbox",
+                           "label": "Workspace",
+                           "order": 5,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "The name of the workspace used for the {infer} task.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "api_key": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "textbox",
+                           "label": "API Key",
+                           "order": 1,
+                           "required": true,
+                           "sensitive": true,
+                           "tooltip": "A valid API key for the AlibabaCloud AI Search API.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "service_id": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "dropdown",
+                           "label": "Project ID",
+                           "options": [
+                             {
+                               "label": "ops-text-embedding-001",
+                               "value": "ops-text-embedding-001"
+                             },
+                             {
+                               "label": "ops-text-embedding-zh-001",
+                               "value": "ops-text-embedding-zh-001"
+                             },
+                             {
+                               "label": "ops-text-embedding-en-001",
+                               "value": "ops-text-embedding-en-001"
+                             },
+                             {
+                               "label": "ops-text-embedding-002",
+                               "value": "ops-text-embedding-002"
+                             },
+                             {
+                               "label": "ops-text-sparse-embedding-001",
+                               "value": "ops-text-sparse-embedding-001"
+                             },
+                             {
+                               "label": "ops-bge-reranker-larger",
+                               "value": "ops-bge-reranker-larger"
+                             }
+                           ],
+                           "order": 2,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "The name of the model service to use for the {infer} task.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "host": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "textbox",
+                           "label": "Host",
+                           "order": 3,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "rate_limit.requests_per_minute": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "numeric",
+                           "label": "Rate Limit",
+                           "order": 6,
+                           "required": false,
+                           "sensitive": false,
+                           "tooltip": "Minimize the number of rate limit errors.",
+                           "type": "int",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "http_schema": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "dropdown",
+                           "label": "HTTP Schema",
+                           "options": [
+                             {
+                               "label": "https",
+                               "value": "https"
+                             },
+                             {
+                               "label": "http",
+                               "value": "http"
+                             }
+                           ],
+                           "order": 4,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         }
+                       }
+                    }
+                    """
+            );
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
         }
     }
 

@@ -39,7 +39,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     public static final String DEPLOYMENT_ID = "deployment_id";
     public static final String ADAPTIVE_ALLOCATIONS = "adaptive_allocations";
 
-    private final Integer numAllocations;
+    private Integer numAllocations;
     private final int numThreads;
     private final String modelId;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
@@ -157,40 +157,44 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.numAllocations = in.readOptionalVInt();
         } else {
             this.numAllocations = in.readVInt();
         }
         this.numThreads = in.readVInt();
         this.modelId = in.readString();
-        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
+        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
             ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
             : null;
-        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)
-            ? in.readOptionalString()
-            : null;
+        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
+    }
+
+    public void setNumAllocations(Integer numAllocations) {
+        this.numAllocations = numAllocations;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalVInt(getNumAllocations());
         } else {
             out.writeVInt(getNumAllocations());
         }
         out.writeVInt(getNumThreads());
         out.writeString(modelId());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)) {
             out.writeOptionalString(deploymentId);
         }
     }
 
     @Override
     public String modelId() {
+        return modelId;
+    }
+
+    public String deloymentId() {
         return modelId;
     }
 

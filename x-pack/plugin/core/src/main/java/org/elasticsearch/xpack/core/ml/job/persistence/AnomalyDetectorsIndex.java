@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -91,6 +92,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
             finalListener
         );
     }
@@ -123,6 +128,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
             stateIndexAndAliasCreated
         );
     }

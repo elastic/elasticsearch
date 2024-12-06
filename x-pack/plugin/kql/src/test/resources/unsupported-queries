@@ -1,41 +1,50 @@
 
 // Incomplete expressions
-foo_field :
-foo_field <
-foo_field >
-foo_field >=
-foo_field <=
+mapped_string :
+mapped_string <
+mapped_string >
+mapped_string >=
+mapped_string <=
+>= foo
+: "foo"
+: foo
 
 // Parentheses mismatch
-foo_field: (foo bar
-foo_field: foo bar)
-NOT foo_field:foo OR foo_field:foo bar)
-NOT (foo_field:foo AND) foo_field:foo bar
+mapped_string: (foo bar
+mapped_string: foo bar)
+NOT mapped_string:foo OR mapped_string_2:foo bar)
+NOT (mapped_string:foo AND) mapped_string_2:foo bar
 
 // Quotes mismatch
-foo_field: "foo bar
-foo_field: foo bar"
-
-
-// Invalid boolean queries
-foo AND
-AND foo
-foo OR
-OR foo
-NOT foo:
+mapped_string: "foo bar
+mapped_string: foo bar"
 
 // Can't nest grouping terms parentheses
-foo_field:(foo (bar))
+mapped_string:(foo (bar))
 
 // Bad syntax for nested fields:
-nested_field { foo: bar }
+mapped_nested { mapped_string: bar }
+
+// Unknown nested field or not a nested field
+not_nested : { mapped_string: bar }
+mapped_string: { mapped_string: bar }
+
+// Nested query can not use fieldless subqueries
+mapped_nested: { foo }
+mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar AND foo bar }
+mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar OR foo bar }
+mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar OR foo bar }
+mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar AND foo bar }
+mapped_nested: { mapped_string:foo AND (mapped_string_2:foo bar OR foo bar) }
+mapped_nested: { mapped_string:foo AND (mapped_string_2:foo bar OR foo bar) }
+mapped_nested: { mapped_string:foo OR (mapped_string_2:foo bar OR foo bar) }
 
 // Missing escape sequences:
-foo_field: foo:bar
-foo_field: (foo and bar)
-foo_field: (foo or bar)
-foo_field: foo not bar
-foo_field: foo { bar }
-foo_field: foo (bar)
-foo_field: foo "bar"
-foo_field: "foo "bar""
+mapped_string: foo:bar
+mapped_string: (foo and bar)
+mapped_string: (foo or bar)
+mapped_string: foo not bar
+mapped_string: foo { bar }
+mapped_string: foo (bar)
+mapped_string: foo "bar"
+mapped_string: "foo "bar""

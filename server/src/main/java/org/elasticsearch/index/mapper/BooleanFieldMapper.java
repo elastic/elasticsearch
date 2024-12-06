@@ -314,7 +314,7 @@ public class BooleanFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isIndexed() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup, blContext.indexSettings().getIndexMappingSourceMode());
+            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
         }
 
         @Override
@@ -499,7 +499,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addBoolean(fieldType().name(), value).validate(context.indexSettings());
+            context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
             context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));

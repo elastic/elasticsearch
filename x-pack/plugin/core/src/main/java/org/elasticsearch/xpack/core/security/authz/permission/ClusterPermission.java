@@ -137,7 +137,7 @@ public class ClusterPermission {
             }
             List<PermissionCheck> checks = this.permissionChecks;
             if (false == actionAutomatons.isEmpty()) {
-                final Automaton mergedAutomaton = Automatons.unionAndMinimize(this.actionAutomatons);
+                final Automaton mergedAutomaton = Automatons.unionAndDeterminize(this.actionAutomatons);
                 checks = new ArrayList<>(this.permissionChecks.size() + 1);
                 checks.add(new AutomatonPermissionCheck(mergedAutomaton));
                 checks.addAll(this.permissionChecks);
@@ -156,7 +156,7 @@ public class ClusterPermission {
             } else {
                 final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
                 final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
-                return Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
+                return Automatons.minusAndDeterminize(allowedAutomaton, excludedAutomaton);
             }
         }
     }

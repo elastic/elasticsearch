@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -113,8 +114,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
-
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
@@ -183,7 +187,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
@@ -494,16 +502,6 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
                 assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(newValue));
             }
         }
-    }
-
-    private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
-        final Request request = new Request("GET", "/" + indexName + "/_mapping");
-
-        Map<String, Object> mappings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get(
-            "mappings"
-        );
-
-        return mappings;
     }
 
     private Function<Object, Map<String, Object>> subObject(String key) {

@@ -12,6 +12,8 @@ package org.elasticsearch.kibana;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -150,15 +153,15 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         new Thread(() -> expectThrows(EsRejectedExecutionException.class, () -> getFuture.actionGet(SAFE_AWAIT_TIMEOUT))).start();
 
         // intentionally commented out this test until https://github.com/elastic/elasticsearch/issues/97916 is fixed
-        // var e3 = expectThrows(
-        // SearchPhaseExecutionException.class,
-        // () -> client().prepareSearch(USER_INDEX)
-        // .setQuery(QueryBuilders.matchAllQuery())
-        // // Request times out if max concurrent shard requests is set to 1
-        // .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
-        // .get()
-        // );
-        // assertThat(e3.getMessage(), containsString("all shards failed"));
+        var e3 = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(USER_INDEX)
+                .setQuery(QueryBuilders.matchAllQuery())
+                // Request times out if max concurrent shard requests is set to 1
+                .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
+                .get()
+        );
+        assertThat(e3.getMessage(), containsString("all shards failed"));
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) throws Exception {

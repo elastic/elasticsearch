@@ -98,7 +98,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         super(
             DataStream.isFailureStoreFeatureFlagEnabled()
                 ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
-                    .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
+                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                     .build()
                 : IndicesOptions.strictExpandOpen()
         );

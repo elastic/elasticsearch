@@ -61,10 +61,3 @@ When exposing pagination to users, `window_size` should remain constant as each 
 ====== Negative scores
 
 Depending on how your model is trained, it’s possible that the model will return negative scores for documents. While negative scores are not allowed from first-stage retrieval and ranking, it is possible to use them in the LTR rescorer.
-
-[discrete]
-[[learning-to-rank-rescorer-limitations-term-statistics]]
-====== Term statistics as features
-
-We do not currently support term statistics as features, however future releases will introduce this capability.
-

@@ -372,8 +372,8 @@ public class OrdinalsGroupingOperator implements Operator {
         }
 
         void addInput(IntVector docs, Page page) {
+            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
             try {
-                GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
                 for (int i = 0; i < prepared.length; i++) {
                     prepared[i] = aggregators.get(i).prepareProcessPage(this, page);
                 }
@@ -392,7 +392,7 @@ public class OrdinalsGroupingOperator implements Operator {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
-                page.releaseBlocks();
+                Releasables.close(page::releaseBlocks, Releasables.wrap(prepared));
             }
         }
 

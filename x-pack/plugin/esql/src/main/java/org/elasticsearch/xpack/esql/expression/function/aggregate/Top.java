@@ -51,7 +51,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
         description = "Collects the top values for a field. Includes repeated values.",
         isAggregation = true,
         examples = @Example(file = "stats_top", tag = "top")
@@ -81,10 +81,8 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         super(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : asList(in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class))
         );
@@ -175,7 +173,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noText();
     }
 
     @Override

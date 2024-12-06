@@ -84,6 +84,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     );
     public static final NodeFeature SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS = new NodeFeature("simulate.index.template.substitutions");
     public static final NodeFeature SIMULATE_MAPPING_ADDITION = new NodeFeature("simulate.mapping.addition");
+    public static final NodeFeature SIMULATE_SUPPORT_NON_TEMPLATE_MAPPING = new NodeFeature("simulate.support.non.template.mapping");
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -258,6 +259,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
                 String matchingTemplate = findV2Template(simulatedState.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
+                    /*
+                     * The index matches a v2 template (including possibly one or more of the substitutions passed in). So we use this
+                     * template, and then possibly apply the mapping addition if it is not null, and validate.
+                     */
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
                         request.index(),
@@ -273,13 +278,36 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     validateUpdatedMappings(mappings, mergedMappings, request, sourceToParse);
                 } else {
                     List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedState.metadata(), request.index(), false);
-                    final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
-                        "{}",
-                        matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
-                        xContentRegistry
-                    );
-                    final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                    validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                    if (matchingTemplates.isEmpty() == false) {
+                        /*
+                         * The index matches v1 mappings. These are not compatible with component_template_substitutions or
+                         * index_template_substitutions, but we can apply a mapping_addition.
+                         */
+                        final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
+                            "{}",
+                            matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
+                            xContentRegistry
+                        );
+                        final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
+                        validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                    } else if (indexAbstraction != null && mappingAddition.isEmpty() == false) {
+                        /*
+                         * The index matched no templates of any kind, including the substitutions. But it might have a mapping. So we
+                         * merge in the mapping addition if it exists, and validate.
+                         */
+                        MappingMetadata mappingFromIndex = clusterService.state().metadata().index(indexAbstraction.getName()).mapping();
+                        CompressedXContent currentIndexCompressedXContent = mappingFromIndex == null ? null : mappingFromIndex.source();
+                        CompressedXContent combinedMappings = mergeMappings(currentIndexCompressedXContent, mappingAddition);
+                        validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                    } else {
+                        /*
+                         * The index matched no templates and had no mapping of its own. If there were component template substitutions
+                         * or index template substitutions, they didn't match anything. So just apply the mapping addition if it exists,
+                         * and validate.
+                         */
+                        final CompressedXContent combinedMappings = mergeMappings(null, mappingAddition);
+                        validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                    }
                 }
             }
         } catch (Exception e) {

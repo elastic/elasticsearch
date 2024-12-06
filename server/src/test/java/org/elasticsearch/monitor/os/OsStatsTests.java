@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -21,7 +22,7 @@ public class OsStatsTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         int numLoadAverages = randomIntBetween(1, 5);
-        double loadAverages[] = new double[numLoadAverages];
+        double[] loadAverages = new double[numLoadAverages];
         for (int i = 0; i < loadAverages.length; i++) {
             loadAverages[i] = randomDouble();
         }
@@ -32,11 +33,15 @@ public class OsStatsTests extends ESTestCase {
         OsStats.Swap swap = new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal));
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
             randomAlphaOfLength(8),
-            randomNonNegativeLong(),
+            randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
             randomAlphaOfLength(8),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+            new OsStats.Cgroup.CpuStat(
+                randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
+                randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
+                randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO))
+            ),
             randomAlphaOfLength(8),
             Long.toString(randomNonNegativeLong()),
             Long.toString(randomNonNegativeLong())

@@ -95,17 +95,19 @@ setup:
 "Failed to snapshot indices with synthetic source":
   - skip:
       features: ["allowed_warnings"]
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_synthetic
         body:
-          mappings:
-            _source:
-              mode: synthetic
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+            index:
+              mapping.source.mode: synthetic
 
   - do:
       snapshot.create:

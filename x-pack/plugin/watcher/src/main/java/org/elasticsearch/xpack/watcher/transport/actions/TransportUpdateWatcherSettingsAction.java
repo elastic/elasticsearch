@@ -68,7 +68,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             clusterService,
             threadPool,
             actionFilters,
-            UpdateWatcherSettingsAction.Request::readFrom,
+            UpdateWatcherSettingsAction.Request::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE

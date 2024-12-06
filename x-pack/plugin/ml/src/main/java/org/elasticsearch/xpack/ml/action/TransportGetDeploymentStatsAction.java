@@ -220,7 +220,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 // add nodes from the failures that were not in the task responses
                 for (var nodeRoutingState : nodeToRoutingStates.entrySet()) {
-                    if (visitedNodes.contains(nodeRoutingState.getKey()) == false) {
+                    if ((visitedNodes.contains(nodeRoutingState.getKey()) == false) && nodes.nodeExists(nodeRoutingState.getKey())) {
                         updatedNodeStats.add(
                             AssignmentStats.NodeStats.forNotStartedState(
                                 nodes.get(nodeRoutingState.getKey()),

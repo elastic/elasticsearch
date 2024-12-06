@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -33,13 +31,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(Equals.ENTRY, GreaterThan.ENTRY, GreaterThanOrEqual.ENTRY, LessThan.ENTRY, LessThanOrEqual.ENTRY, NotEquals.ENTRY);
-    }
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
     private final BinaryComparisonOperation functionType;
+    private final EsqlArithmeticOperation.BinaryEvaluator nanosToMillisEvaluator;
+    private final EsqlArithmeticOperation.BinaryEvaluator millisToNanosEvaluator;
 
     @FunctionalInterface
     public interface BinaryOperatorConstructor {
@@ -123,9 +120,11 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Expression left,
         Expression right,
         BinaryComparisonOperation operation,
-        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
+        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap,
+        EsqlArithmeticOperation.BinaryEvaluator nanosToMillisEvaluator,
+        EsqlArithmeticOperation.BinaryEvaluator millisToNanosEvaluator
     ) {
-        this(source, left, right, operation, null, evaluatorMap);
+        this(source, left, right, operation, null, evaluatorMap, nanosToMillisEvaluator, millisToNanosEvaluator);
     }
 
     protected EsqlBinaryComparison(
@@ -135,11 +134,15 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         BinaryComparisonOperation operation,
         // TODO: We are definitely not doing the right thing with this zoneId
         ZoneId zoneId,
-        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
+        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap,
+        EsqlArithmeticOperation.BinaryEvaluator nanosToMillisEvaluator,
+        EsqlArithmeticOperation.BinaryEvaluator millisToNanosEvaluator
     ) {
         super(source, left, right, operation.shim, zoneId);
         this.evaluatorMap = evaluatorMap;
         this.functionType = operation;
+        this.nanosToMillisEvaluator = nanosToMillisEvaluator;
+        this.millisToNanosEvaluator = millisToNanosEvaluator;
     }
 
     public static EsqlBinaryComparison readFrom(StreamInput in) throws IOException {
@@ -168,11 +171,24 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        // Our type is always boolean, so figure out the evaluator type from the inputs
-        DataType commonType = commonType(left().dataType(), right().dataType());
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory rhs;
 
+        // Special cases for mixed nanosecond and millisecond comparisions
+        if (left().dataType() == DataType.DATE_NANOS && right().dataType() == DataType.DATETIME) {
+            lhs = toEvaluator.apply(left());
+            rhs = toEvaluator.apply(right());
+            return nanosToMillisEvaluator.apply(source(), lhs, rhs);
+        }
+
+        if (left().dataType() == DataType.DATETIME && right().dataType() == DataType.DATE_NANOS) {
+            lhs = toEvaluator.apply(left());
+            rhs = toEvaluator.apply(right());
+            return millisToNanosEvaluator.apply(source(), lhs, rhs);
+        }
+
+        // Our type is always boolean, so figure out the evaluator type from the inputs
+        DataType commonType = commonType(left().dataType(), right().dataType());
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
@@ -214,7 +230,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     /**
-     * Check if the two input types are compatible for this operation
+     * Check if the two input types are compatible for this operation.
+     * NOTE: this method should be consistent with
+     * {@link org.elasticsearch.xpack.esql.analysis.Verifier#validateBinaryComparison(BinaryComparison)}
      *
      * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
      */
@@ -230,6 +248,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
         if ((leftType.isNumeric() && rightType.isNumeric())
             || (DataType.isString(leftType) && DataType.isString(rightType))
+            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
             || leftType.equals(rightType)
             || DataType.isNull(leftType)
             || DataType.isNull(rightType)) {

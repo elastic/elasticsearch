@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -35,11 +37,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -72,8 +72,6 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.TransportVersions.CCS_REMOTE_TELEMETRY_STATS;
 
 /**
  * Transport action implementing _cluster/stats API.
@@ -110,20 +108,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
     private final RemoteClusterService remoteClusterService;
-    private final TransportRemoteClusterStatsAction remoteClusterStatsAction;
 
     @Inject
     public TransportClusterStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
+        Client client,
         NodeService nodeService,
         IndicesService indicesService,
         RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters,
-        Settings settings,
-        TransportRemoteClusterStatsAction remoteClusterStatsAction
+        Settings settings
     ) {
         super(
             TYPE.name(),
@@ -143,7 +140,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.settings = settings;
-        this.remoteClusterStatsAction = remoteClusterStatsAction;
+
+        // register remote-cluster action with transport service only and not as a local-node Action that the Client can invoke
+        new TransportRemoteClusterStatsAction(client, transportService, actionFilters);
     }
 
     @Override
@@ -307,7 +306,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // this can be replaced with TransportRequest.Empty in v9
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsNodeRequest() {}
@@ -319,11 +317,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
         }
     }
 
@@ -456,7 +449,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
             remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
-                if (connection.getTransportVersion().before(CCS_REMOTE_TELEMETRY_STATS)) {
+                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                     responseListener.onResponse(null);
                 } else {
                     remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);

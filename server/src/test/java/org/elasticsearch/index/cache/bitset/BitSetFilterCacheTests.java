@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 import static org.elasticsearch.index.cache.bitset.BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -94,17 +93,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
 
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
@@ -237,17 +226,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
     }
 
     public void testRejectOtherIndex() throws IOException {
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -273,35 +252,21 @@ public class BitSetFilterCacheTests extends ESTestCase {
         for (var hasIndexRole : values) {
             for (var loadFiltersEagerly : values) {
                 for (var isStateless : values) {
-                    for (var fastRefresh : values) {
-                        if (isStateless == false && fastRefresh) {
-                            // fast refresh is only relevant for stateless indices
-                            continue;
-                        }
-
-                        boolean result = BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
-                            bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly, fastRefresh)
-                        );
-                        if (isStateless) {
-                            assertEquals(loadFiltersEagerly && ((hasIndexRole && fastRefresh) || hasIndexRole == false), result);
-                        } else {
-                            assertEquals(loadFiltersEagerly, result);
-                        }
+                    boolean result = BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
+                        bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly)
+                    );
+                    if (isStateless) {
+                        assertEquals(loadFiltersEagerly && hasIndexRole == false, result);
+                    } else {
+                        assertEquals(loadFiltersEagerly, result);
                     }
                 }
             }
         }
     }
 
-    private IndexSettings bitsetFilterCacheSettings(
-        boolean isStateless,
-        boolean hasIndexRole,
-        boolean loadFiltersEagerly,
-        boolean fastRefresh
-    ) {
-        var indexSettingsBuilder = Settings.builder()
-            .put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly)
-            .put(INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh);
+    private IndexSettings bitsetFilterCacheSettings(boolean isStateless, boolean hasIndexRole, boolean loadFiltersEagerly) {
+        var indexSettingsBuilder = Settings.builder().put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly);
 
         var nodeSettingsBuilder = Settings.builder()
             .putList(

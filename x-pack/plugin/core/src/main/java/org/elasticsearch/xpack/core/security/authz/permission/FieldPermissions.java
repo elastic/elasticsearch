@@ -147,7 +147,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         List<Automaton> automatonList = groups.stream()
             .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
             .collect(Collectors.toList());
-        return Automatons.unionAndMinimize(automatonList);
+        return Automatons.unionAndDeterminize(automatonList);
     }
 
     /**
@@ -189,7 +189,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             );
         }
 
-        grantedFieldsAutomaton = Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
+        grantedFieldsAutomaton = Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton);
         return grantedFieldsAutomaton;
     }
 
@@ -206,7 +206,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
         if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
             // TODO: cache the automaton computation with FieldPermissionsCache
-            Automaton _permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
+            Automaton _permittedFieldsAutomaton = Automatons.intersectAndDeterminize(
+                getIncludeAutomaton(),
+                limitedBy.getIncludeAutomaton()
+            );
             return new FieldPermissions(
                 CollectionUtils.concatLists(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions),
                 _permittedFieldsAutomaton

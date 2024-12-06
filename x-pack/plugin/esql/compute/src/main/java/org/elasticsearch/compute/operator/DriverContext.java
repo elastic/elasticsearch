@@ -193,7 +193,7 @@ public class DriverContext {
     }
 
     /**
-     * Accumulates events and performs the cancellation or early termination check once every 10000 small operations to reduce overhead.
+     * Accumulates events and performs the cancellation or early termination check once every 2048 small operations to reduce overhead.
      * This method is designed to be called frequently, but the actual check will only happen after the threshold is reached.
      *
      * @return true if this driver can be terminated early; false otherwise.

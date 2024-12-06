@@ -63,6 +63,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
                 BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 for (String inferenceIndexName : inferenceIndices) {
                     // Add a separate clause for each semantic query, because they may be using different inference endpoints
+                    // TODO - consolidate this to a single clause once the semantic query supports multiple inference endpoints
                     boolQueryBuilder.should(
                         createSemanticSubQuery(inferenceIndexName, matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value())
                     );

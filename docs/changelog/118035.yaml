@@ -2,4 +2,5 @@ pr: 118035
 summary: Include hidden indices in `DeprecationInfoAction`
 area: Indices APIs
 type: bug
-issues: []
+issues:
+ - 118020

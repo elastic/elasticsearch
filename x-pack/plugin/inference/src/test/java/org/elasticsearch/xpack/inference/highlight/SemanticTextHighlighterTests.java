@@ -220,7 +220,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 iw.close();
                 TopDocs topDocs = searcher.search(Queries.newNonNestedFilter(IndexVersion.current()), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value(), equalTo(1L));
+                assertThat(topDocs.totalHits.value, equalTo(1L));
                 int docID = topDocs.scoreDocs[0].doc;
                 SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
                 var execContext = createSearchExecutionContext(mapperService);

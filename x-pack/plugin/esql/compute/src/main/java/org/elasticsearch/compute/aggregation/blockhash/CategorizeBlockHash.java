@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Base BlockHash implementation for {@code Categorize} grouping function.
+ * BlockHash implementation for {@code Categorize} grouping function.
  */
 public class CategorizeBlockHash extends BlockHash {
 
@@ -95,12 +95,14 @@ public class CategorizeBlockHash extends BlockHash {
         }
     }
 
+    boolean seenNull() {
+        return seenNull;
+    }
+
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        if (aggregatorMode.isInputPartial() == false) {
-            addInitial(page, addInput);
-        } else {
-            addIntermediate(page, addInput);
+        try (IntBlock block = add(page)) {
+            addInput.add(0, block);
         }
     }
 
@@ -129,29 +131,28 @@ public class CategorizeBlockHash extends BlockHash {
         Releasables.close(evaluator, categorizer);
     }
 
+    private IntBlock add(Page page) {
+        return aggregatorMode.isInputPartial() == false ? addInitial(page) : addIntermediate(page);
+    }
+
     /**
      * Adds initial (raw) input to the state.
      */
-    private void addInitial(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        try (IntBlock result = (IntBlock) evaluator.eval(page.getBlock(channel))) {
-            addInput.add(0, result);
-        }
+    IntBlock addInitial(Page page) {
+        return (IntBlock) evaluator.eval(page.getBlock(channel));
     }
 
     /**
      * Adds intermediate state to the state.
      */
-    private void addIntermediate(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    private IntBlock addIntermediate(Page page) {
         if (page.getPositionCount() == 0) {
-            return;
+            return null;
         }
         BytesRefBlock categorizerState = page.getBlock(channel);
         if (categorizerState.areAllValuesNull()) {
             seenNull = true;
-            try (var newIds = blockFactory.newConstantIntVector(NULL_ORD, 1)) {
-                addInput.add(0, newIds);
-            }
-            return;
+            return blockFactory.newConstantIntBlockWith(NULL_ORD, 1);
         }
 
         Map<Integer, Integer> idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
@@ -161,9 +162,7 @@ public class CategorizeBlockHash extends BlockHash {
             for (int i = fromId; i < toId; i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
             }
-            try (IntBlock newIds = newIdsBuilder.build()) {
-                addInput.add(0, newIds);
-            }
+            return newIdsBuilder.build();
         }
     }
 
@@ -172,7 +171,7 @@ public class CategorizeBlockHash extends BlockHash {
      *
      * @return a map from the old category id to the new one. The old ids go from 0 to {@code size - 1}.
      */
-    private Map<Integer, Integer> readIntermediate(BytesRef bytes) {
+    Map<Integer, Integer> readIntermediate(BytesRef bytes) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
             if (in.readBoolean()) {
@@ -198,15 +197,19 @@ public class CategorizeBlockHash extends BlockHash {
         if (categorizer.getCategoryCount() == 0) {
             return blockFactory.newConstantNullBlock(seenNull ? 1 : 0);
         }
+        int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
+        // We're returning a block with N positions just because the Page must have all blocks with the same position count!
+        return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
+    }
+
+    BytesRef serializeCategorizer() {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeBoolean(seenNull);
             out.writeVInt(categorizer.getCategoryCount());
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
                 category.writeTo(out);
             }
-            // We're returning a block with N positions just because the Page must have all blocks with the same position count!
-            int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
-            return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), positionCount);
+            return out.bytes().toBytesRef();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -174,13 +174,15 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         List<GroupSpec> groups,
         AggregatorMode aggregatorMode,
         BlockFactory blockFactory,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        int emitBatchSize
     ) {
-        if (groups.size() != 1) {
-            throw new IllegalArgumentException("only a single CATEGORIZE group can used");
+        if (groups.size() == 1) {
+            return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
+        } else {
+            assert groups.get(0).isCategorize();
+            return new CategorizePackedValuesBlockHash(groups, blockFactory, aggregatorMode, analysisRegistry, emitBatchSize);
         }
-
-        return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
     }
 
     /**

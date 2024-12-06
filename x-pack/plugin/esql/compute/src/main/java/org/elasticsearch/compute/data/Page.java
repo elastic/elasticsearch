@@ -131,6 +131,9 @@ public final class Page implements Writeable {
         if (blocksReleased) {
             throw new IllegalStateException("can't read released page");
         }
+        if (blockIndex < 0) {
+            blockIndex += blocks.length;
+        }
         @SuppressWarnings("unchecked")
         B block = (B) blocks[blockIndex];
         if (block.isReleased()) {

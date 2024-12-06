@@ -85,8 +85,7 @@ public class IndexNameExpressionResolver {
      * Soon it will facilitate an index component selector, which will define which part of the resource the expression is targeting.
      * @param resource the name of a resource that an expression refers to.
      */
-    public record ResolvedExpression(String resource) {
-    }
+    public record ResolvedExpression(String resource) {}
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options

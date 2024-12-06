@@ -663,6 +663,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     private List<ResolvedExpression> resolvedExpressions(String... expressions) {
         return Arrays.stream(expressions).map(ResolvedExpression::new).toList();
     }
+
     private Set<ResolvedExpression> resolvedExpressionsSet(String... expressions) {
         return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
     }

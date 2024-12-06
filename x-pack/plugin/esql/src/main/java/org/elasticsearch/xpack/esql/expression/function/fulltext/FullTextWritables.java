@@ -29,6 +29,9 @@ public class FullTextWritables {
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
             entries.add(Kql.ENTRY);
         }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            entries.add(Term.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

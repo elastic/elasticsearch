@@ -22,11 +22,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentImplUtils;
+import org.simdjson.SimdJsonParser;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -99,11 +101,26 @@ public class JsonXContentImpl implements XContent {
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
+        if (offset == 0) {
+            var parser = SimdJsonParserProvider.getInstance().getParser();
+            if (parser != null) {
+                return new JsonSimdXContentParser(config, parser.parse(data, length));
+            }
+
+//            var parser = new SimdJsonParser();
+//            return new JsonSimdXContentParser(config, parser.parse(data, length));
+        }
         return new JsonXContentParser(config, jsonFactory.createParser(data, offset, length));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
         return new JsonXContentParser(config, jsonFactory.createParser(reader));
+    }
+
+    private static Optional<Module> lookupVectorModule() {
+        return Optional.ofNullable(JsonXContentImpl.class.getModule().getLayer())
+            .orElse(ModuleLayer.boot())
+            .findModule("jdk.incubator.vector");
     }
 }

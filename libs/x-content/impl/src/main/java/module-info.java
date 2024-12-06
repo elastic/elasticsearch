@@ -7,13 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.xcontent.impl {
+module org.elasticsearch.xcontent.provider {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.cbor;
     requires com.fasterxml.jackson.dataformat.smile;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
+    requires simdjson.java;
 
     provides org.elasticsearch.xcontent.spi.XContentProvider with org.elasticsearch.xcontent.provider.XContentProviderImpl;
 }

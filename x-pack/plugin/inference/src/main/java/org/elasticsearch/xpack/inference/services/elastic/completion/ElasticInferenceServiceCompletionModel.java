@@ -33,6 +33,25 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         ElasticInferenceServiceCompletionModel model,
         UnifiedCompletionRequest request
     ) {
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+
+public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceModel {
+
+    public static ElasticInferenceServiceCompletionModel of(ElasticInferenceServiceCompletionModel model, UnifiedCompletionRequest request) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
             Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),

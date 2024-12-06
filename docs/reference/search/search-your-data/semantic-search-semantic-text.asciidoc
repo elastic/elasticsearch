@@ -14,15 +14,15 @@ You don't need to define model related settings and parameters, or create {infer
 The recommended way to use <<semantic-search,semantic search>> in the {stack} is following the `semantic_text` workflow.
 When you need more control over indexing and query settings, you can still use the complete {infer} workflow (refer to  <<semantic-search-inference,this tutorial>> to review the process).
 
-This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration, but you can use any service and their supported models offered by the {infer-cap} API.
+This tutorial uses the <<inference-example-elasticsearch,`elasticsearch` service>> for demonstration, but you can use any service and their supported models offered by the {infer-cap} API.
 
 
 [discrete]
 [[semantic-text-requirements]]
 ==== Requirements
 
-This tutorial uses the <<infer-service-elser,ELSER service>> for demonstration, which is created automatically as needed. 
-To use the `semantic_text` field type with an {infer} service other than ELSER, you must create an inference endpoint using the <<put-inference-api>>.
+This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> for demonstration, which is created automatically as needed.
+To use the `semantic_text` field type with an {infer} service other than elasticsearch, you must create an inference endpoint using the <<put-inference-api>>.
 
 
 [discrete]
@@ -98,7 +98,7 @@ and the necessary embeddings are generated.
 ------------------------------------------------------------
 POST _reindex?wait_for_completion=false
 {
-  "source": { 
+  "source": {
     "index": "test-data",
     "size": 10 <1>
   },
@@ -145,7 +145,7 @@ The {infer} endpoint used to generate the embeddings for the `semantic_text` fie
 GET semantic-embeddings/_search
 {
   "query": {
-    "semantic": { 
+    "semantic": {
       "field": "content", <1>
       "query": "How to avoid muscle soreness while running?" <2>
     }

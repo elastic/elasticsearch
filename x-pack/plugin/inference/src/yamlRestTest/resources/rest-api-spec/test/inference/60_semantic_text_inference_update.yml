@@ -502,6 +502,16 @@ setup:
 
 ---
 "Updates with script are not allowed":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       bulk:
         index: test-index
@@ -535,6 +545,16 @@ setup:
 
 ---
 "semantic_text copy_to needs values for every source field for bulk updates":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       indices.create:
         index: test-copy-to-index

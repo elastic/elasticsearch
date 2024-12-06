@@ -13,6 +13,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -21,24 +22,21 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiChatCompletionRequest implements OpenAiRequest {
+public class OpenAiUnifiedChatCompletionRequest implements OpenAiRequest {
 
     private final OpenAiAccount account;
-    private final List<String> input;
     private final OpenAiChatCompletionModel model;
-    private final boolean stream;
+    private final UnifiedChatInput unifiedChatInput;
 
-    public OpenAiChatCompletionRequest(List<String> input, OpenAiChatCompletionModel model, boolean stream) {
-        this.account = OpenAiAccount.of(model, OpenAiChatCompletionRequest::buildDefaultUri);
-        this.input = Objects.requireNonNull(input);
+    public OpenAiUnifiedChatCompletionRequest(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
+        this.account = OpenAiAccount.of(model, OpenAiUnifiedChatCompletionRequest::buildDefaultUri);
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
-        this.stream = stream;
     }
 
     @Override
@@ -46,9 +44,7 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new OpenAiChatCompletionRequestEntity(input, model.getServiceSettings().modelId(), model.getTaskSettings().user(), stream)
-            ).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -87,7 +83,7 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
     @Override
     public boolean isStreaming() {
-        return stream;
+        return unifiedChatInput.stream();
     }
 
     public static URI buildDefaultUri() throws URISyntaxException {

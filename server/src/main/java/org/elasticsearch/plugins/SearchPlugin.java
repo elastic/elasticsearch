@@ -21,6 +21,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.QueryRewriteInterceptor;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -125,6 +126,10 @@ public interface SearchPlugin {
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
+        return emptyList();
+    }
+
+    default List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return emptyList();
     }
 

@@ -75,8 +75,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
     private final InferenceResults inferenceResults;
     private final boolean noInferenceResults;
+    private final boolean throwOnUnsupportedField;
 
     public SemanticQueryBuilder(String fieldName, String query) {
+        this(fieldName, query, true);
+    }
+
+    public SemanticQueryBuilder(String fieldName, String query, boolean throwOnUnsupportedField) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -88,6 +93,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResults = null;
         this.inferenceResultsSupplier = null;
         this.noInferenceResults = false;
+        this.throwOnUnsupportedField = throwOnUnsupportedField;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
@@ -97,6 +103,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         this.noInferenceResults = in.readBoolean();
         this.inferenceResultsSupplier = null;
+        this.throwOnUnsupportedField = true;
     }
 
     @Override
@@ -123,6 +130,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResultsSupplier = inferenceResultsSupplier;
         this.inferenceResults = inferenceResults;
         this.noInferenceResults = noInferenceResults;
+        this.throwOnUnsupportedField = other.throwOnUnsupportedField;
     }
 
     @Override
@@ -171,11 +179,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
 
             return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
-        } else {
+        } else if (throwOnUnsupportedField) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
             );
         }
+        return this;
     }
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {

@@ -70,6 +70,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    private final QueryRewriteInterceptor queryRewriteInterceptor;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -86,7 +87,8 @@ public class QueryRewriteContext {
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -105,6 +107,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -123,6 +126,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -132,7 +136,8 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
         this(
             parserConfiguration,
@@ -149,7 +154,34 @@ public class QueryRewriteContext {
             null,
             null,
             resolvedIndices,
-            pit
+            pit,
+            queryRewriteInterceptor
+        );
+    }
+
+    public QueryRewriteContext getInterceptedQueryRewriteContext() {
+
+        if (queryRewriteInterceptor == null) {
+            return this;
+        }
+
+        return new QueryRewriteContext(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            mappingLookup,
+            runtimeMappings,
+            indexSettings,
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            writeableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService,
+            resolvedIndices,
+            pit,
+            null
         );
     }
 
@@ -428,4 +460,9 @@ public class QueryRewriteContext {
         // It was decided we should only test the first of these potentially multiple preferences.
         return value.split(",")[0].trim();
     }
+
+    public QueryRewriteInterceptor getQueryRewriteInterceptor() {
+        return queryRewriteInterceptor;
+    }
+
 }

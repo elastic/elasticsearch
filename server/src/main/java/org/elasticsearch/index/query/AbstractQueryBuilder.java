@@ -278,6 +278,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
+        if (queryRewriteInterceptor != null) {
+            var rewritten = queryRewriteInterceptor.rewrite(queryRewriteContext, this);
+            if (rewritten != this) {
+                return rewritten;
+            }
+        }
         QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;

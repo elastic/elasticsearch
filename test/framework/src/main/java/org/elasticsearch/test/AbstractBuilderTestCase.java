@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteInterceptor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -81,6 +82,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.index.query.MockQueryRewriteInterceptor;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -629,7 +631,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 scriptService,
                 createMockResolvedIndices(),
-                null
+                null,
+                createMockQueryRewriteInterceptor()
             );
         }
 
@@ -669,6 +672,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
                 Map.of(index, indexMetadata)
             );
+        }
+
+        private QueryRewriteInterceptor createMockQueryRewriteInterceptor() {
+            return new MockQueryRewriteInterceptor();
         }
     }
 }

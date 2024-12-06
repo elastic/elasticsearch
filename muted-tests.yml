@@ -269,6 +269,9 @@ tests:
 - class: org.elasticsearch.packaging.test.MemoryLockingTests
   method: test20MemoryLockingEnabled
   issue: https://github.com/elastic/elasticsearch/issues/118195
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
+  issue: https://github.com/elastic/elasticsearch/issues/118196
 
 # Examples:
 #

@@ -51,7 +51,10 @@ public class SecurityTests extends ESTestCase {
 
     /** can't execute processes */
     public void testProcessExecution() throws Exception {
-        assumeTrue("test requires security manager", RuntimeVersionFeature.isSecurityManagerAvailable() && System.getSecurityManager() != null);
+        assumeTrue(
+            "test requires security manager",
+            RuntimeVersionFeature.isSecurityManagerAvailable() && System.getSecurityManager() != null
+        );
         try {
             Runtime.getRuntime().exec("ls");
             fail("didn't get expected exception");

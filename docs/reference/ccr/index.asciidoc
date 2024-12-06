@@ -23,7 +23,7 @@ leader indices, and the other cluster contains only follower indices.
 * In a bi-directional configuration, each cluster contains both leader and
 follower indices.
 
-In a uni-directional configuration, the cluster containing follower indices
+IMPORTANT: In a uni-directional configuration, the cluster containing follower indices
 must be running **the same or newer** version of {es} as the remote cluster.
 If newer, the versions must also be compatible as outlined in the following matrix.
 

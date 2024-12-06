@@ -111,7 +111,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
             });
 
         private static final ConstructingObjectParser<String, Void> SOURCE_PARSER = new ConstructingObjectParser<>(
-            "source",
+            SOURCE_FIELD.getPreferredName(),
             false,
             (a, id) -> (String) a[0]
         );

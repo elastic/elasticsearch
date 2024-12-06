@@ -67,11 +67,13 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -1432,7 +1434,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             var request = (InferModelAction.Request) invocationOnMock.getArguments()[1];
-            assertThat(request.getId(), is("custom-model"));
+            assertThat(request.getId(), is(randomInferenceEntityId));
             return Void.TYPE;
         }).when(client).execute(eq(InferModelAction.INSTANCE), any(), any());
         when(client.threadPool()).thenReturn(threadPool);
@@ -1478,6 +1480,84 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
         var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(model, is(expectedModel));
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var client = mock(Client.class);
+        try (var service = createService(client)) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonElandModelProvided() throws IOException {
+        var client = mock(Client.class);
+        try (var service = createService(client)) {
+            var originalModel = new MultilingualE5SmallModel(
+                randomAlphaOfLength(10),
+                TaskType.TEXT_EMBEDDING,
+                randomAlphaOfLength(10),
+                new MultilingualE5SmallInternalServiceSettings(
+                    randomNonNegativeInt(),
+                    randomNonNegativeInt(),
+                    randomAlphaOfLength(10),
+                    null
+                ),
+                null
+            );
+
+            var updatedModel = service.updateModelWithEmbeddingDetails(originalModel, randomNonNegativeInt());
+            assertEquals(originalModel, updatedModel);
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_ElandModelProvided() throws IOException {
+        var client = mock(Client.class);
+        try (var service = createService(client)) {
+            var originalServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomAlphaOfLength(10),
+                null
+            );
+            var originalModel = new CustomElandEmbeddingModel(
+                randomAlphaOfLength(10),
+                TaskType.TEXT_EMBEDDING,
+                randomAlphaOfLength(10),
+                originalServiceSettings,
+                ChunkingSettingsTests.createRandomChunkingSettings()
+            );
+
+            var embeddingSize = randomNonNegativeInt();
+            var expectedUpdatedServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                originalServiceSettings.getNumAllocations(),
+                originalServiceSettings.getNumThreads(),
+                originalServiceSettings.modelId(),
+                originalServiceSettings.getAdaptiveAllocationsSettings(),
+                embeddingSize,
+                originalServiceSettings.similarity(),
+                originalServiceSettings.elementType()
+            );
+            var expectedUpdatedModel = new CustomElandEmbeddingModel(
+                originalModel.getInferenceEntityId(),
+                originalModel.getTaskType(),
+                originalModel.getConfigurations().getService(),
+                expectedUpdatedServiceSettings,
+                originalModel.getConfigurations().getChunkingSettings()
+            );
+
+            var actualUpdatedModel = service.updateModelWithEmbeddingDetails(originalModel, embeddingSize);
+            assertEquals(expectedUpdatedModel, actualUpdatedModel);
+        }
     }
 
     public void testModelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic() {

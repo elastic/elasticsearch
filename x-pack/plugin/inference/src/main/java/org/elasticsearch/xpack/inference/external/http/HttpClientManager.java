@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
 
 public class HttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
@@ -112,8 +113,13 @@ public class HttpClientManager implements Closeable {
         ThreadPool threadPool,
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
-        SSLIOSessionStrategy sslioSessionStrategy
+        SSLService sslService
     ) {
+        // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
+        SSLIOSessionStrategy sslioSessionStrategy = sslService.sslIOSessionStrategy(
+            sslService.getSSLConfiguration(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
+        );
+
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy);
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }

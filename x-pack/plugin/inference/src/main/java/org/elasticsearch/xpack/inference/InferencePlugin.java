@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
@@ -121,7 +123,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
@@ -234,14 +235,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
         if (isElasticInferenceServiceEnabled()) {
             // Create a new HTTPClientManager with its own configuration, including the connection pool.
-            // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
-            var sslStrategy = HttpClientManager.getSSLStrategy(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX);
             var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
                 settings,
                 services.threadPool(),
                 services.clusterService(),
                 throttlerManager,
-                sslStrategy
+                getSslService()
             );
 
             var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
@@ -470,5 +469,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     protected Boolean isElasticInferenceServiceEnabled() {
         return (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled() || DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled());
+    }
+
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
     }
 }

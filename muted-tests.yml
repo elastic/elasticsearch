@@ -247,6 +247,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118029
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/117981
+- class: org.elasticsearch.packaging.test.ConfigurationTests
+  method: test30SymlinkedDataPath
+  issue: https://github.com/elastic/elasticsearch/issues/118111
+- class: org.elasticsearch.datastreams.ResolveClusterDataStreamIT
+  method: testClusterResolveWithDataStreamsUsingAlias
+  issue: https://github.com/elastic/elasticsearch/issues/118124
 
 # Examples:
 #

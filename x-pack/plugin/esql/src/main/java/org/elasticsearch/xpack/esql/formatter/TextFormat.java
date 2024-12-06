@@ -288,15 +288,15 @@ public enum TextFormat implements MediaType {
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
         boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-        boolean[] nullColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
+        boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
         return Iterators.concat(
             // if the header is requested return the info
             hasHeader(request) && esqlResponse.columns().size() > 0
-                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, nullColumns))
+                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
                 : Collections.emptyIterator(),
             Iterators.map(
                 esqlResponse.values(),
-                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, nullColumns)
+                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
             )
         );
     }
@@ -320,13 +320,13 @@ public enum TextFormat implements MediaType {
     }
 
     // utility method for consuming a row.
-    <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter, boolean[] nullColumns)
+    <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter, boolean[] dropColumns)
         throws IOException {
         boolean firstColumn = true;
         int i = -1;
         while (row.hasNext()) {
             i++;
-            if (nullColumns[i]) {
+            if (dropColumns[i]) {
                 row.next();
                 continue;
             }

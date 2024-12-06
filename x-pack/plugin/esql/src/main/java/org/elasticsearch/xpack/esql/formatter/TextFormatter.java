@@ -61,20 +61,20 @@ public class TextFormatter {
      * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
      */
     public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader, boolean dropNullColumns) {
-        boolean[] nullColumns = dropNullColumns ? response.nullColumns() : new boolean[response.columns().size()];
+        boolean[] dropColumns = dropNullColumns ? response.nullColumns() : new boolean[response.columns().size()];
         return Iterators.concat(
             // The header lines
             includeHeader && response.columns().size() > 0
-                ? Iterators.single(writer -> formatHeader(writer, nullColumns))
+                ? Iterators.single(writer -> formatHeader(writer, dropColumns))
                 : Collections.emptyIterator(),
             // Now format the results.
-            formatResults(nullColumns)
+            formatResults(dropColumns)
         );
     }
 
-    private void formatHeader(Writer writer, boolean[] nullColumns) throws IOException {
+    private void formatHeader(Writer writer, boolean[] dropColumns) throws IOException {
         for (int i = 0; i < width.length; i++) {
-            if (nullColumns[i]) {
+            if (dropColumns[i]) {
                 continue;
             }
             if (i > 0) {
@@ -92,7 +92,7 @@ public class TextFormatter {
         writer.append('\n');
 
         for (int i = 0; i < width.length; i++) {
-            if (nullColumns[i]) {
+            if (dropColumns[i]) {
                 continue;
             }
             if (i > 0) {
@@ -103,11 +103,11 @@ public class TextFormatter {
         writer.append('\n');
     }
 
-    private Iterator<CheckedConsumer<Writer, IOException>> formatResults(boolean[] nullColumns) {
+    private Iterator<CheckedConsumer<Writer, IOException>> formatResults(boolean[] dropColumns) {
         return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
-                if (nullColumns[i]) {
+                if (dropColumns[i]) {
                     row.next();
                     continue;
                 }

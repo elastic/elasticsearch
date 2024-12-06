@@ -20,13 +20,13 @@ class AutoReadSync {
     private static final AttributeKey<AutoReadSync> AUTO_READ_SYNC_KEY = AttributeKey.valueOf("AutoReadSync");
     private final Channel channel;
     private final ChannelConfig config;
-    private final BitSet ids;
+    private final BitSet handles;
     private final BitSet toggles;
 
     AutoReadSync(Channel channel) {
         this.channel = channel;
         this.config = channel.config();
-        this.ids = new BitSet();
+        this.handles = new BitSet();
         this.toggles = new BitSet();
     }
 
@@ -41,9 +41,9 @@ class AutoReadSync {
     }
 
     Handle getHandle() {
-        var nextId = ids.nextClearBit(0);
-        ids.set(nextId, true);
-        return new Handle(nextId);
+        var handleId = handles.nextClearBit(0);
+        handles.set(handleId, true);
+        return new Handle(handleId);
     }
 
     class Handle {
@@ -79,7 +79,7 @@ class AutoReadSync {
         void release() {
             assertState();
             enable();
-            ids.set(id, false);
+            handles.set(id, false);
             released = true;
         }
     }

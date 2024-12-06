@@ -447,6 +447,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
      * @return The field's original value, or {@code null} if none was provided
      */
     private static Object getOriginalValueLegacy(String fullPath, Map<String, Object> sourceAsMap) {
+        // TODO: Fix bug here when semantic text field is in an object
         Object fieldValue = sourceAsMap.get(fullPath);
         if (fieldValue == null) {
             return null;

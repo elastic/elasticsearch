@@ -59,6 +59,7 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
+        // TODO: Don't hard-code gFields
         return prepare(request, indexShard, nowInMillis, new String[] { RoutingFieldMapper.NAME });
     }
 

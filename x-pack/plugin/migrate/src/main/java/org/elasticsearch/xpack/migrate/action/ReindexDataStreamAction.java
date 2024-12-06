@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.ReindexDataStreamResponse> {
@@ -35,6 +34,9 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
 
     public static final ReindexDataStreamAction INSTANCE = new ReindexDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/reindex";
+    public static final ParseField MODE_FIELD = new ParseField("mode");
+    public static final ParseField SOURCE_FIELD = new ParseField("source");
+    public static final ParseField INDEX_FIELD = new ParseField("index");
 
     public ReindexDataStreamAction() {
         super(NAME);
@@ -102,13 +104,10 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         }
 
         private static final ConstructingObjectParser<ReindexDataStreamRequest, Predicate<NodeFeature>> PARSER =
-            new ConstructingObjectParser<>("migration_reindex", new Function<Object[], ReindexDataStreamRequest>() {
-                @Override
-                public ReindexDataStreamRequest apply(Object[] objects) {
-                    Mode mode = Mode.valueOf(((String) objects[0]).toUpperCase(Locale.ROOT));
-                    String source = (String) objects[1];
-                    return new ReindexDataStreamRequest(mode, source);
-                }
+            new ConstructingObjectParser<>("migration_reindex", objects -> {
+                Mode mode = Mode.valueOf(((String) objects[0]).toUpperCase(Locale.ROOT));
+                String source = (String) objects[1];
+                return new ReindexDataStreamRequest(mode, source);
             });
 
         private static final ConstructingObjectParser<String, Void> SOURCE_PARSER = new ConstructingObjectParser<>(
@@ -118,16 +117,16 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         );
 
         static {
-            SOURCE_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("index"));
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("mode"));
+            SOURCE_PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), MODE_FIELD);
             PARSER.declareObject(
                 ConstructingObjectParser.constructorArg(),
                 (parser, id) -> SOURCE_PARSER.apply(parser, null),
-                new ParseField("source")
+                SOURCE_FIELD
             );
         }
 
-        public static ReindexDataStreamRequest fromXContent(XContentParser parser) throws IOException {
+        public static ReindexDataStreamRequest fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
@@ -183,9 +182,9 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
          */
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("mode", mode);
-            builder.startObject("source");
-            builder.field("index", sourceDataStream);
+            builder.field(MODE_FIELD.getPreferredName(), mode);
+            builder.startObject(SOURCE_FIELD.getPreferredName());
+            builder.field(INDEX_FIELD.getPreferredName(), sourceDataStream);
             builder.endObject();
             return builder;
         }

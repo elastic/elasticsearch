@@ -251,6 +251,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test41AutoconfigurationNotTriggeredWhenNodeCannotContainData
   issue: https://github.com/elastic/elasticsearch/issues/118110
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndexKeepReordered SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118150
 
 # Examples:
 #

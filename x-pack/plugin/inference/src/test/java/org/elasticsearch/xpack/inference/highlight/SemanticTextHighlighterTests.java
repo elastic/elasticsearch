@@ -46,7 +46,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -78,7 +77,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         ).v2();
     }
 
-    @Ignore("Test is currently broken")
+    @AwaitsFix(bugUrl = "http://fake.url")
     public void testDenseVector() throws Exception {
         var mapperService = createDefaultMapperService();
         float[] vector = readDenseVector(queries.get("dense_vector_1"));

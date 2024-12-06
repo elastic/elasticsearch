@@ -140,8 +140,8 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
                 String fieldName = parser.currentName();
 
                 // Set the path to that of semantic text field so the parser acts as if we are parsing the semantic text field value
-                // directly
-                String[] fieldNameParts = fieldName.split("\\."); // TODO: Need to handle this differently when subobjects == false?
+                // directly. We can safely split on all "." chars because semantic text fields cannot be used when subobjects == false.
+                String[] fieldNameParts = fieldName.split("\\.");
                 context.path().setPath(fieldNameParts);
 
                 var parent = context.parent().findParentMapper(fieldName);

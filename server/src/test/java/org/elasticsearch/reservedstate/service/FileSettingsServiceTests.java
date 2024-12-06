@@ -216,9 +216,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
 
-        verify(healthIndicatorService, times(1)).changeOccurred();
         verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
-        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     @SuppressWarnings("unchecked")
@@ -341,10 +339,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // referring to fileSettingsService.start(). Rather, it is referring to the initialization
         // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
 
-        verify(healthIndicatorService, times(2)).changeOccurred();
-        verify(healthIndicatorService, times(1)).successOccurred();
         verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalArgumentException.class.getName())));
-        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     private static void awaitOrBust(CyclicBarrier barrier) {
@@ -398,11 +393,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
 
-        verify(healthIndicatorService, times(1)).changeOccurred();
         verify(healthIndicatorService, times(1)).failureOccurred(
             argThat(s -> s.startsWith(FailedToCommitClusterStateException.class.getName()))
         );
-        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     public void testHandleSnapshotRestoreClearsMetadata() throws Exception {

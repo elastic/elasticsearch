@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -113,11 +114,25 @@ public class SemanticTextHighlighter implements Highlighter {
         for (int i = 0; i < size; i++) {
             var chunk = chunks.get(i);
             if (nestedSources.size() <= chunk.offset) {
-                throw new IllegalStateException("Invalid content for field [" + fieldType.name() + "]");
+                throw new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "Invalid content detected for field [%s]: the chunks size is [%d], but a reference to offset [%d] was found in the result.",
+                        fieldType.name(),
+                        nestedSources.size(),
+                        chunk.offset
+                    )
+                );
             }
             String content = (String) nestedSources.get(chunk.offset).get(SemanticTextField.CHUNKED_TEXT_FIELD);
             if (content == null) {
-                throw new IllegalStateException("Invalid content for field [" + fieldType.name() + "]");
+                throw new IllegalStateException(
+                    String.format(
+                        "Invalid content detected for field [%s]: missing text for the chunk at offset [%d].",
+                        fieldType.name(),
+                        chunk.offset
+                    )
+                );
             }
             snippets[i] = new Text(content);
         }

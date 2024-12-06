@@ -81,11 +81,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        queries = XContentHelper.convertToMap(
-            Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("queries.json")),
-            false,
-            XContentType.JSON
-        ).v2();
+        var input = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("queries.json"));
+        this.queries = XContentHelper.convertToMap(input, false, XContentType.JSON).v2();
     }
 
     @SuppressWarnings("unchecked")
@@ -168,9 +165,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     }
 
     private MapperService createDefaultMapperService() throws IOException {
-        return createMapperService(
-            Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json")).utf8ToString()
-        );
+        var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
+        return createMapperService(mappings.utf8ToString());
     }
 
     private float[] readDenseVector(Object value) {

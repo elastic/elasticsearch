@@ -254,6 +254,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.LookupMessageFromIndexKeepReordered SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/118150
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndexKeepReordered ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118151
 
 # Examples:
 #

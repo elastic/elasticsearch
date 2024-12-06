@@ -134,6 +134,23 @@ renamed it to `data_retention` and added telemetry about the other configuration
 Users that use the field `data_lifecycle.retention` should use the `data_lifecycle.data_retention`
 ====
 
+[discrete]
+[[breaking_816_ingest_changes]]
+==== Ingest changes
+
+[[ingest_enrich.cache_size_schema_change]]
+.Ingest enrich.cache_size schema change
+[%collapsible]
+====
+*Details* +
+Changed `enrich.cache_size` parameter to `enrich.cache.size`. 
+Update the setting to `enrich.cache.size` or remove the setting from your elasticsearch.yml before upgrading.
+
+*Impact* +
+If your cluster has `enrich.cache_size` configured prior to upgrading to 8.16 you may see errors that prevent the upgrade from proceeding. 
+====
+
+
 
 [discrete]
 [[deprecated-8.16]]

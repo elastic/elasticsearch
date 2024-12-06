@@ -24,7 +24,7 @@ and retention requirements.
 You want to send log files to an {es} cluster so you can visualize and analyze
 the data. This data has the following retention requirements:
 
-* When the write index reaches 50GB or is 30 days old, roll over to a new index.
+* When the primary shard size of the write index reaches 50GB or the index is 30 days old, roll over to a new index.
 * After rollover, keep indices in the hot data tier for 30 days.
 * 30 days after rollover:
 ** Move indices to the warm data tier.
@@ -84,7 +84,7 @@ To save the `logs@lifecycle` policy as a new policy in {kib}:
 . On the **Edit policy logs** page, toggle **Save as new policy**, and then provide a new name for the policy, for example, `logs-custom`.
 
 The `logs@lifecycle` policy uses the recommended rollover defaults: Start writing to a new
-index when the current write index reaches 50GB or becomes 30 days old.
+index when the primary shard size of the current write index reaches 50GB or the index becomes 30 days old.
 
 To view or change the rollover settings, click **Advanced settings** for the hot
 phase. Then disable **Use recommended defaults** to display the rollover

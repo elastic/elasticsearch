@@ -148,6 +148,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public synchronized void start(Version version) {
+            if (process != null) {
+                // ES was previously started, so we don't need to reconfigure, just start
+                if (process.isAlive() == false) {
+                    LOGGER.info("Restarting Elasticsearch node '{}'", name);
+                    startElasticsearch();
+                    return;
+                } else {
+                    throw new AssertionError("Elasticsearch is already started");
+                }
+            }
+
             LOGGER.info("Starting Elasticsearch node '{}'", name);
             if (version != null) {
                 spec.setVersion(version);

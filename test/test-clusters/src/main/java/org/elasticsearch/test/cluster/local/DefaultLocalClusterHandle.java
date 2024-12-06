@@ -176,8 +176,16 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getPid();
     }
 
+    @Override
     public void stopNode(int index, boolean forcibly) {
-        nodes.get(index).stop(false);
+        nodes.get(index).stop(forcibly);
+    }
+
+    public void restartNode(int index, boolean forcibly) {
+        Node node = nodes.get(index);
+        node.stop(forcibly);
+        node.start(null);
+        writeUnicastHostsFile();
     }
 
     @Override
@@ -252,9 +260,8 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         execute(() -> nodes.parallelStream().forEach(node -> {
             try {
                 Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
-                if (Files.notExists(hostsFile)) {
-                    Files.writeString(hostsFile, transportUris);
-                }
+                LOGGER.info("Writing unicast hosts file {} for node {}", hostsFile, node.getName());
+                Files.writeString(hostsFile, transportUris);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
             }

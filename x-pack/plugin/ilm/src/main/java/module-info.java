@@ -18,6 +18,4 @@ module org.elasticsearch.ilm {
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
-
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.ilm.IndexLifecycleFeatures;
 }

@@ -607,17 +607,6 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    public void testForceSourceDeprecation() throws IOException {
-        String highlightJson = """
-            { "fields" : { }, "force_source" : true }
-            """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightJson)) {
-            HighlightBuilder.fromXContent(parser);
-        }
-
-        assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
-    }
-
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         if (randomBoolean()) {

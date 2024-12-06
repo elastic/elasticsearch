@@ -25,7 +25,9 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -611,23 +613,31 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static XContentBuilder generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
         throws IOException {
-        // No exception to render as an error
-        if (e == null) {
-            return builder.field(ERROR, "unknown");
+        if (builder.getRestApiVersion() == RestApiVersion.V_8) {
+            if (e == null) {
+                return builder.field(ERROR, "unknown");
+            }
+            if (detailed == false) {
+                return generateNonDetailedFailureXContentV8(builder, e);
+            }
+            // else fallthrough
         }
 
-        // Render the exception with a simple message
+        if (e == null) {
+            // No exception to render as an error
+            builder.startObject(ERROR);
+            builder.field(TYPE, "unknown");
+            builder.field(REASON, "unknown");
+            return builder.endObject();
+        }
+
         if (detailed == false) {
-            String message = "No ElasticsearchException found";
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof ElasticsearchException) {
-                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-                    break;
-                }
-                t = t.getCause();
-            }
-            return builder.field(ERROR, message);
+            // just render the type & message
+            Throwable t = ExceptionsHelper.unwrapCause(e);
+            builder.startObject(ERROR);
+            builder.field(TYPE, getExceptionName(t));
+            builder.field(REASON, t.getMessage());
+            return builder.endObject();
         }
 
         // Render the exception with all details
@@ -644,6 +654,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         return builder.endObject();
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)    // remove V8 API
+    private static XContentBuilder generateNonDetailedFailureXContentV8(XContentBuilder builder, @Nullable Exception e) throws IOException {
+        String message = "No ElasticsearchException found";
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof ElasticsearchException) {
+                message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                break;
+            }
+            t = t.getCause();
+        }
+        return builder.field(ERROR, message);
     }
 
     /**
@@ -729,8 +753,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     static String buildMessage(String type, String reason, String stack) {
         StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
+        message.append(TYPE).append('=').append(type);
+        message.append(", ").append(REASON).append('=').append(reason);
         if (stack != null) {
             message.append(", ").append(STACK_TRACE).append('=').append(stack);
         }
@@ -1923,13 +1947,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.ingest.IngestPipelineException.class,
             org.elasticsearch.ingest.IngestPipelineException::new,
             182,
-            TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
+            TransportVersions.V_8_16_0
         ),
         INDEX_RESPONSE_WRAPPER_EXCEPTION(
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
             183,
-            TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
+            TransportVersions.V_8_16_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

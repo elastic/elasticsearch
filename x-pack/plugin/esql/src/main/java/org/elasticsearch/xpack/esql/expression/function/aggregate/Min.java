@@ -51,11 +51,12 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.IP, MinIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, MinBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.SEMANTIC_TEXT, MinBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
         description = "The minimum value of a field.",
         isAggregation = true,
         examples = {
@@ -72,7 +73,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
+            type = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "text", "long", "version" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE);

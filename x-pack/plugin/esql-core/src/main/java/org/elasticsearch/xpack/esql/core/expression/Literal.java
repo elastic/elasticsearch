@@ -122,7 +122,11 @@ public class Literal extends LeafExpression {
 
     @Override
     public String toString() {
-        return String.valueOf(value);
+        String str = String.valueOf(value);
+        if (str.length() > 500) {
+            return str.substring(0, 500) + "...";
+        }
+        return str;
     }
 
     @Override

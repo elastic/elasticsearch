@@ -28,6 +28,14 @@ import java.util.concurrent.TimeUnit;
  *
  * By setting the accumulated tokens limit to a value greater than zero, it effectively allows bursts of traffic. If the accumulated
  * tokens limit is set to zero, it will force the acquiring thread to wait on each call.
+ *
+ * Example:
+ * Time unit: Second
+ * Tokens to produce per time unit: 10
+ * Limit for tokens in bucket: 100
+ *
+ * Tokens in bucket after n seconds (n second -> tokens in bucket):
+ * 1 sec -> 10 tokens, 2 sec -> 20 tokens, ... , 10 sec -> 100 tokens (bucket full), ... 200 sec -> 100 tokens (no increase in tokens)
  */
 public class RateLimiter {
 
@@ -76,6 +84,7 @@ public class RateLimiter {
             throw new IllegalArgumentException(Strings.format("Tokens per time unit must be less than or equal to %s", Double.MAX_VALUE));
         }
 
+        // If the new token limit is smaller than what we've accumulated already we need to drop tokens to meet the new token limit
         accumulatedTokens = Math.min(accumulatedTokens, newAccumulatedTokensLimit);
 
         accumulatedTokensLimit = newAccumulatedTokensLimit;
@@ -88,7 +97,8 @@ public class RateLimiter {
     }
 
     /**
-     * Causes the thread to wait until the tokens are available
+     * Causes the thread to wait until the tokens are available.
+     * This reserves token in advance leading to a reduction of accumulated tokens.
      * @param tokens the number of items of work that should be throttled, typically you'd pass a value of 1 here
      * @throws InterruptedException _
      */
@@ -130,6 +140,7 @@ public class RateLimiter {
 
     /**
      * Returns the amount of time to wait for the tokens to become available.
+     * This reserves tokens in advance leading to a reduction of accumulated tokens.
      * @param tokens the number of items of work that should be throttled, typically you'd pass a value of 1 here. Must be greater than 0.
      * @return the amount of time to wait
      */

@@ -124,7 +124,7 @@ PUT _query_rules/ruleset-3
         },
         {
             "rule_id": "rule-3",
-            "type": "pinned",
+            "type": "exclude",
             "criteria": [
                 {
                     "type": "fuzzy",
@@ -178,6 +178,9 @@ A sample response:
             "rule_total_count": 1,
             "rule_criteria_types_counts": {
                 "exact": 1
+            },
+            "rule_type_counts": {
+                "pinned": 1
             }
         },
         {
@@ -186,6 +189,9 @@ A sample response:
             "rule_criteria_types_counts": {
                 "exact": 1,
                 "fuzzy": 1
+            },
+            "rule_type_counts": {
+                "pinned": 2
             }
         },
         {
@@ -194,6 +200,10 @@ A sample response:
             "rule_criteria_types_counts": {
                 "exact": 1,
                 "fuzzy": 2
+            },
+            "rule_type_counts": {
+                "pinned": 2,
+                "exclude": 1
             }
         }
     ]

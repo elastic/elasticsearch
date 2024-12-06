@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
@@ -61,7 +61,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
@@ -103,14 +102,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic_text");
-        if (DefaultElserFeatureFlag.isEnabled() == false) {
-            b.field("inference_id", "test_model");
-        }
     }
 
     @Override
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         return "cannot have nested fields when index is in [index.mode=time_series]";
+    }
+
+    @Override
+    protected void metaMapping(XContentBuilder b) throws IOException {
+        super.metaMapping(b);
+        b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
     }
 
     @Override
@@ -170,14 +172,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        final XContentBuilder expectedMapping = fieldMapping(this::metaMapping);
 
         MapperService mapperService = createMapperService(fieldMapping);
         DocumentMapper mapper = mapperService.documentMapper();
-        assertEquals(Strings.toString(fieldMapping), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false);
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
-        }
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
@@ -211,15 +212,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertSerialization.accept(fieldMapping, mapperService);
         }
         {
-            if (DefaultElserFeatureFlag.isEnabled()) {
-                final XContentBuilder fieldMapping = fieldMapping(
-                    b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
-                );
-                final MapperService mapperService = createMapperService(fieldMapping);
-                assertSemanticTextField(mapperService, fieldName, false);
-                assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
-                assertSerialization.accept(fieldMapping, mapperService);
-            }
+            final XContentBuilder fieldMapping = fieldMapping(
+                b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
+            );
+            final XContentBuilder expectedMapping = fieldMapping(
+                b -> b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID)
+                    .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
+            );
+            final MapperService mapperService = createMapperService(fieldMapping);
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
+            assertSerialization.accept(expectedMapping, mapperService);
         }
         {
             final XContentBuilder fieldMapping = fieldMapping(
@@ -246,26 +250,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
         }
         {
-            final String expectedMessage = DefaultElserFeatureFlag.isEnabled()
-                ? "[inference_id] on mapper [field] of type [semantic_text] must not be empty"
-                : "[inference_id] on mapper [field] of type [semantic_text] must be specified";
             Exception e = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")))
             );
-            assertThat(e.getMessage(), containsString(expectedMessage));
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
         {
-            if (DefaultElserFeatureFlag.isEnabled()) {
-                Exception e = expectThrows(
-                    MapperParsingException.class,
-                    () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")))
-                );
-                assertThat(
-                    e.getMessage(),
-                    containsString("[search_inference_id] on mapper [field] of type [semantic_text] must not be empty")
-                );
-            }
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")))
+            );
+            assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
     }
 
@@ -1134,7 +1130,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void assertSparseFeatures(LuceneDocument doc, String fieldName, int expectedCount) {
         int count = 0;
         for (IndexableField field : doc.getFields()) {
-            if (field instanceof FeatureField featureField) {
+            if (field instanceof XFeatureField featureField) {
                 assertThat(featureField.name(), equalTo(fieldName));
                 ++count;
             }

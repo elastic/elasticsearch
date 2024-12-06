@@ -360,8 +360,6 @@ class S3Service implements Closeable {
         private String roleSessionName;
         private String customStsEndpoint;
 
-        private boolean stsClientIsBroken;
-
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
             SystemEnvironment systemEnvironment,
@@ -479,11 +477,11 @@ class S3Service implements Closeable {
             try {
                 return localCredentialsProvider.getCredentials();
             } catch (Exception e) {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                var cause = ExceptionsHelper.unwrap(e, IllegalStateException.class);
                 // Work around a bug in the AWS SDK https://github.com/aws/aws-sdk-java/issues/2337 where the underlying Apache HTTP client
                 // silently shuts down on recoverable JDK errors like an OOM error. The only way to recover seems to be to create
                 // a new credentials provider and retry.
-                if (cause instanceof IllegalStateException && cause.getMessage().startsWith("Connection pool shut down")) {
+                if (cause != null && cause.getMessage().startsWith("Connection pool shut down")) {
                     synchronized (this) {
                         if (localCredentialsProvider == credentialsProvider) {
                             try {

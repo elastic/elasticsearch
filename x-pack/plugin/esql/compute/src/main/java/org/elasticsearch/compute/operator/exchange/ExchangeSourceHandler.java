@@ -71,6 +71,7 @@ public final class ExchangeSourceHandler {
                     listener.onResponse(null);
                 }
             })) {
+                closingSinks.completion.addListener(refs.acquireListener());
                 for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
                     // Create an outstanding instance and then finish to complete the completionListener
                     // if we haven't registered any instances of exchange sinks or exchange sources before.

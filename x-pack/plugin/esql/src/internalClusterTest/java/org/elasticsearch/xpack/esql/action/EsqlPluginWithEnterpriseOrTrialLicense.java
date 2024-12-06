@@ -12,15 +12,15 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+
 /**
- * In IT tests, use this instead of the EsqlPlugin in order to use Esql features
- * that require a license.
+ * In IT tests, use this instead of the EsqlPlugin in order to use ES|QL features
+ * that require an Enteprise (or Trial) license.
  */
-public class EsqlPluginWithTrialLicense extends EsqlPlugin {
+public class EsqlPluginWithEnterpriseOrTrialLicense extends EsqlPlugin {
     protected XPackLicenseState getLicenseState() {
-        return new XPackLicenseState(
-            () -> System.currentTimeMillis(),
-            new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, "Test license expired")
-        );
+        License.OperationMode operationMode = randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.TRIAL);
+        return new XPackLicenseState(() -> System.currentTimeMillis(), new XPackLicenseStatus(operationMode, true, "Test license expired"));
     }
 }

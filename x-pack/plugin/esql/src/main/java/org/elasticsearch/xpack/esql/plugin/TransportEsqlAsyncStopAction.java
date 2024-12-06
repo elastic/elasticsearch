@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncSearchSecurity;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
@@ -37,7 +38,6 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.getTask;
 
 /**
  * This action will stop running async request and collect the results.
@@ -84,8 +84,6 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
         if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
-            // Don't use original request ID here because base64 decoding may not need some padding, but we want to match the original ID
-            // for the map lookup
             stopQueryAndReturnResult(task, searchId, listener);
         } else {
             transportService.sendRequest(
@@ -98,11 +96,9 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
     }
 
     /**
-    * Returns the ID for this compute session. The ID is unique within the cluster, and is used
-    * to identify the compute-session across nodes. The ID is just the TaskID of the task that
-    * initiated the session.
+    * Returns the ID for stored compute session. See {@link TransportEsqlQueryAction#sessionID(Task)}
     */
-    final String sessionID(AsyncExecutionId asyncId) {
+    private String sessionID(AsyncExecutionId asyncId) {
         return new TaskId(clusterService.localNode().getId(), asyncId.getTaskId().getId()).toString();
     }
 
@@ -120,7 +116,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             return;
         }
         try {
-            EsqlQueryTask asyncTask = getTask(taskManager, asyncId, EsqlQueryTask.class);
+            EsqlQueryTask asyncTask = AsyncTaskIndexService.getTask(taskManager, asyncId, EsqlQueryTask.class);
             if (false == security.currentUserHasAccessToTask(asyncTask)) {
                 throw new ResourceNotFoundException(asyncId + " not found");
             }

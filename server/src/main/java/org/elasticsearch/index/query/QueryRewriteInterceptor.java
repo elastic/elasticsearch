@@ -26,6 +26,10 @@ public interface QueryRewriteInterceptor {
      */
     QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
 
+    /**
+     * Implementing classes should override this with the name of the query that is being
+     * intercepted.
+     */
     default String getName() {
         return null;
     }

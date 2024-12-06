@@ -111,9 +111,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchPhaseControllerTests
   method: testProgressListener
   issue: https://github.com/elastic/elasticsearch/issues/116149
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=terms_enum/10_basic/Test security}
-  issue: https://github.com/elastic/elasticsearch/issues/116178
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/116175

@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilderWrapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -70,7 +70,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
                 boolQueryBuilder.should(createMatchSubQuery(nonInferenceIndices, matchQueryBuilder.fieldName(), matchQueryBuilder.value()));
                 rewritten = boolQueryBuilder;
             } else {
-                rewritten = new SemanticQueryBuilder(matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value(), true);
+                rewritten = new SemanticQueryBuilder(matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value(), false);
             }
         }
 
@@ -85,7 +85,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
 
     private QueryBuilder createSemanticSubQuery(String indexName, String fieldName, String value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, false));
+        boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, true));
         boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }

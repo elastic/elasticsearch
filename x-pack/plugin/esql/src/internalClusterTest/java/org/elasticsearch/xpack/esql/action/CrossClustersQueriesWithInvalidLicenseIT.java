@@ -57,6 +57,34 @@ public class CrossClustersQueriesWithInvalidLicenseIT extends AbstractEnrichBase
         assertThat(e.getMessage(), containsString(LICENSE_ERROR_MESSAGE));
     }
 
+    public void testQueryAgainstNonMatchingClusterWildcardPattern() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        // since this wildcarded expression does not resolve to a valid remote cluster, it is not considered
+        // a cross-cluster search and thus should not throw a license error
+        String q = "FROM xremote*:events";
+        {
+            String limit1 = q + " | STATS count(*)";
+            try (EsqlQueryResponse resp = runQuery(limit1, requestIncludeMeta)) {
+                assertThat(resp.columns().size(), equalTo(1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            }
+
+            String limit0 = q + " | LIMIT 0";
+            try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
+                assertThat(resp.columns().size(), equalTo(1));
+                assertThat(getValuesList(resp).size(), equalTo(0));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            }
+        }
+    }
+
     public void testCCSWithLimit0() {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();

@@ -339,7 +339,15 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
          */
         assertThat(
             cancelException.getMessage(),
-            in(List.of("test cancel", "task cancelled", "request cancelled test cancel", "parent task was cancelled [test cancel]"))
+            in(
+                List.of(
+                    "test cancel",
+                    "task cancelled",
+                    "request cancelled test cancel",
+                    "parent task was cancelled [test cancel]",
+                    "cancelled on failure"
+                )
+            )
         );
         assertBusy(
             () -> assertThat(

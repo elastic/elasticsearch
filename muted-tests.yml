@@ -272,6 +272,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
   issue: https://github.com/elastic/elasticsearch/issues/118196
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured
+  issue: https://github.com/elastic/elasticsearch/issues/118202
 
 # Examples:
 #

@@ -10,6 +10,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A plugin that provides alternative directory implementations.
@@ -56,6 +58,34 @@ public interface IndexStorePlugin {
          */
         default Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting) throws IOException {
             return newDirectory(indexSettings, shardPath);
+        }
+    }
+
+    enum DirectoryUsageRole {
+        DEFAULT,
+        INDEX_ONLY,
+        SEARCH_ONLY
+    }
+
+    interface WithDirectoryUsageRole {
+        /**
+         * Returns the usage role of the directory. Some codecs can optimize based on whether
+         * the directory is used exclusively for indexing or searching.
+         */
+        DirectoryUsageRole directoryUsageRole();
+
+        /**
+         * Retrieves the usage role of the specified directory if defined.
+         */
+        static Optional<DirectoryUsageRole> getDirectoryUsageRole(Directory dir) {
+            while (dir instanceof WithDirectoryUsageRole == false && dir instanceof FilterDirectory filterDirectory) {
+                dir = filterDirectory.getDelegate();
+            }
+            if (dir instanceof WithDirectoryUsageRole withRole) {
+                return Optional.of(withRole.directoryUsageRole());
+            } else {
+                return Optional.empty();
+            }
         }
     }
 

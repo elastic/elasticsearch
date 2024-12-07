@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.junit.Assume;
 import org.junit.rules.TestRule;
@@ -66,7 +67,7 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
         Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
         withLogConsumer(new Slf4jLogConsumer(LOGGER));
-        super.start();
+        BootstrapForTesting.doWithSecurityManagerDisabled(super::start);
     }
 
     @Override

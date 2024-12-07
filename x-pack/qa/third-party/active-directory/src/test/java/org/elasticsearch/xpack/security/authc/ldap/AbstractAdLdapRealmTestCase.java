@@ -76,7 +76,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public static final String SECURITY_INDEX = "security";
 
     @ClassRule
-    public static final SmbTestContainer smbFixture = new SmbTestContainer();
+    public static final SmbTestContainer smbFixture = SmbTestContainer.create();
 
     private static final RoleMappingEntry[] AD_ROLE_MAPPING = new RoleMappingEntry[] {
         new RoleMappingEntry("SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """

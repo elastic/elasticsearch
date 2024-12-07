@@ -78,7 +78,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailabl
   Defaults to `false`.
 
 `include_empty_fields`::
-  (Optional, Boolean) If `false`, fields that never had a value in any shards are not included in the response. Fields that are not empty are always included. This flag does not consider deletions and updates.  If a field was non-empty and all the documents containing that field were deleted or the field was removed by updates,  it will still be returned even if the flag is `false`.
+  (Optional, Boolean) If `false`, fields that never had a value in any shards are not included in the response. Fields that are not empty are always included. This flag does not consider deletions and updates.  If a field was non-empty and all the documents containing that field were deleted or the field was removed by updates,  it will still be returned even if the flag is `false`. To be used with caution, if set to `false` it gives accurate results at the cost of longer response times compared to the default behavior.
   Defaults to `true`.
 
 `filters`::

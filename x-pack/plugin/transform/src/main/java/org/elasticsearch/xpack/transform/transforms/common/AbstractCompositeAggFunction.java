@@ -19,9 +19,16 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -32,12 +39,15 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,6 +85,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
+
         ClientHelper.assertNoAuthorizationHeader(headers);
         ClientHelper.executeWithHeadersAsync(
             headers,
@@ -153,13 +164,17 @@ public abstract class AbstractCompositeAggFunction implements Function {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldTypeMap,
         TransformIndexerStats stats,
-        TransformProgress progress
+        TransformProgress progress,
+        Client client,
+        ScriptService scriptService,
+        ScriptConfig scriptConfig
     ) {
         InternalAggregations aggregations = searchResponse.getAggregations();
 
@@ -174,11 +189,60 @@ public abstract class AbstractCompositeAggFunction implements Function {
             return null;
         }
 
-        Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats, progress).map(doc -> {
+        Stream<Map<String, Object>> results = extractResults(compositeAgg, fieldTypeMap, stats, progress);
+
+        Stream<IndexRequest> indexRequestStream = results.map(doc -> {
             String docId = (String) doc.remove(TransformField.DOCUMENT_ID_FIELD);
+            Object result = doc;
+
+            if (scriptConfig != null) {
+
+                System.out.println("--------------------------- ON-WEEK HACK ---------------------------------- ");
+                System.out.println("docID " + docId);
+                System.out.println("doc " + doc);
+
+                // Query the current document by id (it should be done in batches for performance)
+                SearchRequest request = new SearchRequest().indices(destinationIndex)
+                    .source(new SearchSourceBuilder().query(QueryBuilders.termQuery("_id", docId)));
+                SearchResponse response = null;
+                try {
+                    response = client.search(request).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+
+                SearchHit[] hits = response.getHits().getHits();
+                Map<String, Object> oldDoc = hits.length > 0 ? hits[0].getSourceAsMap() : Collections.emptyMap();
+
+                // Get painless script from config and compile
+                Script script = new Script(
+                    ScriptType.INLINE,
+                    Script.DEFAULT_SCRIPT_LANG,
+                    scriptConfig.getScript().getIdOrCode(),
+                    Collections.emptyMap()
+                );
+
+                ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptService.compile(
+                    script,
+                    ScriptedMetricAggContexts.ReduceScript.CONTEXT
+                );
+
+                // Add olds and new docs to script params
+                Map<String, Object> params = new HashMap<>();
+                params.put("oldDoc", oldDoc);
+                params.put("newDoc", doc);
+
+                ScriptedMetricAggContexts.ReduceScript executableScript = factory.newInstance(params, List.of(doc));
+
+                // Execute script
+                Object painlessResult = executableScript.execute();
+                System.out.println("painless result " + painlessResult);
+                result = painlessResult;
+            }
+
             return DocumentConversionUtils.convertDocumentToIndexRequest(
                 docId,
-                documentTransformationFunction(doc),
+                documentTransformationFunction((Map<String, Object>) result),
                 destinationIndex,
                 destinationPipeline
             );

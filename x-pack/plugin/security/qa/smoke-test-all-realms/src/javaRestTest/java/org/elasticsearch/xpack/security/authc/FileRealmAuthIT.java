@@ -52,7 +52,7 @@ public class FileRealmAuthIT extends SecurityRealmSmokeTestCase {
             // create user to ensure the .security-7 index exists
             createUser("dummy", new SecureString("longpassword".toCharArray()), List.of("whatever"));
             // close the .security-7 to simulate making it unavailable
-            Request closeRequest = new Request(HttpPost.METHOD_NAME, TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_close");
+            Request closeRequest = new Request(HttpPost.METHOD_NAME, TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX + "/_close");
             closeRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ANOTHER_USERNAME, PASSWORD))
@@ -73,7 +73,7 @@ public class FileRealmAuthIT extends SecurityRealmSmokeTestCase {
             assertRoles(authenticate, "all_index_privileges", "all_application_privileges");
             assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
         } finally {
-            Request openRequest = new Request(HttpPost.METHOD_NAME, TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_open");
+            Request openRequest = new Request(HttpPost.METHOD_NAME, TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX + "/_open");
             openRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ANOTHER_USERNAME, PASSWORD))

@@ -24,7 +24,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,15 +125,13 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
 
     @SuppressWarnings("unchecked")
     private static void assertNoMigration(RestClient adminClient) throws Exception {
-        Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX);
         Response response = adminClient.performRequest(request);
         assertOK(response);
         Map<String, Object> responseMap = responseAsMap(response);
         Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get("indices");
-        assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX_7));
-        assertFalse(
-            ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
-        );
+        assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX));
+        assertFalse(((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX)).containsKey(MIGRATION_VERSION_CUSTOM_KEY));
     }
 
     private void createRoleWithMetadata(String roleName, Map<String, Object> metadata) throws IOException {

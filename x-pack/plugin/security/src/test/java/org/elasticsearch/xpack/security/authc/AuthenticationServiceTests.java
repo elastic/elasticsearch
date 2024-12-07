@@ -196,7 +196,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void init() throws Exception {
         concreteSecurityIndexName = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
 
         token = mock(AuthenticationToken.class);

@@ -239,9 +239,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ConfigurationTests
   method: test30SymlinkedDataPath
   issue: https://github.com/elastic/elasticsearch/issues/118111
-- class: org.elasticsearch.datastreams.ResolveClusterDataStreamIT
-  method: testClusterResolveWithDataStreamsUsingAlias
-  issue: https://github.com/elastic/elasticsearch/issues/118124
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test30KeystorePasswordFromFile
   issue: https://github.com/elastic/elasticsearch/issues/118123
@@ -266,6 +263,15 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/118184
+- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
+  method: testCancelRequestWhenFailingFetchingPages
+  issue: https://github.com/elastic/elasticsearch/issues/118193
+- class: org.elasticsearch.packaging.test.MemoryLockingTests
+  method: test20MemoryLockingEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/118195
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
+  issue: https://github.com/elastic/elasticsearch/issues/118196
 
 # Examples:
 #

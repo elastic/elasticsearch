@@ -171,6 +171,22 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertEquals(fieldCapsResp1.get(), fieldCapsResp2.get());
     }
 
+    public void testEmptyMappingsEqualsEmptyProperties() throws Exception {
+        assertAcked(
+            prepareCreate("test1").setMapping(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject())
+        );
+        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
+        fieldCapsReq1.indices("test1");
+        fieldCapsReq1.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp1 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq1).actionGet();
+        FieldCapabilitiesRequest fieldCapsReq2 = new FieldCapabilitiesRequest();
+        fieldCapsReq2.indices("test2");
+        fieldCapsReq2.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp2 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq2).actionGet();
+        assertEquals(fieldCapsResp1.get(), fieldCapsResp2.get());
+    }
+
     public void testInvalidShardCountSettings() throws Exception {
         int value = randomIntBetween(-10, 0);
         try {

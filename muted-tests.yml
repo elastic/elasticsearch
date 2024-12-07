@@ -281,6 +281,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testUnifiedCompletionInference
+  issue: https://github.com/elastic/elasticsearch/issues/118210
 
 # Examples:
 #

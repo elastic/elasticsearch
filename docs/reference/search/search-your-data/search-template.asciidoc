@@ -850,14 +850,16 @@ PUT _scripts/my-search-template
 {
   "script": {
     "lang": "mustache",
-    "source": {
+    "source": 
+    """
+    {
       "query":{
         "multi_match":{
           "query": "{{query_string}}",
-          "fields": """[{{#text_fields}}{{user_name}}{{^last}},{{/last}}{{/text_fields}}]"""
+          "fields": [{{#text_fields}}"{{user_name}}"{{^last}},{{/last}}{{/text_fields}}]
         }
       }
-    }
+    }"""
   }
 }
 ----
@@ -894,7 +896,7 @@ When rendered the template outputs:
     "query": {
       "multi_match": {
         "query": "My string",
-        "fields": "[John,kimchy]"
+        "fields": ["John","kimchy"]
       }
     }
   }

@@ -32,8 +32,8 @@ class AutoReadSync {
     private final Channel channel;
     private final ChannelConfig config;
 
-    // A pool of reusable handles and their states. We use sequence number in the bitset for Handle
-    // identity. Handles bitset represents leases from pool. Toggles bitset represents state of the handle.
+    // A pool of reusable handles and their states. Handle id is a sequence number in the set.
+    // Handles bitset is a pool of ids. Toggles bitset is a set of autoRead states.
     // Default value for toggle is 0, which means autoRead is enabled.
     private final BitSet handles;
     private final BitSet toggles;

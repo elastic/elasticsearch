@@ -32,7 +32,6 @@ public class RestContentAggregator {
      * Completes with exception on unexpected HTTP content (ie content-length is 0, but receive
      * non-empty chunk).
      */
-
     public static void aggregate(RestRequest request, RestChannel channel, AggregateConsumer result) {
         ChunkHandler handler;
         if (request.contentLength() == 0) {
@@ -167,15 +166,10 @@ public class RestContentAggregator {
 
         @Override
         public void onNext(final ReleasableBytesReference lastEmptyChunk, boolean isLast) throws Exception {
-            if (lastEmptyChunk.length() == 0 && isLast) {
-                var aggReq = new RestRequest(request, new AggregatedHttpRequest(request.getHttpRequest(), HttpBody.empty()));
-                var aggChan = new AggregatedRestRequestChannel(channel, aggReq);
-                result.accept(aggReq, aggChan);
-            } else {
-                lastEmptyChunk.close();
-                request.contentStream().close();
-                channel.sendResponse(new RestResponse(RestStatus.BAD_REQUEST, "unexpected HTTP content"));
-            }
+            assert lastEmptyChunk.length() == 0 && isLast;
+            var aggReq = new RestRequest(request, new AggregatedHttpRequest(request.getHttpRequest(), HttpBody.empty()));
+            var aggChan = new AggregatedRestRequestChannel(channel, aggReq);
+            result.accept(aggReq, aggChan);
         }
     }
 

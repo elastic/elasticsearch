@@ -70,20 +70,6 @@ public class RestContentAggregatorTests extends ESTestCase {
         }
     }
 
-    public void testUnexpectedContent() throws Exception {
-        try (var stream = HttpStream.of(new byte[] { 1 })) {
-            var httpReq = new FakeHttpRequest(GET, "/", stream, Map.of()); // no content-length header, assumes empty
-            var request = restRequest(httpReq);
-            var chan = restChan(request);
-            RestContentAggregator.aggregate(request, chan, (r, c) -> {});
-            assertBusy(() -> {
-                var resp = chan.capturedResponse();
-                assertNotNull(resp);
-                assertEquals(RestStatus.BAD_REQUEST, resp.status());
-            });
-        }
-    }
-
     public void testAggregateChunks() {
         var chunks = randomChunksList();
         try (var stream = HttpStream.of(chunks)) {

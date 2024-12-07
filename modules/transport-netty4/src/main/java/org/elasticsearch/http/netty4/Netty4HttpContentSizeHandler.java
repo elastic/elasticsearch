@@ -32,9 +32,20 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 
 /**
- * TODO: move to RestController to allow content limits per RestHandler
- * Ideally we should be able to handle Continue and oversized request in the RestController.
- * But that introduces a few challenges, basically re-implementation of HTTP protocol at the RestController:
+ * Provides handling for Expect header and content size. Implements HTTP1.1 spec.
+ * Allows {@code Expect: 100-continue} header only. Other Expect headers will be rejected with
+ * {@code 417 Expectation Failed} reason.
+ * <br>
+ * Replies {@code 100 Continue} to requests with allowed maxContentLength.
+ * <br>
+ * Replies {@code 413 Request Entity Too Large} when content size exceeds maxContentLength.
+ * Clients sending oversized requests with Expect: 100-continue included are allowed to reuse same
+ * connection as long as they dont send content after rejection. Otherwise, when client started to
+ * send oversized content, we cannot safely accept it. Connection will be closed.
+ * <br><br>
+ * TODO: move to RestController to allow content limits per RestHandler.
+ *  Ideally we should be able to handle Continue and oversized request in the RestController.
+ *  But that introduces a few challenges, basically re-implementation of HTTP protocol at the RestController:
  * <ul>
  *     <li>
  *         100 Continue is interim response, means RestChannel will send 2 responses for a single request. See
@@ -48,7 +59,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 @SuppressForbidden(reason = "use of default ChannelFutureListener's CLOSE and CLOSE_ON_FAILURE")
 public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
 
-    // copy from HttpObjectAggregator
+    // copied from HttpObjectAggregator
     private static final FullHttpResponse CONTINUE = new DefaultFullHttpResponse(
         HttpVersion.HTTP_1_1,
         HttpResponseStatus.CONTINUE,
@@ -100,9 +111,9 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void replyAndForbidFollowingContent(ChannelHandlerContext ctx, FullHttpResponse errResponse) {
-        decoder.reset();
+        decoder.reset(); // reset decoder to skip following content
         ctx.writeAndFlush(errResponse.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
-        contentNotAllowed = true;
+        contentNotAllowed = true; // some content might be already in the pipeline, we need to catch it
         ignoreFollowingContent = true;
     }
 
@@ -123,7 +134,9 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
         if (isOversized) {
             if (isContinueExpected) {
                 // Client is allowed to send content without waiting for Continue.
-                // If we see content after expectation is not met we close channel.
+                // See https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1-11.3
+                //
+                // Mark following content as forbidden to prevent unbounded content after Expect failed.
                 replyAndForbidFollowingContent(ctx, TOO_LARGE);
             } else {
                 // Client is sending oversized content, we cannot safely take it. Closing channel.
@@ -144,6 +157,7 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
 
     private void handleContent(ChannelHandlerContext ctx, HttpContent httpContent) {
         if (contentNotAllowed && httpContent != LastHttpContent.EMPTY_LAST_CONTENT) {
+            httpContent.release();
             ctx.close();
         } else if (ignoreFollowingContent) {
             httpContent.release();

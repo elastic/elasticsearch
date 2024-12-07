@@ -24,7 +24,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -376,9 +375,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
-            // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new Netty4HttpContentSizeHandler(handlingSettings.maxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            final var contentSizeHandler = new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength());
             ch.pipeline()
                 .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
@@ -393,7 +390,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         return super.isContentAlwaysEmpty(msg);
                     }
                 })
-                .addLast("aggregator", aggregator);
+                .addLast("content_size", contentSizeHandler);
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
                     @Override

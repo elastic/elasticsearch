@@ -15,11 +15,26 @@ import io.netty.util.AttributeKey;
 
 import java.util.BitSet;
 
+/**
+ * AutoReadSync provides coordinated access to the {@link ChannelConfig#setAutoRead(boolean)}.
+ * We use autoRead flag for the data flow control in the channel pipeline to prevent excessive
+ * buffering inside channel handlers. Every actor in the pipeline should obtain its own {@link Handle}
+ * by calling {@link AutoReadSync#getHandle} channel. Channel autoRead is enabled as long as all Handles
+ * are enabled. If one of handles disables autoRead, channel autoRead disables too.
+ * Simply, {@code channel.setAutoRead(allHandlesTrue)}.
+ * <br><br>
+ * TODO: this flow control should be removed when {@link Netty4HttpHeaderValidator} moves to RestController.
+ *   And whole control flow can be simplified to {@link io.netty.handler.flow.FlowControlHandler}.
+ */
 class AutoReadSync {
 
     private static final AttributeKey<AutoReadSync> AUTO_READ_SYNC_KEY = AttributeKey.valueOf("AutoReadSync");
     private final Channel channel;
     private final ChannelConfig config;
+
+    // A pool of reusable handles and their states. We use sequence number in the bitset for Handle
+    // identity. Handles bitset represents leases from pool. Toggles bitset represents state of the handle.
+    // Default value for toggle is 0, which means autoRead is enabled.
     private final BitSet handles;
     private final BitSet toggles;
 
@@ -30,7 +45,7 @@ class AutoReadSync {
         this.toggles = new BitSet();
     }
 
-    static Handle from(Channel channel) {
+    static Handle getHandle(Channel channel) {
         assert channel.eventLoop().inEventLoop();
         var autoRead = channel.attr(AUTO_READ_SYNC_KEY).get();
         if (autoRead == null) {
@@ -41,8 +56,8 @@ class AutoReadSync {
     }
 
     Handle getHandle() {
-        var handleId = handles.nextClearBit(0);
-        handles.set(handleId, true);
+        var handleId = handles.nextClearBit(0); // next unused handle id
+        handles.set(handleId, true); // acquire lease
         return new Handle(handleId);
     }
 

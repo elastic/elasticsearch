@@ -54,7 +54,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         this.threadContext = threadContext;
         this.activityTracker = activityTracker;
         this.requestContext = threadContext.newStoredContext();
-        this.autoRead = AutoReadSync.from(channel);
+        this.autoRead = AutoReadSync.getHandle(channel);
         Netty4Utils.addListener(channel.closeFuture(), closeListener);
         autoRead.disable();
     }

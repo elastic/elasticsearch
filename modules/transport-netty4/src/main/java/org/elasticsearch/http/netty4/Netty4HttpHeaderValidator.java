@@ -48,7 +48,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
-        autoRead = AutoReadSync.from(ctx.channel());
+        autoRead = AutoReadSync.getHandle(ctx.channel());
         super.channelRegistered(ctx);
     }
 

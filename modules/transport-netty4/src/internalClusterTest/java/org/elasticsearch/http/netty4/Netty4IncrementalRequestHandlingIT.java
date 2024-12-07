@@ -325,13 +325,14 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
                 resp.release();
 
-                // terminate request
+                // HttpRequestEncoder should properly close request, not required on server side
                 ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
             }
         }
     }
 
     // ensures that oversized chunked encoded request has limits at http layer
+    // and closes connection after reaching limit
     public void testOversizedChunkedEncodingLimits() throws Exception {
         try (var ctx = setupClientCtx()) {
             var id = opaqueId(0);
@@ -351,6 +352,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
             assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+            safeGet(ctx.clientChannel.closeFuture());
             resp.release();
         }
     }

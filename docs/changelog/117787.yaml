@@ -1,5 +1,5 @@
 pr: 117787
-summary: "[WIP] Add rest content aggregator"
+summary: "Move HTTP content aggregation from Netty to RestController"
 area: Network
 type: enhancement
 issues: []

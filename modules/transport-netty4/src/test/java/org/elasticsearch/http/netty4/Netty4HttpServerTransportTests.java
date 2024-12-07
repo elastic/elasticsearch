@@ -154,6 +154,16 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     /**
+     * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     * @throws InterruptedException if the client communication with the server is interrupted
+     */
+    public void testExpectContinueHeader() throws InterruptedException {
+        final Settings settings = createSettings();
+        final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
+    }
+
+    /**
      * Test that {@link Netty4HttpServerTransport} responds to a
      * 100-continue expectation with too large a content-length
      * with a 413 status.

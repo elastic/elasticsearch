@@ -14,7 +14,7 @@ The `semantic_text` field type specifies an inference endpoint identifier that w
 You can create the inference endpoint by using the <<put-inference-api>>.
 This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data. 
 
-If you don’t specify an inference endpoint, the `inference_id` field defaults to `.elser-2-elasticsearch`, a preconfigured endpoint for the ELSER service.
+If you don’t specify an inference endpoint, the `inference_id` field defaults to `.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch service.
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for your data, or how to index it.
 The {infer} endpoint automatically determines the embedding generation, indexing, and query to use.

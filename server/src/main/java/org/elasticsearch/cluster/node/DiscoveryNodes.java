@@ -65,7 +65,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final String localNodeId;
     @Nullable
     private final DiscoveryNode localNode;
-    private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
@@ -81,7 +80,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Map<String, DiscoveryNode> ingestNodes,
         @Nullable String masterNodeId,
         @Nullable String localNodeId,
-        Version minNonClientNodeVersion,
         Version maxNodeVersion,
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
@@ -98,7 +96,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         assert (masterNodeId == null) == (masterNode == null);
         this.localNodeId = localNodeId;
         this.localNode = localNodeId == null ? null : nodes.get(localNodeId);
-        this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
@@ -117,7 +114,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             ingestNodes,
             masterNodeId,
             localNodeId,
-            minNonClientNodeVersion,
             maxNodeVersion,
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
@@ -344,17 +340,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public boolean isMixedVersionCluster() {
         return minNodeVersion.equals(maxNodeVersion) == false;
-    }
-
-    /**
-     * Returns the version of the node with the oldest version in the cluster that is not a client node
-     *
-     * If there are no non-client nodes, Version.CURRENT will be returned.
-     *
-     * @return the oldest version in the cluster
-     */
-    public Version getSmallestNonClientNodeVersion() {
-        return minNonClientNodeVersion;
     }
 
     /**
@@ -853,14 +838,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
              */
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
-            Version minNonClientNodeVersion = null;
             IndexVersion maxDataNodeCompatibleIndexVersion = null;
             IndexVersion minSupportedIndexVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 DiscoveryNode discoNode = nodeEntry.getValue();
                 Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
-                    minNonClientNodeVersion = min(minNonClientNodeVersion, version);
                     maxDataNodeCompatibleIndexVersion = min(maxDataNodeCompatibleIndexVersion, discoNode.getMaxIndexVersion());
                 }
                 minNodeVersion = min(minNodeVersion, version);
@@ -894,7 +877,6 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
                 localNodeId,
-                Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),

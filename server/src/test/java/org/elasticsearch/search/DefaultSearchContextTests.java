@@ -479,7 +479,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
             .build();
         try (DefaultSearchContext context = createDefaultSearchContext(settings)) {
-            assertThat(context.newIdLoader(), instanceOf(IdLoader.TsIdLoader.class));
+            assertThat(context.newIdLoader(), instanceOf(IdLoader.SyntheticIdLoader.class));
             context.indexShard().getThreadPool().shutdown();
         }
     }
@@ -503,7 +503,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         });
 
         try (DefaultSearchContext context = createDefaultSearchContext(settings, mappings)) {
-            assertThat(context.newIdLoader(), instanceOf(IdLoader.TsIdLoader.class));
+            assertThat(context.newIdLoader(), instanceOf(IdLoader.SyntheticIdLoader.class));
             context.indexShard().getThreadPool().shutdown();
         }
     }

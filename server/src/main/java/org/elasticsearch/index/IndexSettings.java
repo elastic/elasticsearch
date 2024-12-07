@@ -1182,6 +1182,11 @@ public final class IndexSettings {
         return mode;
     }
 
+    public boolean usesRoutingPath() {
+        return mode == IndexMode.TIME_SERIES
+            || (mode == IndexMode.LOGSDB && IndexMetadata.INDEX_ROUTING_PATH.get(settings).isEmpty() == false);
+    }
+
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
      * index settings and the node settings where node settings are overwritten by index settings.

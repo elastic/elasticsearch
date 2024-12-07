@@ -21,7 +21,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.RoutingPathFields;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -395,11 +394,10 @@ public class DocValueFormatTests extends ESTestCase {
 
     public void testFormatAndParseTsRoutingHash() throws IOException {
         BytesRef tsRoutingHashInput = new BytesRef("cn4exQ");
-        DocValueFormat docValueFormat = TimeSeriesRoutingHashFieldMapper.INSTANCE.fieldType().docValueFormat(null, ZoneOffset.UTC);
-        Object formattedValue = docValueFormat.format(tsRoutingHashInput);
+        Object formattedValue = DocValueFormat.TIME_SERIES_ID.format(tsRoutingHashInput);
         // the format method takes BytesRef as input and outputs a String
         assertThat(formattedValue, instanceOf(String.class));
         // the parse method will output the BytesRef input
-        assertThat(docValueFormat.parseBytesRef(formattedValue), is(tsRoutingHashInput));
+        assertThat(DocValueFormat.TIME_SERIES_ID.parseBytesRef(formattedValue), is(tsRoutingHashInput));
     }
 }

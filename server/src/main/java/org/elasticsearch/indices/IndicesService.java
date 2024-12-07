@@ -775,7 +775,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            idFieldMappers.apply(idxSettings.getMode()),
+            idxSettings.usesRoutingPath() ? idFieldMappers.apply(idxSettings.getMode()) : idFieldMappers.apply(IndexMode.STANDARD),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers

@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -932,7 +931,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public IdLoader newIdLoader() {
-        if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+        if (indexService.getIndexSettings().usesRoutingPath()) {
             IndexRouting.ExtractFromSource indexRouting = null;
             List<String> routingPaths = null;
             if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
@@ -953,7 +952,7 @@ final class DefaultSearchContext extends SearchContext {
                     }
                 }
             }
-            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
+            return IdLoader.createSyntheticIdLoader(indexRouting, routingPaths, indexService.getIndexSettings().getMode());
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

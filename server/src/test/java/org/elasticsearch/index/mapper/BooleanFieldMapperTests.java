@@ -271,7 +271,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field", true, false);
             b.field("@timestamp", Instant.now());
-        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
@@ -279,7 +279,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+        }), IndexMode.STANDARD);
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field", true, false);

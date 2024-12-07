@@ -22,8 +22,11 @@ import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LogsIdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
@@ -90,7 +93,7 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode() == IndexMode.TIME_SERIES
+            return (indexSettings.usesRoutingPath())
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {
@@ -128,7 +131,10 @@ public class PerFieldFormatSupplier {
     private boolean excludeFields(String fieldName) {
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
         // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
+        return fieldName.startsWith("_")
+            && fieldName.equals(TimeSeriesIdFieldMapper.NAME) == false
+            && fieldName.equals(LogsIdFieldMapper.NAME) == false
+            && fieldName.equals(RoutingPathHashFieldMapper.NAME) == false;
     }
 
     private boolean isTimeSeriesModeIndex() {

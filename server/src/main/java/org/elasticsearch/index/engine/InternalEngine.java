@@ -73,7 +73,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1020,8 +1019,8 @@ public class InternalEngine extends Engine {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                if (engineConfig.getIndexSettings().usesRoutingPath()) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIME_LEAF_READERS_SORTER;
                     docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
                         searcher.getIndexReader(),
                         op.uid(),
@@ -2710,7 +2709,7 @@ public class InternalEngine extends Engine {
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         mergePolicy = new RecoverySourcePruneMergePolicy(
             SourceFieldMapper.RECOVERY_SOURCE_NAME,
-            engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
+            engineConfig.getIndexSettings().usesRoutingPath(),
             softDeletesPolicy::getRetentionQuery,
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,

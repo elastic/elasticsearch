@@ -82,7 +82,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
-    public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
+    public static Comparator<LeafReader> TIME_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
             PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
             if (points != null) {

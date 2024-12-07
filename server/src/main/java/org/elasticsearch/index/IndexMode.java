@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LogsIdExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.LogsIdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -34,9 +36,9 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
@@ -63,6 +65,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            IndexMode.validateRoutingPathSetting(settings);
             IndexMode.validateTimeSeriesSettings(settings);
         }
 
@@ -90,13 +93,13 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+        public MetadataFieldMapper routingHashFieldMapper() {
             // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
             return null;
         }
@@ -190,13 +193,13 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            return TimeSeriesRoutingHashFieldMapper.INSTANCE;
+        public MetadataFieldMapper routingHashFieldMapper() {
+            return RoutingPathHashFieldMapper.INSTANCE;
         }
 
         public IdFieldMapper idFieldMapperWithoutFieldData() {
@@ -262,12 +265,12 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+            return LogsIdExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override
         public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+            return LogsIdExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -276,20 +279,12 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
-            return null;
+        public MetadataFieldMapper indexModeIdFieldMapper() {
+            return LogsIdFieldMapper.INSTANCE;
         }
 
-        @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
-            return null;
-        }
-
-        @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
-            return RoutingFields.Noop.INSTANCE;
+        public MetadataFieldMapper routingHashFieldMapper() {
+            return RoutingPathHashFieldMapper.INSTANCE;
         }
 
         @Override
@@ -347,14 +342,12 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             return null;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+        public MetadataFieldMapper routingHashFieldMapper() {
             return null;
         }
 
@@ -389,8 +382,11 @@ public enum IndexMode {
 
     private static final String HOST_NAME = "host.name";
 
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+    private static void validateRoutingPathSetting(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+    }
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
@@ -510,22 +506,28 @@ public enum IndexMode {
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
-     * the _tsid field. The field mapper will be added to the list of the metadata
+     * the id field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper indexModeIdFieldMapper();
 
     /**
-     * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
+     * Return an instance of the {@link RoutingPathHashFieldMapper} that generates
      * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
+    public abstract MetadataFieldMapper routingHashFieldMapper();
 
     /**
-     * How {@code time_series_dimension} fields are handled by indices in this mode.
+     * How routing fields are handled by indices in this mode.
      */
-    public abstract RoutingFields buildRoutingFields(IndexSettings settings);
+    public RoutingFields buildRoutingFields(IndexSettings settings) {
+        if (settings.usesRoutingPath()) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new RoutingPathFields(routing.builder());
+        }
+        return RoutingFields.Noop.INSTANCE;
+    }
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

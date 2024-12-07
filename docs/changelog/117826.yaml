@@ -1,0 +1,5 @@
+pr: 117826
+summary: "Switch ELSER service to elasticsearch service in semantic search tutorial"
+area: Docs
+type: doc
+issues: ["117829"]

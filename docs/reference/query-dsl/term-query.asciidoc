@@ -38,6 +38,7 @@ GET /_search
   }
 }
 ----
+// REVIEWED[10.10.24]
 
 [[term-top-level-params]]
 ==== Top-level parameters for `term`
@@ -106,7 +107,7 @@ PUT my-index-000001
   }
 }
 ----
-
+// REVIEWED[10.10.24]
 --
 
 . Index a document with a value of `Quick Brown Foxes!` in the `full_text`
@@ -122,7 +123,7 @@ PUT my-index-000001/_doc/1
 }
 ----
 // TEST[continued]
-
+// REVIEWED[10.10.24]
 Because `full_text` is a `text` field, {es} changes `Quick Brown Foxes!` to
 `[quick, brown, fox]` during analysis.
 
@@ -145,7 +146,7 @@ GET my-index-000001/_search?pretty
 }
 ----
 // TEST[continued]
-
+// REVIEWED[10.10.24]
 Because the `full_text` field no longer contains the *exact* term `Quick Brown
 Foxes!`, the `term` query search returns no results.
 
@@ -163,7 +164,7 @@ field.
 POST my-index-000001/_refresh
 ----
 // TEST[continued]
-
+// REVIEWED[10.10.24]
 ////
 
 [source,console]
@@ -178,7 +179,7 @@ GET my-index-000001/_search?pretty
 }
 ----
 // TEST[continued]
-
+// REVIEWED[10.10.24]
 Unlike the `term` query, the `match` query analyzes your provided search term,
 `Quick Brown Foxes!`, before performing a search. The `match` query then returns
 any documents containing the `quick`, `brown`, or `fox` tokens in the
@@ -219,3 +220,4 @@ in the results.
 ----
 // TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 --
+// REVIEWED[10.10.24]

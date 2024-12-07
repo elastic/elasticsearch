@@ -278,6 +278,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
   issue: https://github.com/elastic/elasticsearch/issues/118208
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test51AutoConfigurationWithPasswordProtectedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/118212
 
 # Examples:
 #

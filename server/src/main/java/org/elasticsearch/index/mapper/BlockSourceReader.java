@@ -30,7 +30,6 @@ import java.util.List;
  */
 public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private final ValueFetcher fetcher;
-    private final List<Object> ignoredValues = new ArrayList<>();
     private final DocIdSetIterator iter;
     private final Thread creationThread;
     private int docId = -1;
@@ -47,8 +46,20 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
             builder.appendNull();
             return;
         }
+        List<Object> ignoredValues = new ArrayList<>();
         List<Object> values = fetcher.fetchValues(storedFields.source(), docId, ignoredValues);
-        ignoredValues.clear();  // TODO do something with these?
+        // Include ignored values. This happens when for example when values are malformed and
+        // these values should still be included in when falling back to source.
+        if (ignoredValues.isEmpty() == false) {
+            if (values == null || values.isEmpty()) {
+                values = ignoredValues;
+            } else {
+                List<Object> copy = new ArrayList<>(values); // values variable may be immutable
+                copy.addAll(ignoredValues);
+                values = copy;
+            }
+        }
+
         if (values == null || values.isEmpty()) {
             builder.appendNull();
             return;

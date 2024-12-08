@@ -1771,10 +1771,9 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return type.blockLoaderFromDocValues(name());
             }
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-                : BlockSourceReader.lookupMatchingAll();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.BytesRefsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+//            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override

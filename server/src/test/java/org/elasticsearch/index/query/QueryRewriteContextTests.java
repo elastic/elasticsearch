@@ -52,7 +52,8 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                false
             );
 
             assertThat(context.getTierPreference(), is("data_cold"));
@@ -79,7 +80,8 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                false
             );
 
             assertThat(context.getTierPreference(), is(nullValue()));

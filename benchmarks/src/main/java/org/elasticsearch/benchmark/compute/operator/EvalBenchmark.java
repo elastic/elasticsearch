@@ -75,7 +75,9 @@ public class EvalBenchmark {
 
     static final DriverContext driverContext = new DriverContext(
         BigArrays.NON_RECYCLING_INSTANCE,
-        BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
+        BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE),
+        () -> false,
+        () -> {}
     );
 
     static {

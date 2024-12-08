@@ -249,7 +249,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
      */
     private DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, () -> false, () -> {});
     }
 
     // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.

@@ -13,11 +13,13 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.ServiceLoader;
 
 /**
@@ -111,6 +113,11 @@ public abstract class BuildVersion implements ToXContentFragment, Writeable {
         return CurrentExtensionHolder.BUILD_EXTENSION.fromStream(input);
     }
 
+    public static Tuple<BuildVersion, BuildVersion> calculateMinMaxVersions(Collection<BuildVersion> versions) {
+        if (versions.isEmpty()) return Tuple.tuple(current(), current());
+        return CurrentExtensionHolder.BUILD_EXTENSION.calculateMinMaxVersions(versions);
+    }
+
     /**
      * Get the current build version.
      *
@@ -155,6 +162,11 @@ public abstract class BuildVersion implements ToXContentFragment, Writeable {
         @Override
         public BuildVersion fromStream(StreamInput in) throws IOException {
             return new DefaultBuildVersion(in);
+        }
+
+        @Override
+        public Tuple<BuildVersion, BuildVersion> calculateMinMaxVersions(Collection<BuildVersion> versions) {
+            return null;
         }
     }
 }

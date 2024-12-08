@@ -18,10 +18,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -48,7 +61,34 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     public static final FieldPermissions DEFAULT = new FieldPermissions();
 
-    private static final Automaton METADATA_FIELDS_ALLOWLIST_AUTOMATON = Automatons.patterns(getMetadataFieldsAllowlist());
+    // pkg-private for testing
+    static final Set<String> METADATA_FIELDS_ALLOWLIST = Set.of(
+        // built-in
+        IgnoredFieldMapper.NAME,
+        IdFieldMapper.NAME,
+        RoutingFieldMapper.NAME,
+        TimeSeriesIdFieldMapper.NAME,
+        TimeSeriesRoutingHashFieldMapper.NAME,
+        IndexFieldMapper.NAME,
+        IndexModeFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        IgnoredSourceFieldMapper.NAME,
+        NestedPathFieldMapper.NAME,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        SeqNoFieldMapper.PRIMARY_TERM_NAME,
+        DocCountFieldMapper.NAME,
+        DataStreamTimestampFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME,
+        // plugins
+        // MapperSizePlugin
+        "_size",
+        // MapperExtrasPlugin
+        "_feature",
+        // XPackPlugin
+        DataTierFieldMapper.NAME
+    );
+    private static final Automaton METADATA_FIELDS_ALLOWLIST_AUTOMATON = Automatons.patterns(METADATA_FIELDS_ALLOWLIST);
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
@@ -136,16 +176,6 @@ public final class FieldPermissions implements Accountable, CacheKey {
             }
         }
         return ramBytesUsed;
-    }
-
-    private static Set<String> getMetadataFieldsAllowlist() {
-        return Sets.addToCopy(
-            IndicesModule.getBuiltInMetadataFields(),
-            // not returned as builtin field because it doesn't have a registered mapper
-            SeqNoFieldMapper.PRIMARY_TERM_NAME,
-            // size mapper plugin -- included because it's explicitly documented as a field that gets default access granted
-            "_size"
-        );
     }
 
     /**
@@ -302,4 +332,5 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public long ramBytesUsed() {
         return ramBytesUsed;
     }
+
 }

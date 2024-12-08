@@ -145,6 +145,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
             "bar"
         );
 
+        // TODO this does not test what it says it tests...
         // make sure meta fields cannot be denied access to
         deniedFields = FieldPermissions.METADATA_FIELDS_ALLOWLIST.toArray(new String[0]);
         assertResolved(

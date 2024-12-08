@@ -1,6 +1,6 @@
 ==== Run {es} from the command line
 
-Run the following command to start {es} from the command line:
+Run as an administrator user the following command to start {es} from the command line:
 
 [source,sh]
 ----

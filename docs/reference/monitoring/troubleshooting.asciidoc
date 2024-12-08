@@ -25,7 +25,9 @@ there is a `.monitoring-kibana*` index for your {kib} monitoring data and a
 `.monitoring-es*` index for your {es} monitoring data. If you are collecting
 monitoring data by using {metricbeat} the indices have `-mb` in their names. If
 the indices do not exist, review your configuration. For example, see
-<<monitoring-production>>.
+<<monitoring-production>>. Additionally, check for any closed indices in the 
+monitored cluster. Closed indices cannot be monitored, and will prevent
+monitoring data from reaching your monitoring cluster.
 
 [discrete]
 [[monitoring-troubleshooting-uuid]]

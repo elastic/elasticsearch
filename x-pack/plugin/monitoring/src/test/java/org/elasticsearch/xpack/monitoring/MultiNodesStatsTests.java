@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -19,6 +19,7 @@ import org.junit.After;
 
 import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -27,11 +28,11 @@ import static org.hamcrest.Matchers.instanceOf;
 public class MultiNodesStatsTests extends MonitoringIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("xpack.monitoring.exporters.default_local.type", "local")
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.monitoring.exporters.default_local.type", "local")
+            .build();
     }
 
     @After
@@ -58,7 +59,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
 
         n = randomIntBetween(1, 2);
         // starting one by one to allow moving , for example, from a 2 node cluster to a 4 one while updating min_master_nodes
-        for (int i=0;i<n;i++) {
+        for (int i = 0; i < n; i++) {
             internalCluster().startNode();
         }
         nodes += n;
@@ -66,7 +67,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         final int nbNodes = nodes;
         assertBusy(() -> {
             assertThat(cluster().size(), equalTo(nbNodes));
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
+            assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(nbNodes)).get());
         });
 
         enableMonitoringCollection();
@@ -76,25 +77,25 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
             flush(ALL_MONITORING_INDICES);
             refresh();
 
-            SearchResponse response = client().prepareSearch(ALL_MONITORING_INDICES)
-                    .setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
+            assertResponse(
+                prepareSearch(ALL_MONITORING_INDICES).setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
                     .setSize(0)
-                    .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
-                    .get();
+                    .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id")),
+                response -> {
+                    for (Aggregation aggregation : response.getAggregations()) {
+                        assertThat(aggregation, instanceOf(StringTerms.class));
+                        assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
-            for (Aggregation aggregation : response.getAggregations()) {
-                assertThat(aggregation, instanceOf(StringTerms.class));
-                assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
-
-                for (String nodeName : internalCluster().getNodeNames()) {
-                    StringTerms.Bucket bucket = ((StringTerms) aggregation)
-                            .getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
-                    // At least 1 doc must exist per node, but it can be more than 1
-                    // because the first node may have already collected many node stats documents
-                    // whereas the last node just started to collect node stats.
-                    assertThat(bucket.getDocCount(), greaterThanOrEqualTo(1L));
+                        for (String nodeName : internalCluster().getNodeNames()) {
+                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(getNodeId(nodeName));
+                            // At least 1 doc must exist per node, but it can be more than 1
+                            // because the first node may have already collected many node stats documents
+                            // whereas the last node just started to collect node stats.
+                            assertThat(bucket.getDocCount(), greaterThanOrEqualTo(1L));
+                        }
+                    }
                 }
-            }
+            );
         });
     }
 }

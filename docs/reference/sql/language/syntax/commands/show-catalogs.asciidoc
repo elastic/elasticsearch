@@ -1,0 +1,17 @@
+[role="xpack"]
+[[sql-syntax-show-catalogs]]
+=== SHOW CATALOGS
+
+.Synopsis:
+[source, sql]
+----
+SHOW CATALOGS
+----
+
+*Description*: List the available catalogs and their types.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-command.csv-spec[showCatalogs]
+----
+

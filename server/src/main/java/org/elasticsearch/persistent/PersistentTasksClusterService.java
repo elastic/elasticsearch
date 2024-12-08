@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.persistent;
@@ -33,10 +23,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.decider.AssignmentDecision;
@@ -44,37 +38,50 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
  */
-public class PersistentTasksClusterService implements ClusterStateListener, Closeable {
+public final class PersistentTasksClusterService implements ClusterStateListener, Closeable {
 
-    public static final Setting<TimeValue> CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING =
-        Setting.timeSetting("cluster.persistent_tasks.allocation.recheck_interval", TimeValue.timeValueSeconds(30),
-            TimeValue.timeValueSeconds(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.persistent_tasks.allocation.recheck_interval",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksClusterService.class);
 
     private final ClusterService clusterService;
     private final PersistentTasksExecutorRegistry registry;
-    private final EnableAssignmentDecider decider;
+    private final EnableAssignmentDecider enableDecider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
+    private final AtomicBoolean reassigningTasks = new AtomicBoolean(false);
 
-    public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService,
-                                         ThreadPool threadPool) {
+    public PersistentTasksClusterService(
+        Settings settings,
+        PersistentTasksExecutorRegistry registry,
+        ClusterService clusterService,
+        ThreadPool threadPool
+    ) {
         this.clusterService = clusterService;
         this.registry = registry;
-        this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
+        this.enableDecider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
         }
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
-            this::setRecheckInterval);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setRecheckInterval);
     }
 
     // visible for testing only
@@ -100,9 +107,13 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param taskParams the task's parameters
      * @param listener   the listener that will be called when task is started
      */
-    public <Params extends PersistentTaskParams> void createPersistentTask(String taskId, String taskName, Params taskParams,
-                                                                           ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
+    public <Params extends PersistentTaskParams> void createPersistentTask(
+        String taskId,
+        String taskName,
+        Params taskParams,
+        ActionListener<PersistentTask<?>> listener
+    ) {
+        submitUnbatchedTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder builder = builder(currentState);
@@ -118,12 +129,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 PersistentTasksCustomMetadata tasks = newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 if (tasks != null) {
                     PersistentTask<?> task = tasks.getTask(taskId);
@@ -136,6 +147,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 }
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /**
@@ -154,7 +170,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         } else {
             source = "finish persistent task (success)";
         }
-        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+        submitUnbatchedTask(source, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -163,8 +179,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     return update(currentState, tasksInProgress);
                 } else {
                     if (tasksInProgress.hasTask(id)) {
-                        logger.warn("The task [{}] with id [{}] was found but it has a different allocation id [{}], status is not updated",
-                                PersistentTasksCustomMetadata.getTaskWithId(currentState, id).getTaskName(), id, allocationId);
+                        logger.warn(
+                            "The task [{}] with id [{}] was found but it has a different allocation id [{}], status is not updated",
+                            PersistentTasksCustomMetadata.getTaskWithId(currentState, id).getTaskName(),
+                            id,
+                            allocationId
+                        );
                     } else {
                         logger.warn("The task [{}] wasn't found, status is not updated", id);
                     }
@@ -173,12 +193,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
@@ -192,7 +212,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param listener the listener that will be called when task is removed
      */
     public void removePersistentTask(String id, ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("remove persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -204,12 +224,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
@@ -224,11 +244,13 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param taskState        new state
      * @param listener         the listener that will be called when task is removed
      */
-    public void updatePersistentTaskState(final String taskId,
-                                          final long taskAllocationId,
-                                          final PersistentTaskState taskState,
-                                          final ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
+    public void updatePersistentTaskState(
+        final String taskId,
+        final long taskAllocationId,
+        final PersistentTaskState taskState,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        submitUnbatchedTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -245,12 +267,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
         });
@@ -267,11 +289,13 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param reason           the reason for unassigning the task from any node
      * @param listener         the listener that will be called when task is unassigned
      */
-    public void unassignPersistentTask(final String taskId,
-                                       final long taskAllocationId,
-                                       final String reason,
-                                       final ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
+    public void unassignPersistentTask(
+        final String taskId,
+        final long taskAllocationId,
+        final String reason,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        submitUnbatchedTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -284,12 +308,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
         });
@@ -304,17 +328,38 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
      * @return a new {@link Assignment}
      */
-    private <Params extends PersistentTaskParams> Assignment createAssignment(final String taskName,
-                                                                              final Params taskParams,
-                                                                              final ClusterState currentState) {
+    private <Params extends PersistentTaskParams> Assignment createAssignment(
+        final String taskName,
+        final Params taskParams,
+        final ClusterState currentState
+    ) {
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
 
-        AssignmentDecision decision = decider.canAssign();
+        AssignmentDecision decision = enableDecider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
             return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
         }
 
-        return persistentTasksExecutor.getAssignment(taskParams, currentState);
+        // Filter all nodes that are marked as shutting down, because we do not
+        // want to assign a persistent task to a node that will shortly be
+        // leaving the cluster
+        final List<DiscoveryNode> candidateNodes = currentState.nodes()
+            .stream()
+            .filter(dn -> currentState.metadata().nodeShutdowns().contains(dn.getId()) == false)
+            .collect(Collectors.toCollection(ArrayList::new));
+        // Task assignment should not rely on node order
+        Randomness.shuffle(candidateNodes);
+
+        final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
+        assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
+        assert (assignment.getExecutorNode() == null
+            || currentState.metadata().nodeShutdowns().contains(assignment.getExecutorNode()) == false)
+            : "expected task ["
+                + taskName
+                + "] to be assigned to a node that is not marked as shutting down, but "
+                + assignment.getExecutorNode()
+                + " is currently marked as shutting down";
+        return assignment;
     }
 
     @Override
@@ -334,26 +379,36 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Submit a cluster state update to reassign any persistent tasks that need reassigning
      */
-    private void reassignPersistentTasks() {
-        clusterService.submitStateUpdateTask("reassign persistent tasks", new ClusterStateUpdateTask() {
+    void reassignPersistentTasks() {
+        if (this.reassigningTasks.compareAndSet(false, true) == false) {
+            return;
+        }
+        submitUnbatchedTask("reassign persistent tasks", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return reassignTasks(currentState);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
+                reassigningTasks.set(false);
                 logger.warn("failed to reassign persistent tasks", e);
                 if (e instanceof NotMasterException == false) {
                     // There must be a task that's worth rechecking because there was one
                     // that caused this method to be called and the method failed to assign it,
                     // but only do this if the node is still the master
-                    periodicRechecker.rescheduleIfNecessary();
+                    try {
+                        periodicRechecker.rescheduleIfNecessary();
+                    } catch (Exception e2) {
+                        assert e2 instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e2;
+                        logger.warn("failed to reschedule persistent tasks rechecker", e2);
+                    }
                 }
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                reassigningTasks.set(false);
                 if (isAnyTaskUnassigned(newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
                     periodicRechecker.rescheduleIfNecessary();
                 }
@@ -395,7 +450,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Returns true if any persistent task is unassigned.
      */
-    private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetadata tasks) {
+    private static boolean isAnyTaskUnassigned(final PersistentTasksCustomMetadata tasks) {
         return tasks != null && tasks.tasks().stream().anyMatch(task -> task.getAssignment().isAssigned() == false);
     }
 
@@ -418,8 +473,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 if (needsReassignment(task.getAssignment(), nodes)) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState);
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
-                        logger.trace("reassigning task {} from node {} to node {}", task.getId(),
-                                task.getAssignment().getExecutorNode(), assignment.getExecutorNode());
+                        logger.trace(
+                            "reassigning task {} from node {} to node {}",
+                            task.getId(),
+                            task.getAssignment().getExecutorNode(),
+                            assignment.getExecutorNode()
+                        );
                         clusterState = update(clusterState, builder(clusterState).reassignTask(task.getId(), assignment));
                     } else {
                         logger.trace("ignoring task {} because assignment is the same {}", task.getId(), assignment);
@@ -449,9 +508,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     private static ClusterState update(ClusterState currentState, PersistentTasksCustomMetadata.Builder tasksInProgress) {
         if (tasksInProgress.isChanged()) {
-            return ClusterState.builder(currentState).metadata(
-                    Metadata.builder(currentState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasksInProgress.build())
-            ).build();
+            return ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasksInProgress.build()))
+                .build();
         } else {
             return currentState;
         }
@@ -467,7 +526,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker(TimeValue recheckInterval) {
-            super(logger, threadPool, recheckInterval, false);
+            super(logger, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE, recheckInterval, false);
         }
 
         @Override
@@ -478,6 +537,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         @Override
         public void runInternal() {
             if (clusterService.localNode().isMasterNode()) {
+                // TODO just run on the elected master?
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
                 if (isAnyTaskUnassigned(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {

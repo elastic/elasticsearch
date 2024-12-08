@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
 
 import java.io.IOException;
@@ -17,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
+public class InfluenceTests extends AbstractXContentSerializingTestCase<Influence> {
 
     @Override
     protected Influence createTestInstance() {
@@ -27,6 +28,11 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
             fieldValues.add(randomAlphaOfLengthBetween(1, 20));
         }
         return new Influence(randomAlphaOfLengthBetween(1, 30), fieldValues);
+    }
+
+    @Override
+    protected Influence mutateInstance(Influence instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -40,17 +46,20 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"influencer_field_name\":\"influencer_1\", \"influencer_field_values\":[], \"foo\":\"bar\"}";
+        String json = """
+            {"influencer_field_name":"influencer_1", "influencer_field_values":[], "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> Influence.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Influence.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"influencer_field_name\":\"influencer_1\", \"influencer_field_values\":[], \"foo\":\"bar\"}";
+        String json = """
+            {"influencer_field_name":"influencer_1", "influencer_field_values":[], "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Influence.LENIENT_PARSER.apply(parser, null);
         }

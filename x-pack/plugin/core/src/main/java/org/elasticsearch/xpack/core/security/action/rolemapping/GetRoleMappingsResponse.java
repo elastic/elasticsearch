@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
@@ -19,16 +19,7 @@ import java.io.IOException;
  */
 public class GetRoleMappingsResponse extends ActionResponse {
 
-    private ExpressionRoleMapping[] mappings;
-
-    public GetRoleMappingsResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        mappings = new ExpressionRoleMapping[size];
-        for (int i = 0; i < size; i++) {
-            mappings[i] = new ExpressionRoleMapping(in);
-        }
-    }
+    private final ExpressionRoleMapping[] mappings;
 
     public GetRoleMappingsResponse(ExpressionRoleMapping... mappings) {
         this.mappings = mappings;

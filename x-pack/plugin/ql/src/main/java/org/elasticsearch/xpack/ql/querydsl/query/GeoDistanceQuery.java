@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
@@ -64,14 +65,14 @@ public class GeoDistanceQuery extends LeafQuery {
         }
 
         GeoDistanceQuery other = (GeoDistanceQuery) obj;
-        return Objects.equals(field, other.field) &&
-            Objects.equals(distance, other.distance) &&
-            Objects.equals(lat, other.lat) &&
-            Objects.equals(lon, other.lon);
+        return Objects.equals(field, other.field)
+            && Objects.equals(distance, other.distance)
+            && Objects.equals(lat, other.lat)
+            && Objects.equals(lon, other.lon);
     }
 
     @Override
     protected String innerToString() {
-        return field + ":" + "(" + distance + "," + "(" + lat + ", " +  lon + "))";
+        return field + ":" + "(" + distance + "," + "(" + lat + ", " + lon + "))";
     }
 }

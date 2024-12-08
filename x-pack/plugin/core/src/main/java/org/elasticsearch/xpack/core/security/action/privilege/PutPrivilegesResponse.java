@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -22,11 +23,11 @@ import java.util.Map;
  */
 public final class PutPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private Map<String, List<String>> created;
+    private final Map<String, List<String>> created;
 
     public PutPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readStringList));
+        this.created = in.readImmutableMap(StreamInput::readStringCollectionAsList);
     }
 
     public PutPrivilegesResponse(Map<String, List<String>> created) {
@@ -49,7 +50,7 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
+        out.writeMap(created, StreamOutput::writeStringCollection);
     }
 
-    }
+}

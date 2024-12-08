@@ -1,30 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A holder for {@link Writeable}s that delays reading the underlying object
@@ -44,7 +37,7 @@ import java.io.IOException;
  * to force their buffering in serialized format by calling
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */
-public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
+public abstract class DelayableWriteable<T extends Writeable> implements Writeable, Releasable {
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
      * but is serialized so that deserializing it can be delayed.
@@ -52,13 +45,20 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     public static <T extends Writeable> DelayableWriteable<T> referencing(T reference) {
         return new Referencing<>(reference);
     }
+
     /**
      * Build a {@linkplain DelayableWriteable} that copies a buffer from
      * the provided {@linkplain StreamInput} and deserializes the buffer
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
+        return new Serialized<>(reader, in.getTransportVersion(), in.namedWriteableRegistry(), in.readReleasableBytesReference());
+    }
+
+    public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
+        try (ReleasableBytesReference serialized = in.readReleasableBytesReference()) {
+            return new Referencing<>(deserialize(reader, in.getTransportVersion(), in.namedWriteableRegistry(), serialized));
+        }
     }
 
     private DelayableWriteable() {}
@@ -78,7 +78,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * {@code true} if the {@linkplain Writeable} is being stored in
      * serialized form, {@code false} otherwise.
      */
-    abstract boolean isSerialized();
+    public abstract boolean isSerialized();
+
+    /**
+     * Returns the serialized size of the inner {@link Writeable}.
+     */
+    public abstract long getSerializedSize();
 
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private final T reference;
@@ -89,7 +94,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(writeToBuffer(out.getVersion()).bytes());
+            out.writeWithSizePrefix(reference);
         }
 
         @Override
@@ -101,38 +106,54 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             BytesStreamOutput buffer;
             try {
-                buffer = writeToBuffer(Version.CURRENT);
+                buffer = writeToBuffer(TransportVersion.current());
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(reader, Version.CURRENT, registry, buffer.bytes());
+            // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
+            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()));
         }
 
         @Override
-        boolean isSerialized() {
+        public boolean isSerialized() {
             return false;
         }
 
-        private BytesStreamOutput writeToBuffer(Version version) throws IOException {
+        @Override
+        public long getSerializedSize() {
+            return DelayableWriteable.getSerializedSize(reference);
+        }
+
+        private BytesStreamOutput writeToBuffer(TransportVersion version) throws IOException {
             try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                buffer.setVersion(version);
+                buffer.setTransportVersion(version);
                 reference.writeTo(buffer);
                 return buffer;
             }
         }
+
+        @Override
+        public void close() {
+            // noop
+        }
     }
 
     /**
-     * A {@link Writeable} stored in serialized form.
+     * A {@link Writeable} stored in serialized form backed by a {@link ReleasableBytesReference}. Once an instance is no longer used its
+     * backing memory must be manually released by invoking {@link #close()} on it.
      */
-    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> implements Accountable {
+    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> {
         private final Writeable.Reader<T> reader;
-        private final Version serializedAtVersion;
+        private final TransportVersion serializedAtVersion;
         private final NamedWriteableRegistry registry;
-        private final BytesReference serialized;
+        private final ReleasableBytesReference serialized;
 
-        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
-                NamedWriteableRegistry registry, BytesReference serialized) {
+        private Serialized(
+            Writeable.Reader<T> reader,
+            TransportVersion serializedAtVersion,
+            NamedWriteableRegistry registry,
+            ReleasableBytesReference serialized
+        ) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
@@ -141,7 +162,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion() == serializedAtVersion) {
+            if (out.getTransportVersion() == serializedAtVersion) {
                 /*
                  * If the version *does* line up we can just copy the bytes
                  * which is good because this is how shard request caching
@@ -163,11 +184,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public T expand() {
             try {
-                try (StreamInput in = registry == null ?
-                        serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
-                    in.setVersion(serializedAtVersion);
-                    return reader.read(in);
-                }
+                return deserialize(reader, serializedAtVersion, registry, serialized);
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error expanding serialized delayed writeable", e);
             }
@@ -179,13 +196,109 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
         @Override
-        boolean isSerialized() {
+        public boolean isSerialized() {
             return true;
         }
 
         @Override
-        public long ramBytesUsed() {
-            return serialized.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 3 + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
+        public long getSerializedSize() {
+            // We're already serialized
+            return serialized.length();
+        }
+
+        @Override
+        public void close() {
+            serialized.close();
+        }
+    }
+
+    /**
+     * Returns the serialized size in bytes of the provided {@link Writeable}.
+     */
+    public static long getSerializedSize(Writeable ref) {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            ref.writeTo(out);
+            return out.size();
+        } catch (IOException exc) {
+            throw new UncheckedIOException(exc);
+        }
+    }
+
+    private static <T> T deserialize(
+        Reader<T> reader,
+        TransportVersion serializedAtVersion,
+        NamedWriteableRegistry registry,
+        BytesReference serialized
+    ) throws IOException {
+        try (
+            StreamInput in = registry == null
+                ? new DeduplicateStreamInput(serialized.streamInput(), new DeduplicatorCache())
+                : new DeduplicateNamedWriteableAwareStreamInput(serialized.streamInput(), registry, new DeduplicatorCache())
+        ) {
+            in.setTransportVersion(serializedAtVersion);
+            return reader.read(in);
+        }
+    }
+
+    /** An object implementing this interface can deduplicate instance of the provided objects.*/
+    public interface Deduplicator {
+        <T> T deduplicate(T object);
+    }
+
+    private static class DeduplicateStreamInput extends FilterStreamInput implements Deduplicator {
+
+        private final Deduplicator deduplicator;
+
+        private DeduplicateStreamInput(StreamInput delegate, Deduplicator deduplicator) {
+            super(delegate);
+            this.deduplicator = deduplicator;
+        }
+
+        @Override
+        public <T> T deduplicate(T object) {
+            return deduplicator.deduplicate(object);
+        }
+    }
+
+    private static class DeduplicateNamedWriteableAwareStreamInput extends NamedWriteableAwareStreamInput implements Deduplicator {
+
+        private final Deduplicator deduplicator;
+
+        private DeduplicateNamedWriteableAwareStreamInput(
+            StreamInput delegate,
+            NamedWriteableRegistry registry,
+            Deduplicator deduplicator
+        ) {
+            super(delegate, registry);
+            this.deduplicator = deduplicator;
+        }
+
+        @Override
+        public <T> T deduplicate(T object) {
+            return deduplicator.deduplicate(object);
+        }
+    }
+
+    /**
+     * Implementation of a {@link Deduplicator} cache. It can hold up to 1024 instances.
+     */
+    private static class DeduplicatorCache implements Deduplicator {
+
+        private static final int MAX_SIZE = 1024;
+        // lazily init
+        private Map<Object, Object> cache = null;
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> T deduplicate(T object) {
+            if (cache == null) {
+                cache = new HashMap<>();
+                cache.put(object, object);
+            } else if (cache.size() < MAX_SIZE) {
+                object = (T) cache.computeIfAbsent(object, o -> o);
+            }
+            return object;
         }
     }
 }

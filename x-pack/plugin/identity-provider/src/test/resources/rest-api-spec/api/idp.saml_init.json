@@ -4,6 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/idp-saml-init.html"
     },
     "stability": "stable",
+    "visibility":"private",
     "url": {
       "paths": [
         {

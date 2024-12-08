@@ -1,0 +1,223 @@
+setup:
+  - requires:
+      cluster_features: "mapper.vectors.bit_vectors"
+      reason: 'mapper.vectors.bit_vectors'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [2, -1, 1, 4, -3]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [127.0, -128.0, 0.0, 1.0, -1.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [5, 4.0, 3, 2.0, 127]
+
+  - do:
+      indices.refresh: {}
+
+---
+"kNN search only":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [127, 127, -128, -128, 127]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1.fields.name.0: "cow.jpg"}
+
+---
+"kNN search plus query":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [127.0, -128.0, 0.0, 1.0, -1.0]
+            k: 2
+            num_candidates: 3
+          query:
+            term:
+              name: rabbit.jpg
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+---
+"kNN search with filter":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [5.0, 4, 3.0, 2, 127.0]
+            k: 2
+            num_candidates: 3
+            filter:
+              term:
+                name: "rabbit.jpg"
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [2, -1, 1, 4, -3]
+            k: 2
+            num_candidates: 3
+            filter:
+              - term:
+                  name: "rabbit.jpg"
+              - term:
+                  _id: 2
+
+  - match: {hits.total.value: 0}
+
+---
+"Vector similarity search only":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 0.98
+            query_vector: [5, 4.0, 3, 2.0, 127]
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+---
+"Vector similarity with filter only":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 0.98
+            query_vector: [5, 4.0, 3, 2.0, 127]
+            filter: {"term": {"name": "rabbit.jpg"}}
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 0.98
+            query_vector: [5, 4.0, 3, 2.0, 127]
+            filter: {"term": {"name": "cow.jpg"}}
+
+  - length: {hits.hits: 0}
+---
+"dim mismatch":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [1, 2, 3, 4, 5, 6]
+            k: 2
+            num_candidates: 3
+---
+"disallow vector index type change to quantized type":
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test
+        body:
+         properties:
+           vector:
+             type: dense_vector
+             element_type: bit
+             dims: 32
+             index: true
+             similarity: l2_norm
+             index_options:
+               type: int4_hnsw
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              element_type: bit
+              dims: 32
+              index: true
+              similarity: l2_norm
+              index_options:
+                type: int8_hnsw

@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-get-lifecycle]]
 === Get lifecycle policy API
 ++++
 <titleabbrev>Get policy</titleabbrev>
 ++++
 
-Retrieves a lifecycle policy.
+Retrieves a <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-get-lifecycle-request]]
 ==== {api-request-title}
@@ -37,7 +36,7 @@ modified date. If no policy is specified, returns all defined policies.
 [[ilm-get-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-get-lifecycle-example]]
 ==== {api-examples-title}
@@ -107,6 +106,11 @@ If the request succeeds, the body of the response contains the policy definition
           }
         }
       }
+    },
+    "in_use_by" : { <3>
+      "indices" : [],
+      "data_streams" : [],
+      "composable_templates" : []
     }
   }
 }
@@ -115,3 +119,4 @@ If the request succeeds, the body of the response contains the policy definition
 
 <1> The policy version is incremented whenever the policy is updated
 <2> When this policy was last modified
+<3> Which indices, data streams, or templates currently use this policy

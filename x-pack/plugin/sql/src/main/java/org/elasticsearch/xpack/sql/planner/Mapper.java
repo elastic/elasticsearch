@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -44,11 +45,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch conversion = new Batch("Mapping",
-                new JoinMapper(),
-                new SimpleExecMapper()
-                );
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var conversion = new Batch<>("Mapping", new JoinMapper(), new SimpleExecMapper());
 
         return Arrays.asList(conversion);
     }
@@ -69,34 +67,28 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new LocalExec(p.source(), ((LocalRelation) p).executable());
             }
 
-            if (p instanceof Project) {
-                Project pj = (Project) p;
+            if (p instanceof Project pj) {
                 return new ProjectExec(p.source(), map(pj.child()), pj.projections());
             }
 
-            if (p instanceof Filter) {
-                Filter fl = (Filter) p;
+            if (p instanceof Filter fl) {
                 return new FilterExec(p.source(), map(fl.child()), fl.condition());
             }
 
-            if (p instanceof OrderBy) {
-                OrderBy o = (OrderBy) p;
+            if (p instanceof OrderBy o) {
                 return new OrderExec(p.source(), map(o.child()), o.order());
             }
 
-            if (p instanceof Aggregate) {
-                Aggregate a = (Aggregate) p;
+            if (p instanceof Aggregate a) {
                 // analysis and optimizations have converted the grouping into actual attributes
                 return new AggregateExec(p.source(), map(a.child()), a.groupings(), a.aggregates());
             }
 
-            if (p instanceof Pivot) {
-                Pivot pv = (Pivot) p;
+            if (p instanceof Pivot pv) {
                 return new PivotExec(pv.source(), map(pv.child()), pv);
             }
 
-            if (p instanceof EsRelation) {
-                EsRelation c = (EsRelation) p;
+            if (p instanceof EsRelation c) {
                 List<Attribute> output = c.output();
                 QueryContainer container = new QueryContainer();
                 if (c.frozen()) {
@@ -105,8 +97,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new EsQueryExec(p.source(), c.index().name(), output, container);
             }
 
-            if (p instanceof Limit) {
-                Limit l = (Limit) p;
+            if (p instanceof Limit l) {
                 return new LimitExec(p.source(), map(l.child()), l.limit());
             }
             // TODO: Translate With in a subplan
@@ -125,12 +116,11 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
             return join(j);
         }
 
-        private PhysicalPlan join(Join join) {
-            //TODO: pick up on nested/parent-child docs
+        private static PhysicalPlan join(Join join) {
+            // TODO: pick up on nested/parent-child docs
             // 2. Hash?
             // 3. Cartesian
             // 3. Fallback to nested loop
-
 
             throw new UnsupportedOperationException("Don't know how to handle join " + join.nodeString());
         }
@@ -142,11 +132,10 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, UnplannedExec.class);
+            return plan.transformUp(UnplannedExec.class, this::rule);
         }
 
         @SuppressWarnings("unchecked")
-        @Override
         protected final PhysicalPlan rule(UnplannedExec plan) {
             LogicalPlan subPlan = plan.plan();
             if (subPlanToken.isInstance(subPlan)) {

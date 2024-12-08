@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -15,28 +16,34 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -44,6 +51,18 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Utils to create an ML index with alias ready for rollover with a 6-digit suffix
  */
 public final class MlIndexAndAlias {
+
+    /**
+     * ML managed index mappings used to be updated based on the product version.
+     * They are now updated based on per-index mappings versions. However, older
+     * nodes will still look for a product version in the mappings metadata, so
+     * we have to put <em>something</em> in that field that will allow the older
+     * node to realise that the mappings are ahead of what it knows about. The
+     * easiest solution is to hardcode 8.11.0 in this field, because any node
+     * from 8.10.0 onwards should be using per-index mappings versions to determine
+     * whether mappings are up-to-date.
+     */
+    public static final String BWC_MAPPINGS_VERSION = "8.11.0";
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
@@ -80,75 +99,76 @@ public final class MlIndexAndAlias {
      * If the index is created, the listener is not called until the index is ready to use via the supplied alias,
      * so that a method that receives a success response from this method can safely use the index immediately.
      */
-    public static void createIndexAndAliasIfNecessary(Client client,
-                                                      ClusterState clusterState,
-                                                      IndexNameExpressionResolver resolver,
-                                                      String indexPatternPrefix,
-                                                      String alias,
-                                                      ActionListener<Boolean> finalListener) {
+    public static void createIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        String indexPatternPrefix,
+        String alias,
+        TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> finalListener
+    ) {
 
-        final ActionListener<Boolean> loggingListener = ActionListener.wrap(
-            finalListener::onResponse,
-            e -> {
-                logger.error(new ParameterizedMessage(
-                        "Failed to create alias and index with pattern [{}] and alias [{}]",
-                        indexPatternPrefix,
-                        alias),
-                    e);
-                finalListener.onFailure(e);
-            }
-        );
+        final ActionListener<Boolean> loggingListener = ActionListener.wrap(finalListener::onResponse, e -> {
+            logger.error(() -> format("Failed to create alias and index with pattern [%s] and alias [%s]", indexPatternPrefix, alias), e);
+            finalListener.onFailure(e);
+        });
 
         // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
-        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
-            created -> {
-                if (created) {
-                    waitForShardsReady(client, alias, loggingListener);
-                } else {
-                    loggingListener.onResponse(false);
-                }
-            },
-            loggingListener::onFailure
-        );
+        ActionListener<Boolean> indexCreatedListener = loggingListener.delegateFailureAndWrap((delegate, created) -> {
+            if (created) {
+                waitForShardsReady(client, alias, masterNodeTimeout, delegate);
+            } else {
+                delegate.onResponse(false);
+            }
+        });
 
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
         String firstConcreteIndex = indexPatternPrefix + "-000001";
-        String[] concreteIndexNames =
-            resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
-        Optional<IndexMetadata> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
-            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().findFirst()
+        String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
+        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
+            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
                 return;
             }
             logger.error(
                 "There are no indices matching '{}' pattern but '{}' alias points at [{}]. This should never happen.",
-                indexPattern, alias, indexPointedByCurrentWriteAlias.get());
+                indexPattern,
+                alias,
+                indexPointedByCurrentWriteAlias.get()
+            );
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
                 return;
             }
-            if (indexPointedByCurrentWriteAlias.get().getIndex().getName().equals(legacyIndexWithoutSuffix)) {
+            if (indexPointedByCurrentWriteAlias.get().equals(legacyIndexWithoutSuffix)) {
                 createFirstConcreteIndex(
                     client,
                     firstConcreteIndex,
                     alias,
                     false,
-                    ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
-                        loggingListener::onFailure)
+                    waitForShardCount,
+                    indexCreatedListener.delegateFailureAndWrap(
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
+                    )
                 );
                 return;
             }
             logger.error(
                 "There is exactly one index (i.e. '{}') matching '{}' pattern but '{}' alias points at [{}]. This should never happen.",
-                legacyIndexWithoutSuffix, indexPattern, alias, indexPointedByCurrentWriteAlias.get());
+                legacyIndexWithoutSuffix,
+                indexPattern,
+                alias,
+                indexPointedByCurrentWriteAlias.get()
+            );
         } else {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
                 assert concreteIndexNames.length > 0;
@@ -161,59 +181,111 @@ public final class MlIndexAndAlias {
         loggingListener.onResponse(false);
     }
 
-    private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
-            .waitForYellowStatus()
+    public static void createSystemIndexIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        SystemIndexDescriptor descriptor,
+        TimeValue masterNodeTimeout,
+        ActionListener<Boolean> finalListener
+    ) {
+
+        final String primaryIndex = descriptor.getPrimaryIndex();
+
+        // The check for existence of the index is against the cluster state, so very cheap
+        if (clusterState.getMetadata().hasIndexAbstraction(primaryIndex)) {
+            finalListener.onResponse(true);
+            return;
+        }
+
+        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(created -> {
+            if (created) {
+                waitForShardsReady(client, primaryIndex, masterNodeTimeout, finalListener);
+            } else {
+                finalListener.onResponse(false);
+            }
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                finalListener.onResponse(true);
+            } else {
+                finalListener.onFailure(e);
+            }
+        });
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(primaryIndex);
+        createIndexRequest.settings(descriptor.getSettings());
+        createIndexRequest.mapping(descriptor.getMappings());
+        createIndexRequest.origin(ML_ORIGIN);
+        createIndexRequest.masterNodeTimeout(masterNodeTimeout);
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            createIndexRequest,
+            indexCreatedListener.<CreateIndexResponse>delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged())),
+            client.admin().indices()::create
+        );
+    }
+
+    private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(masterNodeTimeout, index).waitForYellowStatus()
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(true);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             healthRequest,
-            ActionListener.<ClusterHealthResponse>wrap(
-                response -> listener.onResponse(response.isTimedOut() == false),
-                listener::onFailure),
+            listener.<ClusterHealthResponse>delegateFailureAndWrap((l, response) -> l.onResponse(response.isTimedOut() == false)),
             client.admin().cluster()::health
         );
     }
 
-    private static void createFirstConcreteIndex(Client client,
-                                                 String index,
-                                                 String alias,
-                                                 boolean addAlias,
-                                                 ActionListener<Boolean> listener) {
+    private static void createFirstConcreteIndex(
+        Client client,
+        String index,
+        String alias,
+        boolean addAlias,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> listener
+    ) {
         logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
-        CreateIndexRequestBuilder requestBuilder = client.admin()
-            .indices()
-            .prepareCreate(index);
+        CreateIndexRequestBuilder requestBuilder = client.admin().indices().prepareCreate(index);
         if (addAlias) {
             requestBuilder.addAlias(new Alias(alias).isHidden(true));
         }
+        requestBuilder.setWaitForActiveShards(waitForShardCount);
         CreateIndexRequest request = requestBuilder.request();
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            ActionListener.<CreateIndexResponse>wrap(
-                createIndexResponse -> listener.onResponse(true),
-                createIndexFailure -> {
-                    // If it was created between our last check, and this request being handled, we should add the alias
-                    // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
-                    // as well.
-                    if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
+            ActionListener.<CreateIndexResponse>wrap(createIndexResponse -> listener.onResponse(true), createIndexFailure -> {
+                if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
+                    // If it was created between our last check and this request being handled, we should add the alias
+                    // if we were asked to add it on creation. Adding an alias that already exists is idempotent. So
+                    // no need to double check if the alias exists as well. But if we weren't asked to add the alias
+                    // on creation then we should leave it up to the caller to decide what to do next (some call sites
+                    // already have more advanced alias update logic in their success handlers).
+                    if (addAlias) {
                         updateWriteAlias(client, alias, null, index, listener);
                     } else {
-                        listener.onFailure(createIndexFailure);
+                        listener.onResponse(true);
                     }
-                }),
-            client.admin().indices()::create);
+                } else {
+                    listener.onFailure(createIndexFailure);
+                }
+            }),
+            client.admin().indices()::create
+        );
     }
 
-    private static void updateWriteAlias(Client client,
-                                         String alias,
-                                         @Nullable String currentIndex,
-                                         String newIndex,
-                                         ActionListener<Boolean> listener) {
+    private static void updateWriteAlias(
+        Client client,
+        String alias,
+        @Nullable String currentIndex,
+        String newIndex,
+        ActionListener<Boolean> listener
+    ) {
         logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
@@ -224,13 +296,13 @@ public final class MlIndexAndAlias {
         }
         IndicesAliasesRequest request = requestBuilder.request();
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            ActionListener.<AcknowledgedResponse>wrap(
-                resp -> listener.onResponse(resp.isAcknowledged()),
-                listener::onFailure),
-            client.admin().indices()::aliases);
+            listener.<IndicesAliasesResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
+            client.admin().indices()::aliases
+        );
     }
 
     /**
@@ -250,6 +322,7 @@ public final class MlIndexAndAlias {
         ClusterState clusterState,
         Client client,
         IndexTemplateConfig templateConfig,
+        TimeValue masterTimeout,
         ActionListener<Boolean> listener
     ) {
         String templateName = templateConfig.getTemplateName();
@@ -260,14 +333,20 @@ public final class MlIndexAndAlias {
             return;
         }
 
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName)
-            .source(templateConfig.loadBytes(), XContentType.JSON);
+        TransportPutComposableIndexTemplateAction.Request request;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+            request = new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
+                ComposableIndexTemplate.parse(parser)
+            ).masterNodeTimeout(masterTimeout);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
+        }
 
         installIndexTemplateIfRequired(clusterState, client, request, listener);
     }
 
     /**
-     * See {@link #installIndexTemplateIfRequired(ClusterState, Client, IndexTemplateConfig, ActionListener)}.
+     * See {@link #installIndexTemplateIfRequired(ClusterState, Client, IndexTemplateConfig, TimeValue, ActionListener)}.
      *
      * Overload takes a {@code PutIndexTemplateRequest} instead of {@code IndexTemplateConfig}
      *
@@ -279,33 +358,26 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
-        PutIndexTemplateRequest templateRequest,
+        TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
-        String templateName = templateRequest.name();
-
         // The check for existence of the template is against the cluster state, so very cheap
         if (hasIndexTemplate(clusterState, templateRequest.name())) {
             listener.onResponse(true);
             return;
         }
 
-        templateRequest.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+        ActionListener<AcknowledgedResponse> innerListener = listener.delegateFailureAndWrap((l, response) -> {
+            if (response.isAcknowledged() == false) {
+                logger.warn("error adding template [{}], request was not acknowledged", templateRequest.name());
+            }
+            l.onResponse(response.isAcknowledged());
+        });
 
-        ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
-            response ->  {
-                if (response.isAcknowledged() == false) {
-                    logger.warn("error adding legacy template [{}], request was not acknowledged", templateName);
-                }
-                listener.onResponse(response.isAcknowledged());
-            },
-            listener::onFailure);
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, templateRequest, innerListener,
-            client.admin().indices()::putTemplate);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
-        return state.getMetadata().getTemplates().containsKey(templateName);
+        return state.getMetadata().templatesV2().containsKey(templateName);
     }
 }

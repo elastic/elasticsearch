@@ -1,26 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.Supplier;
 
@@ -34,10 +28,9 @@ import java.util.function.Supplier;
  * though the user sent them.
  */
 public class LoggingDeprecationHandler implements DeprecationHandler {
-    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     /**
      * The logger to which to send deprecation messages.
-     *
+     * <p>
      * This uses ParseField's logger because that is the logger that
      * we have been using for many releases for deprecated fields.
      * Changing that will require some research to make super duper
@@ -45,28 +38,90 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
      */
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
+    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
+    public static final XContentParserConfiguration XCONTENT_PARSER_CONFIG = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+        INSTANCE
+    );
+
     private LoggingDeprecationHandler() {
-        // Singleton
+        // one instance only
     }
 
     @Override
-    public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field",
-            "{}Deprecated field [{}] used, expected [{}] instead", prefix, usedName, modernName);
+    public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
+        logRenamedField(parserName, location, oldName, currentName, false);
     }
 
     @Override
-    public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field",
-            "{}Deprecated field [{}] used, replaced by [{}]", prefix, usedName, replacedWith);
+    public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
+        logReplacedField(parserName, location, oldName, replacedName, false);
     }
 
     @Override
-    public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field",
-            "{}Deprecated field [{}] used, this field is unused and will be removed entirely", prefix, usedName);
+    public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
+        logRemovedField(parserName, location, removedName, false);
+    }
+
+    @Override
+    public void logRenamedField(
+        String parserName,
+        Supplier<XContentLocation> location,
+        String oldName,
+        String currentName,
+        boolean isCompatibleDeprecation
+    ) {
+        String prefix = parserLocation(parserName, location);
+        log(
+            isCompatibleDeprecation,
+            "{}Deprecated field [{}] used, expected [{}] instead",
+            new Object[] { prefix, oldName, currentName },
+            oldName
+        );
+    }
+
+    @Override
+    public void logReplacedField(
+        String parserName,
+        Supplier<XContentLocation> location,
+        String oldName,
+        String replacedName,
+        boolean isCompatibleDeprecation
+    ) {
+        String prefix = parserLocation(parserName, location);
+        log(
+            isCompatibleDeprecation,
+            "{}Deprecated field [{}] used, replaced by [{}]",
+            new Object[] { prefix, oldName, replacedName },
+            oldName
+        );
+    }
+
+    @Override
+    public void logRemovedField(
+        String parserName,
+        Supplier<XContentLocation> location,
+        String removedName,
+        boolean isCompatibleDeprecation
+    ) {
+        String prefix = parserLocation(parserName, location);
+        log(
+            isCompatibleDeprecation,
+            "{}Deprecated field [{}] used, this field is unused and will be removed entirely",
+            new Object[] { prefix, removedName },
+            removedName
+        );
+
+    }
+
+    private static String parserLocation(String parserName, Supplier<XContentLocation> location) {
+        return parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+    }
+
+    private static void log(boolean isCompatibleDeprecation, String message, Object[] params, String fieldName) {
+        if (isCompatibleDeprecation) {
+            deprecationLogger.compatibleCritical("deprecated_field_" + fieldName, message, params);
+        } else {
+            deprecationLogger.warn(DeprecationCategory.API, "deprecated_field_" + fieldName, message, params);
+        }
     }
 }

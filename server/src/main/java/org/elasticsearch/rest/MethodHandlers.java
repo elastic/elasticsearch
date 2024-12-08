@@ -1,27 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.HttpRouteStats;
+import org.elasticsearch.http.HttpRouteStatsTracker;
 
-import java.util.HashMap;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,28 +25,39 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, Map<Version, RestHandler>> methodHandlers;
+    private final Map<RestRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
-        this.path = path;
-        this.methodHandlers = new HashMap<>(methods.length);
-        for (RestRequest.Method method : methods) {
-            methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .put(handler.compatibleWithVersion(), handler);
+    @SuppressWarnings("unused") // only accessed via #STATS_TRACKER_HANDLE, lazy initialized because instances consume non-trivial heap
+    private volatile HttpRouteStatsTracker statsTracker;
+
+    private static final VarHandle STATS_TRACKER_HANDLE;
+
+    static {
+        try {
+            STATS_TRACKER_HANDLE = MethodHandles.lookup().findVarHandle(MethodHandlers.class, "statsTracker", HttpRouteStatsTracker.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new ExceptionInInitializerError(e);
         }
+    }
+
+    MethodHandlers(String path) {
+        this.path = path;
+        this.methodHandlers = new EnumMap<>(RestRequest.Method.class);
+    }
+
+    public String getPath() {
+        return path;
     }
 
     /**
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
-        for (RestRequest.Method method : methods) {
-            RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .putIfAbsent(handler.compatibleWithVersion(), handler);
-            if (existing != null) {
-                throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
-            }
+    MethodHandlers addMethod(RestRequest.Method method, RestApiVersion version, RestHandler handler) {
+        RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new EnumMap<>(RestApiVersion.class))
+            .putIfAbsent(version, handler);
+        if (existing != null) {
+            throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
         }
         return this;
     }
@@ -60,19 +65,18 @@ final class MethodHandlers {
     /**
      * Returns the handler for the given method and version.
      *
-     * If a handler for given version do not exist, a handler for Version.CURRENT will be returned.
+     * If a handler for given version do not exist, a handler for RestApiVersion.current() will be returned.
      * The reasoning behind is that in a minor a new API could be added passively, therefore new APIs are compatible
      * (as opposed to non-compatible/breaking)
      * or {@code null} if none exists.
      */
-    RestHandler getHandler(RestRequest.Method method, Version version) {
-        Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
+    RestHandler getHandler(RestRequest.Method method, RestApiVersion version) {
+        Map<RestApiVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
-            return null; //method not found
+            return null; // method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler == null ? versionToHandlers.get(Version.CURRENT) : handler;
-
+        return handler == null ? versionToHandlers.get(RestApiVersion.current()) : handler;
     }
 
     /**
@@ -80,5 +84,28 @@ final class MethodHandlers {
      */
     Set<RestRequest.Method> getValidMethods() {
         return methodHandlers.keySet();
+    }
+
+    public HttpRouteStats getStats() {
+        var tracker = existingStatsTracker();
+        if (tracker == null) {
+            return HttpRouteStats.EMPTY;
+        }
+        return tracker.getStats();
+    }
+
+    public HttpRouteStatsTracker statsTracker() {
+        var tracker = existingStatsTracker();
+        if (tracker == null) {
+            var newTracker = new HttpRouteStatsTracker();
+            if ((tracker = (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.compareAndExchange(this, null, newTracker)) == null) {
+                tracker = newTracker;
+            }
+        }
+        return tracker;
+    }
+
+    private HttpRouteStatsTracker existingStatsTracker() {
+        return (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.getAcquire(this);
     }
 }

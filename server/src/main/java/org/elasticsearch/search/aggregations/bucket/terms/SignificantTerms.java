@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -26,6 +16,18 @@ import java.util.List;
  * An aggregation that collects significant terms in comparison to a background set.
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
+
+    /**
+     * @return The numbers of docs in the subset (also known as "foreground set").
+     * This number is equal to the document count of the containing aggregation.
+     */
+    long getSubsetSize();
+
+    /**
+     * @return The numbers of docs in the superset (ordinarily the background count
+     * of the containing aggregation).
+     */
+    long getSupersetSize();
 
     interface Bucket extends MultiBucketsAggregation.Bucket {
 
@@ -41,27 +43,11 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
         long getSubsetDf();
 
         /**
-         * @return The numbers of docs in the subset (also known as "foreground set").
-         * This number is equal to the document count of the containing aggregation.
-         */
-        long getSubsetSize();
-
-        /**
          * @return The number of docs in the superset containing a particular term (also
          * known as the "background count" of the bucket)
          */
         long getSupersetDf();
 
-        /**
-         * @return The numbers of docs in the superset (ordinarily the background count
-         * of the containing aggregation).
-         */
-        long getSupersetSize();
-
-        /**
-         * @return The key, expressed as a number
-         */
-        Number getKeyAsNumber();
     }
 
     @Override

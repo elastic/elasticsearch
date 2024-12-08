@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 
 import java.io.IOException;
@@ -107,15 +108,11 @@ public class WatchExecutionSnapshot implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("watch_id", watchId);
         builder.field("watch_record_id", watchRecordId);
-        builder.timeField("triggered_time", triggeredTime);
-        builder.timeField("execution_time", executionTime);
+        builder.timestampField("triggered_time", triggeredTime);
+        builder.timestampField("execution_time", executionTime);
         builder.field("execution_phase", phase);
         if (executedActions != null) {
-            builder.startArray("executed_actions");
-            for (String executedAction : executedActions) {
-                builder.value(executedAction);
-            }
-            builder.endArray();
+            builder.array("executed_actions", executedActions);
         }
         if (params.paramAsBoolean("emit_stacktraces", false)) {
             builder.startArray("stack_trace");

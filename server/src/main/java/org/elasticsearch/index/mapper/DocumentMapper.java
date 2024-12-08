@@ -1,185 +1,114 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.List;
 
-
-public class DocumentMapper implements ToXContentFragment {
-
-    public static final class Builder {
-        private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers;
-        private final RootObjectMapper rootObjectMapper;
-        private final ContentPath contentPath;
-        private final IndexSettings indexSettings;
-        private final IndexAnalyzers indexAnalyzers;
-        private final DocumentParser documentParser;
-
-        private Map<String, Object> meta;
-
-        public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
-            this(builder, mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), mapperService.documentParser(),
-                mapperService.getMetadataMappers());
-        }
-
-        Builder(RootObjectMapper.Builder builder,
-                IndexSettings indexSettings,
-                IndexAnalyzers indexAnalyzers,
-                DocumentParser documentParser,
-                Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers) {
-            this.indexSettings = indexSettings;
-            this.indexAnalyzers = indexAnalyzers;
-            this.documentParser = documentParser;
-            this.contentPath = new ContentPath(1);
-            this.rootObjectMapper = builder.build(contentPath);
-            this.metadataMappers = metadataMappers;
-        }
-
-        public Builder meta(Map<String, Object> meta) {
-            this.meta = meta;
-            return this;
-        }
-
-        public Builder put(MetadataFieldMapper.Builder mapper) {
-            MetadataFieldMapper metadataMapper = mapper.build(contentPath);
-            metadataMappers.put(metadataMapper.getClass(), metadataMapper);
-            return this;
-        }
-
-        public DocumentMapper build() {
-            Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            Mapping mapping = new Mapping(
-                    indexSettings.getIndexVersionCreated(),
-                    rootObjectMapper,
-                    metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-                    meta);
-            return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-        }
-    }
+public class DocumentMapper {
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
     private final String type;
-    private final Text typeText;
     private final CompressedXContent mappingSource;
-    private final Mapping mapping;
+    private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
-    private final MappingLookup fieldMappers;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
-    private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
-    private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
+    private final MapperMetrics mapperMetrics;
+    private final IndexVersion indexVersion;
+    private final Logger logger;
 
-    private DocumentMapper(IndexSettings indexSettings,
-                           IndexAnalyzers indexAnalyzers,
-                           DocumentParser documentParser,
-                           Mapping mapping) {
-        this.type = mapping.root().name();
-        this.typeText = new Text(this.type);
-        this.mapping = mapping;
+    /**
+     * Create a new {@link DocumentMapper} that holds empty mappings.
+     * @param mapperService the mapper service that holds the needed components
+     * @return the newly created document mapper
+     */
+    public static DocumentMapper createEmpty(MapperService mapperService) {
+        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.root(false, false)
+        );
+        MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
+        Mapping mapping = new Mapping(root, metadata, null);
+        return new DocumentMapper(
+            mapperService.documentParser(),
+            mapping,
+            mapping.toCompressedXContent(),
+            IndexVersion.current(),
+            mapperService.getMapperMetrics(),
+            mapperService.index().getName()
+        );
+    }
+
+    DocumentMapper(
+        DocumentParser documentParser,
+        Mapping mapping,
+        CompressedXContent source,
+        IndexVersion version,
+        MapperMetrics mapperMetrics,
+        String indexName
+    ) {
         this.documentParser = documentParser;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
-        this.fieldMappers = MappingLookup.fromMapping(this.mapping);
+        this.type = mapping.getRoot().fullPath();
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
+        this.mappingSource = source;
+        this.mapperMetrics = mapperMetrics;
+        this.indexVersion = version;
+        this.logger = Loggers.getLogger(getClass(), indexName);
 
-        try {
-            mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
-        } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
+        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
+            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+    }
+
+    private void maybeLog(Exception ex) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Error while parsing document: " + ex.getMessage(), ex);
+        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
+            logger.error("Error while parsing document: " + ex.getMessage(), ex);
         }
-
-        final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
-            SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
-            .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
-        final Collection<String> noopTombstoneMetadataFields = Arrays.asList(
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
-            .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
     }
 
-    IndexSettings indexSettings() {
-        return indexSettings;
-    }
-
-    IndexAnalyzers indexAnalyzers() {
-        return indexAnalyzers;
+    /**
+     * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
+     * This got restored in v.8.10 to avoid confusion. The change is only restricted to mapping printout, it has no
+     * functional effect as the synthetic source already applies.
+     */
+    boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
+        return sourceMapper().isSynthetic()
+            && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
+            && version.onOrBefore(IndexVersions.V_8_10_0);
     }
 
     public Mapping mapping() {
-        return mapping;
+        return mappingLookup.getMapping();
     }
 
     public String type() {
         return this.type;
     }
 
-    public Text typeText() {
-        return this.typeText;
-    }
-
-    public Map<String, Object> meta() {
-        return mapping.meta;
-    }
-
     public CompressedXContent mappingSource() {
         return this.mappingSource;
     }
 
-    public RootObjectMapper root() {
-        return mapping.root;
-    }
-
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
-        return mapping.metadataMapper(type);
+        return mapping().getMetadataMapperByClass(type);
     }
 
     public SourceFieldMapper sourceMapper() {
         return metadataMapper(SourceFieldMapper.class);
-    }
-
-    public IdFieldMapper idFieldMapper() {
-        return metadataMapper(IdFieldMapper.class);
     }
 
     public RoutingFieldMapper routingFieldMapper() {
@@ -190,91 +119,80 @@ public class DocumentMapper implements ToXContentFragment {
         return metadataMapper(IndexFieldMapper.class);
     }
 
-    public boolean hasNestedObjects() {
-        return mappers().hasNested();
-    }
-
     public MappingLookup mappers() {
-        return this.fieldMappers;
+        return this.mappingLookup;
     }
 
-    public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping.metadataMappers, this);
+    public ParsedDocument parse(SourceToParse source) throws DocumentParsingException {
+        try {
+            return documentParser.parseDocument(source, mappingLookup);
+        } catch (Exception e) {
+            maybeLog(e);
+            throw e;
+        }
     }
 
-    public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, this).toTombstone();
-    }
-
-    public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
-        final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, this).toTombstone();
-        // Store the reason of a noop as a raw string in the _source field
-        final BytesRef byteRef = new BytesRef(reason);
-        parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-        return parsedDoc;
-    }
-
-    /**
-     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
-     */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
-        ObjectMapper nestedObjectMapper = null;
-        for (ObjectMapper objectMapper : mappers().objectMappers().values()) {
-            if (!objectMapper.nested().isNested()) {
-                continue;
+    public void validate(IndexSettings settings, boolean checkLimits) {
+        this.mapping().validate(this.mappingLookup);
+        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
+            if (routingFieldMapper().required() == false) {
+                throw new IllegalArgumentException(
+                    "mapping type ["
+                        + type()
+                        + "] must have routing "
+                        + "required for partitioned index ["
+                        + settings.getIndex().getName()
+                        + "]"
+                );
             }
+        }
 
-            Query filter = objectMapper.nestedTypeFilter();
-            if (filter == null) {
-                continue;
-            }
-            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
-            // therefore is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer scorer = nestedWeight.scorer(context);
-            if (scorer == null) {
-                continue;
-            }
+        settings.getMode().validateMapping(mappingLookup);
+        /*
+         * Build an empty source loader to validate that the mapping is compatible
+         * with the source loading strategy declared on the source field mapper.
+         */
+        try {
+            sourceMapper().newSourceLoader(mapping(), mapperMetrics.sourceFieldMetrics());
+        } catch (IllegalArgumentException e) {
+            mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
+            throw e;
+        }
 
-            if (scorer.iterator().advance(nestedDocId) == nestedDocId) {
-                if (nestedObjectMapper == null) {
-                    nestedObjectMapper = objectMapper;
-                } else {
-                    if (nestedObjectMapper.fullPath().length() < objectMapper.fullPath().length()) {
-                        nestedObjectMapper = objectMapper;
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
+            if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            }
+            for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
+                for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
+                    if (field.startsWith(nestedObjectMapper.fullPath())) {
+                        throw new IllegalArgumentException(
+                            "cannot apply index sort to field [" + field + "] under nested object [" + nestedObjectMapper.fullPath() + "]"
+                        );
                     }
                 }
             }
         }
-        return nestedObjectMapper;
-    }
-
-    public DocumentMapper merge(Mapping mapping, MergeReason reason) {
-        Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(this.indexSettings, this.indexAnalyzers, this.documentParser, merged);
-    }
-
-    public void validate(IndexSettings settings, boolean checkLimits) {
-        this.mapping.validate(this.fieldMappers);
-        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            if (routingFieldMapper().required() == false) {
-                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
-                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+        List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
+        for (String path : routingPaths) {
+            for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+            }
+            for (String objectName : mappingLookup.objectMappers().keySet()) {
+                // object type is not allowed in the routing paths
+                if (path.equals(objectName)) {
+                    throw new IllegalArgumentException(
+                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                            + "or flattened fields with a list of dimensions in [time_series_dimensions] "
+                            + "and without the [script] parameter. ["
+                            + objectName
+                            + "] was [object]."
+                    );
+                }
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
-            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
-        }
         if (checkLimits) {
-            this.fieldMappers.checkLimits(settings);
+            this.mappingLookup.checkLimits(settings);
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return mapping.toXContent(builder, params);
     }
 }

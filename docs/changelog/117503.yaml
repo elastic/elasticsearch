@@ -1,0 +1,6 @@
+pr: 117503
+summary: Fix COUNT filter pushdown
+area: ES|QL
+type: bug
+issues:
+ - 115522

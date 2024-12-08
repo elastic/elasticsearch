@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.instanceOf;
@@ -42,11 +43,7 @@ public class CronScheduleTests extends ScheduleTestCase {
     }
 
     public void testParseMultiple() throws Exception {
-        XContentBuilder builder = jsonBuilder().value(new String[] {
-                "0 0/1 * * * ?",
-                "0 0/2 * * * ?",
-                "0 0/3 * * * ?"
-        });
+        XContentBuilder builder = jsonBuilder().value(new String[] { "0 0/1 * * * ?", "0 0/2 * * * ?", "0 0/3 * * * ?" });
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -88,8 +85,13 @@ public class CronScheduleTests extends ScheduleTestCase {
             new CronSchedule.Parser().parse(parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron " +
-                    "string values, but found [null]"));
+            assertThat(
+                e.getMessage(),
+                is(
+                    "could not parse [cron] schedule. expected either a cron string value or an array of cron "
+                        + "string values, but found [null]"
+                )
+            );
         }
     }
 
@@ -102,8 +104,13 @@ public class CronScheduleTests extends ScheduleTestCase {
             new CronSchedule.Parser().parse(parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron " +
-                    "string values, but found [START_OBJECT]"));
+            assertThat(
+                e.getMessage(),
+                is(
+                    "could not parse [cron] schedule. expected either a cron string value or an array of cron "
+                        + "string values, but found [START_OBJECT]"
+                )
+            );
         }
     }
 

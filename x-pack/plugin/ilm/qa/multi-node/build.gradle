@@ -1,27 +1,33 @@
-import org.elasticsearch.gradle.util.GradleUtils
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
-apply plugin: 'elasticsearch.java-rest-test'
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ilm'))
 }
-
-// let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
-
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-javaRestTest {
+tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
-  systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 
-  setting 'path.repo', repoDir.absolutePath
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -29,4 +35,18 @@ testClusters.all {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  /*
+   * In TimeSeriesLifecycleActionsIT.testWaitForSnapshotSlmExecutedBefore() we create a snapshot, then associate an ILM policy with an index, and
+   * then that policy checks if a snapshot has been started at the same millisecond or later than the policy's action's date. Since both the
+   * snapshot start time and policy are using ThreadPool.absoluteTimeInMillis(), it is possible that they get the same cached result back (it is
+   * kept for about 200 ms). The following config changes ThreadPool.absoluteTimeInMillis() to always use System.currentTimeMillis() rather than a
+   * cached time. So the policy's action date is always after the snapshot's start.
+   */
+  setting 'thread_pool.estimated_time_interval', '0'
+  setting 'time_series.poll_interval', '10m'
+}
+
+if (buildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

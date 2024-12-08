@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -23,7 +13,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -33,42 +23,48 @@ import java.io.PrintStream;
  */
 public class RemoveCorruptedLuceneSegmentsAction {
 
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(Directory indexDirectory,
-                                                                                     Lock writeLock,
-                                                                                     PrintStream printStream,
-                                                                                     boolean verbose) throws IOException {
+    public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
+        Directory indexDirectory,
+        Lock writeLock,
+        PrintStream printStream,
+        boolean verbose
+    ) throws IOException {
         boolean markedCorrupted = RemoveCorruptedShardDataCommand.isCorruptMarkerFileIsPresent(indexDirectory);
 
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
-            checker.setChecksumsOnly(true);
+            checker.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
             checker.setInfoStream(printStream, verbose);
 
             status = checker.checkIndex(null);
 
             if (status.missingSegments) {
-                return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.UNRECOVERABLE,
-                    "Index is unrecoverable - there are missing segments");
+                return Tuple.tuple(
+                    RemoveCorruptedShardDataCommand.CleanStatus.UNRECOVERABLE,
+                    "Index is unrecoverable - there are missing segments"
+                );
             }
 
             return status.clean
-                ? Tuple.tuple(markedCorrupted
-                    ? RemoveCorruptedShardDataCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER
-                    : RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null)
-                : Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CORRUPTED,
-                    "Corrupted Lucene index segments found - " + status.totLoseDocCount + " documents will be lost.");
+                ? Tuple.tuple(
+                    markedCorrupted
+                        ? RemoveCorruptedShardDataCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER
+                        : RemoveCorruptedShardDataCommand.CleanStatus.CLEAN,
+                    null
+                )
+                : Tuple.tuple(
+                    RemoveCorruptedShardDataCommand.CleanStatus.CORRUPTED,
+                    "Corrupted Lucene index segments found - " + status.totLoseDocCount + " documents will be lost."
+                );
         }
     }
 
-    public void execute(Terminal terminal,
-                        Directory indexDirectory,
-                        Lock writeLock,
-                        PrintStream printStream,
-                        boolean verbose) throws IOException {
+    public static void execute(Terminal terminal, Directory indexDirectory, Lock writeLock, PrintStream printStream, boolean verbose)
+        throws IOException {
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
 
-            checker.setChecksumsOnly(true);
+            checker.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
             checker.setInfoStream(printStream, verbose);
 
             status = checker.checkIndex(null);

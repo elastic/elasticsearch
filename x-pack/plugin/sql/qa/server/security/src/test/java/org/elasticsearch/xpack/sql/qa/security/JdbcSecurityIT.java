@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 
 import java.net.URISyntaxException;
@@ -25,8 +26,6 @@ import java.util.Map;
 import java.util.Properties;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert.assertResultSets;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase.randomKnownTimeZone;
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.containsString;
 
@@ -41,9 +40,9 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         return properties;
     }
 
-    static Connection es(Properties properties) throws SQLException {
+    Connection es(Properties properties) throws SQLException {
         Properties props = new Properties();
-        props.put("timezone", randomKnownTimeZone());
+        props.put("timezone", randomZone().getId());
         props.putAll(properties);
         String scheme = SSL_ENABLED ? "https" : "http";
         return DriverManager.getConnection("jdbc:es://" + scheme + "://" + elasticsearchAddress(), props);
@@ -55,7 +54,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
         Properties prop = new Properties();
         prop.put("user", user);
-        prop.put("password", "testpass");
+        prop.put("password", "test-user-password");
         addSslPropertiesIfNeeded(prop);
         return prop;
     }
@@ -70,7 +69,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         } catch (URISyntaxException e) {
             throw new RuntimeException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
         String keyStoreStr = keyStore.toAbsolutePath().toString();
@@ -82,7 +81,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         properties.put("ssl.truststore.pass", "keypass");
     }
 
-    static void expectActionMatchesAdmin(
+    void expectActionMatchesAdmin(
         CheckedFunction<Connection, ResultSet, SQLException> adminAction,
         String user,
         CheckedFunction<Connection, ResultSet, SQLException> userAction
@@ -92,15 +91,15 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
     }
 
-    static void expectForbidden(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
+    void expectForbidden(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
         expectError(user, action, "is unauthorized for user [" + user + "]");
     }
 
-    static void expectUnknownIndex(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
+    void expectUnknownIndex(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
         expectError(user, action, "Unknown index");
     }
 
-    static void expectError(String user, CheckedConsumer<Connection, SQLException> action, String errorMessage) throws Exception {
+    void expectError(String user, CheckedConsumer<Connection, SQLException> action, String errorMessage) throws Exception {
         SQLException e;
         try (Connection connection = es(userProperties(user))) {
             e = expectThrows(SQLException.class, () -> action.accept(connection));
@@ -108,8 +107,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 
-    static void expectActionThrowsUnknownColumn(String user, CheckedConsumer<Connection, SQLException> action, String column)
-        throws Exception {
+    void expectActionThrowsUnknownColumn(String user, CheckedConsumer<Connection, SQLException> action, String column) throws Exception {
         SQLException e;
         try (Connection connection = es(userProperties(user))) {
             e = expectThrows(SQLException.class, () -> action.accept(connection));
@@ -117,7 +115,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [" + column + "]"));
     }
 
-    private static class JdbcActions implements Actions {
+    private class JdbcActions implements Actions {
         @Override
         public String minimalPermissionsForAllActions() {
             return "cli_or_drivers_minimal";
@@ -199,7 +197,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
                 while (actual.next()) {
                     String name = actual.getString("name");
-                    if (!name.startsWith(".security")) {
+                    if (name.startsWith(".security") == false) {
                         actualList.add(name);
                     }
                 }
@@ -210,12 +208,12 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectForbidden(String user, String sql) throws Exception {
-            JdbcSecurityIT.expectForbidden(user, con -> con.createStatement().executeQuery(sql));
+            JdbcSecurityIT.this.expectForbidden(user, con -> con.createStatement().executeQuery(sql));
         }
 
         @Override
         public void expectUnknownIndex(String user, String sql) throws Exception {
-            JdbcSecurityIT.expectUnknownIndex(user, con -> con.createStatement().executeQuery(sql));
+            JdbcSecurityIT.this.expectUnknownIndex(user, con -> con.createStatement().executeQuery(sql));
         }
 
         @Override
@@ -241,12 +239,19 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         private void expectUnauthorized(String action, String user, ThrowingRunnable r) {
             SQLInvalidAuthorizationSpecException e = expectThrows(SQLInvalidAuthorizationSpecException.class, r);
-            assertEquals("action [" + action + "] is unauthorized for user [" + user + "]", e.getMessage());
+            assertThat(e.getMessage(), containsString("action [" + action + "] is unauthorized for user [" + user + "]"));
         }
     }
 
+    private final Actions actions;
+
+    @Override
+    Actions actions() {
+        return actions;
+    }
+
     public JdbcSecurityIT() {
-        super(new JdbcActions());
+        actions = new JdbcActions();
     }
 
     // Metadata methods only available to JDBC
@@ -340,6 +345,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testMetadataGetColumnsDocumentExcluded() throws Exception {
         createUser("no_3s", "read_test_without_c_3");
 

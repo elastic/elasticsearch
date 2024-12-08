@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -20,7 +22,7 @@ import java.io.IOException;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;
 
-public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilderTests extends AbstractXContentSerializingTestCase<BoxplotAggregationBuilder> {
     String aggregationName;
 
     @Before
@@ -30,10 +32,15 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(
-                BaseAggregationBuilder.class,
-                new ParseField(BoxplotAggregationBuilder.NAME),
-                (p, n) -> BoxplotAggregationBuilder.PARSER.apply(p, (String) n))));
+        return new NamedXContentRegistry(
+            singletonList(
+                new NamedXContentRegistry.Entry(
+                    BaseAggregationBuilder.class,
+                    new ParseField(BoxplotAggregationBuilder.NAME),
+                    (p, n) -> BoxplotAggregationBuilder.PARSER.apply(p, (String) n)
+                )
+            )
+        );
     }
 
     @Override
@@ -50,12 +57,19 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
 
     @Override
     protected BoxplotAggregationBuilder createTestInstance() {
-        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder(aggregationName)
-            .field(randomAlphaOfLength(10));
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder(aggregationName).field(randomAlphaOfLength(10));
         if (randomBoolean()) {
             aggregationBuilder.compression(randomDoubleBetween(0, 100, true));
         }
+        if (randomBoolean()) {
+            aggregationBuilder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
         return aggregationBuilder;
+    }
+
+    @Override
+    protected BoxplotAggregationBuilder mutateInstance(BoxplotAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -63,4 +77,3 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
         return BoxplotAggregationBuilder::new;
     }
 }
-

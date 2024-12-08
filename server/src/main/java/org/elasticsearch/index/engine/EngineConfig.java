@@ -1,48 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -60,13 +55,15 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
+    private final MapperService mapperService;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
-    private final CodecService codecService;
+    private final CodecProvider codecProvider;
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
@@ -80,6 +77,8 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    private final Comparator<LeafReader> leafSorter;
+    private final boolean useCompoundFile;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -92,7 +91,6 @@ public final class EngineConfig {
     }
 
     private final LongSupplier primaryTermSupplier;
-    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -100,38 +98,84 @@ public final class EngineConfig {
      * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
      * allocated on both `kind` of nodes.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", settings -> {
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return indexMode.getDefaultCodec();
+    }, s -> {
         switch (s) {
-            case "default":
-            case "best_compression":
-            case "lucene_default":
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
+                    );
                 }
                 return s;
         }
-    }, Property.IndexScope, Property.NodeScope);
+    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic);
+
+    // don't convert to Setting<> and register... we only set this in tests and register via a test plugin
+    public static final String USE_COMPOUND_FILE = "index.use_compound_file";
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
+        "index.optimize_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Dynamic,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
 
     private final TranslogConfig translogConfig;
+
+    private final LongSupplier relativeTimeInNanosSupplier;
+
+    @Nullable
+    private final Engine.IndexCommitListener indexCommitListener;
+
+    private final boolean promotableToPrimary;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
-                        MergePolicy mergePolicy, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
-                        List<ReferenceManager.RefreshListener> externalRefreshListener,
-                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        Supplier<RetentionLeases> retentionLeasesSupplier,
-                        LongSupplier primaryTermSupplier,
-                        TombstoneDocSupplier tombstoneDocSupplier) {
+    public EngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecProvider codecProvider,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        Comparator<LeafReader> leafSorter,
+        LongSupplier relativeTimeInNanosSupplier,
+        Engine.IndexCommitListener indexCommitListener,
+        boolean promotableToPrimary,
+        MapperService mapperService
+    ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -140,9 +184,10 @@ public final class EngineConfig {
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
-        this.codecService = codecService;
+        this.codecProvider = codecProvider;
         this.eventListener = eventListener;
-        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.mapperService = mapperService;
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -168,7 +213,13 @@ public final class EngineConfig {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
-        this.tombstoneDocSupplier = tombstoneDocSupplier;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.leafSorter = leafSorter;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
+        this.promotableToPrimary = promotableToPrimary;
+        // always use compound on flush - reduces # of file-handles on refresh
+        this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
     }
 
     /**
@@ -209,7 +260,22 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
-        return codecService.codec(codecName);
+        return codecProvider.codec(codecName);
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    public CodecProvider getCodecProvider() {
+        return codecProvider;
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    @Deprecated // to avoid breaking serverless, just temporary
+    public CodecProvider getCodecService() {
+        return codecProvider;
     }
 
     /**
@@ -272,7 +338,9 @@ public final class EngineConfig {
     /**
      * Returns the engines shard ID
      */
-    public ShardId getShardId() { return shardId; }
+    public ShardId getShardId() {
+        return shardId;
+    }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
@@ -314,7 +382,9 @@ public final class EngineConfig {
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
-    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+    public TimeValue getFlushMergesAfter() {
+        return flushMergesAfter;
+    }
 
     /**
      * The refresh listeners to add to Lucene for externally visible refreshes
@@ -326,7 +396,9 @@ public final class EngineConfig {
     /**
      * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
      */
-    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() { return internalRefreshListener;}
+    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() {
+        return internalRefreshListener;
+    }
 
     /**
      * Return the sort order of this index, or null if the index has no sort.
@@ -350,24 +422,42 @@ public final class EngineConfig {
         return primaryTermSupplier;
     }
 
-    /**
-     * A supplier supplies tombstone documents which will be used in soft-update methods.
-     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     */
-    public interface TombstoneDocSupplier {
-        /**
-         * Creates a tombstone document for a delete operation.
-         */
-        ParsedDocument newDeleteTombstoneDoc(String id);
-
-        /**
-         * Creates a tombstone document for a noop operation.
-         * @param reason the reason of an a noop
-         */
-        ParsedDocument newNoopTombstoneDoc(String reason);
+    public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {
+        return snapshotCommitSupplier;
     }
 
-    public TombstoneDocSupplier getTombstoneDocSupplier() {
-        return tombstoneDocSupplier;
+    /**
+     * Returns how segments should be sorted for reading or @null if no sorting should be applied.
+     */
+    @Nullable
+    public Comparator<LeafReader> getLeafSorter() {
+        return leafSorter;
+    }
+
+    public LongSupplier getRelativeTimeInNanosSupplier() {
+        return relativeTimeInNanosSupplier;
+    }
+
+    @Nullable
+    public Engine.IndexCommitListener getIndexCommitListener() {
+        return indexCommitListener;
+    }
+
+    /**
+     * @return whether the engine should be configured so that it can be promoted to primary in future
+     */
+    public boolean isPromotableToPrimary() {
+        return promotableToPrimary;
+    }
+
+    /**
+     * @return whether the Engine's index writer should pack newly written segments in a compound file. Default is true.
+     */
+    public boolean getUseCompoundFile() {
+        return useCompoundFile;
+    }
+
+    public MapperService getMapperService() {
+        return mapperService;
     }
 }

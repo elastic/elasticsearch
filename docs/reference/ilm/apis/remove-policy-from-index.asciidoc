@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-remove-policy]]
 === Remove policy from index API
 ++++
 <titleabbrev>Remove policy</titleabbrev>
 ++++
 
-Removes assigned lifecycle policies from an index or a data stream's backing
+Removes assigned <<index-lifecycle-management,lifecycle>> policies from an index or a data stream's backing
 indices.
 
 [[ilm-remove-policy-request]]
@@ -34,16 +33,14 @@ the stream's backing indices and stops managing the indices.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Required, string)
-Comma-separated list of data streams, indices, and index aliases to target.
-Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, use `_all` or `*`.
+(Required, string) Comma-separated list of data streams, indices, and aliases to
+target. Supports wildcards (`*`). To target all data streams and indices, use
+`*` or `_all`.
 
 [[ilm-remove-policy-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ilm-remove-policy-example]]
 ==== {api-examples-title}

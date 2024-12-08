@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -43,10 +44,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     private static final int MAX_GRAM = 5;
 
     private static String defaultPrefix(Integer start, Integer length) {
-        return "ngram_"
-            + (start == null ? DEFAULT_START : start)
-            + "_"
-            + (length == null ? DEFAULT_LENGTH : length);
+        return "ngram_" + (start == null ? DEFAULT_START : start) + "_" + (length == null ? DEFAULT_LENGTH : length);
     }
 
     public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NGram.class);
@@ -66,12 +64,15 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         ConstructingObjectParser<NGram, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            (a, c) -> new NGram((String)a[0],
-                (List<Integer>)a[1],
-                (Integer)a[2],
-                (Integer)a[3],
-                a[4] == null ? c.isCustomByDefault() : (Boolean)a[4],
-                (String)a[5]));
+            (a, c) -> new NGram(
+                (String) a[0],
+                (List<Integer>) a[1],
+                (Integer) a[2],
+                (Integer) a[3],
+                a[4] == null ? c.isCustomByDefault() : (Boolean) a[4],
+                (String) a[5]
+            )
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareIntArray(ConstructingObjectParser.constructorArg(), NGRAMS);
         parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), START);
@@ -82,11 +83,11 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     }
 
     public static NGram fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
-        return STRICT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return STRICT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     public static NGram fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
-        return LENIENT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return LENIENT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     private final String field;
@@ -96,36 +97,36 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     private final int length;
     private final boolean custom;
 
-    NGram(String field,
-          List<Integer> nGrams,
-          Integer start,
-          Integer length,
-          Boolean custom,
-          String featurePrefix) {
-        this(field,
+    NGram(String field, List<Integer> nGrams, Integer start, Integer length, Boolean custom, String featurePrefix) {
+        this(
+            field,
             featurePrefix == null ? defaultPrefix(start, length) : featurePrefix,
             Sets.newHashSet(nGrams).stream().mapToInt(Integer::intValue).toArray(),
             start == null ? DEFAULT_START : start,
             length == null ? DEFAULT_LENGTH : length,
-            custom != null && custom);
+            custom != null && custom
+        );
     }
 
     public NGram(String field, String featurePrefix, int[] nGrams, int start, int length, boolean custom) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.featurePrefix = ExceptionsHelper.requireNonNull(featurePrefix, FEATURE_PREFIX);
         this.nGrams = ExceptionsHelper.requireNonNull(nGrams, NGRAMS);
+        if (nGrams.length == 0) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty", NGRAMS.getPreferredName());
+        }
         if (Arrays.stream(this.nGrams).anyMatch(i -> i < MIN_GRAM || i > MAX_GRAM)) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] is invalid [{}]; minimum supported value is [{}]; maximum supported value is [{}]",
                 NGRAMS.getPreferredName(),
                 Arrays.stream(nGrams).mapToObj(String::valueOf).collect(Collectors.joining(", ")),
                 MIN_GRAM,
-                MAX_GRAM);
+                MAX_GRAM
+            );
         }
         this.start = start;
         if (start < 0 && length + start > 0) {
-            throw ExceptionsHelper.badRequestException(
-                "if [start] is negative, [length] + [start] must be less than 0");
+            throw ExceptionsHelper.badRequestException("if [start] is negative, [length] + [start] must be less than 0");
         }
         this.length = length;
         if (length <= 0) {
@@ -139,7 +140,8 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
                 "[{}] and [{}] are invalid; all ngrams must be shorter than or equal to length [{}]",
                 NGRAMS.getPreferredName(),
                 LENGTH.getPreferredName(),
-                length);
+                length
+            );
         }
         this.custom = custom;
     }
@@ -273,12 +275,12 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NGram nGram = (NGram) o;
-        return start == nGram.start &&
-            length == nGram.length &&
-            custom == nGram.custom &&
-            Objects.equals(field, nGram.field) &&
-            Objects.equals(featurePrefix, nGram.featurePrefix) &&
-            Arrays.equals(nGrams, nGram.nGrams);
+        return start == nGram.start
+            && length == nGram.length
+            && custom == nGram.custom
+            && Objects.equals(field, nGram.field)
+            && Objects.equals(featurePrefix, nGram.featurePrefix)
+            && Arrays.equals(nGrams, nGram.nGrams);
     }
 
     @Override
@@ -289,10 +291,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     }
 
     private String nGramFeature(int nGram, int pos) {
-        return featurePrefix
-            + "."
-            + nGram
-            + pos;
+        return featurePrefix + "." + nGram + pos;
     }
 
     private List<String> allPossibleNGramOutputFeatureNames() {

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -24,12 +14,19 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentiles implements Percentiles {
     public static final String NAME = "tdigest_percentiles";
 
-    public InternalTDigestPercentiles(String name, double[] percents, TDigestState state, boolean keyed, DocValueFormat formatter,
-                                      Map<String, Object> metadata) {
+    public InternalTDigestPercentiles(
+        String name,
+        double[] percents,
+        TDigestState state,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, percents, state, keyed, formatter, metadata);
     }
 
@@ -45,14 +42,27 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
         return NAME;
     }
 
+    public static InternalTDigestPercentiles empty(
+        String name,
+        double[] keys,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalTDigestPercentiles(name, keys, null, keyed, format, metadata);
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 
     @Override
     public double percentile(double percent) {
-        return state.quantile(percent / 100);
+        return this.state != null ? state.quantile(percent / 100) : Double.NaN;
     }
 
     @Override
@@ -66,8 +76,13 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     }
 
     @Override
-    protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            Map<String, Object> metadata) {
+    protected AbstractInternalTDigestPercentiles createReduced(
+        String name,
+        double[] keys,
+        TDigestState merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    ) {
         return new InternalTDigestPercentiles(name, keys, merged, keyed, format, metadata);
     }
 
@@ -79,7 +94,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
 
         public Iter(double[] percents, TDigestState state) {
             this.percents = percents;
-            this.state = state;
+            this.state = Objects.requireNonNull(state);
             i = 0;
         }
 

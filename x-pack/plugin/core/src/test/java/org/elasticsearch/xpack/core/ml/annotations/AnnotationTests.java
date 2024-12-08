@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
+public class AnnotationTests extends AbstractXContentSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation doParseInstance(XContentParser parser) {
@@ -25,9 +26,13 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
         return randomAnnotation(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null);
     }
 
+    @Override
+    protected Annotation mutateInstance(Annotation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Annotation randomAnnotation(String jobId) {
-        return new Annotation.Builder()
-            .setAnnotation(randomAlphaOfLengthBetween(100, 1000))
+        return new Annotation.Builder().setAnnotation(randomAlphaOfLengthBetween(100, 1000))
             .setCreateTime(new Date(randomNonNegativeLong()))
             .setCreateUsername(randomAlphaOfLengthBetween(5, 20))
             .setTimestamp(new Date(randomNonNegativeLong()))

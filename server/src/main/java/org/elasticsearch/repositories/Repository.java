@@ -1,47 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
-import java.util.function.Consumer;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -81,12 +72,47 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot description from repository.
+     * Reads a collection of {@link SnapshotInfo} instances from the repository.
      *
-     * @param snapshotId  snapshot id
-     * @return information about snapshot
+     * @param snapshotIds    The IDs of the snapshots whose {@link SnapshotInfo} instances should be retrieved.
+     * @param abortOnFailure Whether to stop fetching further {@link SnapshotInfo} instances if a single fetch fails.
+     * @param isCancelled    Supplies whether the enclosing task is cancelled, which should stop fetching {@link SnapshotInfo} instances.
+     * @param consumer       A consumer for each {@link SnapshotInfo} retrieved. Called concurrently from multiple threads. If the consumer
+     *                       throws an exception and {@code abortOnFailure} is {@code true} then the fetching will stop.
+     * @param listener       If {@code abortOnFailure} is {@code true} and any operation fails then the failure is passed to this listener.
+     *                       Also completed exceptionally on cancellation. Otherwise, completed once all requested {@link SnapshotInfo}
+     *                       instances have been processed by the {@code consumer}.
      */
-    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
+    void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    );
+
+    /**
+     * Reads a single snapshot description from the repository
+     *
+     * @param snapshotId snapshot id to read description for
+     * @param listener   listener to resolve with snapshot description (is resolved on the {@link ThreadPool.Names#SNAPSHOT_META} pool)
+     */
+    default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+        getSnapshotInfo(List.of(snapshotId), true, () -> false, snapshotInfo -> {
+            assert Repository.assertSnapshotMetaThread();
+            listener.onResponse(snapshotInfo);
+        }, new ActionListener<>() {
+            @Override
+            public void onResponse(Void o) {
+                // ignored
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
 
     /**
      * Returns global metadata associated with the snapshot.
@@ -107,40 +133,49 @@ public interface Repository extends LifecycleComponent {
     IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
-     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
-     * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
-     * if there was an error in reading the data.
+     * Fetches the {@link RepositoryData} and passes it into the listener. May completes the listener with a {@link RepositoryException} if
+     * there is an error in reading the repository data.
+     *
+     * @param responseExecutor Executor to use to complete the listener if not using the calling thread. Using {@link
+     *                         org.elasticsearch.common.util.concurrent.EsExecutors#DIRECT_EXECUTOR_SERVICE} means to complete the listener
+     *                         on the thread which ultimately resolved the {@link RepositoryData}, which might be a low-latency transport or
+     *                         cluster applier thread so make sure not to do anything slow or expensive in that case.
+     * @param listener         Listener which is either completed on the calling thread (if the {@link RepositoryData} is immediately
+     *                         available, e.g. from an in-memory cache), otherwise it is completed using {@code responseExecutor}.
      */
-    void getRepositoryData(ActionListener<RepositoryData> listener);
+    void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param shardGenerations      updated shard generations
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
-     * @param clusterMetadata       cluster metadata
-     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
-     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
-     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
+     * @param finalizeSnapshotContext finalization context
      */
-    void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                          SnapshotInfo snapshotInfo, Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
-                          ActionListener<RepositoryData> listener);
+    void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext);
 
     /**
      * Deletes snapshots
      *
-     * @param snapshotIds           snapshot ids
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param listener              completion listener
+     * @param snapshotIds                  snapshot ids to delete
+     * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
+     * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
+     *                                     format must remain compatible
+     * @param repositoryDataUpdateListener listener completed when the {@link RepositoryData} is updated, or when the process fails
+     *                                     without changing the repository contents - in either case, it is now safe for the next operation
+     *                                     on this repository to proceed.
+     * @param onCompletion                 action executed on completion of the cleanup actions that follow a successful
+     *                                     {@link RepositoryData} update; not called if {@code repositoryDataUpdateListener} completes
+     *                                     exceptionally.
      */
-    void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                         ActionListener<RepositoryData> listener);
+    void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
+    );
+
     /**
      * Returns snapshot throttle time in nanoseconds
      */
@@ -191,29 +226,16 @@ public interface Repository extends LifecycleComponent {
     boolean isReadOnly();
 
     /**
-     * Creates a snapshot of the shard based on the index commit point.
+     * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
-     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p>
-     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                 store to be snapshotted
-     * @param mapperService         the shards mapper service
-     * @param snapshotId            snapshot id
-     * @param indexId               id for the index being snapshotted
-     * @param snapshotIndexCommit   commit point
-     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus        snapshot status
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener              listener invoked on completion
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
+     * {@link SnapshotShardContext#status()} and call {@link IndexShardSnapshotStatus#ensureNotAborted()} to see if the snapshot process
+     * should be aborted.
+     *
+     * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or
+     *                             {@link SnapshotShardContext#onFailure}
      */
-    void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       @Nullable String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                       Map<String, Object> userMetadata, ActionListener<String> listener);
+    void snapshotShard(SnapshotShardContext snapshotShardContext);
 
     /**
      * Restores snapshot of the shard.
@@ -226,8 +248,15 @@ public interface Repository extends LifecycleComponent {
      * @param recoveryState   recovery state
      * @param listener        listener to invoke once done
      */
-    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
-                      ActionListener<Void> listener);
+    void restoreShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId,
+        RecoveryState recoveryState,
+        ActionListener<Void> listener
+    );
+
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
@@ -236,7 +265,18 @@ public interface Repository extends LifecycleComponent {
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+
+    /**
+     * Check if this instances {@link Settings} can be changed to the provided updated settings without recreating the repository.
+     *
+     * @param updatedSettings new repository settings
+     * @param ignoredSettings setting names to ignore even if changed
+     * @return true if the repository can be updated in place
+     */
+    default boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        return getMetadata().settings().equals(updatedSettings);
+    }
 
     /**
      * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
@@ -248,21 +288,6 @@ public interface Repository extends LifecycleComponent {
     void updateState(ClusterState state);
 
     /**
-     * Execute a cluster state update with a consistent view of the current {@link RepositoryData}. The {@link ClusterState} passed to the
-     * task generated through {@code createUpdateTask} is guaranteed to point at the same state for this repository as the did the state
-     * at the time the {@code RepositoryData} was loaded.
-     * This allows for operations on the repository that need a consistent view of both the cluster state and the repository contents at
-     * one point in time like for example, checking if a snapshot is in the repository before adding the delete operation for it to the
-     * cluster state.
-     *
-     * @param createUpdateTask function to supply cluster state update task
-     * @param source           the source of the cluster state update task
-     * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
-     */
-    void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                      Consumer<Exception> onFailure);
-
-    /**
      * Clones a shard snapshot.
      *
      * @param source          source snapshot
@@ -271,14 +296,32 @@ public interface Repository extends LifecycleComponent {
      * @param shardGeneration shard generation in repo
      * @param listener        listener to complete with new shard generation once clone has completed
      */
-    void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
-                            ActionListener<String> listener);
+    void cloneShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable ShardGeneration shardGeneration,
+        ActionListener<ShardSnapshotResult> listener
+    );
 
     /**
-     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * during snapshot initialization.
+     * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed
+     * by a call to stop {@link #close()}.
+     * Waiting for ongoing operations should be implemented here instead of in {@link #stop()} or {@link #close()} hooks of this interface
+     * as these are expected to be called on the cluster state applier thread (which must not block) if a repository is removed from the
+     * cluster. This method is intended to be called on node shutdown instead as a means to ensure no repository operations are leaked.
      */
-    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
-        return userMetadata;
+    void awaitIdle();
+
+    /**
+     * @return a set of the names of the features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
+    default Set<String> getUsageFeatures() {
+        return Set.of();
+    }
+
+    static boolean assertSnapshotMetaThread() {
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
 }

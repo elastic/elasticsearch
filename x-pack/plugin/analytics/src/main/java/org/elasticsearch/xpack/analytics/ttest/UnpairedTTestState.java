@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
@@ -9,10 +10,13 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.commons.math3.distribution.TDistribution;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public class UnpairedTTestState implements TTestState {
 
@@ -20,8 +24,8 @@ public class UnpairedTTestState implements TTestState {
 
     private final TTestStats a;
     private final TTestStats b;
-    private boolean homoscedastic;
-    private int tails;
+    private final boolean homoscedastic;
+    private final int tails;
 
     public UnpairedTTestState(TTestStats a, TTestStats b, boolean homoscedastic, int tails) {
         this.a = a;
@@ -68,25 +72,38 @@ public class UnpairedTTestState implements TTestState {
         return dist.cumulativeProbability(-t) * tails;
     }
 
-
     @Override
-    public TTestState reduce(Stream<TTestState> states) {
+    public AggregatorReducer getReducer(String name, DocValueFormat format, Map<String, Object> metadata) {
         TTestStats.Reducer reducerA = new TTestStats.Reducer();
         TTestStats.Reducer reducerB = new TTestStats.Reducer();
-        states.forEach(tTestState -> {
-            UnpairedTTestState state = (UnpairedTTestState) tTestState;
-            if (state.homoscedastic != homoscedastic) {
-                throw new IllegalStateException("Incompatible homoscedastic mode in the reduce. Expected "
-                    + state.homoscedastic + " reduced with " + homoscedastic);
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                UnpairedTTestState state = (UnpairedTTestState) ((InternalTTest) aggregation).state;
+                if (state.homoscedastic != homoscedastic) {
+                    throw new IllegalStateException(
+                        "Incompatible homoscedastic mode in the reduce. Expected " + state.homoscedastic + " reduced with " + homoscedastic
+                    );
+                }
+                if (state.tails != tails) {
+                    throw new IllegalStateException(
+                        "Incompatible tails value in the reduce. Expected " + state.tails + " reduced with " + tails
+                    );
+                }
+                reducerA.accept(state.a);
+                reducerB.accept(state.b);
             }
-            if (state.tails != tails) {
-                throw new IllegalStateException("Incompatible tails value in the reduce. Expected "
-                    + state.tails + " reduced with " + tails);
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalTTest(
+                    name,
+                    new UnpairedTTestState(reducerA.result(), reducerB.result(), homoscedastic, tails),
+                    format,
+                    metadata
+                );
             }
-            reducerA.accept(state.a);
-            reducerB.accept(state.b);
-        });
-        return new UnpairedTTestState(reducerA.result(), reducerB.result(), homoscedastic, tails);
+        };
     }
 
     @Override
@@ -107,10 +124,7 @@ public class UnpairedTTestState implements TTestState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UnpairedTTestState that = (UnpairedTTestState) o;
-        return homoscedastic == that.homoscedastic &&
-            tails == that.tails &&
-            a.equals(that.a) &&
-            b.equals(that.b);
+        return homoscedastic == that.homoscedastic && tails == that.tails && a.equals(that.a) && b.equals(that.b);
     }
 
     @Override

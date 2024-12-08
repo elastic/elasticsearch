@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -25,12 +15,19 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
 
-    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                      Map<String, Object> metadata) {
+    public InternalHDRPercentileRanks(
+        String name,
+        double[] cdfValues,
+        DoubleHistogram state,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, cdfValues, state, keyed, formatter, metadata);
     }
 
@@ -46,8 +43,21 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return NAME;
     }
 
+    public static InternalHDRPercentileRanks empty(
+        String name,
+        double[] keys,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalHDRPercentileRanks(name, keys, null, keyed, format, metadata);
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 
@@ -67,13 +77,18 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     }
 
     @Override
-    protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            Map<String, Object> metadata) {
+    protected AbstractInternalHDRPercentiles createReduced(
+        String name,
+        double[] keys,
+        DoubleHistogram merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    ) {
         return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
     public static double percentileRank(DoubleHistogram state, double value) {
-        if (state.getTotalCount() == 0) {
+        if (state == null || state.getTotalCount() == 0) {
             return Double.NaN;
         }
         double percentileRank = state.getPercentileAtOrBelowValue(value);
@@ -93,7 +108,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
         public Iter(double[] values, DoubleHistogram state) {
             this.values = values;
-            this.state = state;
+            this.state = Objects.requireNonNull(state);
             i = 0;
         }
 

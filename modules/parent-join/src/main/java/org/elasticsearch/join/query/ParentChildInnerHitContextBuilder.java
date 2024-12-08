@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.join.query;
 
@@ -30,8 +20,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -44,7 +34,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -60,8 +50,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     private final String typeName;
     private final boolean fetchChildInnerHits;
 
-    ParentChildInnerHitContextBuilder(String typeName, boolean fetchChildInnerHits, QueryBuilder query,
-                                      InnerHitBuilder innerHitBuilder, Map<String, InnerHitContextBuilder> children) {
+    ParentChildInnerHitContextBuilder(
+        String typeName,
+        boolean fetchChildInnerHits,
+        QueryBuilder query,
+        InnerHitBuilder innerHitBuilder,
+        Map<String, InnerHitContextBuilder> children
+    ) {
         super(query, innerHitBuilder, children);
         this.typeName = typeName;
         this.fetchChildInnerHits = fetchChildInnerHits;
@@ -69,13 +64,18 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
 
     @Override
     protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
-        QueryShardContext queryShardContext = context.getQueryShardContext();
-        Joiner joiner = Joiner.getJoiner(queryShardContext);
+        SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
+        Joiner joiner = Joiner.getJoiner(searchExecutionContext);
         if (joiner != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
-            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
-                fetchChildInnerHits, joiner);
-            setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
+            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(
+                name,
+                context,
+                typeName,
+                fetchChildInnerHits,
+                joiner
+            );
+            setupInnerHitsContext(searchExecutionContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {
             if (innerHitBuilder.isIgnoreUnmapped() == false) {
@@ -89,8 +89,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         private final boolean fetchChildInnerHits;
         private final Joiner joiner;
 
-        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits,
-                                    Joiner joiner) {
+        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits, Joiner joiner) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
@@ -105,7 +104,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
             }
 
-            QueryShardContext qsc = context.getQueryShardContext();
+            SearchExecutionContext context = this.context.getSearchExecutionContext();
             Query q;
             if (fetchChildInnerHits) {
                 Query hitQuery = new TermQuery(new Term(joiner.parentJoinField(typeName), hit.getId()));
@@ -116,38 +115,37 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     .add(new TermQuery(new Term(joiner.getJoinField(), typeName)), BooleanClause.Occur.FILTER)
                     .build();
             } else {
-                String parentId = getSortedDocValue(joiner.childJoinField(typeName), context, hit.docId());
+                String parentId = getSortedDocValue(joiner.childJoinField(typeName), this.context, hit.docId());
                 if (parentId == null) {
                     return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                 }
-                q = context.getQueryShardContext().getFieldType(IdFieldMapper.NAME).termQuery(parentId, qsc);
+                q = this.context.getSearchExecutionContext().getFieldType(IdFieldMapper.NAME).termQuery(parentId, context);
             }
 
-            Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            Weight weight = this.context.searcher().createWeight(this.context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
             if (size() == 0) {
                 TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                for (LeafReaderContext ctx : this.context.searcher().getIndexReader().leaves()) {
                     intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                 }
                 return new TopDocsAndMaxScore(
-                    new TopDocs(
-                        new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
-                        Lucene.EMPTY_SCORE_DOCS
-                    ), Float.NaN);
+                    new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                    Float.NaN
+                );
             } else {
-                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                int topN = Math.min(from() + size(), this.context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE, false).newCollector();
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
-                for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                for (LeafReaderContext ctx : this.context.searcher().getIndexReader().leaves()) {
                     intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                 }
                 TopDocs topDocs = topDocsCollector.topDocs(from(), size());
@@ -159,7 +157,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             }
         }
 
-        private String getSortedDocValue(String field, SearchContext context, int docId) {
+        private static String getSortedDocValue(String field, SearchContext context, int docId) {
             try {
                 List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(docId, ctxs));

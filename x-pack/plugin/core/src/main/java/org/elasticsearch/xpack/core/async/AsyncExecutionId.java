@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -20,6 +21,9 @@ import java.util.Objects;
  * A class that contains all information related to a submitted async execution.
  */
 public final class AsyncExecutionId {
+    public static final String ASYNC_EXECUTION_ID_HEADER = "X-Elasticsearch-Async-Id";
+    public static final String ASYNC_EXECUTION_IS_RUNNING_HEADER = "X-Elasticsearch-Async-Is-Running";
+
     private final String docId;
     private final TaskId taskId;
     private final String encoded;
@@ -60,8 +64,7 @@ public final class AsyncExecutionId {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AsyncExecutionId searchId = (AsyncExecutionId) o;
-        return docId.equals(searchId.docId) &&
-            taskId.equals(searchId.taskId);
+        return docId.equals(searchId.docId) && taskId.equals(searchId.taskId);
     }
 
     @Override
@@ -71,10 +74,7 @@ public final class AsyncExecutionId {
 
     @Override
     public String toString() {
-        return "AsyncExecutionId{" +
-            "docId='" + docId + '\'' +
-            ", taskId=" + taskId +
-            '}';
+        return "AsyncExecutionId{" + "docId='" + docId + '\'' + ", taskId=" + taskId + '}';
     }
 
     /**

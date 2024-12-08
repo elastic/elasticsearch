@@ -1,37 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class SearchLookup {
+/**
+ * Provides a way to look up per-document values from docvalues, stored fields or _source
+ */
+public class SearchLookup implements SourceProvider {
     /**
      * The maximum depth of field dependencies.
      * When a runtime field's doc values depends on another runtime field's doc values,
@@ -44,31 +38,53 @@ public class SearchLookup {
      * The chain of fields for which this lookup was created, used for detecting
      * loops caused by runtime fields referring to other runtime fields. The chain is empty
      * for the "top level" lookup created for the entire search. When a lookup is used to load
-     * fielddata for a field, we fork it and make sure the field name name isn't in the chain,
-     * then add it to the end. So the lookup for the a field named {@code a} will be {@code ["a"]}. If
+     * fielddata for a field, we fork it and make sure the field name isn't in the chain,
+     * then add it to the end. So the lookup for a field named {@code a} will be {@code ["a"]}. If
      * that field looks up the values of a field named {@code b} then
      * {@code b}'s chain will contain {@code ["a", "b"]}.
      */
     private final Set<String> fieldChain;
-    private final DocLookup docMap;
-    private final SourceLookup sourceLookup;
-    private final FieldsLookup fieldsLookup;
+    private final SourceProvider sourceProvider;
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
+    private final TriFunction<
+        MappedFieldType,
+        Supplier<SearchLookup>,
+        MappedFieldType.FielddataOperation,
+        IndexFieldData<?>> fieldDataLookup;
+    private final Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider;
 
     /**
-     * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
-     * stored fields, or _source.
+     * Create a new SearchLookup, using the default stored fields provider
+     * @param fieldTypeLookup   defines how to look up field types
+     * @param fieldDataLookup   defines how to look up field data
+     * @param sourceProvider    defines how to look up the source
      */
-    public SearchLookup(Function<String, MappedFieldType> fieldTypeLookup,
-                        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
+    public SearchLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        SourceProvider sourceProvider
+    ) {
+        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
+    }
+
+    /**
+     * Create a new SearchLookup, using the default stored fields provider
+     * @param fieldTypeLookup       defines how to look up field types
+     * @param fieldDataLookup       defines how to look up field data
+     * @param sourceProvider        defines how to look up the source
+     * @param fieldLookupProvider   defines how to look up stored fields
+     */
+    public SearchLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        SourceProvider sourceProvider,
+        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        docMap = new DocLookup(fieldTypeLookup,
-            fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
-        sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(fieldTypeLookup);
+        this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
+        this.fieldLookupProvider = fieldLookupProvider;
     }
 
     /**
@@ -80,12 +96,18 @@ public class SearchLookup {
      */
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
-        this.docMap = new DocLookup(searchLookup.fieldTypeLookup,
-            fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
-        this.sourceLookup = searchLookup.sourceLookup;
-        this.fieldsLookup = searchLookup.fieldsLookup;
+        this.sourceProvider = searchLookup.sourceProvider;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
+    }
+
+    private SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider, Set<String> fieldChain) {
+        this.fieldChain = Collections.unmodifiableSet(fieldChain);
+        this.sourceProvider = sourceProvider;
+        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
+        this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
 
     /**
@@ -110,17 +132,28 @@ public class SearchLookup {
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context,
-                docMap.getLeafDocLookup(context),
-                sourceLookup,
-                fieldsLookup.getLeafFieldsLookup(context));
+        return new LeafSearchLookup(
+            context,
+            new LeafDocLookup(fieldTypeLookup, this::getForField, context),
+            sourceProvider,
+            new LeafStoredFieldsLookup(fieldTypeLookup, fieldLookupProvider.apply(context))
+        );
     }
 
-    public DocLookup doc() {
-        return docMap;
+    public MappedFieldType fieldType(String fieldName) {
+        return fieldTypeLookup.apply(fieldName);
     }
 
-    public SourceLookup source() {
-        return sourceLookup;
+    public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
+        return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
+    }
+
+    @Override
+    public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
+        return sourceProvider.getSource(ctx, doc);
+    }
+
+    public SearchLookup swapSourceProvider(SourceProvider sourceProvider) {
+        return new SearchLookup(this, sourceProvider, fieldChain);
     }
 }

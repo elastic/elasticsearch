@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.opensaml.security.x509.X509Credential;
 
 import java.util.Collections;
@@ -23,9 +24,14 @@ public class SpConfiguration {
     private final List<String> reqAuthnCtxClassRef;
     private final List<X509Credential> encryptionCredentials;
 
-    public SpConfiguration(final String entityId, final String ascUrl, final String logoutUrl,
-                           final SigningConfiguration signingConfiguration, @Nullable final List<X509Credential> encryptionCredential,
-                           final List<String> authnCtxClassRef) {
+    public SpConfiguration(
+        final String entityId,
+        final String ascUrl,
+        final String logoutUrl,
+        final SigningConfiguration signingConfiguration,
+        @Nullable final List<X509Credential> encryptionCredential,
+        final List<String> authnCtxClassRef
+    ) {
         this.entityId = entityId;
         this.ascUrl = ascUrl;
         this.logoutUrl = logoutUrl;

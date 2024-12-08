@@ -111,6 +111,18 @@ output. Defaults to `5`.
 (Optional, Boolean)
 If `true`, only include the longest matching subword. Defaults to `false`.
 
+`no_sub_matches`::
+(Optional, Boolean)
+If `true`, do not match sub tokens in tokens that are in the word list.
+Defaults to `false`.
+
+`no_overlapping_matches`::
+(Optional, Boolean)
+If `true`, do not allow overlapping tokens.
+Defaults to `false`.
+
+Typically users will only want to include one of the three flags as enabling `no_overlapping_matches` is the most restrictive and `no_sub_matches` is more restrictive than `only_longest_match`. When enabling a more restrictive option the state of the less restrictive does not have any effect.
+
 [[analysis-hyp-decomp-tokenfilter-customize]]
 ==== Customize and add to an analyzer
 

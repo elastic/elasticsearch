@@ -34,6 +34,12 @@ DELETE /_snapshot/my_repository
 
 `DELETE /_snapshot/<repository>`
 
+[[delete-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[delete-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -45,12 +51,4 @@ supported.
 [[delete-snapshot-repo-api-query-params]]
 ==== {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-
-`timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

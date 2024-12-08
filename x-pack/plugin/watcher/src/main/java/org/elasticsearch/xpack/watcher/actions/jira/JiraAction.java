@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.jira;
 
-
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
@@ -24,8 +24,10 @@ public class JiraAction implements Action {
 
     public static final String TYPE = "jira";
 
-    @Nullable final String account;
-    @Nullable final HttpProxy proxy;
+    @Nullable
+    final String account;
+    @Nullable
+    final HttpProxy proxy;
     final Map<String, Object> fields;
 
     public JiraAction(@Nullable String account, Map<String, Object> fields, HttpProxy proxy) {
@@ -49,9 +51,7 @@ public class JiraAction implements Action {
         if (o == null || getClass() != o.getClass()) return false;
 
         JiraAction that = (JiraAction) o;
-        return Objects.equals(account, that.account) &&
-               Objects.equals(fields, that.fields) &&
-               Objects.equals(proxy, that.proxy);
+        return Objects.equals(account, that.account) && Objects.equals(fields, that.fields) && Objects.equals(proxy, that.proxy);
     }
 
     @Override
@@ -86,8 +86,14 @@ public class JiraAction implements Action {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
-                            "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " + "found [{}] instead",
+                        TYPE,
+                        watchId,
+                        actionId,
+                        Field.ACCOUNT.getPreferredName(),
+                        token
+                    );
                 }
             } else if (Field.PROXY.match(currentFieldName, parser.getDeprecationHandler())) {
                 proxy = HttpProxy.parse(parser);
@@ -95,12 +101,24 @@ public class JiraAction implements Action {
                 try {
                     fields = parser.map();
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", e, TYPE,
-                            watchId, actionId, Field.FIELDS.getPreferredName());
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
+                        e,
+                        TYPE,
+                        watchId,
+                        actionId,
+                        Field.FIELDS.getPreferredName()
+                    );
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}/{}]", TYPE, watchId,
-                        actionId, token, currentFieldName);
+                throw new ElasticsearchParseException(
+                    "failed to parse [{}] action [{}/{}]. unexpected token [{}/{}]",
+                    TYPE,
+                    watchId,
+                    actionId,
+                    token,
+                    currentFieldName
+                );
             }
         }
         if (fields == null) {
@@ -143,9 +161,7 @@ public class JiraAction implements Action {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject(type)
-                            .field(Field.FIELDS.getPreferredName(), fields)
-                          .endObject();
+            return builder.startObject(type).field(Field.FIELDS.getPreferredName(), fields).endObject();
         }
     }
 

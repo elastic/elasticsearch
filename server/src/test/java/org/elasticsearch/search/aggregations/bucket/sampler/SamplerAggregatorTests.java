@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
@@ -27,8 +17,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -53,15 +41,14 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
      * Uses the sampler aggregation to find the minimum value of a field out of the top 3 scoring documents in a search.
      */
     public void testSampler() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment with predictable docIds
-        try (Directory dir = newDirectory();
-                IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            for (long value : new long[] {7, 3, -10, -6, 5, 50}) {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            for (long value : new long[] { 7, 3, -10, -6, 5, 50 }) {
                 Document doc = new Document();
                 StringBuilder text = new StringBuilder();
                 for (int i = 0; i < value; i++) {
@@ -72,32 +59,30 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
-                    .shardSize(3)
-                    .subAggregation(new MinAggregationBuilder("min")
-                            .field("int"));
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").shardSize(3)
+                .subAggregation(new MinAggregationBuilder("min").field("int"));
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "good")), aggBuilder, textFieldType,
-                        numericFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    reader,
+                    new AggTestConfig(aggBuilder, textFieldType, numericFieldType).withQuery(new TermQuery(new Term("text", "good")))
+                );
                 Min min = sampler.getAggregations().get("min");
-                assertEquals(5.0, min.getValue(), 0);
+                assertEquals(5.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
     }
 
     public void testRidiculousSize() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment with predictable docIds
-        try (Directory dir = newDirectory();
-             IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            for (long value : new long[] {7, 3, -10, -6, 5, 50}) {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            for (long value : new long[] { 7, 3, -10, -6, 5, 50 }) {
                 Document doc = new Document();
                 StringBuilder text = new StringBuilder();
                 for (int i = 0; i < value; i++) {
@@ -109,17 +94,16 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
             }
 
             // Test with an outrageously large size to ensure that the maxDoc protection works
-            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
-                .shardSize(Integer.MAX_VALUE)
-                .subAggregation(new MinAggregationBuilder("min")
-                    .field("int"));
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").shardSize(Integer.MAX_VALUE)
+                .subAggregation(new MinAggregationBuilder("min").field("int"));
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "good")), aggBuilder, textFieldType,
-                    numericFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    reader,
+                    new AggTestConfig(aggBuilder, textFieldType, numericFieldType).withQuery(new TermQuery(new Term("text", "good")))
+                );
                 Min min = sampler.getAggregations().get("min");
-                assertEquals(3.0, min.getValue(), 0);
+                assertEquals(3.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
@@ -130,25 +114,18 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
      */
     public void testEmptyParentBucket() throws Exception {
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        try (Directory dir = newDirectory();
-            IndexWriter writer = new IndexWriter(dir, indexWriterConfig)) {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, indexWriterConfig)) {
 
             writer.addDocument(new Document());
 
             try (IndexReader reader = DirectoryReader.open(writer)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-
-                QueryBuilder[] filters = new QueryBuilder[]{
-                    new MatchAllQueryBuilder(),
-                    new MatchNoneQueryBuilder()
-                };
+                QueryBuilder[] filters = new QueryBuilder[] { new MatchAllQueryBuilder(), new MatchNoneQueryBuilder() };
                 FiltersAggregationBuilder samplerParent = new FiltersAggregationBuilder("filters", filters);
                 TermsAggregationBuilder samplerChild = new TermsAggregationBuilder("child").field("field");
-                SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("sampler")
-                    .subAggregation(samplerChild);
+                SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("sampler").subAggregation(samplerChild);
                 samplerParent.subAggregation(sampler);
 
-                InternalFilters response = searchAndReduce(searcher, new MatchAllDocsQuery(), samplerParent);
+                InternalFilters response = searchAndReduce(reader, new AggTestConfig(samplerParent));
                 assertEquals(response.getBuckets().size(), 2);
                 assertEquals(response.getBuckets().get(0).getDocCount(), 1);
                 assertEquals(response.getBuckets().get(1).getDocCount(), 0);
@@ -156,4 +133,14 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testSupportsParallelCollection() {
+        SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("name");
+        if (randomBoolean()) {
+            sampler.subAggregation(new TermsAggregationBuilder("name").field("field"));
+        }
+        if (randomBoolean()) {
+            sampler.shardSize(randomIntBetween(1, 1000));
+        }
+        assertFalse(sampler.supportsParallelCollection(null));
+    }
 }

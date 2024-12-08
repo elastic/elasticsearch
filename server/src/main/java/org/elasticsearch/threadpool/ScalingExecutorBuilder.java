@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
@@ -35,12 +25,18 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A builder for scaling executors.
+ *
+ * The {@link #build} method will instantiate a java {@link ExecutorService} thread pool that starts with the specified minimum number of
+ * threads and then scales up to the specified max number of threads as needed for excess work, scaling back when the burst of activity
+ * stops. As opposed to the {@link FixedExecutorBuilder} that keeps a fixed number of threads alive.
  */
 public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
 
     private final Setting<Integer> coreSetting;
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
+    private final boolean rejectAfterShutdown;
+    private final EsExecutors.TaskTrackingConfig trackingConfig;
 
     /**
      * Construct a scaling executor builder; the settings will have the
@@ -51,9 +47,16 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      * @param max       the maximum number of threads in the pool
      * @param keepAlive the time that spare threads above {@code core}
      *                  threads will be kept alive
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
      */
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive) {
-        this(name, core, max, keepAlive, "thread_pool." + name);
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown
+    ) {
+        this(name, core, max, keepAlive, rejectAfterShutdown, "thread_pool." + name);
     }
 
     /**
@@ -66,14 +69,47 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      * @param keepAlive the time that spare threads above {@code core}
      *                  threads will be kept alive
      * @param prefix    the prefix for the settings keys
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
      */
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
-        super(name);
-        this.coreSetting =
-            Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final String prefix
+    ) {
+        this(name, core, max, keepAlive, rejectAfterShutdown, prefix, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);
+    }
+
+    /**
+     * Construct a scaling executor builder; the settings will have the
+     * specified key prefix.
+     *
+     * @param name      the name of the executor
+     * @param core      the minimum number of threads in the pool
+     * @param max       the maximum number of threads in the pool
+     * @param keepAlive the time that spare threads above {@code core}
+     *                  threads will be kept alive
+     * @param prefix    the prefix for the settings keys
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
+     * @param trackingConfig configuration that'll indicate if we should track statistics about task execution time
+     */
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final String prefix,
+        final EsExecutors.TaskTrackingConfig trackingConfig
+    ) {
+        super(name, false);
+        this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
-        this.keepAliveSetting =
-            Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
+        this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
+        this.rejectAfterShutdown = rejectAfterShutdown;
+        this.trackingConfig = trackingConfig;
     }
 
     @Override
@@ -95,16 +131,19 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         int core = settings.core;
         int max = settings.max;
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
-        final ExecutorService executor =
-            EsExecutors.newScaling(
-                    settings.nodeName + "/" + name(),
-                    core,
-                    max,
-                    keepAlive.millis(),
-                    TimeUnit.MILLISECONDS,
-                    threadFactory,
-                    threadContext);
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
+        ExecutorService executor;
+        executor = EsExecutors.newScaling(
+            settings.nodeName + "/" + name(),
+            core,
+            max,
+            keepAlive.millis(),
+            TimeUnit.MILLISECONDS,
+            rejectAfterShutdown,
+            threadFactory,
+            threadContext,
+            trackingConfig
+        );
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 
@@ -116,7 +155,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             info.getName(),
             info.getMin(),
             info.getMax(),
-            info.getKeepAlive());
+            info.getKeepAlive()
+        );
     }
 
     static class ScalingExecutorSettings extends ExecutorBuilder.ExecutorSettings {

@@ -1,31 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -52,6 +43,14 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     protected SearchPhaseResult(StreamInput in) throws IOException {
         super(in);
+    }
+
+    /**
+     * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that
+     * executed the request.
+     */
+    public boolean hasSearchContext() {
+        return false;
     }
 
     /**
@@ -93,9 +92,18 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     /**
+     * Returns the rank feature result iff it's included in this response otherwise <code>null</code>
+     */
+    public RankFeatureResult rankFeatureResult() {
+        return null;
+    }
+
+    /**
      * Returns the fetch result iff it's included in this response otherwise <code>null</code>
      */
-    public FetchSearchResult fetchResult() { return null; }
+    public FetchSearchResult fetchResult() {
+        return null;
+    }
 
     @Nullable
     public ShardSearchRequest getShardSearchRequest() {

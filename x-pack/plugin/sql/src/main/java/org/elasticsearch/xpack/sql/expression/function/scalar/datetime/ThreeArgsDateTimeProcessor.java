@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -90,9 +91,9 @@ public abstract class ThreeArgsDateTimeProcessor implements Processor {
             return false;
         }
         ThreeArgsDateTimeProcessor that = (ThreeArgsDateTimeProcessor) o;
-        return Objects.equals(first, that.first) &&
-            Objects.equals(second, that.second) &&
-            Objects.equals(third, that.third) &&
-            Objects.equals(zoneId, that.zoneId);
+        return Objects.equals(first, that.first)
+            && Objects.equals(second, that.second)
+            && Objects.equals(third, that.third)
+            && Objects.equals(zoneId, that.zoneId);
     }
 }

@@ -1,27 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
-
-import com.carrotsearch.hppc.LongLongHashMap;
-import com.carrotsearch.hppc.LongLongMap;
-import com.carrotsearch.hppc.cursors.LongLongCursor;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,13 +30,13 @@ public class LongHashTests extends ESTestCase {
         return new LongHash(randomIntBetween(0, 100), maxLoadFactor, mockBigArrays());
     }
 
-    public void testDuell() {
+    public void testDuel() {
         try (LongHash hash = randomHash()) {
             final Long[] values = new Long[randomIntBetween(1, 100000)];
             for (int i = 0; i < values.length; ++i) {
                 values[i] = randomLong();
             }
-            final LongLongMap valueToId = new LongLongHashMap();
+            final Map<Long, Integer> valueToId = new HashMap<>();
             final long[] idToValue = new long[values.length];
             final int iters = randomInt(1000000);
             for (int i = 0; i < iters; ++i) {
@@ -66,9 +51,8 @@ public class LongHashTests extends ESTestCase {
             }
 
             assertEquals(valueToId.size(), hash.size());
-            for (Iterator<LongLongCursor> iterator = valueToId.iterator(); iterator.hasNext(); ) {
-                final LongLongCursor next = iterator.next();
-                assertEquals(next.value, hash.find(next.key));
+            for (var entry : valueToId.entrySet()) {
+                assertEquals(entry.getValue().longValue(), hash.find(entry.getKey()));
             }
 
             for (long i = 0; i < hash.capacity(); ++i) {
@@ -92,10 +76,8 @@ public class LongHashTests extends ESTestCase {
             for (int i = 0; i < 797; i++) {
                 long count = hash.size();
                 long key = hash.add(randomLong());
-                if (key < 0)
-                    assertEquals(hash.size(), count);
-                else
-                    assertEquals(hash.size(), count + 1);
+                if (key < 0) assertEquals(hash.size(), count);
+                else assertEquals(hash.size(), count + 1);
                 if (i % mod == 0) {
                     hash.close();
                     hash = randomHash();
@@ -200,7 +182,7 @@ public class LongHashTests extends ESTestCase {
     }
 
     public void testAllocation() {
-        MockBigArrays.assertFitsIn(new ByteSizeValue(160), bigArrays -> new LongHash(1, bigArrays));
+        MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(160), bigArrays -> new LongHash(1, bigArrays));
     }
 
     private static void assertAllIn(Set<Long> longs, LongHash hash) {

@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.support;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 import javax.activation.FileTypeMap;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeBodyPart;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 public abstract class BodyPartSource implements ToXContentObject {
 
@@ -22,8 +24,7 @@ public abstract class BodyPartSource implements ToXContentObject {
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        fileTypeMap = AccessController.doPrivileged(
-            (PrivilegedAction<FileTypeMap>)() -> FileTypeMap.getDefaultFileTypeMap());
+        fileTypeMap = AccessController.doPrivileged((PrivilegedAction<FileTypeMap>) () -> FileTypeMap.getDefaultFileTypeMap());
     }
 
     protected final String id;

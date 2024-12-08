@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -24,20 +14,25 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,6 +52,11 @@ import static org.mockito.Mockito.when;
 
 public class MockBigArrays extends BigArrays {
     private static final Logger logger = LogManager.getLogger(MockBigArrays.class);
+
+    /**
+     * Error message thrown by {@link BigArrays} produced with {@link MockBigArrays#MockBigArrays(PageCacheRecycler, ByteSizeValue)}.
+     */
+    public static final String ERROR_MESSAGE = "over test limit";
 
     /**
      * Assert that a function returning a {@link Releasable} runs to completion
@@ -101,7 +101,7 @@ public class MockBigArrays extends BigArrays {
 
     public static void ensureAllArraysAreReleased() throws Exception {
         final Map<Object, Object> masterCopy = new HashMap<>(ACQUIRED_ARRAYS);
-        if (!masterCopy.isEmpty()) {
+        if (masterCopy.isEmpty() == false) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
@@ -110,11 +110,13 @@ public class MockBigArrays extends BigArrays {
             } catch (AssertionError ex) {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-                if (!masterCopy.isEmpty()) {
+                if (masterCopy.isEmpty() == false) {
                     Iterator<Object> causes = masterCopy.values().iterator();
                     Object firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(masterCopy.size() + " arrays have not been released",
-                            firstCause instanceof Throwable ? (Throwable) firstCause : null);
+                    RuntimeException exception = new RuntimeException(
+                        masterCopy.size() + " arrays have not been released",
+                        firstCause instanceof Throwable ? (Throwable) firstCause : null
+                    );
                     while (causes.hasNext()) {
                         Object cause = causes.next();
                         if (cause instanceof Throwable) {
@@ -144,11 +146,18 @@ public class MockBigArrays extends BigArrays {
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new LimitedBreaker(CircuitBreaker.REQUEST, limit));
     }
 
+    /**
+     * Create {@linkplain BigArrays} with a provided breaker service. The breaker is not enable by default.
+     */
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
         this(recycler, breakerService, false);
     }
 
-    private MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+    /**
+     * Create {@linkplain BigArrays} with a provided breaker service. The breaker can be enabled with the
+     * {@code checkBreaker} flag.
+     */
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
@@ -161,16 +170,20 @@ public class MockBigArrays extends BigArrays {
         random = new Random(seed);
     }
 
-
     @Override
     public BigArrays withCircuitBreaking() {
         return new MockBigArrays(this.recycler, this.breakerService, true);
     }
 
     @Override
+    public BigArrays withBreakerService(CircuitBreakerService breakerService) {
+        return new MockBigArrays(this.recycler, breakerService, this.shouldCheckBreaker());
+    }
+
+    @Override
     public ByteArray newByteArray(long size, boolean clearOnResize) {
         final ByteArrayWrapper array = new ByteArrayWrapper(super.newByteArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -187,7 +200,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new ByteArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -196,7 +209,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public IntArray newIntArray(long size, boolean clearOnResize) {
         final IntArrayWrapper array = new IntArrayWrapper(super.newIntArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -213,7 +226,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new IntArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -222,7 +235,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public LongArray newLongArray(long size, boolean clearOnResize) {
         final LongArrayWrapper array = new LongArrayWrapper(super.newLongArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -239,7 +252,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new LongArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -248,7 +261,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
         final FloatArrayWrapper array = new FloatArrayWrapper(super.newFloatArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -265,7 +278,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new FloatArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -274,7 +287,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
         final DoubleArrayWrapper array = new DoubleArrayWrapper(super.newDoubleArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -291,7 +304,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new DoubleArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -377,8 +390,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public byte set(long index, byte value) {
-            return in.set(index, value);
+        public void set(long index, byte value) {
+            in.set(index, value);
         }
 
         @Override
@@ -397,6 +410,16 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public BytesRefIterator iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public void fillWith(InputStream streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public boolean hasArray() {
             return in.hasArray();
         }
@@ -410,6 +433,11 @@ public class MockBigArrays extends BigArrays {
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
+        }
     }
 
     private class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
@@ -419,6 +447,11 @@ public class MockBigArrays extends BigArrays {
         IntArrayWrapper(IntArray in, boolean clearOnResize) {
             super(clearOnResize);
             this.in = in;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
         }
 
         @Override
@@ -437,8 +470,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public int set(long index, int value) {
-            return in.set(index, value);
+        public int getAndSet(long index, int value) {
+            return in.getAndSet(index, value);
+        }
+
+        @Override
+        public void set(long index, int value) {
+            in.set(index, value);
         }
 
         @Override
@@ -449,6 +487,16 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void fill(long fromIndex, long toIndex, int value) {
             in.fill(fromIndex, toIndex, value);
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
         }
 
         @Override
@@ -482,8 +530,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public long set(long index, long value) {
-            return in.set(index, value);
+        public long getAndSet(long index, long value) {
+            return in.getAndSet(index, value);
+        }
+
+        @Override
+        public void set(long index, long value) {
+            in.set(index, value);
         }
 
         @Override
@@ -497,10 +550,24 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
+        }
+
+        @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
     }
 
     private class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
@@ -528,18 +595,18 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public float set(long index, float value) {
-            return in.set(index, value);
-        }
-
-        @Override
-        public float increment(long index, float inc) {
-            return in.increment(index, inc);
+        public void set(long index, float value) {
+            in.set(index, value);
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, float value) {
             in.fill(fromIndex, toIndex, value);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
         }
 
         @Override
@@ -573,8 +640,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public double set(long index, double value) {
-            return in.set(index, value);
+        public void set(long index, double value) {
+            in.set(index, value);
         }
 
         @Override
@@ -588,8 +655,23 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
+        }
+
+        @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
         }
     }
 
@@ -613,8 +695,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public T set(long index, T value) {
-            return in.set(index, value);
+        public void set(long index, T value) {
+            in.set(index, value);
+        }
+
+        @Override
+        public T getAndSet(long index, T value) {
+            return in.getAndSet(index, value);
         }
 
         @Override
@@ -628,27 +715,49 @@ public class MockBigArrays extends BigArrays {
         }
     }
 
-    private static class LimitedBreaker extends NoopCircuitBreaker {
+    public static class LimitedBreaker extends NoopCircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final ByteSizeValue max;
 
-        LimitedBreaker(String name, ByteSizeValue max) {
+        public LimitedBreaker(String name, ByteSizeValue max) {
             super(name);
             this.max = max;
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            long total = used.addAndGet(bytes);
-            if (total > max.getBytes()) {
-                throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            while (true) {
+                long old = used.get();
+                long total = old + bytes;
+                if (total < 0) {
+                    throw new AssertionError("total must be >= 0 but was [" + total + "]");
+                }
+                if (total > max.getBytes()) {
+                    throw new CircuitBreakingException(ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
+                }
+                if (used.compareAndSet(old, total)) {
+                    break;
+                }
             }
-            return total;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
-            return used.addAndGet(bytes);
+        public void addWithoutBreaking(long bytes) {
+            long total = used.addAndGet(bytes);
+            if (total < 0) {
+                throw new AssertionError("total must be >= 0 but was [" + total + "]");
+            }
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+
+        @Override
+        public String toString() {
+            long u = used.get();
+            return "LimitedBreaker[" + u + "/" + max.getBytes() + "][" + ByteSizeValue.ofBytes(u) + "/" + max + "]";
         }
     }
 }

@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test.http;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * A response to be sent via the mock webserver. Parts of the response can be configured
@@ -28,11 +29,11 @@ public class MockResponse {
     }
 
     /**
-     * @param statusCode The status code to be returned if the response is sent by the webserver, defaults to 200
+     * @param responseCode The status code to be returned if the response is sent by the webserver, defaults to 200
      * @return The updated mock response
      */
-    public MockResponse setResponseCode(int statusCode) {
-        this.statusCode = statusCode;
+    public MockResponse setResponseCode(int responseCode) {
+        this.statusCode = responseCode;
         return this;
     }
 

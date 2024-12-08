@@ -1,0 +1,139 @@
+{
+  "cluster_uuid" : "R0aKM8oRQs2Wq_x9y1O0Uw",
+  "timestamp" : "2099-10-25T00:00:02.826Z",
+  "interval_ms" : 10000,
+  "type" : "index_stats",
+  "source_node" : {
+    "uuid" : "bBD4if6GRge8C27GEkyGoQ",
+    "host" : "192.168.1.77",
+    "transport_address" : "192.168.1.77:9300",
+    "ip" : "192.168.1",
+    "name" : "es-cn-fakecluster-94f438bf-0002",
+    "timestamp" : "2099-10-25T00:00:02.707Z"
+  },
+  "index_stats" : {
+    "index" : ".kibana-event-log-7.10.0-000003",
+    "uuid" : "QYdXzmhPRO2PObJ6z4m-RA",
+    "created" : 1934213584969,
+    "status" : "green",
+    "shards" : {
+      "total" : 2,
+      "primaries" : 1,
+      "replicas" : 1,
+      "active_total" : 2,
+      "active_primaries" : 1,
+      "active_replicas" : 1,
+      "unassigned_total" : 0,
+      "unassigned_primaries" : 0,
+      "unassigned_replicas" : 0,
+      "initializing" : 0,
+      "relocating" : 0
+    },
+    "total" : {
+      "docs" : {
+        "count" : 0
+      },
+      "store" : {
+        "size_in_bytes" : 416
+      },
+      "indexing" : {
+        "index_total" : 0,
+        "index_time_in_millis" : 0,
+        "throttle_time_in_millis" : 0
+      },
+      "search" : {
+        "query_total" : 6,
+        "query_time_in_millis" : 0
+      },
+      "merges" : {
+        "total_size_in_bytes" : 0
+      },
+      "refresh" : {
+        "total_time_in_millis" : 0,
+        "external_total_time_in_millis" : 0
+      },
+      "query_cache" : {
+        "memory_size_in_bytes" : 0,
+        "hit_count" : 0,
+        "miss_count" : 0,
+        "evictions" : 0
+      },
+      "fielddata" : {
+        "memory_size_in_bytes" : 0,
+        "evictions" : 0
+      },
+      "segments" : {
+        "count" : 0,
+        "memory_in_bytes" : 0,
+        "terms_memory_in_bytes" : 0,
+        "stored_fields_memory_in_bytes" : 0,
+        "term_vectors_memory_in_bytes" : 0,
+        "norms_memory_in_bytes" : 0,
+        "points_memory_in_bytes" : 0,
+        "doc_values_memory_in_bytes" : 0,
+        "index_writer_memory_in_bytes" : 0,
+        "version_map_memory_in_bytes" : 0,
+        "fixed_bit_set_memory_in_bytes" : 0
+      },
+      "request_cache" : {
+        "memory_size_in_bytes" : 6130,
+        "evictions" : 0,
+        "hit_count" : 2,
+        "miss_count" : 4
+      }
+    },
+    "primaries" : {
+      "docs" : {
+        "count" : 0
+      },
+      "store" : {
+        "size_in_bytes" : 208
+      },
+      "indexing" : {
+        "index_total" : 0,
+        "index_time_in_millis" : 0,
+        "throttle_time_in_millis" : 0
+      },
+      "search" : {
+        "query_total" : 2,
+        "query_time_in_millis" : 0
+      },
+      "merges" : {
+        "total_size_in_bytes" : 0
+      },
+      "refresh" : {
+        "total_time_in_millis" : 0,
+        "external_total_time_in_millis" : 0
+      },
+      "query_cache" : {
+        "memory_size_in_bytes" : 0,
+        "hit_count" : 0,
+        "miss_count" : 0,
+        "evictions" : 0
+      },
+      "fielddata" : {
+        "memory_size_in_bytes" : 0,
+        "evictions" : 0
+      },
+      "segments" : {
+        "count" : 0,
+        "memory_in_bytes" : 0,
+        "terms_memory_in_bytes" : 0,
+        "stored_fields_memory_in_bytes" : 0,
+        "term_vectors_memory_in_bytes" : 0,
+        "norms_memory_in_bytes" : 0,
+        "points_memory_in_bytes" : 0,
+        "doc_values_memory_in_bytes" : 0,
+        "index_writer_memory_in_bytes" : 0,
+        "version_map_memory_in_bytes" : 0,
+        "fixed_bit_set_memory_in_bytes" : 0
+      },
+      "request_cache" : {
+        "memory_size_in_bytes" : 3005,
+        "evictions" : 0,
+        "hit_count" : 0,
+        "miss_count" : 2
+      }
+    }
+  }
+}

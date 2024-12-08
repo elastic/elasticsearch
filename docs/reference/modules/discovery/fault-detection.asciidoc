@@ -25,3 +25,40 @@ writing a small file to disk and then deleting it again. If a node discovers
 its data path is unhealthy then it is removed from the cluster until the data
 path recovers. You can control this behavior with the
 <<modules-discovery-settings,`monitor.fs.health` settings>>.
+
+[[cluster-fault-detection-cluster-state-publishing]]
+The elected master node
+will also remove nodes from the cluster if nodes are unable to apply an updated
+cluster state within a reasonable time. The timeout defaults to 2 minutes
+starting from the beginning of the cluster state update. Refer to
+<<cluster-state-publishing>> for a more detailed description.
+
+[[cluster-fault-detection-troubleshooting]]
+==== Troubleshooting an unstable cluster
+
+See <<troubleshooting-unstable-cluster>>.
+
+[discrete]
+===== Diagnosing `disconnected` nodes
+
+See <<troubleshooting-unstable-cluster-disconnected>>.
+
+[discrete]
+===== Diagnosing `lagging` nodes
+
+See <<troubleshooting-unstable-cluster-lagging>>.
+
+[discrete]
+===== Diagnosing `follower check retry count exceeded` nodes
+
+See <<troubleshooting-unstable-cluster-follower-check>>.
+
+[discrete]
+===== Diagnosing `ShardLockObtainFailedException` failures
+
+See <<troubleshooting-unstable-cluster-shardlockobtainfailedexception>>.
+
+[discrete]
+===== Diagnosing other network disconnections
+
+See <<troubleshooting-unstable-cluster-network>>.

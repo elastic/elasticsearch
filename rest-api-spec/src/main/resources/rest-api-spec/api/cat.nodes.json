@@ -5,6 +5,10 @@
       "description":"Returns basic statistics about performance of cluster nodes."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -74,6 +78,11 @@
       "v":{
         "type":"boolean",
         "description":"Verbose mode. Display column headers",
+        "default":false
+      },
+      "include_unloaded_segments":{
+        "type":"boolean",
+        "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
         "default":false
       }
     }

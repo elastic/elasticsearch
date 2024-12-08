@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class WeightedAggregatorTests<T extends OutputAggregator> extends AbstractSerializingTestCase<T> {
+public abstract class WeightedAggregatorTests<T extends OutputAggregator> extends AbstractXContentSerializingTestCase<T> {
 
     protected boolean lenient;
 
@@ -34,7 +35,7 @@ public abstract class WeightedAggregatorTests<T extends OutputAggregator> extend
         int numberOfValues = randomIntBetween(5, 10);
         double[][] values = new double[numberOfValues][];
         for (int i = 0; i < numberOfValues; i++) {
-            values[i] = new double[] {randomDouble()};
+            values[i] = new double[] { randomDouble() };
         }
 
         OutputAggregator outputAggregatorWithTooFewWeights = createTestInstance(randomIntBetween(1, numberOfValues - 1));
@@ -45,4 +46,9 @@ public abstract class WeightedAggregatorTests<T extends OutputAggregator> extend
     }
 
     abstract T createTestInstance(int numberOfWeights);
+
+    @Override
+    protected T mutateInstance(T instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

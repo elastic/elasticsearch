@@ -1,0 +1,528 @@
+setup:
+
+  - do:
+        indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                text:
+                  type: text
+                  analyzer: standard
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - '{"index": {"_index": "test", "_id": "1"}}'
+            - '{"text" : "Some like it hot, some like it cold"}'
+            - '{"index": {"_index": "test", "_id": "2"}}'
+            - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
+            - '{"index": {"_index": "test", "_id": "3"}}'
+            - '{"text" : "Baby its cold there outside"}'
+            - '{"index": {"_index": "test", "_id": "4"}}'
+            - '{"text" : "Outside it is cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "5"}}'
+            - '{"text" : "the big bad wolf"}'
+            - '{"index": {"_index": "test", "_id": "6"}}'
+            - '{"text" : "the big wolf"}'
+
+---
+"Test ordered matching":
+  - do:
+        search:
+          index: test
+          body:
+            query:
+              intervals:
+                text:
+                  match:
+                    query: "cold outside"
+                    ordered: true
+  - match: { hits.total.value: 2 }
+
+---
+"Test default unordered matching":
+  - do:
+        search:
+          index: test
+          body:
+            query:
+              intervals:
+                text:
+                  match:
+                    query: "cold outside"
+  - match: { hits.total.value: 3 }
+
+---
+"Test explicit unordered matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: false
+  - match: { hits.total.value: 3 }
+
+---
+"Test phrase matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: true
+                  max_gaps: 0
+  - match: { hits.total.value: 1 }
+
+---
+"Test unordered max_gaps matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  max_gaps: 1
+  - match: { hits.total.value: 2 }
+
+---
+"Test ordered max_gaps matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  max_gaps: 0
+                  ordered: true
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with disjunction":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                    - match:
+                        query: "atmosphere"
+                  ordered: true
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with max_gaps":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 0
+                  ordered: true
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: true
+  - match: { hits.total.value: 2 }
+
+---
+"Test unordered combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 1
+                  ordered: false
+  - match: { hits.total.value: 2 }
+
+---
+"Test block combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: true
+                  max_gaps: 0
+  - match: { hits.total.value: 1 }
+
+
+---
+"Test containing":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: false
+                  filter:
+                    containing:
+                      match:
+                        query: "is"
+  - match: { hits.total.value: 1 }
+
+
+---
+"Test not containing":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: false
+                  filter:
+                    not_containing:
+                      match:
+                        query: "is"
+  - match: { hits.total.value: 2 }
+
+---
+"Test contained_by":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "is"
+                  filter:
+                    contained_by:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                        ordered: false
+  - match: { hits.total.value: 1 }
+
+---
+"Test not_contained_by":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "it"
+                  filter:
+                    not_contained_by:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+  - match: { hits.total.value: 1 }
+
+---
+"Test not_overlapping":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  ordered: true
+                  filter:
+                    not_overlapping:
+                      all_of:
+                        intervals:
+                          - match:
+                              query: "baby"
+                          - match:
+                              query: "there"
+                        ordered: false
+  - match: { hits.total.value: 1 }
+
+---
+"Test overlapping":
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
+      reason: "Implemented in 7.2"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: true
+                  filter:
+                    overlapping:
+                      match:
+                        query: "baby there"
+                        ordered: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test before":
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
+      reason: "Implemented in 7.2"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold"
+                  filter:
+                    before:
+                      match:
+                        query: "outside"
+  - match: { hits.total.value: 2 }
+
+---
+"Test after":
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
+      reason: "Implemented in 7.2"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold"
+                  filter:
+                    after:
+                      match:
+                        query: "outside"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "4" }
+
+---
+"Test prefix":
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
+      reason: "Implemented in 7.3"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+---
+"Test wildcard":
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
+      reason: "Implemented in 7.3"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - wildcard:
+                        pattern: out?ide
+  - match: { hits.total.value: 3 }
+
+---
+"Test fuzzy match":
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
+      reason: "Implemented in 7.6"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - fuzzy:
+                        term: cald
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+---
+"Test rewrite disjunctions":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - "match":
+                        "query": "the"
+                    - "any_of":
+                        "intervals":
+                          - "match":
+                              "query": "big"
+                          - "match":
+                              "query": "big bad"
+                    - "match":
+                        "query": "wolf"
+                  max_gaps: 0
+                  ordered: true
+
+  - match: { hits.total.value: 2   }
+  - match: { hits.hits.0._id:  "6" }
+  - match: { hits.hits.1._id:  "5" }
+
+---
+"Test regexp":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_regexp_interval_queries ]
+      test_runner_features: capabilities
+      reason: "Support for range and regexp interval queries capability required"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - regexp:
+                        pattern: ou.*ide
+  - match: { hits.total.value: 3 }
+
+
+---
+"Test range":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_regexp_interval_queries ]
+      test_runner_features: capabilities
+      reason: "Support for range and regexp interval queries capability required"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - range:
+                        gte: out
+                        lte: ouu
+  - match: { hits.total.value: 3 }
+

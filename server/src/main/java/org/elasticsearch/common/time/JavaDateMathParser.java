@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -22,18 +12,19 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -45,15 +36,14 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private final JavaDateFormatter formatter;
     private final String format;
-    private final JavaDateFormatter roundupParser;
+    private final Function<String, TemporalAccessor> parser;
+    private final Function<String, TemporalAccessor> roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
+    JavaDateMathParser(String format, Function<String, TemporalAccessor> parser, Function<String, TemporalAccessor> roundupParser) {
         this.format = format;
+        this.parser = Objects.requireNonNull(parser);
         this.roundupParser = roundupParser;
-        Objects.requireNonNull(formatter);
-        this.formatter = formatter;
     }
 
     @Override
@@ -80,13 +70,13 @@ public class JavaDateMathParser implements DateMathParser {
         return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
-    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,
-                           ZoneId timeZone) throws ElasticsearchParseException {
+    private static Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty, ZoneId timeZone)
+        throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
         ZonedDateTime dateTime = ZonedDateTime.ofInstant(time, timeZone);
-        for (int i = 0; i < mathString.length(); ) {
+        for (int i = 0; i < mathString.length();) {
             char c = mathString.charAt(i++);
             final boolean round;
             final int sign;
@@ -109,7 +99,7 @@ public class JavaDateMathParser implements DateMathParser {
             }
 
             final int num;
-            if (!Character.isDigit(mathString.charAt(i))) {
+            if (Character.isDigit(mathString.charAt(i)) == false) {
                 num = 1;
             } else {
                 int numFrom = i;
@@ -212,25 +202,32 @@ public class JavaDateMathParser implements DateMathParser {
 
     private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
         if (Strings.isNullOrEmpty(value)) {
-            throw new ElasticsearchParseException("cannot parse empty date");
+            throw new ElasticsearchParseException("cannot parse empty datetime");
         }
 
-        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
+        Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.parser;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.apply(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.parse(value);
-                ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
+                TemporalAccessor accessor = formatter.apply(value);
+                // Use the offset if provided, otherwise fall back to the zone, or null.
+                ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
+                ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
                 if (zoneId != null) {
                     timeZone = zoneId;
                 }
 
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (IllegalArgumentException | DateTimeParseException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
-                e, value, format, e.getMessage());
+        } catch (IllegalArgumentException | DateTimeException e) {
+            throw new ElasticsearchParseException(
+                "failed to parse date field [{}] with format [{}]: [{}]",
+                e,
+                value,
+                format,
+                e.getMessage()
+            );
         }
     }
 }

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.join.aggregations;
 
@@ -28,11 +18,13 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -40,8 +32,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,16 +53,18 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      */
     private final CollectionStrategy collectionStrategy;
 
-    public ParentJoinAggregator(String name,
-                                    AggregatorFactories factories,
-                                    SearchContext context,
-                                    Aggregator parent,
-                                    Query inFilter,
-                                    Query outFilter,
-                                    ValuesSource.Bytes.WithOrdinals valuesSource,
-                                    long maxOrd,
-                                    CardinalityUpperBound cardinality,
-                                    Map<String, Object> metadata) throws IOException {
+    public ParentJoinAggregator(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        Query inFilter,
+        Query outFilter,
+        ValuesSource.Bytes.WithOrdinals valuesSource,
+        long maxOrd,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         /*
          * We have to use MANY to work around
          * https://github.com/elastic/elasticsearch/issues/59097
@@ -78,8 +72,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
-            throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +
-                "for this aggregation: " + Integer.MAX_VALUE);
+            throw new IllegalStateException(
+                "the number of parent [" + maxOrd + "] + is greater than the allowed limit " + "for this aggregation: " + Integer.MAX_VALUE
+            );
         }
 
         // these two filters are cached in the parser
@@ -93,19 +88,22 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), inFilter.scorerSupplier(ctx));
+        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
+        final Bits parentDocs = Lucene.asSequentialAccessBits(
+            aggCtx.getLeafReaderContext().reader().maxDoc(),
+            inFilter.scorerSupplier(aggCtx.getLeafReaderContext())
+        );
         return new LeafBucketCollector() {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     int globalOrdinal = (int) globalOrdinals.nextOrd();
-                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                    assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                     collectionStrategy.add(owningBucketOrd, globalOrdinal);
                 }
             }
@@ -113,7 +111,12 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+    public void postCollection() throws IOException {
+        // Delaying until beforeBuildingBuckets
+    }
+
+    @Override
+    protected void prepareSubAggs(LongArray ordsToCollect) throws IOException {
         IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
@@ -121,8 +124,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 continue;
             }
             DocIdSetIterator childDocsIter = childDocsScorer.iterator();
-
-            final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
+            final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(
+                new AggregationExecutionContext(ctx, null, null, null)
+            );
 
             final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
             // Set the scorer, since we now replay only the child docIds
@@ -130,11 +134,6 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 @Override
                 public float score() {
                     return 1f;
-                }
-
-                @Override
-                public int docID() {
-                    return childDocsIter.docID();
                 }
             });
 
@@ -147,21 +146,23 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                     continue;
                 }
                 int globalOrdinal = (int) globalOrdinals.nextOrd();
-                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                 /*
                  * Check if we contain every ordinal. It's almost certainly be
                  * faster to replay all the matching ordinals and filter them down
                  * to just those listed in ordsToCollect, but we don't have a data
                  * structure that maps a primitive long to a list of primitive
-                 * longs. 
+                 * longs.
                  */
-                for (long o: bucketOrdsToCollect) {
-                    if (collectionStrategy.exists(o, globalOrdinal)) {
-                        collectBucket(sub, docId, o);
+                for (long ord = 0; ord < ordsToCollect.size(); ord++) {
+                    long ordToCollect = ordsToCollect.get(ord);
+                    if (collectionStrategy.exists(ordToCollect, globalOrdinal)) {
+                        collectBucket(sub, docId, ordToCollect);
                     }
                 }
             }
         }
+        super.postCollection(); // Run post collection after collecting the sub-aggs
     }
 
     @Override
@@ -177,6 +178,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      */
     protected interface CollectionStrategy extends Releasable {
         void add(long owningBucketOrd, int globalOrdinal);
+
         boolean exists(long owningBucketOrd, int globalOrdinal);
     }
 

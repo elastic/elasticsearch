@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -40,8 +41,7 @@ public class Action implements MessageElement {
     private String text;
     private String url;
 
-    public Action() {
-    }
+    public Action() {}
 
     public Action(String style, String name, String type, String text, String url) {
         this.style = style;
@@ -58,8 +58,11 @@ public class Action implements MessageElement {
 
         Action template = (Action) o;
 
-        return Objects.equals(style, template.style) && Objects.equals(type, template.type) && Objects.equals(url, template.url)
-                && Objects.equals(text, template.text) && Objects.equals(name, template.name);
+        return Objects.equals(style, template.style)
+            && Objects.equals(type, template.type)
+            && Objects.equals(url, template.url)
+            && Objects.equals(text, template.text)
+            && Objects.equals(name, template.name);
     }
 
     @Override
@@ -70,12 +73,12 @@ public class Action implements MessageElement {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field(NAME.getPreferredName(), name)
-                .field(STYLE.getPreferredName(), style)
-                .field(TYPE.getPreferredName(), type)
-                .field(TEXT.getPreferredName(), text)
-                .field(URL.getPreferredName(), url)
-                .endObject();
+            .field(NAME.getPreferredName(), name)
+            .field(STYLE.getPreferredName(), style)
+            .field(TYPE.getPreferredName(), type)
+            .field(TEXT.getPreferredName(), text)
+            .field(URL.getPreferredName(), url)
+            .endObject();
     }
 
     static class Template implements ToXContent {
@@ -102,8 +105,11 @@ public class Action implements MessageElement {
 
             Template template = (Template) o;
 
-            return Objects.equals(style, template.style) && Objects.equals(type, template.type) && Objects.equals(url, template.url)
-                    && Objects.equals(text, template.text) && Objects.equals(name, template.name);
+            return Objects.equals(style, template.style)
+                && Objects.equals(type, template.type)
+                && Objects.equals(url, template.url)
+                && Objects.equals(text, template.text)
+                && Objects.equals(name, template.name);
         }
 
         @Override
@@ -114,12 +120,12 @@ public class Action implements MessageElement {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(NAME.getPreferredName(), name)
-                    .field(STYLE.getPreferredName(), style)
-                    .field(TYPE.getPreferredName(), type)
-                    .field(TEXT.getPreferredName(), text)
-                    .field(URL.getPreferredName(), url)
-                    .endObject();
+                .field(NAME.getPreferredName(), name)
+                .field(STYLE.getPreferredName(), style)
+                .field(TYPE.getPreferredName(), type)
+                .field(TEXT.getPreferredName(), text)
+                .field(URL.getPreferredName(), url)
+                .endObject();
         }
 
         public TextTemplate getType() {

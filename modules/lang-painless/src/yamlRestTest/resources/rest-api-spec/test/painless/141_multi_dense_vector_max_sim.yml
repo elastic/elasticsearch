@@ -1,0 +1,206 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ multi_dense_vector_script_max_sim_with_bugfix ]
+      test_runner_features: capabilities
+      reason: "Support for multi dense vector max-sim functions capability required"
+  - skip:
+      features: headers
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                 type: multi_dense_vector
+                 dims: 5
+              byte_vector:
+                 type: multi_dense_vector
+                 dims: 5
+                 element_type: byte
+              bit_vector:
+                type: multi_dense_vector
+                dims: 40
+                element_type: bit
+  - do:
+      index:
+        index: test-index
+        id: "1"
+        body:
+          vector: [[230.0, 300.33, -34.8988, 15.555, -200.0],  [-0.5, 100.0, -13, 14.8, -156.0]]
+          byte_vector: [[8, 5, -15, 1, -7], [-1, 115, -3, 4, -128]]
+          bit_vector: [[8, 5, -15, 1, -7], [-1, 115, -3, 4, -128]]
+
+  - do:
+      index:
+        index: test-index
+        id: "3"
+        body:
+          vector: [[0.5, 111.3, -13.0, 14.8, -156.0]]
+          byte_vector: [[2, 18, -5, 0, -124]]
+          bit_vector: [[2, 18, -5, 0, -124]]
+
+  - do:
+      indices.refresh: {}
+---
+"Test max-sim dot product scoring":
+  - skip:
+      features: close_to
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimDotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [[1, 2, 1, 1, 1]]
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 611.316, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value: 68.90001, error: 0.01}}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimDotProduct(params.query_vector, 'byte_vector')"
+                params:
+                  query_vector: [[1, 2, 1, 1, 0]]
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 230, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value: 33, error: 0.01}}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimDotProduct(params.query_vector, 'bit_vector')"
+                params:
+                  query_vector: [[1, 2, 1, 1, 0]]
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 3, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value: 2, error: 0.01}}
+
+# doing max-sim dot product with a vector where the stored bit vectors are used as masks
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimDotProduct(params.query_vector, 'bit_vector')"
+                params:
+                  query_vector: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 220, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value: 147, error: 0.01}}
+---
+"Test max-sim inv hamming scoring":
+  - skip:
+      features: close_to
+
+  # inv hamming doesn't apply to float vectors
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimInvHamming(params.query_vector, 'vector')"
+                params:
+                  query_vector: [[1, 2, 1, 1, 1]]
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimInvHamming(params.query_vector, 'byte_vector')"
+                params:
+                  query_vector: [[1, 2, 1, 1, 1]]
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "3"}
+  - close_to: {hits.hits.0._score: {value: 0.675, error: 0.01}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 0.65, error: 0.01}}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "maxSimInvHamming(params.query_vector, 'bit_vector')"
+                params:
+                  query_vector: [[1, 2, 1, 1, 1]]
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "3"}
+  - close_to: {hits.hits.0._score: {value: 0.675, error: 0.01}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 0.65, error: 0.01}}

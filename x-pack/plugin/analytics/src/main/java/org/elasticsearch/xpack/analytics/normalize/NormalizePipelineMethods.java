@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.normalize;
-
 
 import java.util.function.DoubleUnaryOperator;
 
@@ -91,17 +91,17 @@ class NormalizePipelineMethods {
     static class Softmax implements DoubleUnaryOperator {
         static final String NAME = "softmax";
 
-        private double sumExp;
+        private final double sumExp;
 
         Softmax(double[] values) {
-            double sumExp = 0.0;
-            for (Double value :  values) {
+            double _sumExp = 0.0;
+            for (Double value : values) {
                 if (value.isNaN() == false) {
-                    sumExp += Math.exp(value);
+                    _sumExp += Math.exp(value);
                 }
             }
 
-            this.sumExp = sumExp;
+            this.sumExp = _sumExp;
         }
 
         @Override
@@ -117,6 +117,7 @@ class NormalizePipelineMethods {
         protected final double mean;
         protected final int count;
 
+        @SuppressWarnings("HiddenField")
         SinglePassSimpleStatisticsMethod(double[] values) {
             int count = 0;
             double sum = 0.0;

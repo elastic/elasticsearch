@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -23,14 +13,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
@@ -114,12 +103,16 @@ public class MergedPointRangeQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
+            public int count(LeafReaderContext context) throws IOException {
+                PointValues points = context.reader().getPointValues(field);
+                if (points == null) {
+                    return 0;
                 }
-                return scorerSupplier.get(Long.MAX_VALUE);
+                if (points.size() == points.getDocCount()) {
+                    // Each doc that has points has exactly one point.
+                    return singleValuedSegmentWeight().count(context);
+                }
+                return multiValuedSegmentWeight().count(context);
             }
 
             @Override
@@ -138,19 +131,6 @@ public class MergedPointRangeQuery extends Query {
                     return singleValuedSegmentWeight().scorerSupplier(context);
                 }
                 return multiValuedSegmentWeight().scorerSupplier(context);
-            }
-
-            @Override
-            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                PointValues points = context.reader().getPointValues(field);
-                if (points == null) {
-                    return null;
-                }
-                if (points.size() == points.getDocCount()) {
-                    // Each doc that has points has exactly one point.
-                    return singleValuedSegmentWeight().bulkScorer(context);
-                }
-                return multiValuedSegmentWeight().bulkScorer(context);
             }
 
             private Weight singleValuedSegmentWeight() throws IOException {
@@ -183,12 +163,19 @@ public class MergedPointRangeQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         MergedPointRangeQuery other = (MergedPointRangeQuery) obj;
         return delegateForMultiValuedSegments.equals(other.delegateForMultiValuedSegments)
             && delegateForSingleValuedSegments.equals(other.delegateForSingleValuedSegments);
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            this.delegateForMultiValuedSegments.visit(visitor);
+        }
     }
 
     @Override

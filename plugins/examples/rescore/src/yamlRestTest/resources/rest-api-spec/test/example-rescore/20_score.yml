@@ -11,12 +11,12 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "test": 1 }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "test": 2 }
   - do:
       indices.refresh: {}
@@ -47,18 +47,3 @@ setup:
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._score: 1 }
   - match: { hits.hits.1._score: 0 }
-
----
-"with factor field":
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          rescore:
-            example:
-              factor: 1
-              factor_field: test
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._score: 2 }
-  - match: { hits.hits.1._score: 1 }

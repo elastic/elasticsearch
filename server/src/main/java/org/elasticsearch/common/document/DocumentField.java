@@ -1,35 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.document;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.LookupField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -43,19 +35,43 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  * @see SearchHit
  * @see GetResult
  */
-public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
+public class DocumentField implements Writeable, Iterable<Object> {
 
     private final String name;
     private final List<Object> values;
+    private final List<Object> ignoredValues;
+    private final List<LookupField> lookupFields;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
-        values = in.readList(StreamInput::readGenericValue);
+        values = in.readCollectionAsList(StreamInput::readGenericValue);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
+            ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
+        } else {
+            ignoredValues = Collections.emptyList();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            lookupFields = in.readCollectionAsList(LookupField::new);
+        } else {
+            lookupFields = List.of();
+        }
     }
 
     public DocumentField(String name, List<Object> values) {
+        this(name, values, Collections.emptyList());
+    }
+
+    public DocumentField(String name, List<Object> values, List<Object> ignoredValues) {
+        this(name, values, ignoredValues, Collections.emptyList());
+    }
+
+    public DocumentField(String name, List<Object> values, List<Object> ignoredValues, List<LookupField> lookupFields) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
+        this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
+        this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
+        assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())
+            : "DocumentField can't have both lookup fields and values";
     }
 
     /**
@@ -88,23 +104,59 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
         return values.iterator();
     }
 
+    /**
+     * The field's ignored values as an immutable list.
+     */
+    public List<Object> getIgnoredValues() {
+        return ignoredValues == Collections.emptyList() ? ignoredValues : Collections.unmodifiableList(ignoredValues);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
+            out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            out.writeCollection(lookupFields);
+        } else {
+            if (lookupFields.isEmpty() == false) {
+                assert false : "Lookup fields require all nodes be on 8.2 or later";
+                throw new IllegalStateException("Lookup fields require all nodes be on 8.2 or later");
+            }
+        }
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(name);
-        for (Object value : values) {
-            // This call doesn't really need to support writing any kind of object, since the values
-            // here are always serializable to xContent. Each value could be a leaf types like a string,
-            // number, or boolean, a list of such values, or a map of such values with string keys.
-            builder.value(value);
-        }
-        builder.endArray();
-        return builder;
+    public List<LookupField> getLookupFields() {
+        return lookupFields;
+    }
+
+    public ToXContentFragment getValidValuesWriter() {
+        return (builder, params) -> {
+            builder.startArray(name);
+            for (Object value : values) {
+                try {
+                    builder.value(value);
+                } catch (RuntimeException e) {
+                    // if the value cannot be serialized, we catch here and return a placeholder value
+                    builder.value("<unserializable>");
+                }
+            }
+            builder.endArray();
+            return builder;
+        };
+    }
+
+    public ToXContentFragment getIgnoredValuesWriter() {
+        return (builder, params) -> {
+            builder.startArray(name);
+            for (Object value : ignoredValues) {
+                builder.value(value);
+            }
+            builder.endArray();
+            return builder;
+        };
     }
 
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
@@ -128,19 +180,30 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
             return false;
         }
         DocumentField objects = (DocumentField) o;
-        return Objects.equals(name, objects.name) && Objects.equals(values, objects.values);
+        return Objects.equals(name, objects.name)
+            && Objects.equals(values, objects.values)
+            && Objects.equals(ignoredValues, objects.ignoredValues)
+            && Objects.equals(lookupFields, objects.lookupFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, values);
+        return Objects.hash(name, values, ignoredValues, lookupFields);
     }
 
     @Override
     public String toString() {
-        return "DocumentField{" +
-                "name='" + name + '\'' +
-                ", values=" + values +
-                '}';
+        return "DocumentField{"
+            + "name='"
+            + name
+            + '\''
+            + ", values="
+            + values
+            + ", ignoredValues="
+            + ignoredValues
+            + ", lookupFields="
+            + lookupFields
+            + '}';
     }
+
 }

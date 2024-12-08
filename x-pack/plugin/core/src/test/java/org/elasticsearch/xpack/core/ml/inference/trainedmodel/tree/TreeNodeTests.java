@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
+public class TreeNodeTests extends AbstractXContentSerializingTestCase<TreeNode> {
 
     private boolean lenient;
 
@@ -39,12 +40,13 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
         Integer rgt = randomBoolean() ? randomInt(100) : null;
         Double threshold = lft != null || randomBoolean() ? randomDouble() : null;
         Integer featureIndex = lft != null || randomBoolean() ? randomInt(100) : null;
-        return createRandom(randomInt(100),
-            lft,
-            rgt,
-            threshold,
-            featureIndex,
-            randomBoolean() ? null : randomFrom(Operator.values())).build();
+        return createRandom(randomInt(100), lft, rgt, threshold, featureIndex, randomBoolean() ? null : randomFrom(Operator.values()))
+            .build();
+    }
+
+    @Override
+    protected TreeNode mutateInstance(TreeNode instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static TreeNode createRandomLeafNode(double internalValue) {
@@ -55,12 +57,14 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
             .build();
     }
 
-    public static TreeNode.Builder createRandom(int nodeId,
-                                                Integer left,
-                                                Integer right,
-                                                Double threshold,
-                                                Integer featureIndex,
-                                                Operator operator) {
+    public static TreeNode.Builder createRandom(
+        int nodeId,
+        Integer left,
+        Integer right,
+        Double threshold,
+        Integer featureIndex,
+        Operator operator
+    ) {
         return TreeNode.builder(nodeId)
             .setLeafValue(left == null ? Collections.singletonList(randomDouble()) : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())

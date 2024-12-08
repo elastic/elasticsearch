@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -23,10 +24,12 @@ public class LengthFunctionProcessorTests extends ESTestCase {
         assertEquals(0, new Length(EMPTY, l("")).makePipe().asProcessor().process(null));
         assertEquals(1, new Length(EMPTY, l('f')).makePipe().asProcessor().process(null));
     }
-    
+
     public void testLengthFunctionInputsValidation() {
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new Length(EMPTY, l(5)).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Length(EMPTY, l(5)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(QlIllegalArgumentException.class, () -> new Length(EMPTY, l(true)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [true]", siae.getMessage());
@@ -34,8 +37,10 @@ public class LengthFunctionProcessorTests extends ESTestCase {
 
     public void testLengthFunctionWithRandomInvalidDataType() {
         Literal literal = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new Length(EMPTY, literal).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Length(EMPTY, literal).makePipe().asProcessor().process(null)
+        );
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }

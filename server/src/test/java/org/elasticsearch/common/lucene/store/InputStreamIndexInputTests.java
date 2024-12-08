@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.store;
@@ -251,5 +241,37 @@ public class InputStreamIndexInputTests extends ESTestCase {
         is.reset();
         assertThat(is.read(), equalTo(1));
         assertThat(is.read(), equalTo(2));
+    }
+
+    public void testReadZeroShouldReturnZero() throws IOException {
+        try (Directory dir = new ByteBuffersDirectory()) {
+            try (IndexOutput output = dir.createOutput("test", IOContext.DEFAULT)) {
+                output.writeByte((byte) 1);
+            }
+            try (IndexInput input = dir.openInput("test", IOContext.DEFAULT)) {
+                assertEquals(0, new InputStreamIndexInput(input, input.length()).read(new byte[randomIntBetween(0, 16)], 0, 0));
+            }
+        }
+    }
+
+    public void testReadAllBytes() throws IOException {
+        try (Directory dir = new ByteBuffersDirectory()) {
+            // Need to be bigger than InputStream#DEFAULT_BUFFER_SIZE in order to test that `readAllBytes`
+            // will call `read` again after calling it with length 0
+            int size = randomIntBetween(8193, 10_000);
+            try (IndexOutput output = dir.createOutput("test", IOContext.DEFAULT)) {
+                output.writeBytes(randomByteArrayOfLength(size), size);
+            }
+            try (IndexInput input = dir.openInput("test", IOContext.DEFAULT)) {
+                byte[] bytes = new InputStreamIndexInput(input, input.length()).readAllBytes();
+                assertEquals(size, bytes.length);
+            }
+            try (IndexInput input = dir.openInput("test", IOContext.DEFAULT)) {
+                // Verify that the respect the limit condition
+                long limit = randomLongBetween(0, input.length());
+                byte[] bytes = new InputStreamIndexInput(input, limit).readAllBytes();
+                assertEquals(limit, bytes.length);
+            }
+        }
     }
 }

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 
@@ -57,19 +58,20 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), randomBoolean());
             } else {
                 Exception exception = randomFrom(
-                        new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
-                        new IllegalStateException(randomAlphaOfLength(5)),
-                        new IllegalArgumentException(randomAlphaOfLength(5)));
+                    new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
+                    new IllegalStateException(randomAlphaOfLength(5)),
+                    new IllegalArgumentException(randomAlphaOfLength(5))
+                );
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 
-            final Version version = VersionUtils.randomVersion(random());
+            TransportVersion version = TransportVersionUtils.randomVersion(random());
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(version);
+            output.setTransportVersion(version);
             response.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(version);
+            streamInput.setTransportVersion(version);
             MonitoringBulkResponse response2 = new MonitoringBulkResponse(streamInput);
             assertThat(response2.getTookInMillis(), equalTo(response.getTookInMillis()));
             if (response.getError() == null) {

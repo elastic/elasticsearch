@@ -1,8 +1,8 @@
 [[discovery-ec2]]
-=== EC2 Discovery Plugin
+=== EC2 Discovery plugin
 
 The EC2 discovery plugin provides a list of seed addresses to the
-{ref}/modules-discovery-hosts-providers.html[discovery process] by querying the
+{ref}/discovery-hosts-providers.html[discovery process] by querying the
 https://github.com/aws/aws-sdk-java[AWS API] for a list of EC2 instances
 matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
@@ -97,6 +97,11 @@ The available settings for the EC2 discovery plugin are as follows.
     this setting determines the port to use to connect to the proxy. Defaults to
     `80`.
 
+`discovery.ec2.proxy.scheme`::
+
+    The scheme to use when connecting to the EC2 service endpoint through proxy specified
+    in `discovery.ec2.proxy.host`. Valid values are `http` or `https`. Defaults to `http`.
+
 `discovery.ec2.proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
@@ -114,7 +119,7 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.read_timeout`::
 
     The socket timeout for connections to EC2,
-    {ref}/common-options.html#time-units[including the units]. For example, a
+    {time-units}[including the units]. For example, a
     value of `60s` specifies a 60-second timeout. Defaults to 50 seconds.
 
 `discovery.ec2.groups`::

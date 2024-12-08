@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.tree;
 
@@ -23,17 +24,22 @@ public class SourceTests extends ESTestCase {
             l -> new Source(
                 randomValueOtherThan(l.source().getLineNumber(), () -> between(1, Integer.MAX_VALUE)),
                 l.source().getColumnNumber() - 1,
-                l.text()),
+                l.text()
+            ),
             l -> new Source(
                 l.source().getLineNumber(),
                 randomValueOtherThan(l.source().getColumnNumber() - 1, () -> between(1, Integer.MAX_VALUE)),
-                l.text()));
+                l.text()
+            )
+        );
         return randomFrom(options).apply(source);
     }
 
     public void testEqualsAndHashCode() {
-        checkEqualsAndHashCode(randomSource(),
-                l -> new Source(l.source().getLineNumber(), l.source().getColumnNumber() - 1, l.text()),
-            SourceTests::mutate);
+        checkEqualsAndHashCode(
+            randomSource(),
+            l -> new Source(l.source().getLineNumber(), l.source().getColumnNumber() - 1, l.text()),
+            SourceTests::mutate
+        );
     }
 }

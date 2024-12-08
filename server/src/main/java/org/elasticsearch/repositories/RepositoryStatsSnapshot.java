@@ -1,32 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public final class RepositoryStatsSnapshot implements Writeable, ToXContentObject {
@@ -36,10 +28,7 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
     private final long clusterVersion;
     private final boolean archived;
 
-    public RepositoryStatsSnapshot(RepositoryInfo repositoryInfo,
-                                   RepositoryStats repositoryStats,
-                                   long clusterVersion,
-                                   boolean archived) {
+    public RepositoryStatsSnapshot(RepositoryInfo repositoryInfo, RepositoryStats repositoryStats, long clusterVersion, boolean archived) {
         assert archived != (clusterVersion == UNKNOWN_CLUSTER_VERSION);
         this.repositoryInfo = repositoryInfo;
         this.repositoryStats = repositoryStats;
@@ -82,7 +71,12 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         repositoryInfo.toXContent(builder, params);
-        builder.field("request_counts", repositoryStats.requestCounts);
+        builder.startObject("request_counts");
+        for (Map.Entry<String, BlobStoreActionStats> entry : repositoryStats.actionStats.entrySet()) {
+            final BlobStoreActionStats stats = entry.getValue();
+            builder.field(entry.getKey(), stats.operations());
+        }
+        builder.endObject();
         builder.field("archived", archived);
         if (archived) {
             builder.field("cluster_version", clusterVersion);
@@ -96,10 +90,10 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStatsSnapshot that = (RepositoryStatsSnapshot) o;
-        return repositoryInfo.equals(that.repositoryInfo) &&
-            repositoryStats.equals(that.repositoryStats) &&
-            clusterVersion == that.clusterVersion &&
-            archived == that.archived;
+        return repositoryInfo.equals(that.repositoryInfo)
+            && repositoryStats.equals(that.repositoryStats)
+            && clusterVersion == that.clusterVersion
+            && archived == that.archived;
     }
 
     @Override

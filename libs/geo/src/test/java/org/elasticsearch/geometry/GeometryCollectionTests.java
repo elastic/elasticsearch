@@ -1,26 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
 
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
@@ -29,6 +20,8 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
     protected GeometryCollection<Geometry> createTestInstance(boolean hasAlt) {
@@ -36,15 +29,19 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
-            wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY))));
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals(
+            "GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
+            WellKnownText.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)))
+        );
 
-        assertEquals(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)),
-            wkt.fromWKT("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)"));
+        assertEquals(
+            new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)),
+            WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)")
+        );
 
-        assertEquals("GEOMETRYCOLLECTION EMPTY", wkt.toWKT(GeometryCollection.EMPTY));
-        assertEquals(GeometryCollection.EMPTY, wkt.fromWKT("GEOMETRYCOLLECTION EMPTY)"));
+        assertEquals("GEOMETRYCOLLECTION EMPTY", WellKnownText.toWKT(GeometryCollection.EMPTY));
+        assertEquals(GeometryCollection.EMPTY, WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION EMPTY)"));
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -55,14 +52,49 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(null));
         assertEquals("the list of shapes cannot be null or empty", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(
-            Arrays.asList(new Point(20, 10), new Point(20, 10, 30))));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeometryCollection<>(Arrays.asList(new Point(20, 10), new Point(20, 10, 30)))
+        );
         assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
-            new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30)))));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> StandardValidator.instance(false)
+                .validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))))
+        );
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+        StandardValidator.instance(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+    }
+
+    public void testDeeplyNestedCollection() throws IOException, ParseException {
+        String wkt = makeDeeplyNestedGeometryCollectionWKT(WellKnownText.MAX_NESTED_DEPTH);
+        Geometry parsed = WellKnownText.fromWKT(GeographyValidator.instance(true), true, wkt);
+        assertEquals(WellKnownText.MAX_NESTED_DEPTH, countNestedGeometryCollections((GeometryCollection<?>) parsed));
+    }
+
+    public void testTooDeeplyNestedCollection() {
+        String wkt = makeDeeplyNestedGeometryCollectionWKT(WellKnownText.MAX_NESTED_DEPTH + 1);
+        ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(GeographyValidator.instance(true), true, wkt));
+        assertThat(ex.getMessage(), containsString("maximum nested depth of " + WellKnownText.MAX_NESTED_DEPTH));
+    }
+
+    private String makeDeeplyNestedGeometryCollectionWKT(int depth) {
+        return "GEOMETRYCOLLECTION (".repeat(depth) + "POINT (20.0 10.0)" + ")".repeat(depth);
+    }
+
+    private int countNestedGeometryCollections(GeometryCollection<?> geometry) {
+        int count = 1;
+        while (geometry.get(0) instanceof GeometryCollection<?> g) {
+            count += 1;
+            geometry = g;
+        }
+        return count;
+    }
+
+    @Override
+    protected GeometryCollection<Geometry> mutateInstance(GeometryCollection<Geometry> instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

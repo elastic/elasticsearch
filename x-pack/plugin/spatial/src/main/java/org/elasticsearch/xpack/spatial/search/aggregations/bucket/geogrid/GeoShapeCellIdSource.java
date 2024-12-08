@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
@@ -18,30 +19,15 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 
 import java.util.function.LongConsumer;
 
-public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
+public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
-    private final int precision;
     private final GeoGridTiler encoder;
-    private LongConsumer circuitBreakerConsumer;
+    private final LongConsumer circuitBreakerConsumer;
 
-    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, int precision, GeoGridTiler encoder) {
+    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, GeoGridTiler encoder, LongConsumer circuitBreakerConsumer) {
         this.valuesSource = valuesSource;
-        this.precision = precision;
         this.encoder = encoder;
-        this.circuitBreakerConsumer = (l) -> {};
-    }
-
-    /**
-     * This setter exists since the aggregator's circuit-breaking accounting needs to be
-     * accessible from within the values-source. Problem is that this values-source needs to
-     * be created and passed to the aggregator before we have access to this functionality.
-     */
-    public void setCircuitBreakerConsumer(LongConsumer circuitBreakerConsumer) {
         this.circuitBreakerConsumer = circuitBreakerConsumer;
-    }
-
-    public int precision() {
-        return precision;
     }
 
     @Override
@@ -51,15 +37,11 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        GeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
-        if (precision == 0) {
-            // special case, precision 0 is the whole world
-            return new AllCellValues(geoValues, encoder, circuitBreakerConsumer);
-        }
+        GeoShapeValues geoValues = valuesSource.shapeValues(ctx);
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (GeoShapeValuesSourceType.instance() == vs) {
             // docValues are geo shapes
-            return new GeoShapeCellValues(geoValues, precision, encoder, circuitBreakerConsumer);
+            return new GeoShapeCellValues(geoValues, encoder, circuitBreakerConsumer);
         } else {
             throw new IllegalArgumentException("unsupported geo type");
         }

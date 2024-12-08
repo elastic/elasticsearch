@@ -1,37 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.example.customsuggester;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry> {
 
@@ -75,25 +60,7 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         return new Entry(in);
     }
 
-    public static CustomSuggestion fromXContent(XContentParser parser, String name) throws IOException {
-        CustomSuggestion suggestion = new CustomSuggestion(name, -1, null);
-        parseEntries(parser, suggestion, Entry::fromXContent);
-        return suggestion;
-    }
-
     public static class Entry extends Suggest.Suggestion.Entry<CustomSuggestion.Entry.Option> {
-
-        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CustomSuggestionEntryParser", true, Entry::new);
-
-        static {
-            declareCommonFields(PARSER);
-            PARSER.declareString((entry, dummy) -> entry.dummy = dummy, DUMMY);
-            /*
-             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
-             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
-             */
-            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
-        }
 
         private String dummy;
 
@@ -142,26 +109,7 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
             return builder;
         }
 
-        public static Entry fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         public static class Option extends Suggest.Suggestion.Entry.Option {
-
-            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
-                "CustomSuggestionObjectParser", true,
-                args -> {
-                    Text text = new Text((String) args[0]);
-                    float score = (float) args[1];
-                    String dummy = (String) args[2];
-                    return new Option(text, score, dummy);
-                });
-
-            static {
-                PARSER.declareString(constructorArg(), TEXT);
-                PARSER.declareFloat(constructorArg(), SCORE);
-                PARSER.declareString(constructorArg(), DUMMY);
-            }
 
             private String dummy;
 
@@ -202,10 +150,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
                 builder = super.toXContent(builder, params);
                 builder.field(DUMMY.getPreferredName(), dummy);
                 return builder;
-            }
-
-            public static Option fromXContent(XContentParser parser) {
-                return PARSER.apply(parser, null);
             }
         }
     }

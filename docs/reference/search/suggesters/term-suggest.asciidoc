@@ -1,9 +1,6 @@
 [[term-suggester]]
 ==== Term suggester
 
-NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first.
-
 The `term` suggester suggests terms based on edit distance. The provided
 suggest text is analyzed before terms are suggested. The suggested terms
 are provided per analyzed suggest text token. The `term` suggester
@@ -44,7 +41,7 @@ doesn't take the query into account that is part of request.
     suggested. Three possible values can be specified:
 +
      ** `missing`:  Only provide suggestions for suggest text terms that are
-                    not in the index. This is the default.
+                    not in the index (default).
      ** `popular`:  Only suggest suggestions that occur in more docs than
                     the original suggest text term.
      ** `always`:   Suggest any matching suggestions based on terms in the
@@ -63,11 +60,11 @@ doesn't take the query into account that is part of request.
     The number of minimal prefix characters that must
     match in order be a candidate for suggestions. Defaults to 1. Increasing
     this number improves spellcheck performance. Usually misspellings don't
-    occur in the beginning of terms. (Old name "prefix_len" is deprecated)
+    occur in the beginning of terms.
 
 `min_word_length`::
     The minimum length a suggest text term must have in
-    order to be included. Defaults to 4. (Old name "min_word_len" is deprecated)
+    order to be included. Defaults to `4`.
 
 `shard_size`::
     Sets the maximum number of suggestions to be retrieved
@@ -82,7 +79,7 @@ doesn't take the query into account that is part of request.
 
 `max_inspections`::
     A factor that is used to multiply with the
-    `shards_size` in order to inspect more candidate spelling corrections on
+    `shard_size` in order to inspect more candidate spelling corrections on
     the shard level. Can improve accuracy at the cost of performance.
     Defaults to 5.
 

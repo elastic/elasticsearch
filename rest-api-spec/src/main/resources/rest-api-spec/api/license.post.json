@@ -1,0 +1,42 @@
+{
+  "license.post":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/update-license.html",
+      "description":"Updates the license for the cluster."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_license",
+          "methods":[
+            "PUT",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "acknowledge":{
+        "type":"boolean",
+        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for processing on master node"
+      },
+      "timeout": {
+        "type": "time",
+        "description": "Timeout for acknowledgement of update from all nodes in cluster"
+      }
+    },
+    "body":{
+      "description":"licenses to be installed"
+    }
+  }
+}

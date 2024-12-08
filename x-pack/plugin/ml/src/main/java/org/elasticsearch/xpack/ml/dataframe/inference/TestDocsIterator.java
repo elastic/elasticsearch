@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -26,16 +27,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
+class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     private final DataFrameAnalyticsConfig config;
     private Long lastDocId;
     private final Map<String, String> docValueFieldAndFormatPairs;
 
-    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
+    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields, Long lastIncrementalId) {
         super(client, config.getDest().getIndex(), true);
         this.config = Objects.requireNonNull(config);
         this.docValueFieldAndFormatPairs = buildDocValueFieldAndFormatPairs(extractedFields);
+        this.lastDocId = lastIncrementalId;
     }
 
     private static Map<String, String> buildDocValueFieldAndFormatPairs(ExtractedFields extractedFields) {
@@ -48,8 +50,8 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected QueryBuilder getQuery() {
-        return QueryBuilders.boolQuery().mustNot(
-            QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true));
+        return QueryBuilders.boolQuery()
+            .mustNot(QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true));
     }
 
     @Override
@@ -59,12 +61,12 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected SearchHit map(SearchHit hit) {
-        return hit;
+        return hit.asUnpooled();
     }
 
     @Override
     protected Object[] searchAfterFields() {
-        return lastDocId == null ? null : new Object[] {lastDocId};
+        return lastDocId == null ? null : new Object[] { lastDocId };
     }
 
     @Override
@@ -74,8 +76,12 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected SearchResponse executeSearchRequest(SearchRequest searchRequest) {
-        return ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client(),
-            () -> client().search(searchRequest).actionGet());
+        return ClientHelper.executeWithHeaders(
+            config.getHeaders(),
+            ClientHelper.ML_ORIGIN,
+            client(),
+            () -> client().search(searchRequest).actionGet()
+        );
     }
 
     @Override

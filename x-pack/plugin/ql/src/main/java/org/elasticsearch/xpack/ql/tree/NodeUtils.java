@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.tree;
 
@@ -26,15 +27,14 @@ public abstract class NodeUtils {
         }
 
         // try to allocate the buffer - 5 represents the column comparison chars
-        StringBuilder sb = new StringBuilder(left.length() + right.length() + Math.max(left.length(),  right.length()) * 3);
+        StringBuilder sb = new StringBuilder(left.length() + right.length() + Math.max(left.length(), right.length()) * 3);
 
         boolean leftAvailable = true, rightAvailable = true;
         for (int leftIndex = 0, rightIndex = 0; leftAvailable || rightAvailable; leftIndex++, rightIndex++) {
             String leftRow = "", rightRow = leftRow;
             if (leftIndex < leftSplit.length) {
                 leftRow = leftSplit[leftIndex];
-            }
-            else {
+            } else {
                 leftAvailable = false;
             }
             sb.append(leftRow);
@@ -44,8 +44,7 @@ public abstract class NodeUtils {
             // right side still available
             if (rightIndex < rightSplit.length) {
                 rightRow = rightSplit[rightIndex];
-            }
-            else {
+            } else {
                 rightAvailable = false;
             }
             if (leftAvailable || rightAvailable) {
@@ -57,12 +56,11 @@ public abstract class NodeUtils {
         return sb.toString();
     }
 
-
     private static final int TO_STRING_LIMIT = 52;
 
     public static <E> String limitedToString(Collection<E> c) {
         Iterator<E> it = c.iterator();
-        if (!it.hasNext()) {
+        if (it.hasNext() == false) {
             return "[]";
         }
 
@@ -79,7 +77,7 @@ public abstract class NodeUtils {
             } else {
                 sb.append(next);
             }
-            if (!it.hasNext()) {
+            if (it.hasNext() == false) {
                 return sb.append(']').toString();
             }
             sb.append(',').append(' ');

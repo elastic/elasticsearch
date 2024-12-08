@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -22,14 +12,17 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
-
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EdgeNGramTokenFilterFactory.class);
 
     private final int minGram;
 
@@ -42,19 +35,26 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     EdgeNGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.minGram = settings.getAsInt("min_gram", 1);
         this.maxGram = settings.getAsInt("max_gram", 2);
+        if (settings.get("side") != null) {
+            deprecationLogger.critical(
+                DeprecationCategory.ANALYSIS,
+                "edge_ngram_side_deprecated",
+                "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+            );
+        }
         this.side = parseSide(settings.get("side", "front"));
         this.preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
     }
 
     static int parseSide(String side) {
-        switch(side) {
-            case "front": return SIDE_FRONT;
-            case "back": return SIDE_BACK;
-            default: throw new IllegalArgumentException("invalid side: " + side);
-        }
+        return switch (side) {
+            case "front" -> SIDE_FRONT;
+            case "back" -> SIDE_BACK;
+            default -> throw new IllegalArgumentException("invalid side: " + side);
+        };
     }
 
     @Override

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -23,17 +13,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 
 public class JvmStatsTests extends ESTestCase {
-    public void testJvmStats() throws IOException {
+    public void testJvmStats() {
         JvmStats stats = JvmStats.jvmStats();
         assertNotNull(stats);
         assertNotNull(stats.getUptime());
@@ -49,6 +44,17 @@ public class JvmStatsTests extends ESTestCase {
         }
         assertNotNull(mem.getHeapUsedPercent());
         assertThat(mem.getHeapUsedPercent(), anyOf(equalTo((short) -1), greaterThanOrEqualTo((short) 0)));
+
+        // Memory pools
+        Map<String, JvmStats.MemoryPool> memoryPools = StreamSupport.stream(stats.getMem().spliterator(), false)
+            .collect(Collectors.toMap(JvmStats.MemoryPool::getName, Function.identity()));
+        assertThat(memoryPools, hasKey(GcNames.YOUNG));
+        assertThat(memoryPools, hasKey(GcNames.OLD));
+        assertThat(memoryPools, hasKey("Metaspace"));
+        assertThat(memoryPools.keySet(), hasSize(greaterThan(3)));
+        for (JvmStats.MemoryPool memoryPool : memoryPools.values()) {
+            assertThat("Memory pool: " + memoryPool.getName(), memoryPool.getUsed().getBytes(), greaterThanOrEqualTo(0L));
+        }
 
         // Threads
         JvmStats.Threads threads = stats.getThreads();

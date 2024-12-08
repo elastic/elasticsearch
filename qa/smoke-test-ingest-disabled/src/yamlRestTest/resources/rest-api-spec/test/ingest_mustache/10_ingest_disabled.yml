@@ -1,0 +1,111 @@
+---
+"Test ingest CRUD APIS work fine when node.ingest is set to false":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+---
+"Test ingest simulate API fails when node.ingest is set to false":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value" : "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+
+---
+"Test index api with pipeline id fails when node.ingest is set to false":
+  - do:
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_1"
+        body: {
+          field1: "1",
+          field2: "2",
+          field3: "3"
+        }
+
+---
+"Test bulk api with pipeline id fails when node.ingest is set to false":
+  - do:
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
+      bulk:
+        pipeline: "my_pipeline_1"
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+          - f1: v2
+
+---
+"Test bulk api that contains a single index call with pipeline id fails when node.ingest is set to false":
+  - do:
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
+      bulk:
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: my_pipeline_1
+          - f1: v2
+

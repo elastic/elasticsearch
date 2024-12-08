@@ -1,4 +1,4 @@
-[[getting-component-templates]] 
+[[getting-component-templates]]
 === Get component template API
 ++++
 <titleabbrev>Get component template</titleabbrev>
@@ -10,7 +10,7 @@ Retrieves information about one or more component templates.
 
 [source,console]
 --------------------------------------------------
-PUT /_component_template/template_1 
+PUT /_component_template/template_1
 {
   "template": {
     "settings": {
@@ -44,13 +44,19 @@ GET /_component_template/template_1
 [[get-component-template-api-request]]
 ==== {api-request-title}
 
-`GET /_component-template/<component-template>`
+`GET /_component_template/<component-template>`
 
+[[get-component-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to update templates, or the `monitor` cluster privilege to retrieve templates.
 
 [[get-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-`<component-template>`
+`<component-template>`::
 (Optional, string)
 Comma-separated list of component template names used to limit the request.
 Wildcard (`*`) expressions are supported.
@@ -65,6 +71,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`include_defaults`::
+(Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
 
 [[get-component-template-api-example]]
 ==== {api-examples-title}

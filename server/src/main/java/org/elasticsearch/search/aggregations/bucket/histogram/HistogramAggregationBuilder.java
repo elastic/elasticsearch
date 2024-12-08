@@ -1,30 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -38,11 +26,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
@@ -50,19 +41,15 @@ import java.util.Objects;
  */
 public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
-    public static final ValuesSourceRegistry.RegistryKey<HistogramAggregatorSupplier> REGISTRY_KEY =
-        new ValuesSourceRegistry.RegistryKey<>(NAME, HistogramAggregatorSupplier.class);
+    public static final ValuesSourceRegistry.RegistryKey<HistogramAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        HistogramAggregatorSupplier.class
+    );
 
-    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
-            Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
-            () -> new double[]{ Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY });
-    static {
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
-    }
-
-    public static final ObjectParser<HistogramAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, HistogramAggregationBuilder::new);
+    public static final ObjectParser<HistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        HistogramAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
@@ -74,14 +61,25 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
         PARSER.declareLong(HistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
 
-        PARSER.declareField(HistogramAggregationBuilder::extendedBounds, parser -> DoubleBounds.PARSER.apply(parser, null),
-            Histogram.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            HistogramAggregationBuilder::extendedBounds,
+            parser -> DoubleBounds.PARSER.apply(parser, null),
+            Histogram.EXTENDED_BOUNDS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
 
-        PARSER.declareField(HistogramAggregationBuilder::hardBounds, parser -> DoubleBounds.PARSER.apply(parser, null),
-            Histogram.HARD_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            HistogramAggregationBuilder::hardBounds,
+            parser -> DoubleBounds.PARSER.apply(parser, null),
+            Histogram.HARD_BOUNDS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
 
-        PARSER.declareObjectArray(HistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
-            Histogram.ORDER_FIELD);
+        PARSER.declareObjectArray(
+            HistogramAggregationBuilder::order,
+            (p, c) -> InternalOrder.Parser.parseOrderParam(p),
+            Histogram.ORDER_FIELD
+        );
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -106,9 +104,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    protected HistogramAggregationBuilder(
+        HistogramAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.interval = clone.interval;
         this.offset = clone.offset;
@@ -117,6 +117,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         this.order = clone.order;
         this.keyed = clone.keyed;
         this.minDocCount = clone.minDocCount;
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -132,18 +137,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
-            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
-        } else {
-            double minBound = in.readDouble();
-            double maxBound = in.readDouble();
-            if (minBound ==  Double.POSITIVE_INFINITY && maxBound == Double.NEGATIVE_INFINITY) {
-                extendedBounds = null;
-            } else {
-                extendedBounds = new DoubleBounds(minBound, maxBound);
-            }
-        }
+        extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+        hardBounds = in.readOptionalWriteable(DoubleBounds::new);
     }
 
     @Override
@@ -153,18 +148,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(extendedBounds);
-            out.writeOptionalWriteable(hardBounds);
-        } else {
-            if (extendedBounds != null) {
-                out.writeDouble(extendedBounds.getMin());
-                out.writeDouble(extendedBounds.getMax());
-            } else {
-                out.writeDouble(Double.POSITIVE_INFINITY);
-                out.writeDouble(Double.NEGATIVE_INFINITY);
-            }
-        }
+        out.writeOptionalWriteable(extendedBounds);
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /** Get the current interval that is set on this builder. */
@@ -200,10 +185,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
         return DoubleBounds.getEffectiveMax(extendedBounds);
-    }
-
-    protected DoubleBounds extendedBounds() {
-        return extendedBounds;
     }
 
     /**
@@ -258,7 +239,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         if (order == null) {
             throw new IllegalArgumentException("[order] must not be null: [" + name + "]");
         }
-        if(order instanceof CompoundOrder || InternalOrder.isKeyOrder(order)) {
+        if (order instanceof CompoundOrder || InternalOrder.isKeyOrder(order)) {
             this.order = order; // if order already contains a tie-breaker we are good to go
         } else { // otherwise add a tie-breaker by using a compound order
             this.order = BucketOrder.compound(order);
@@ -303,7 +284,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     public HistogramAggregationBuilder minDocCount(long minDocCount) {
         if (minDocCount < 0) {
             throw new IllegalArgumentException(
-                    "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]");
+                "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]"
+            );
         }
         this.minDocCount = minDocCount;
         return this;
@@ -350,28 +332,55 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        HistogramAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         if (hardBounds != null && extendedBounds != null) {
             if (hardBounds.getMax() != null && extendedBounds.getMax() != null && hardBounds.getMax() < extendedBounds.getMax()) {
-                throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
-                    hardBounds + "], extended bounds: [" + extendedBounds.getMin() + "--" + extendedBounds.getMax() + "]");
+                throw new IllegalArgumentException(
+                    "Extended bounds have to be inside hard bounds, hard bounds: ["
+                        + hardBounds
+                        + "], extended bounds: ["
+                        + extendedBounds.getMin()
+                        + "--"
+                        + extendedBounds.getMax()
+                        + "]"
+                );
             }
             if (hardBounds.getMin() != null && extendedBounds.getMin() != null && hardBounds.getMin() > extendedBounds.getMin()) {
-                throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
-                    hardBounds + "], extended bounds: [" + extendedBounds.getMin() + "--" + extendedBounds.getMax() + "]");
+                throw new IllegalArgumentException(
+                    "Extended bounds have to be inside hard bounds, hard bounds: ["
+                        + hardBounds
+                        + "], extended bounds: ["
+                        + extendedBounds.getMin()
+                        + "--"
+                        + extendedBounds.getMax()
+                        + "]"
+                );
             }
         }
-        return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, context, parent, subFactoriesBuilder, metadata);
+
+        return new HistogramAggregatorFactory(
+            name,
+            config,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -392,5 +401,20 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    @Override
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {}
+
+    @Override
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        if (minDocCount != 0) {
+            addValidationError.accept("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
+        }
     }
 }

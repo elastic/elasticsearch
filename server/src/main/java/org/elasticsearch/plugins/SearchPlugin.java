@@ -1,34 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -45,11 +35,19 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,6 +69,7 @@ public interface SearchPlugin {
     default List<ScoreFunctionSpec<?>> getScoreFunctions() {
         return emptyList();
     }
+
     /**
      * The new {@link SignificanceHeuristic}s defined by this plugin. {@linkplain SignificanceHeuristic}s are used by the
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
@@ -78,42 +77,64 @@ public interface SearchPlugin {
     default List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return emptyList();
     }
+
+    /**
+     * The new {@link QueryVectorBuilder}s defined by this plugin. {@linkplain QueryVectorBuilder}s can be used within a kNN
+     * search to build the query vector instead of having the user provide the vector directly
+     */
+    default List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+        return emptyList();
+    }
+
     /**
      * The new {@link FetchSubPhase}s defined by this plugin.
      */
     default List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
         return emptyList();
     }
+
     /**
      * The new {@link SearchExtBuilder}s defined by this plugin.
      */
     default List<SearchExtSpec<?>> getSearchExts() {
         return emptyList();
     }
+
     /**
      * Get the {@link Highlighter}s defined by this plugin.
      */
     default Map<String, Highlighter> getHighlighters() {
         return emptyMap();
     }
+
     /**
      * The new {@link Suggester}s defined by this plugin.
      */
     default List<SuggesterSpec<?>> getSuggesters() {
         return emptyList();
     }
+
+    /**
+     * The new {@link RetrieverBuilder}s defined by this plugin.
+     */
+    default List<RetrieverSpec<?>> getRetrievers() {
+        return emptyList();
+    }
+
     /**
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
         return emptyList();
     }
+
     /**
      * The new {@link Aggregation}s added by this plugin.
      */
     default List<AggregationSpec> getAggregations() {
         return emptyList();
     }
+
     /**
      * Allows plugins to register new aggregations using aggregation names that are already defined
      * in Core, as long as the new aggregations target different ValuesSourceTypes
@@ -122,17 +143,36 @@ public interface SearchPlugin {
     default List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return emptyList();
     }
+
     /**
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {
         return emptyList();
     }
+
     /**
      * The new {@link Rescorer}s added by this plugin.
      */
     default List<RescorerSpec<?>> getRescorers() {
         return emptyList();
+    }
+
+    /**
+     * Additional GenericNamedWriteable classes added by this plugin.
+     */
+    default List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return emptyList();
+    }
+
+    /**
+     * Allows plugins to register a cache differentiator which contributes to the cacheKey
+     * computation for the request cache. This helps differentiate between queries that
+     * are otherwise identical.
+     */
+    @Nullable
+    default CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+        return null;
     }
 
     /**
@@ -181,10 +221,11 @@ public interface SearchPlugin {
          *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
-                ParseField name,
-                Writeable.Reader<T> builderReader,
-                CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader) {
+            ParseField name,
+            Writeable.Reader<T> builderReader,
+            CheckedFunction<XContentParser, T, IOException> builderParser,
+            Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader
+        ) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -202,10 +243,11 @@ public interface SearchPlugin {
          *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
-                String name,
-                Writeable.Reader<T> builderReader,
-                CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader) {
+            String name,
+            Writeable.Reader<T> builderReader,
+            CheckedFunction<XContentParser, T, IOException> builderParser,
+            Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader
+        ) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -221,6 +263,47 @@ public interface SearchPlugin {
         @SuppressWarnings("rawtypes")
         public Writeable.Reader<? extends Suggest.Suggestion> getSuggestionReader() {
             return this.suggestionReader;
+        }
+    }
+
+    /**
+     * Specification of custom {@link RetrieverBuilder}.
+     */
+    class RetrieverSpec<RB extends RetrieverBuilder> {
+
+        private final ParseField name;
+        private final RetrieverParser<RB> parser;
+
+        /**
+         * Specification of custom {@link RetrieverBuilder}.
+         *
+         * @param name holds the names by which this retriever might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the retriever should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param parser the parser the reads the retriever builder from xcontent
+         */
+        public RetrieverSpec(ParseField name, RetrieverParser<RB> parser) {
+            this.name = name;
+            this.parser = parser;
+        }
+
+        /**
+         * Specification of custom {@link RetrieverBuilder}.
+         *
+         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
+         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param parser the parser the reads the retriever builder from xcontent
+         */
+        public RetrieverSpec(String name, RetrieverParser<RB> parser) {
+            this(new ParseField(name), parser);
+        }
+
+        public ParseField getName() {
+            return name;
+        }
+
+        public RetrieverParser<RB> getParser() {
+            return parser;
         }
     }
 
@@ -273,8 +356,11 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public <T extends AggregationBuilder> AggregationSpec(ParseField name, Writeable.Reader<T> reader,
-                ContextParser<String, T> parser) {
+        public <T extends AggregationBuilder> AggregationSpec(
+            ParseField name,
+            Writeable.Reader<T> reader,
+            ContextParser<String, T> parser
+        ) {
             super(name, reader, parser);
         }
 
@@ -366,8 +452,9 @@ public interface SearchPlugin {
     /**
      * Specification for a {@link PipelineAggregator}.
      */
-    class PipelineAggregationSpec extends SearchExtensionSpec<PipelineAggregationBuilder,
-            ContextParser<String, ? extends PipelineAggregationBuilder>> {
+    class PipelineAggregationSpec extends SearchExtensionSpec<
+        PipelineAggregationBuilder,
+        ContextParser<String, ? extends PipelineAggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
 
         /**
@@ -380,9 +467,11 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
          */
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
         }
 
@@ -396,9 +485,11 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
          */
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
         }
 
@@ -414,9 +505,11 @@ public interface SearchPlugin {
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                PipelineAggregator.Parser parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            PipelineAggregator.Parser parser
+        ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
         }
 
@@ -431,9 +524,11 @@ public interface SearchPlugin {
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                PipelineAggregator.Parser parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            PipelineAggregator.Parser parser
+        ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
         }
 
@@ -466,8 +561,11 @@ public interface SearchPlugin {
      * parsed in a search request (within the ext element).
      */
     class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader,
-                CheckedFunction<XContentParser, T, IOException> parser) {
+        public SearchExtSpec(
+            ParseField name,
+            Writeable.Reader<? extends T> reader,
+            CheckedFunction<XContentParser, T, IOException> parser
+        ) {
             super(name, reader, parser);
         }
 
@@ -477,8 +575,7 @@ public interface SearchPlugin {
     }
 
     class RescorerSpec<T extends RescorerBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader,
-                CheckedFunction<XContentParser, T, IOException> parser) {
+        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
 
@@ -563,4 +660,42 @@ public interface SearchPlugin {
             return highlighters;
         }
     }
+
+    /**
+     * Specification of custom {@link QueryVectorBuilder}.
+     */
+    class QueryVectorBuilderSpec<T extends QueryVectorBuilder> extends SearchExtensionSpec<T, BiFunction<XContentParser, Void, T>> {
+        /**
+         * Specification of custom {@link QueryVectorBuilder}.
+         *
+         * @param name holds the names by which this query vector builder might be parsed.
+         *             The {@link ParseField#getPreferredName()} is special as it
+         *             is the name by under which the reader is registered. So it is the name that the builder should use as its
+         *             {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this query vector builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query vector builder from xcontent
+         */
+        public QueryVectorBuilderSpec(ParseField name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link QueryVectorBuilder}.
+         *
+         * @param name the name by which this query vector builder might be parsed or deserialized.
+         *             Make sure that the query builder returns this name for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this query vector builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query vector builder from xcontent
+         */
+        public QueryVectorBuilderSpec(String name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification of GenericNamedWriteable classes that can be serialized/deserialized as generic objects in search results.
+     */
+    record GenericNamedWriteableSpec(String name, Writeable.Reader<? extends GenericNamedWriteable> reader) {}
 }

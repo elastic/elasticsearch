@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -23,24 +24,29 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * Base class that redirects a request to a node where the job task is running.
  */
 // TODO: Hacking around here with TransportTasksAction. Ideally we should have another base class in core that
 // redirects to a single node only
-public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>,
-        Response extends BaseTasksResponse & Writeable>
-        extends TransportTasksAction<JobTask, Request, Response, Response> {
+public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>, Response extends BaseTasksResponse & Writeable>
+    extends TransportTasksAction<JobTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
 
-    TransportJobTaskAction(String actionName, ClusterService clusterService,
-                           TransportService transportService, ActionFilters actionFilters,
-                           Writeable.Reader<Request> requestReader, Writeable.Reader<Response> responseReader,
-                           String nodeExecutor, AutodetectProcessManager processManager) {
-        super(actionName, clusterService, transportService, actionFilters,
-            requestReader, responseReader, responseReader, nodeExecutor);
+    TransportJobTaskAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<Response> responseReader,
+        Executor nodeExecutor,
+        AutodetectProcessManager processManager
+    ) {
+        super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, nodeExecutor);
         this.processManager = processManager;
     }
 
@@ -61,30 +67,35 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
     }
 
     @Override
-    protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
-                                   List<FailedNodeException> failedNodeExceptions) {
+    protected Response newResponse(
+        Request request,
+        List<Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         return selectFirst(tasks, taskOperationFailures, failedNodeExceptions);
 
     }
 
-    static <Response extends BaseTasksResponse> Response selectFirst(List<Response> tasks,
-                                                                     List<TaskOperationFailure> taskOperationFailures,
-                                                                     List<FailedNodeException> failedNodeExceptions) {
+    static <Response extends BaseTasksResponse> Response selectFirst(
+        List<Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         // no need to accumulate sub responses, since we only perform an operation on one task only
         // not ideal, but throwing exceptions here works, because higher up the stack there is a try-catch block delegating to
         // the actionlistener's onFailure
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 throw new IllegalStateException("No errors or response");
             }
         } else {
             if (tasks.size() > 1) {
-                throw new IllegalStateException(
-                        "Expected one node level response, but got [" + tasks.size() + "]");
+                throw new IllegalStateException("Expected one node level response, but got [" + tasks.size() + "]");
             }
             return tasks.get(0);
         }

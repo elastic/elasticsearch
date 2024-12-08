@@ -1,0 +1,76 @@
+[role="xpack"]
+[[ldap-realm]]
+=== LDAP user authentication
+
+You can configure the {stack} {security-features} to communicate with a
+Lightweight Directory Access Protocol (LDAP) server to authenticate users. See
+<<ldap-realm-configuration>>.
+
+LDAP stores users and groups hierarchically, similar to the way folders are
+grouped in a file system. An LDAP directory's hierarchy is built from containers
+such as the _organizational unit_ (`ou`), _organization_ (`o`), and
+_domain component_ (`dc`).
+
+The path to an entry is a _Distinguished Name_ (DN) that uniquely identifies a
+user or group. User and group names typically have attributes such as a
+_common name_ (`cn`) or _unique ID_ (`uid`). A DN is specified as a string,
+for example  `"cn=admin,dc=example,dc=com"` (white spaces are ignored).
+
+The `ldap` realm supports two modes of operation, a user search mode
+and a mode with specific templates for user DNs.
+
+[[mapping-roles-ldap]]
+==== Mapping LDAP groups to roles
+
+An integral part of a realm authentication process is to resolve the roles
+associated with the authenticated user. Roles define the privileges a user has
+in the cluster.
+
+Since with the `ldap` realm the users are managed externally in the LDAP server,
+the expectation is that their roles are managed there as well. In fact, LDAP
+supports the notion of groups, which often represent user roles for different
+systems in the organization.
+
+The `ldap` realm enables you to map LDAP users to roles via their LDAP
+groups or other metadata. This role mapping can be configured via the
+<<security-api-put-role-mapping,add role mapping API>> or by using a
+file stored on each node. When a user authenticates with LDAP, the privileges
+for that user are the union of all privileges defined by the roles to which
+the user is mapped.
+
+[[ldap-realm-configuration]]
+==== Configuring an LDAP realm
+
+include::configuring-ldap-realm.asciidoc[]
+
+[[ldap-user-metadata]]
+==== User metadata in LDAP realms
+When a user is authenticated via an LDAP realm, the following properties are
+populated in the user's _metadata_:
+
+|=======================
+| Field               | Description
+| `ldap_dn`           | The distinguished name of the user.
+| `ldap_groups`       | The distinguished name of each of the groups that were
+                        resolved for the user (regardless of whether those
+                        groups were mapped to a role).
+|=======================
+
+This metadata is returned in the
+<<security-api-authenticate,authenticate API>>, and can be used with
+<<templating-role-query, templated queries>> in roles.
+
+Additional fields can be included in the user's metadata by configuring
+the `metadata` setting on the LDAP realm. This metadata is available for use
+with the <<mapping-roles-api, role mapping API>> or in
+<<templating-role-query, templated role queries>>.
+
+[[ldap-load-balancing]]
+==== Load balancing and failover
+The `load_balance.type` setting can be used at the realm level to configure how
+the {security-features} should interact with multiple LDAP servers. The
+{security-features} support both failover and load balancing modes of operation.
+
+See <<load-balancing>>.
+
+include::../securing-communications/tls-ldap.asciidoc[]

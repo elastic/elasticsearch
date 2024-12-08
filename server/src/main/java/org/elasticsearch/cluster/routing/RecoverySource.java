@@ -1,34 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -61,14 +51,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     public static RecoverySource readFrom(StreamInput in) throws IOException {
         Type type = Type.values()[in.readByte()];
-        switch (type) {
-            case EMPTY_STORE: return EmptyStoreRecoverySource.INSTANCE;
-            case EXISTING_STORE: return ExistingStoreRecoverySource.read(in);
-            case PEER: return PeerRecoverySource.INSTANCE;
-            case SNAPSHOT: return new SnapshotRecoverySource(in);
-            case LOCAL_SHARDS: return LocalShardsRecoverySource.INSTANCE;
-            default: throw new IllegalArgumentException("unknown recovery type: " + type.name());
-        }
+        return switch (type) {
+            case EMPTY_STORE -> EmptyStoreRecoverySource.INSTANCE;
+            case EXISTING_STORE -> ExistingStoreRecoverySource.read(in);
+            case PEER -> PeerRecoverySource.INSTANCE;
+            case SNAPSHOT -> new SnapshotRecoverySource(in);
+            case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
+        };
     }
 
     @Override
@@ -194,8 +183,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final LocalShardsRecoverySource INSTANCE = new LocalShardsRecoverySource();
 
-        private LocalShardsRecoverySource() {
-        }
+        private LocalShardsRecoverySource() {}
 
         @Override
         public Type getType() {
@@ -219,9 +207,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final Snapshot snapshot;
         private final IndexId index;
-        private final Version version;
+        private final IndexVersion version;
 
-        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, IndexVersion version, IndexId indexId) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
@@ -231,7 +219,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         SnapshotRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
-            version = Version.readVersion(in);
+            version = IndexVersion.readVersion(in);
             index = new IndexId(in);
         }
 
@@ -253,7 +241,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return index;
         }
 
-        public Version version() {
+        public IndexVersion version() {
             return version;
         }
 
@@ -261,7 +249,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
-            Version.writeVersion(version, out);
+            IndexVersion.writeVersion(version, out);
             index.writeTo(out);
         }
 
@@ -274,7 +262,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field("repository", snapshot.getRepository())
                 .field("snapshot", snapshot.getSnapshotId().getName())
-                .field("version", version.toString())
+                .field("version", version.toReleaseVersion())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID);
         }
@@ -294,8 +282,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
-            return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version);
+            return restoreUUID.equals(that.restoreUUID)
+                && snapshot.equals(that.snapshot)
+                && index.equals(that.index)
+                && version.equals(that.version);
         }
 
         @Override
@@ -312,8 +302,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final PeerRecoverySource INSTANCE = new PeerRecoverySource();
 
-        private PeerRecoverySource() {
-        }
+        private PeerRecoverySource() {}
 
         @Override
         public Type getType() {

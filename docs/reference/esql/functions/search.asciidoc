@@ -1,0 +1,23 @@
+[discrete]
+[[esql-search-operators]]
+=== Search operators
+
+The only search operator is match (`:`).
+
+preview::["Do not use on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+
+The match operator performs a <<query-dsl-match-query,match query>> on the specified field. Returns true if the provided query matches the row.
+
+[.text-center]
+image::esql/functions/signature/match_operator.svg[Embedded,opts=inline]
+
+include::types/match.asciidoc[]
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/match-operator.csv-spec[tag=match-with-field]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/match-operator.csv-spec[tag=match-with-field-result]
+|===

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.plain;
 
@@ -28,40 +18,41 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.function.Function;
+import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
-    private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
+    private static final Logger logger = LogManager.getLogger(AbstractIndexOrdinalsFieldData.class);
 
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;
     private final IndexFieldDataCache cache;
     protected final CircuitBreakerService breakerService;
-    protected final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    protected final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
     protected AbstractIndexOrdinalsFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         IndexFieldDataCache cache,
         CircuitBreakerService breakerService,
-        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.cache = cache;
         this.breakerService = breakerService;
-        this.scriptFunction = scriptFunction;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -86,17 +77,13 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // If a field can't be found then it doesn't mean it isn't there,
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
-            return AbstractLeafOrdinalsFieldData.empty();
+            return AbstractLeafOrdinalsFieldData.empty(toScriptFieldFactory);
         }
 
         try {
             return cache.load(context, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -130,7 +117,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
             try {
-                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this);
+                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this, toScriptFieldFactory);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -138,11 +125,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(indexReader, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -151,15 +134,25 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         return GlobalOrdinalsBuilder.build(
             indexReader,
             this,
-            breakerService,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
             logger,
-            scriptFunction
+            toScriptFieldFactory
         );
     }
 
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;
+    }
+
+    private static ElasticsearchException handleCacheLoadException(Exception e) {
+        if (e instanceof ElasticsearchException ese) {
+            return ese;
+        }
+        if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException ese) {
+            throw ese;
+        }
+        throw new ElasticsearchException(e);
     }
 
     /**

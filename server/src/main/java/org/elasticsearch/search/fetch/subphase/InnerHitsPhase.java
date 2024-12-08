@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -30,11 +20,15 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class InnerHitsPhase implements FetchSubPhase {
 
@@ -46,10 +40,11 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
-        if (searchContext.innerHits() == null) {
+        if (searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource(innerHits.values()), false, Set.of());
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
@@ -57,17 +52,31 @@ public final class InnerHitsPhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return storedFieldsSpec;
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
-                hitExecute(innerHits, hitContext);
+                SearchHit hit = hitContext.hit();
+                Source rootSource = searchContext.getRootSource(hitContext);
+                hitExecute(innerHits, hit, rootSource);
             }
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, HitContext hitContext) throws IOException {
+    private static boolean requiresSource(Collection<? extends SearchContext> subContexts) {
+        boolean requiresSource = false;
+        for (SearchContext sc : subContexts) {
+            requiresSource |= sc.sourceRequested();
+            requiresSource |= sc.fetchFieldsContext() != null;
+            requiresSource |= sc.highlight() != null;
+        }
+        return requiresSource;
+    }
 
-        SearchHit hit = hitContext.hit();
-        SourceLookup sourceLookup = hitContext.sourceLookup();
-
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, Source rootSource)
+        throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);
@@ -81,23 +90,24 @@ public final class InnerHitsPhase implements FetchSubPhase {
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
-            innerHitsContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
             innerHitsContext.setRootId(hit.getId());
-            innerHitsContext.setRootLookup(sourceLookup);
+            innerHitsContext.setRootLookup(rootSource);
 
-            fetchPhase.execute(innerHitsContext);
+            fetchPhase.execute(innerHitsContext, docIdsToLoad, null);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {
                 ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
                 SearchHit searchHitFields = internalHits[j];
                 searchHitFields.score(scoreDoc.score);
-                if (scoreDoc instanceof FieldDoc) {
-                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                if (scoreDoc instanceof FieldDoc fieldDoc) {
                     searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
                 }
             }
-            results.put(entry.getKey(), fetchResult.hits());
+            var h = fetchResult.hits();
+            assert hit.isPooled() || h.isPooled() == false;
+            results.put(entry.getKey(), h);
+            h.mustIncRef();
         }
     }
 }

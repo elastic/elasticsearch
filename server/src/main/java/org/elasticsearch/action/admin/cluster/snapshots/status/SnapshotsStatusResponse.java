@@ -1,50 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Snapshot status response
  */
-public class SnapshotsStatusResponse extends ActionResponse implements ToXContentObject {
+public class SnapshotsStatusResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final List<SnapshotStatus> snapshots;
 
     public SnapshotsStatusResponse(StreamInput in) throws IOException {
         super(in);
-        snapshots = Collections.unmodifiableList(in.readList(SnapshotStatus::new));
+        snapshots = in.readCollectionAsImmutableList(SnapshotStatus::new);
     }
 
     SnapshotsStatusResponse(List<SnapshotStatus> snapshots) {
@@ -62,34 +48,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(snapshots);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("snapshots");
-        for (SnapshotStatus snapshot : snapshots) {
-            snapshot.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
-
-    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshots_status_response", true,
-        (Object[] parsedObjects) -> {
-            @SuppressWarnings("unchecked") List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
-            return new SnapshotsStatusResponse(snapshots);
-        }
-    );
-    static {
-        PARSER.declareObjectArray(constructorArg(), SnapshotStatus.PARSER, new ParseField("snapshots"));
-    }
-
-    public static SnapshotsStatusResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        out.writeCollection(snapshots);
     }
 
     @Override
@@ -103,5 +62,14 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
     @Override
     public int hashCode() {
         return snapshots != null ? snapshots.hashCode() : 0;
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.<ToXContent>concat(
+            Iterators.single((b, p) -> b.startObject().startArray("snapshots")),
+            Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
+            Iterators.single((b, p) -> b.endArray().endObject())
+        );
     }
 }

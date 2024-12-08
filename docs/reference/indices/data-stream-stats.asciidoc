@@ -41,8 +41,8 @@ POST /my-data-stream-two/_rollover/
 ////
 [source,console]
 ----
-DELETE /_data_stream/*
-DELETE /_index_template/*
+DELETE /_data_stream/my-data-stream*
+DELETE /_index_template/template
 ----
 // TEARDOWN
 ////
@@ -52,6 +52,12 @@ DELETE /_index_template/*
 GET /_data_stream/my-data-stream/_stats
 ----
 
+[[data-stream-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor` or `manage` <<privileges-list-indices,index privilege>>
+for the data stream.
 
 [[data-stream-stats-api-request]]
 ==== {api-request-title}
@@ -71,6 +77,10 @@ To target all data streams in a cluster, omit this parameter or use `*`.
 
 [[data-stream-stats-api-query-params]]
 ==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
 
 `human`::
 (Optional, Boolean)
@@ -110,7 +120,7 @@ Total number of selected data streams.
 (integer)
 Total number of backing indices for the selected data streams.
 
-`total_store_sizes`::
+`total_store_size`::
 (<<byte-units,byte value>>)
 Total size of all shards for the selected data streams.
 This property is included only if the `human` query parameter is `true`.
@@ -150,9 +160,8 @@ the {wikipedia}/Unix_time[Unix epoch].
 +
 [NOTE]
 =====
-This timestamp is provided as a best effort. The data stream may contain
-`@timestamp` values higher than this if one or more of the following conditions
-are met:
+The data stream may contain `@timestamp` values higher than this if one or more
+of the following conditions are met:
 
 * The stream contains <<indices-open-close,closed>> backing indices.
 * Backing indices with a <<data-streams-generation,lower generation>> contain

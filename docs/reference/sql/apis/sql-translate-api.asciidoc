@@ -1,0 +1,52 @@
+[role="xpack"]
+[[sql-translate-api]]
+=== SQL translate API
+++++
+<titleabbrev>SQL translate</titleabbrev>
+++++
+
+Translates an <<sql-search-api,SQL search>> into a <<search-search,search API>>
+request containing <<query-dsl,Query DSL>>. See <<sql-translate>>.
+
+[source,console]
+----
+POST _sql/translate
+{
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 10
+}
+----
+// TEST[setup:library]
+
+[[sql-translate-api-request]]
+==== {api-request-title}
+
+`GET _sql/translate`
+
+`POST _sql/translate`
+
+[[sql-translate-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the data stream, index,
+or alias you search.
+
+[[sql-translate-api-limitations]]
+===== Limitations
+
+See <<sql-limitations>>.
+
+[role="child_attributes"]
+[[sql-translate-api-request-body]]
+==== {api-request-body-title}
+
+The SQL translate API accepts the same request body parameters as the
+<<sql-search-api-request-body,SQL search API>>, excluding `cursor`.
+
+[role="child_attributes"]
+[[sql-translate-api-response-body]]
+==== {api-response-body-title}
+
+The SQL translate API returns the same response body as the
+<<search-search,search API>>.

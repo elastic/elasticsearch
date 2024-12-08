@@ -1,36 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
-
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-
 
 /**
  * A hash table from native longs to objects. This implementation resolves collisions
  * using open-addressing and does not support null values. This class is not thread-safe.
  */
-public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
+public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
 
     private LongArray keys;
     private ObjectArray<T> values;
@@ -59,7 +47,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
      * was not present in the hash table.
      */
     public T get(long key) {
-        for (long i = slot(hash(key), mask); ; i = nextSlot(i, mask)) {
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
             final T value = values.get(i);
             if (value == null) {
                 return null;
@@ -75,6 +63,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
      * an insertion.
      */
     public T put(long key, T value) {
+        assert value != null : "Null values are not supported";
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
@@ -88,8 +77,8 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
      * associated value or null if there was no entry associated with this key.
      */
     public T remove(long key) {
-        for (long i = slot(hash(key), mask); ; i = nextSlot(i, mask)) {
-            final T previous = values.set(i, null);
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
+            final T previous = values.getAndSet(i, null);
             if (previous == null) {
                 return null;
             } else if (keys.get(i) == key) {
@@ -106,11 +95,8 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
     }
 
     private T set(long key, T value) {
-        if (value == null) {
-            throw new IllegalArgumentException("Null values are not supported");
-        }
-        for (long i = slot(hash(key), mask); ; i = nextSlot(i, mask)) {
-            final T previous = values.set(i, value);
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
+            final T previous = values.getAndSet(i, value);
             if (previous == null) {
                 // slot was free
                 keys.set(i, key);
@@ -128,7 +114,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
     @Override
     public Iterator<Cursor<T>> iterator() {
-        return new Iterator<Cursor<T>>() {
+        return new Iterator<>() {
 
             boolean cached;
             final Cursor<T> cursor;
@@ -140,7 +126,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public boolean hasNext() {
-                if (!cached) {
+                if (cached == false) {
                     while (true) {
                         ++cursor.index;
                         if (cursor.index >= capacity()) {
@@ -158,7 +144,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public Cursor<T> next() {
-                if (!hasNext()) {
+                if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
                 cached = false;
@@ -192,10 +178,22 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
     @Override
     protected void removeAndAdd(long index) {
         final long key = keys.get(index);
-        final T value = values.set(index, null);
-        --size;
-        final T removed = set(key, value);
-        assert removed == null;
+        final T value = values.getAndSet(index, null);
+        reset(key, value);
+    }
+
+    private void reset(long key, T value) {
+        final ObjectArray<T> values = this.values;
+        final long mask = this.mask;
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
+            final T previous = values.get(i);
+            if (previous == null) {
+                // slot was free
+                keys.set(i, key);
+                values.set(i, value);
+                break;
+            }
+        }
     }
 
     public static final class Cursor<T> {

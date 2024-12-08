@@ -1,0 +1,6 @@
+pr: 115241
+summary: "[Security Solution] Add `create_index` to `kibana_system` role for index/DS\
+  \ `.logs-endpoint.action.responses-*`"
+area: Authorization
+type: enhancement
+issues: []

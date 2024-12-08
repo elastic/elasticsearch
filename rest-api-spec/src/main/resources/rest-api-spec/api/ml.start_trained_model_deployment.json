@@ -1,0 +1,80 @@
+{
+  "ml.start_trained_model_deployment":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
+      "description":"Start a trained model deployment."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The unique identifier of the trained model.",
+              "required":true
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "cache_size": {
+        "type": "string",
+        "description": "A byte-size value for configuring the inference cache size. For example, 20mb.",
+        "required": false
+      },
+      "deployment_id":{
+        "type":"string",
+        "description": "The Id of the new deployment. Defaults to the model_id if not set.",
+        "required": false
+      },
+      "number_of_allocations":{
+        "type":"int",
+        "description": "The total number of allocations this model is assigned across machine learning nodes.",
+        "required": false,
+        "default": 1
+      },
+      "threads_per_allocation":{
+        "type":"int",
+        "description": "The number of threads used by each model allocation during inference.",
+        "required": false,
+        "default": 1
+      },
+      "priority": {
+        "type": "string",
+        "description": "The deployment priority.",
+        "required": false,
+        "default": "normal"
+      },
+      "queue_capacity":{
+        "type":"int",
+        "description": "Controls how many inference requests are allowed in the queue at a time.",
+        "required": false,
+        "default": 1024
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the amount of time to wait for the model to deploy.",
+        "default": "20s"
+      },
+      "wait_for":{
+        "type":"string",
+        "required":false,
+        "description":"The allocation status for which to wait",
+        "options": ["starting", "started", "fully_allocated"],
+        "default": "started"
+      }
+    }
+  }
+}

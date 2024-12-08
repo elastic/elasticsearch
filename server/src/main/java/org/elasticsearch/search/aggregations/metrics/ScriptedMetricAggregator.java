@@ -1,45 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptedMetricAggContexts.MapScript;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -57,7 +47,6 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     private static final long BUCKET_COST_ESTIMATE = 1024 * 5;
 
     private final SearchLookup lookup;
-    private final SearchShardTarget shardTarget;
     private final Map<String, Object> aggParams;
     @Nullable
     private final ScriptedMetricAggContexts.InitScript.Factory initScriptFactory;
@@ -80,13 +69,12 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory,
         Map<String, Object> combineScriptParams,
         Script reduceScript,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
         this.lookup = lookup;
-        this.shardTarget = context.shardTarget();
         this.aggParams = aggParams;
         this.initScriptFactory = initScriptFactory;
         this.initScriptParams = initScriptParams;
@@ -104,7 +92,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Clear any old leaf scripts so we rebuild them on the new leaf when we first see them.
         for (long i = 0; i < states.size(); i++) {
             State state = states.get(i);
@@ -131,7 +119,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
                     states.set(owningBucketOrd, state);
                 }
                 if (state.leafMapScript == null) {
-                    state.leafMapScript = state.mapScript.newInstance(ctx);
+                    state.leafMapScript = state.mapScript.newInstance(aggCtx.getLeafReaderContext());
                     state.leafMapScript.setScorer(scorer);
                 }
                 state.leafMapScript.setDocument(doc);
@@ -160,9 +148,11 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         return state;
     }
 
+    private static final List<Object> NULL_ITEM_LIST = singletonList(null);
+
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, singletonList(null), reduceScript, metadata());
+        return new InternalScriptedMetric(name, NULL_ITEM_LIST, reduceScript, metadata());
     }
 
     @Override
@@ -172,19 +162,18 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
     private class State {
         private final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript;
-        private final Map<String, Object> mapScriptParamsForState;
         private final Map<String, Object> combineScriptParamsForState;
         private final Map<String, Object> aggState;
         private MapScript leafMapScript;
 
         State() {
             // Its possible for building the initial state to mutate the parameters as a side effect
-            Map<String, Object> aggParamsForState = ScriptedMetricAggregatorFactory.deepCopyParams(aggParams, shardTarget);
-            mapScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, mapScriptParams);
+            Map<String, Object> aggParamsForState = ScriptedMetricAggregatorFactory.deepCopyParams(aggParams);
+            Map<String, Object> mapScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, mapScriptParams);
             combineScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, combineScriptParams);
             aggState = newInitialState(ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, initScriptParams));
             mapScript = mapScriptFactory.newFactory(
-                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParamsForState, shardTarget),
+                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParamsForState),
                 aggState,
                 lookup
             );

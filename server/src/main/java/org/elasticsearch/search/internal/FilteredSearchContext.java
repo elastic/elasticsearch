@@ -1,35 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -45,12 +35,13 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.Map;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -76,8 +67,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {
-        in.preProcess(rewrite);
+    public void preProcess() {
+        in.preProcess();
     }
 
     @Override
@@ -151,8 +142,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-        in.suggest(suggest);
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return in.queryPhaseRankShardContext();
+    }
+
+    @Override
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        in.queryPhaseRankShardContext(queryPhaseRankShardContext);
     }
 
     @Override
@@ -176,11 +172,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return in.hasFetchSourceContext();
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return in.fetchSourceContext();
     }
@@ -201,16 +192,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService mapperService() {
-        return in.mapperService();
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return in.bigArrays();
-    }
-
-    @Override
     public BitsetFilterCache bitsetFilterCache() {
         return in.bitsetFilterCache();
     }
@@ -218,11 +199,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public TimeValue timeout() {
         return in.timeout();
-    }
-
-    @Override
-    public void timeout(TimeValue timeout) {
-        in.timeout(timeout);
     }
 
     @Override
@@ -335,7 +311,6 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.size(size);
     }
 
-
     @Override
     public boolean explain() {
         return in.explain();
@@ -349,11 +324,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public List<String> groupStats() {
         return in.groupStats();
-    }
-
-    @Override
-    public void groupStats(List<String> groupStats) {
-        in.groupStats(groupStats);
     }
 
     @Override
@@ -377,18 +347,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        return in.docIdsToLoad();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
-        return in.docIdsToLoad(docIdsToLoad, docsIdsToLoadSize);
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return in.dfsResult();
+    }
+
+    @Override
+    public void addDfsResult() {
+        in.addDfsResult();
     }
 
     @Override
@@ -397,8 +362,38 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public void addQueryResult() {
+        in.addQueryResult();
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return in.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return in.getMaxScore();
+    }
+
+    @Override
+    public void addRankFeatureResult() {
+        in.addRankFeatureResult();
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        return in.rankFeatureResult();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
+    }
+
+    @Override
+    public void addFetchResult() {
+        in.addFetchResult();
     }
 
     @Override
@@ -412,11 +407,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        in.addSearchExt(searchExtBuilder);
-    }
-
-    @Override
     public SearchExtBuilder getSearchExt(String name) {
         return in.getSearchExt(name);
     }
@@ -427,11 +417,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
-
-    @Override
-    public QueryShardContext getQueryShardContext() {
-        return in.getQueryShardContext();
+    public SearchExecutionContext getSearchExecutionContext() {
+        return in.getSearchExecutionContext();
     }
 
     @Override
@@ -450,11 +437,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext collapse(CollapseContext collapse) {
-        return in.collapse(collapse);
-    }
-
-    @Override
     public CollapseContext collapse() {
         return in.collapse();
     }
@@ -467,5 +449,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return in.readerContext();
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return in.newSourceLoader();
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        return in.newIdLoader();
     }
 }

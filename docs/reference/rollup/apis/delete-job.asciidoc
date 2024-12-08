@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-delete-job]]
 === Delete {rollup-jobs} API
 [subs="attributes"]
@@ -7,9 +6,9 @@
 <titleabbrev>Delete {rollup-jobs}</titleabbrev>
 ++++
 
-Deletes an existing {rollup-job}. 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
-experimental[]
+Deletes an existing {rollup-job}.
 
 [[rollup-delete-job-request]]
 ==== {api-request-title}

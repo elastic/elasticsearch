@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Collections;
@@ -37,9 +38,9 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         StepKey nextKey = instance.getNextStepKey();
 
         if (randomBoolean()) {
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
         } else {
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
 
         return new WaitForIndexingCompleteStep(key, nextKey);
@@ -52,7 +53,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionMet() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -70,7 +71,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionMetNotAFollowerIndex() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -86,7 +87,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionNotMet() {
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Settings.Builder indexSettings = settings(IndexVersion.current());
         if (randomBoolean()) {
             indexSettings.put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false");
         }
@@ -105,16 +106,19 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
         assertThat(result.getInfomationContext(), notNullValue());
-        WaitForIndexingCompleteStep.IndexingNotCompleteInfo info =
-            (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result.getInfomationContext();
-        assertThat(info.getMessage(), equalTo("waiting for the [index.lifecycle.indexing_complete] setting to be set to " +
-            "true on the leader index, it is currently [false]"));
+        WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
+            .getInfomationContext();
+        assertThat(
+            info.getMessage(),
+            equalTo(
+                "waiting for the [index.lifecycle.indexing_complete] setting to be set to "
+                    + "true on the leader index, it is currently [false]"
+            )
+        );
     }
 
     public void testIndexDeleted() {
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().build())
-            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metadata(Metadata.builder().build()).build();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), clusterState);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
@@ -10,7 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -28,10 +30,10 @@ import java.util.Objects;
  * An iterator useful to fetch a big number of documents of type T
  * and iterate through them in batches.
  */
-public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T>  {
+public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> {
     private static final Logger LOGGER = LogManager.getLogger(BatchedDocumentsIterator.class);
 
-    private static final String CONTEXT_ALIVE_DURATION = "5m";
+    private static final TimeValue CONTEXT_ALIVE_DURATION = TimeValue.timeValueMinutes(5);
     private static final int BATCH_SIZE = 10000;
 
     private final OriginSettingClient client;
@@ -58,7 +60,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      */
     @Override
     public boolean hasNext() {
-        return !isScrollInitialised || count != totalHits;
+        return isScrollInitialised == false || count != totalHits;
     }
 
     /**
@@ -73,7 +75,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -84,8 +86,12 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
             SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId).scroll(CONTEXT_ALIVE_DURATION);
             searchResponse = client.searchScroll(searchScrollRequest).actionGet();
         }
-        scrollId = searchResponse.getScrollId();
-        return mapHits(searchResponse);
+        try {
+            scrollId = searchResponse.getScrollId();
+            return mapHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private SearchResponse initScroll() {
@@ -96,15 +102,16 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
-        searchRequest.source(new SearchSourceBuilder()
-                .size(BATCH_SIZE)
+        searchRequest.source(
+            new SearchSourceBuilder().size(BATCH_SIZE)
                 .query(getQuery())
                 .fetchSource(shouldFetchSource())
                 .trackTotalHits(true)
-                .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
+                .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
+        );
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
-        totalHits = searchResponse.getHits().getTotalHits().value;
+        totalHits = searchResponse.getHits().getTotalHits().value();
         scrollId = searchResponse.getScrollId();
         return searchResponse;
     }
@@ -121,7 +128,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         }
         count += hits.length;
 
-        if (!hasNext() && scrollId != null) {
+        if (hasNext() == false && scrollId != null) {
             client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
         }
         return results;

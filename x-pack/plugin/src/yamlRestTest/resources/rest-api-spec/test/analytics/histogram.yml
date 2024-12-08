@@ -1,0 +1,362 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: "test"
+        body:
+          mappings:
+            properties:
+              latency:
+                type: "histogram"
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
+          - '{"index": {}}'
+          - '{"latency": {"values" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+  - do:
+      indices.create:
+        index: "histo_with_doc_count"
+        body:
+          mappings:
+            properties:
+              latency:
+                type: "histogram"
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        index: "histo_with_doc_count"
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"_doc_count": 50, "latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 5]}}'
+          - '{"index": {}}'
+          - '{"_doc_count": 10, "latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [1, 1, 1, 1, 6]}}'
+---
+"Histogram requires values in increasing order":
+  - do:
+      catch: / error parsing field \[latency\], \[values\] values must be in increasing order, got \[0.2\] but previous value was \[1.0\]/
+      index:
+        index: test
+        body: {"latency": {"values" : [1.0, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}
+---
+"Histogram Aggregations":
+
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo_sum:
+              sum:
+                field: "latency"
+            histo_value_count:
+              value_count:
+                field: "latency"
+            histo_avg:
+              avg:
+                field: "latency"
+            histo_min:
+              min:
+                field: "latency"
+            histo_max:
+              max:
+                field: "latency"
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.histo_sum.value: 25 }
+  - match: { aggregations.histo_value_count.value: 80 }
+  - match: { aggregations.histo_avg.value:  0.3125}
+  - match: { aggregations.histo_min.value:  0}
+  - match: { aggregations.histo_max.value:  0.5}
+
+---
+"Histogram over histograms":
+
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: "latency"
+                interval: 0.3
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 20 }
+  - match: { aggregations.histo.buckets.1.key: 0.3 }
+  - match: { aggregations.histo.buckets.1.doc_count: 60 }
+---
+"Histogram with _doc_count":
+  - do:
+      search:
+        index: "histo_with_doc_count"
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: "latency"
+                interval: 1
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.histo.buckets: 1 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 60 }
+
+---
+"Ranges over histogram":
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            ranges:
+              range:
+                field: "latency"
+                ranges:
+                  - {to: 0}
+                  - {from: 0, to: 0.3}
+                  - {from: 0.3, to: 0.5}
+                  - {from: 0.5}
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.ranges.buckets: 4 }
+  - match: { aggregations.ranges.buckets.0.key: "*-0.0" }
+  - match: { aggregations.ranges.buckets.0.doc_count: 0 }
+  - match: { aggregations.ranges.buckets.1.key: "0.0-0.3" }
+  - match: { aggregations.ranges.buckets.1.doc_count: 20 }
+  - match: { aggregations.ranges.buckets.2.key: "0.3-0.5" }
+  - match: { aggregations.ranges.buckets.2.doc_count: 46 }
+  - match: { aggregations.ranges.buckets.3.key: "0.5-*" }
+  - match: { aggregations.ranges.buckets.3.doc_count: 14 }
+
+---
+"Ranges over histogram with doc_count":
+  - do:
+      search:
+        index: "histo_with_doc_count"
+        body:
+          size: 0
+          aggs:
+            ranges:
+              range:
+                field: "latency"
+                ranges:
+                  - {to: 0}
+                  - {from: 0, to: 0.3}
+                  - {from: 0.3, to: 0.5}
+                  - {from: 0.5}
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.ranges.buckets: 4 }
+  - match: { aggregations.ranges.buckets.0.key: "*-0.0" }
+  - match: { aggregations.ranges.buckets.0.doc_count: 0 }
+  - match: { aggregations.ranges.buckets.1.key: "0.0-0.3" }
+  - match: { aggregations.ranges.buckets.1.doc_count: 12 }
+  - match: { aggregations.ranges.buckets.2.key: "0.3-0.5" }
+  - match: { aggregations.ranges.buckets.2.doc_count: 37 }
+  - match: { aggregations.ranges.buckets.3.key: "0.5-*" }
+  - match: { aggregations.ranges.buckets.3.doc_count: 11 }
+
+---
+histogram with synthetic source:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
+          - '{"index": {"_id": 2}}'
+          - '{"latency": {"values" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          values: [0.1, 0.2, 0.3, 0.4, 0.5]
+          counts: [3, 7, 23, 12, 6]
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 2
+  - match:
+      _source:
+        latency:
+          values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+          counts: [3, 2, 5, 10, 1, 8]
+
+---
+histogram with synthetic source and zero counts:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 7, 0, 6, 0]}}'
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          values: [0.2, 0.4]
+          counts: [7, 6]
+
+
+---
+histogram with large count values:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: Support for `long` values was introduced in 8.11.0
+
+  - do:
+      indices.create:
+        index: histo_large_count
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_large_count
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 1000000000000, 10, 1000, 1000000]}}'
+
+  - do:
+      search:
+        index: histo_large_count
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: latency
+                interval: 0.3
+
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1000000000000 }
+  - match: { aggregations.histo.buckets.1.key: 0.3 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1001010 }
+
+  - do:
+      search:
+        index: histo_large_count
+        body:
+          size: 0
+          aggs:
+            percent:
+              percentiles:
+                field: latency
+
+  - length: { aggregations.percent.values: 7 }
+  - match: { aggregations.percent.values.1\.0: 0.2 }
+  - match: { aggregations.percent.values.5\.0: 0.2 }
+  - match: { aggregations.percent.values.25\.0: 0.2 }
+
+---
+histogram with synthetic source and ignore_malformed:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: histogram
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: histo_synthetic
+        id: "1"
+        body:
+          latency: "quick brown fox"
+
+  - do:
+      index:
+        index: histo_synthetic
+        id: "2"
+        body:
+          latency: [{"values": [1.0], "counts": [1], "hello": "world"}, [123, 456], {"values": [2.0], "counts": [2]}, "fox"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency: "quick brown fox"
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 2
+  - match:
+      _source:
+        latency: [{"values": [2.0], "counts": [2]}, {"values": [1.0], "counts": [1], "hello": "world"}, 123, 456, "fox"]

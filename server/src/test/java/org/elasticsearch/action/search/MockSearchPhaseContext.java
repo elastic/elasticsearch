@@ -1,34 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
 
@@ -39,22 +33,43 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * SearchPhaseContext for tests
  */
-public final class MockSearchPhaseContext implements SearchPhaseContext {
+public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
-    final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
+    public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
     final int numShards;
     final AtomicInteger numSuccess;
-    final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
+    public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
-    final SearchRequest searchRequest = new SearchRequest();
-    final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+    public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        super(
+            "mock",
+            logger,
+            new NamedWriteableRegistry(List.of()),
+            mock(SearchTransportService.class),
+            (clusterAlias, nodeId) -> null,
+            null,
+            null,
+            Runnable::run,
+            new SearchRequest(),
+            ActionListener.noop(),
+            new GroupShardsIterator<SearchShardIterator>(List.of()),
+            null,
+            ClusterState.EMPTY_STATE,
+            new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
+            new ArraySearchPhaseResults<>(numShards),
+            5,
+            null
+        );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
     }
@@ -66,32 +81,35 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public int getNumShards() {
-        return numShards;
+    public OriginalIndices getOriginalIndices(int shardIndex) {
+        var searchRequest = getRequest();
+        return new OriginalIndices(searchRequest.indices(), searchRequest.indicesOptions());
     }
 
     @Override
-    public Logger getLogger() {
-        return logger;
-    }
-
-    @Override
-    public SearchTask getTask() {
-        return new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-    }
-
-    @Override
-    public SearchRequest getRequest() {
-        return searchRequest;
-    }
-
-    @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        String searchContextId =
-            getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY, searchContextId));
+        BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults))
+            : null;
+        var existing = searchResponse.getAndSet(
+            new SearchResponse(
+                internalSearchResponse,
+                scrollId,
+                numShards,
+                numSuccess.get(),
+                0,
+                0,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                SearchResponse.Clusters.EMPTY,
+                searchContextId
+            )
+        );
+        Releasables.close(releasables);
+        releasables.clear();
+        if (existing != null) {
+            existing.decRef();
+        }
     }
 
     @Override
@@ -106,8 +124,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        return null; // null is ok here for this test
+    protected SearchPhase getNextPhase() {
+        return null;
     }
 
     @Override
@@ -117,37 +135,32 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
-        Assert.fail("should not be called");
-        return null;
-    }
-
-    @Override
-    public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
+    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+        var nextPhase = nextPhaseSupplier.get();
         try {
             nextPhase.run();
         } catch (Exception e) {
-           onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase, "phase failed", e);
         }
     }
 
     @Override
-    public void addReleasable(Releasable releasable) {
-        // Noop
-    }
-
-    @Override
-    public void execute(Runnable command) {
-        command.run();
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        Assert.fail("should not be called");
+    protected void executePhaseOnShard(
+        SearchShardIterator shardIt,
+        Transport.Connection shard,
+        SearchActionListener<SearchPhaseResult> listener
+    ) {
+        onShardResult(new SearchPhaseResult() {
+        }, shardIt);
     }
 
     @Override
     public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
+    }
+
+    @Override
+    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
+        return false;
     }
 }

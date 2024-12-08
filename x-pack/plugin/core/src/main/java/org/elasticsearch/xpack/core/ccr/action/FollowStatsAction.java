@@ -1,29 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,10 +42,10 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
     private FollowStatsAction() {
-        super(NAME, FollowStatsAction.StatsResponses::new);
+        super(NAME);
     }
 
-    public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
+    public static class StatsResponses extends BaseTasksResponse implements ChunkedToXContentObject {
 
         private final List<StatsResponse> statsResponse;
 
@@ -48,56 +54,63 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         }
 
         public StatsResponses(
-                final List<TaskOperationFailure> taskFailures,
-                final List<? extends FailedNodeException> nodeFailures,
-                final List<StatsResponse> statsResponse) {
+            final List<TaskOperationFailure> taskFailures,
+            final List<? extends FailedNodeException> nodeFailures,
+            final List<StatsResponse> statsResponse
+        ) {
             super(taskFailures, nodeFailures);
             this.statsResponse = statsResponse;
         }
 
         public StatsResponses(StreamInput in) throws IOException {
             super(in);
-            statsResponse = in.readList(StatsResponse::new);
+            statsResponse = in.readCollectionAsList(StatsResponse::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(statsResponse);
+            out.writeCollection(statsResponse);
         }
 
         @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             // sort by index name, then shard ID
+            Transports.assertNotTransportThread("collecting responses into a map may be expensive");
             final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final StatsResponse statsResponse : statsResponse) {
-                taskResponsesByIndex.computeIfAbsent(
-                        statsResponse.status().followerIndex(),
-                        k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
+            for (final StatsResponse response : statsResponse) {
+                taskResponsesByIndex.computeIfAbsent(response.status().followerIndex(), k -> new TreeMap<>())
+                    .put(response.status().getShardId(), response);
             }
-            builder.startObject();
-            {
-                builder.startArray("indices");
-                {
-                    for (final Map.Entry<String, Map<Integer, StatsResponse>> index : taskResponsesByIndex.entrySet()) {
-                        builder.startObject();
-                        {
-                            builder.field("index", index.getKey());
-                            builder.startArray("shards");
-                            {
-                                for (final Map.Entry<Integer, StatsResponse> shard : index.getValue().entrySet()) {
-                                    shard.getValue().status().toXContent(builder, params);
-                                }
-                            }
-                            builder.endArray();
-                        }
-                        builder.endObject();
-                    }
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-            return builder;
+            return innerToXContentChunked(taskResponsesByIndex);
+        }
+
+        private static Iterator<ToXContent> innerToXContentChunked(Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject().startArray("indices")),
+                Iterators.flatMap(
+                    taskResponsesByIndex.entrySet().iterator(),
+                    indexEntry -> Iterators.concat(
+                        Iterators.<ToXContent>single(
+                            (builder, params) -> builder.startObject()
+                                .field("index", indexEntry.getKey())
+                                .field("total_global_checkpoint_lag", calcFollowerToLeaderLaggingOps(indexEntry.getValue()))
+                                .startArray("shards")
+                        ),
+                        indexEntry.getValue().values().iterator(),
+                        Iterators.single((builder, params) -> builder.endArray().endObject())
+                    )
+                ),
+                Iterators.single((builder, params) -> builder.endArray().endObject())
+            );
+        }
+
+        private static long calcFollowerToLeaderLaggingOps(Map<Integer, StatsResponse> followShardTaskStats) {
+            return followShardTaskStats.values()
+                .stream()
+                .map(StatsResponse::status)
+                .mapToLong(s -> s.leaderGlobalCheckpoint() - s.followerGlobalCheckpoint())
+                .sum();
         }
 
         @Override
@@ -177,7 +190,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         }
     }
 
-    public static class StatsResponse implements Writeable {
+    public static class StatsResponse implements Writeable, ToXContentObject {
 
         private final ShardFollowNodeTaskStatus status;
 
@@ -209,6 +222,11 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         @Override
         public int hashCode() {
             return Objects.hash(status);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            return status.toXContent(builder, params);
         }
     }
 

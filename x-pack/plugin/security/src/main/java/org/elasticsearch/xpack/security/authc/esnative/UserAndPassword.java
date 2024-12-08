@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
+
+import java.util.Arrays;
 
 /**
  * Like User, but includes the hashed password
@@ -50,7 +53,12 @@ class UserAndPassword {
     @Override
     public int hashCode() {
         int result = this.user.hashCode();
-        result = 31 * result + passwordHash().hashCode();
+        result = 31 * result + Arrays.hashCode(passwordHash());
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return "{" + user + " with password hashed with :" + (passwordHash == null ? "<null>" : hasher.name()) + "}";
     }
 }

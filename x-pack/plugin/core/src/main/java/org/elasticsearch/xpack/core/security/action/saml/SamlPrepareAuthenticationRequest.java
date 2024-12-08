@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -32,13 +33,12 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         super(in);
         realmName = in.readOptionalString();
         assertionConsumerServiceURL = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             relayState = in.readOptionalString();
         }
     }
 
-    public SamlPrepareAuthenticationRequest() {
-    }
+    public SamlPrepareAuthenticationRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -71,11 +71,15 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" +
-                "realmName=" + realmName +
-                ", assertionConsumerServiceURL=" + assertionConsumerServiceURL +
-                ", relayState=" + relayState +
-                '}';
+        return getClass().getSimpleName()
+            + "{"
+            + "realmName="
+            + realmName
+            + ", assertionConsumerServiceURL="
+            + assertionConsumerServiceURL
+            + ", relayState="
+            + relayState
+            + '}';
     }
 
     @Override
@@ -83,7 +87,7 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(assertionConsumerServiceURL);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             out.writeOptionalString(relayState);
         }
     }

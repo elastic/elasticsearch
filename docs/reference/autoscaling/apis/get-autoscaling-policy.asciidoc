@@ -1,16 +1,18 @@
 [role="xpack"]
-[testenv="platinum"]
 [[autoscaling-get-autoscaling-policy]]
 === Get autoscaling policy API
 ++++
 <titleabbrev>Get autoscaling policy</titleabbrev>
 ++++
 
-Get autoscaling policy.
+NOTE: {cloud-only}
+
+Get {cloud}/ec-autoscaling.html[autoscaling] policy.
 
 [[autoscaling-get-autoscaling-policy-request]]
 ==== {api-request-title}
 
+//////////////////////////
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
@@ -24,7 +26,6 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 --------------------------------------------------
 // TESTSETUP
 
-//////////////////////////
 
 [source,console]
 --------------------------------------------------
@@ -53,10 +54,15 @@ GET /_autoscaling/policy/<name>
 
 This API gets an autoscaling policy with the provided name.
 
+[[autoscaling-get-autoscaling-policy-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[autoscaling-get-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
-This example gets an autoscaling policy named `my_autosaling_policy`.
+This example gets an autoscaling policy named `my_autoscaling_policy`.
 
 [source,console]
 --------------------------------------------------

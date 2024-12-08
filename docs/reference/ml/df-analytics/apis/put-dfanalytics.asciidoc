@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[put-dfanalytics]]
 = Create {dfanalytics-jobs} API
 [subs="attributes"]
@@ -9,7 +8,6 @@
 
 Instantiates a {dfanalytics-job}.
 
-beta::[]
 
 [[ml-put-dfanalytics-request]]
 == {api-request-title}
@@ -20,16 +18,13 @@ beta::[]
 [[ml-put-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
 
-* `machine_learning_admin`
+Requires the following privileges:
+
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this
+  privilege)
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
-
 
 NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
 the time of creation. When you start the job, it performs the analysis using
@@ -56,7 +51,7 @@ determines a value for each of the undefined parameters.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
@@ -86,7 +81,7 @@ one of the following types of analysis: {classification}, {oldetection}, or
 `classification`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-classification.html[{classification}].
+{ml-docs}/ml-dfa-classification.html[{classification}].
 +
 TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set
 automatically by hyperparameter optimization to give the minimum validation
@@ -96,55 +91,180 @@ understand the function of these parameters.
 .Properties of `classification`
 [%collapsible%open]
 =====
+`alpha`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
 `class_assignment_objective`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
 `dependent_variable`::::
 (Required, string)
 +
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
-categorical (`ip` or `keyword`), or boolean. There must be no more than 30
+categorical (`ip` or `keyword`), or boolean. There must be no more than 100
 different values in this field.
+
+`downsample_factor`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
+`early_stopping_enabled`::::
+(Optional, Boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
 
 `eta`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=eta]
+
+`eta_growth_rate_per_tree`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `feature_processors`::::
 (Optional, list)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
++
+.Properties of `feature_processors`
+[%collapsible%open]
+======
+`frequency_encoding`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency]
++
+.Properties of `frequency_encoding`
+[%collapsible%open]
+=======
+`feature_name`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
+
+`field`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+
+`frequency_map`::::
+(Required, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency-map]
+=======
+
+`multi_encoding`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi]
++
+.Properties of `multi_encoding`
+[%collapsible%open]
+=======
+`processors`::::
+(Required, array)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi-proc]
+=======
+
+`n_gram_encoding`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
++
+.Properties of `n_gram_encoding`
+[%collapsible%open]
+=======
+`feature_prefix`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-feat-pref]
+
+`field`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-field]
+
+`length`::::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-length]
+
+`n_grams`::::
+(Required, array)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-ngrams]
+
+`start`::::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-start]
+=======
+
+`one_hot_encoding`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot]
++
+.Properties of `one_hot_encoding`
+[%collapsible%open]
+=======
+`field`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+
+`hot_map`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot-map]
+=======
+
+`target_mean_encoding`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean]
++
+.Properties of `target_mean_encoding`
+[%collapsible%open]
+=======
+`default_value`::::
+(Required, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-default]
+
+`feature_name`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
+
+`field`::::
+(Required, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+
+`target_map`::::
+(Required, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-map]
+=======
+
+======
 
 `gamma`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`max_optimization_rounds_per_hyperparameter`::::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_classes`::::
 (Optional, integer)
 Defines the number of categories for which the predicted probabilities are
 reported. It must be non-negative or -1. If it is -1 or greater than the total
 number of categories, probabilities are reported for all categories; if you have
-a large number of categories, there could be a significant effect on the size of your destination index. Defaults to 2. 
+a large number of categories, there could be a significant effect on the size of your destination index. Defaults to 2.
 +
 --
 NOTE: To use the
-{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method],
-`num_top_classes` must be set to `-1` or a value greater than or equal to the
-total number of categories.
+{ml-docs}/ml-dfa-classification.html#ml-dfanalytics-class-aucroc[AUC ROC]
+evaluation method, `num_top_classes` must be set to `-1` or a value greater than
+or equal to the total number of categories.
 
 --
 
@@ -156,56 +276,64 @@ By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`soft_tree_depth_limit`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+`soft_tree_depth_tolerance`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 
 `training_percent`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 //End classification
 =====
 //Begin outlier_detection
 `outlier_detection`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-outlier-detection.html[{oldetection}]:
+{ml-docs}/ml-dfa-finding-outliers.html[{oldetection}]:
 +
 .Properties of `outlier_detection`
 [%collapsible%open]
 =====
 `compute_feature_influence`::::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=method]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=method]
 
 `n_neighbors`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 
 `outlier_fraction`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====
 //Begin regression
 `regression`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-regression.html[{regression}].
+{ml-docs}/ml-dfa-regression.html[{regression}].
 +
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set
 automatically by hyperparameter optimization to give the minimum validation
@@ -215,48 +343,69 @@ understand the function of these parameters.
 .Properties of `regression`
 [%collapsible%open]
 =====
+`alpha`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
 `dependent_variable`::::
 (Required, string)
 +
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric.
 
+`downsample_factor`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
+`early_stopping_enabled`::::
+(Optional, Boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
+
 `eta`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=eta]
+
+`eta_growth_rate_per_tree`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `feature_processors`::::
 (Optional, list)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
 
 `gamma`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `loss_function`::::
 (Optional, string)
 The loss function used during {regression}. Available options are `mse` (mean
 squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber
-loss). Defaults to `mse`. Refer to
-{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses]
+loss). Defaults to `mse`.
+Refer to
+{ml-docs}/dfa-regression-lossfunction.html[Loss functions for {regression} analyses]
 to learn more.
 
 `loss_function_parameter`::::
 (Optional, double)
 A positive number that is used as a parameter to the `loss_function`.
 
+`max_optimization_rounds_per_hyperparameter`::::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+
 `max_trees`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
@@ -266,15 +415,23 @@ By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`soft_tree_depth_limit`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+`soft_tree_depth_tolerance`::::
+(Optional, double)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 
 `training_percent`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 =====
 //End regression
 ====
@@ -301,8 +458,8 @@ may contain documents that don't have an {olscore}.
 * {regression-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
 supported are included in the analysis, other fields are ignored. Documents
-where included fields contain  an array with two or more values are also
-ignored. Documents in the `dest` index  that don’t contain a results field are
+where included fields contain an array with two or more values are also
+ignored. Documents in the `dest` index that don’t contain a results field are
 not included in the {reganalysis}.
 * {classification-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
@@ -310,7 +467,7 @@ supported are included in the analysis, other fields are ignored. Documents
 where included fields contain an array with two or more values are also ignored.
 Documents in the `dest` index that don’t contain a results field are not
 included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
-ordinal variable values to a  single number. For example, in case of age ranges,
+ordinal variable values to a single number. For example, in case of age ranges,
 you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
 If `analyzed_fields` is not set, only the relevant fields will be included. For
@@ -336,11 +493,11 @@ analysis.
 
 `description`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `dest`::
 (Required, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dest]
 
 `max_num_threads`::
 (Optional, integer)
@@ -350,19 +507,18 @@ necessary to complete the analysis at the cost of using more CPU.
 Note that the process may use additional threads for operational
 functionality other than the analysis itself.
 
+`_meta`::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=meta]
+
 `model_memory_limit`::
 (Optional, string)
-The approximate maximum amount of memory resources that are permitted for
-analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
-your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create {dfanalytics-jobs} that have
-`model_memory_limit` values greater than that setting. For more information, see
-<<ml-settings>>.
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 `source`::
 (object)
 The configuration of how to source the analysis data. It requires an `index`.
-Optionally, `query` and `_source` may be specified.
+Optionally, `query`, `runtime_mappings`, and `_source` may be specified.
 +
 .Properties of `source`
 [%collapsible%open]
@@ -381,6 +537,10 @@ This value corresponds to the query object in an {es} search POST body. All the
 options that are supported by {es} can be used, as this object is passed
 verbatim to {es}. By default, this property has the following value:
 `{"match_all": {}}`.
+
+`runtime_mappings`:::
+(Optional, object) Definitions of runtime fields that will become part of the
+mapping of the destination index.
 
 `_source`:::
 (Optional, object) Specify `includes` and/or `excludes` patterns to select which
@@ -508,34 +668,43 @@ The API returns the following result:
 [source,console-result]
 ----
 {
-  "id": "loganalytics",
-  "description": "Outlier detection on log data",
-  "source": {
-    "index": [ "logdata" ],
-    "query": {
-      "match_all": {}
+  "id" : "loganalytics",
+  "create_time" : 1656364565517,
+  "version" : "8.4.0",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "description" : "Outlier detection on log data",
+  "source" : {
+    "index" : [
+      "logdata"
+    ],
+    "query" : {
+      "match_all" : { }
     }
   },
-  "dest": {
-    "index": "logdata_out",
-    "results_field": "ml"
+  "dest" : {
+    "index" : "logdata_out",
+    "results_field" : "ml"
   },
-  "analysis": {
-    "outlier_detection": {
-      "compute_feature_influence": true,
-      "outlier_fraction": 0.05,
-      "standardization_enabled": true
+  "analysis" : {
+    "outlier_detection" : {
+      "compute_feature_influence" : true,
+      "outlier_fraction" : 0.05,
+      "standardization_enabled" : true
     }
   },
-  "model_memory_limit": "1gb",
-  "create_time": 1562265491319,
-  "version": "8.0.0",
-  "allow_lazy_start": false,
-  "max_num_threads": 1
+  "model_memory_limit" : "1gb",
+  "allow_lazy_start" : false,
+  "max_num_threads" : 1
 }
+
 ----
-// TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version" : "8.0.0"/"version" : $body.version/]
+// TESTRESPONSE[s/1656364565517/$body.$_path/]
+// TESTRESPONSE[s/"version" : "8.4.0"/"version": $body.version/]
+// TESTRESPONSE[s/"superuser"/"_es_test_root"/]
 
 
 [[ml-put-dfanalytics-example-r]]
@@ -562,7 +731,7 @@ PUT _ml/data_frame/analytics/house_price_regression_analysis
     }
 }
 --------------------------------------------------
-// TEST[skip:TBD]
+// TEST[setup:setup_houseprices]
 
 
 The API returns the following result:
@@ -571,6 +740,13 @@ The API returns the following result:
 ----
 {
   "id" : "house_price_regression_analysis",
+  "create_time" : 1656364845151,
+  "version" : "8.4.0",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
   "source" : {
     "index" : [
       "houses_sold_last_10_yrs"
@@ -586,17 +762,23 @@ The API returns the following result:
   "analysis" : {
     "regression" : {
       "dependent_variable" : "price",
-      "training_percent" : 100
+      "prediction_field_name" : "price_prediction",
+      "training_percent" : 100.0,
+      "randomize_seed" : -3578554885299300212,
+      "loss_function" : "mse",
+      "early_stopping_enabled" : true
     }
   },
   "model_memory_limit" : "1gb",
-  "create_time" : 1567168659127,
-  "version" : "8.0.0",
-  "allow_lazy_start" : false
+  "allow_lazy_start" : false,
+  "max_num_threads" : 1
 }
+
 ----
-// TESTRESPONSE[s/1567168659127/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/1656364845151/$body.$_path/]
+// TESTRESPONSE[s/"version" : "8.4.0"/"version": $body.version/]
+// TESTRESPONSE[s/"superuser"/"_es_test_root"/]
+// TESTRESPONSE[s/-3578554885299300212/$body.$_path/]
 
 
 The following example creates a job and specifies a training percent:

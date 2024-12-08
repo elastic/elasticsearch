@@ -1,5 +1,8 @@
 [[search-count]]
 === Count API
+++++
+<titleabbrev>Count</titleabbrev>
+++++
 
 Gets the number of matches for a search query.
 
@@ -18,6 +21,13 @@ the <<search-search,search API>> works.
 
 `GET /<target>/_count`
 
+[[search-count-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
 
 [[search-count-api-desc]]
 ==== {api-description-title}
@@ -27,7 +37,7 @@ that query. The query can either
 be provided using a simple query string as a parameter, or using the
 <<query-dsl,Query DSL>> defined within the request body.
 
-The count API supports <<multi-index,multi-target syntax>>. You can run a single
+The count API supports <<api-multi-index,multi-target syntax>>. You can run a single
 count API search across multiple data streams and indices.
 
 The operation is broadcast across all shards. For each shard id group, a replica
@@ -39,57 +49,53 @@ scalability of count.
 ==== {api-path-parms-title}
 
 `<target>`::
-
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
-Wildcard (`*`) expressions are supported.
-+
-To search all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
 [[search-count-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=df]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `min_score`::
 (Optional, float)
   Sets the minimum `_score` value that documents must have to be included in the
   result.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
 
 [[search-count-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[search-count-api-example]]

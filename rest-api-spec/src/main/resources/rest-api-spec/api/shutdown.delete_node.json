@@ -1,0 +1,31 @@
+{
+  "shutdown.delete_node":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current",
+      "description":"Removes a node from the shutdown list. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_nodes/{node_id}/shutdown",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "node_id":{
+              "type":"string",
+              "description":"The node id of node to be removed from the shutdown state"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

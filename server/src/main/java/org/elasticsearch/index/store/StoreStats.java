@@ -1,33 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class StoreStats implements Writeable, ToXContentFragment {
 
@@ -37,10 +29,12 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final Version RESERVED_BYTES_VERSION = Version.V_7_9_0;
+    public static final TransportVersion RESERVED_BYTES_VERSION = TransportVersions.V_7_9_0;
+    public static final TransportVersion TOTAL_DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
 
     private long sizeInBytes;
-    private long reservedSize;
+    private long totalDataSetSizeInBytes;
+    private long reservedSizeInBytes;
 
     public StoreStats() {
 
@@ -48,21 +42,29 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
-            reservedSize = in.readZLong();
+        if (in.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
+            totalDataSetSizeInBytes = in.readVLong();
         } else {
-            reservedSize = UNKNOWN_RESERVED_BYTES;
+            totalDataSetSizeInBytes = sizeInBytes;
+        }
+        if (in.getTransportVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
+            reservedSizeInBytes = in.readZLong();
+        } else {
+            reservedSizeInBytes = UNKNOWN_RESERVED_BYTES;
         }
     }
 
     /**
      * @param sizeInBytes the size of the store in bytes
+     * @param totalDataSetSizeInBytes the size of the total data set in bytes, can differ from sizeInBytes for shards using shared cache
+     *                                storage
      * @param reservedSize a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
      */
-    public StoreStats(long sizeInBytes, long reservedSize) {
+    public StoreStats(long sizeInBytes, long totalDataSetSizeInBytes, long reservedSize) {
         assert reservedSize == UNKNOWN_RESERVED_BYTES || reservedSize >= 0 : reservedSize;
         this.sizeInBytes = sizeInBytes;
-        this.reservedSize = reservedSize;
+        this.totalDataSetSizeInBytes = totalDataSetSizeInBytes;
+        this.reservedSizeInBytes = reservedSize;
     }
 
     public void add(StoreStats stats) {
@@ -70,7 +72,8 @@ public class StoreStats implements Writeable, ToXContentFragment {
             return;
         }
         sizeInBytes += stats.sizeInBytes;
-        reservedSize = ignoreIfUnknown(reservedSize) + ignoreIfUnknown(stats.reservedSize);
+        totalDataSetSizeInBytes += stats.totalDataSetSizeInBytes;
+        reservedSizeInBytes = ignoreIfUnknown(reservedSizeInBytes) + ignoreIfUnknown(stats.reservedSizeInBytes);
     }
 
     private static long ignoreIfUnknown(long reservedSize) {
@@ -81,16 +84,20 @@ public class StoreStats implements Writeable, ToXContentFragment {
         return sizeInBytes;
     }
 
-    public long getSizeInBytes() {
-        return sizeInBytes;
-    }
-
     public ByteSizeValue size() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
-    public ByteSizeValue getSize() {
-        return size();
+    public long totalDataSetSizeInBytes() {
+        return totalDataSetSizeInBytes;
+    }
+
+    public ByteSizeValue totalDataSetSize() {
+        return ByteSizeValue.ofBytes(totalDataSetSizeInBytes);
+    }
+
+    public long reservedSizeInBytes() {
+        return reservedSizeInBytes;
     }
 
     /**
@@ -99,14 +106,17 @@ public class StoreStats implements Writeable, ToXContentFragment {
      * the reserved size is unknown.
      */
     public ByteSizeValue getReservedSize() {
-        return new ByteSizeValue(reservedSize);
+        return ByteSizeValue.ofBytes(reservedSizeInBytes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
-            out.writeZLong(reservedSize);
+        if (out.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
+            out.writeVLong(totalDataSetSizeInBytes);
+        }
+        if (out.getTransportVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
+            out.writeZLong(reservedSizeInBytes);
         }
     }
 
@@ -114,15 +124,33 @@ public class StoreStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.STORE);
         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, size());
+        builder.humanReadableField(Fields.TOTAL_DATA_SET_SIZE_IN_BYTES, Fields.TOTAL_DATA_SET_SIZE, totalDataSetSize());
         builder.humanReadableField(Fields.RESERVED_IN_BYTES, Fields.RESERVED, getReservedSize());
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StoreStats that = (StoreStats) o;
+        return sizeInBytes == that.sizeInBytes
+            && totalDataSetSizeInBytes == that.totalDataSetSizeInBytes
+            && reservedSizeInBytes == that.reservedSizeInBytes;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sizeInBytes, totalDataSetSizeInBytes, reservedSizeInBytes);
     }
 
     static final class Fields {
         static final String STORE = "store";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String TOTAL_DATA_SET_SIZE = "total_data_set_size";
+        static final String TOTAL_DATA_SET_SIZE_IN_BYTES = "total_data_set_size_in_bytes";
         static final String RESERVED = "reserved";
         static final String RESERVED_IN_BYTES = "reserved_in_bytes";
     }

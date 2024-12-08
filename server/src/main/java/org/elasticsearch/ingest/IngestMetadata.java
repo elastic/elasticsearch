@@ -1,41 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -47,22 +40,20 @@ public final class IngestMetadata implements Metadata.Custom {
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
     private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>(
-            "ingest_metadata", ArrayList::new);
+        "ingest_metadata",
+        ArrayList::new
+    );
 
     static {
-        INGEST_METADATA_PARSER.declareObjectArray(List::addAll , PipelineConfiguration.getParser(), PIPELINES_FIELD);
+        INGEST_METADATA_PARSER.declareObjectArray(List::addAll, PipelineConfiguration.getParser(), PIPELINES_FIELD);
     }
 
     // We can't use Pipeline class directly in cluster state, because we don't have the processor factories around when
     // IngestMetadata is registered as custom metadata.
     private final Map<String, PipelineConfiguration> pipelines;
 
-    private IngestMetadata() {
-        this.pipelines = Collections.emptyMap();
-    }
-
     public IngestMetadata(Map<String, PipelineConfiguration> pipelines) {
-        this.pipelines = Collections.unmodifiableMap(pipelines);
+        this.pipelines = Map.copyOf(pipelines);
     }
 
     @Override
@@ -71,8 +62,8 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     public Map<String, PipelineConfiguration> getPipelines() {
@@ -81,12 +72,12 @@ public final class IngestMetadata implements Metadata.Custom {
 
     public IngestMetadata(StreamInput in) throws IOException {
         int size = in.readVInt();
-        Map<String, PipelineConfiguration> pipelines = new HashMap<>(size);
+        Map<String, PipelineConfiguration> pipelines = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             PipelineConfiguration pipeline = PipelineConfiguration.readFrom(in);
             pipelines.put(pipeline.getId(), pipeline);
         }
-        this.pipelines = Collections.unmodifiableMap(pipelines);
+        this.pipelines = Map.copyOf(pipelines);
     }
 
     @Override
@@ -107,13 +98,8 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(PIPELINES_FIELD.getPreferredName());
-        for (PipelineConfiguration pipeline : pipelines.values()) {
-            pipeline.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
     }
 
     @Override
@@ -139,8 +125,12 @@ public final class IngestMetadata implements Metadata.Custom {
         }
 
         IngestMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), PipelineConfiguration::readFrom,
-                PipelineConfiguration::readDiffFrom);
+            pipelines = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                PipelineConfiguration::readFrom,
+                PipelineConfiguration::readDiffFrom
+            );
         }
 
         @Override
@@ -156,6 +146,11 @@ public final class IngestMetadata implements Metadata.Custom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
     }
 
@@ -173,5 +168,40 @@ public final class IngestMetadata implements Metadata.Custom {
     @Override
     public int hashCode() {
         return pipelines.hashCode();
+    }
+
+    /**
+     * Returns a copy of this object with processor upgrades applied, if necessary. Otherwise, returns this object.
+     *
+     * <p>The given upgrader is applied to the config map for any processor of the given type.
+     */
+    public IngestMetadata maybeUpgradeProcessors(String processorType, ProcessorConfigUpgrader processorConfigUpgrader) {
+        Map<String, PipelineConfiguration> newPipelines = null; // as an optimization, we will lazily copy the map only if needed
+        for (Map.Entry<String, PipelineConfiguration> entry : pipelines.entrySet()) {
+            String pipelineId = entry.getKey();
+            PipelineConfiguration originalPipeline = entry.getValue();
+            PipelineConfiguration upgradedPipeline = originalPipeline.maybeUpgradeProcessors(processorType, processorConfigUpgrader);
+            if (upgradedPipeline.equals(originalPipeline) == false) {
+                if (newPipelines == null) {
+                    newPipelines = new HashMap<>(pipelines);
+                }
+                newPipelines.put(pipelineId, upgradedPipeline);
+            }
+        }
+        return newPipelines != null ? new IngestMetadata(newPipelines) : this;
+    }
+
+    /**
+     * Functional interface for upgrading processor configs. An implementation of this will be associated with a specific processor type.
+     */
+    public interface ProcessorConfigUpgrader {
+
+        /**
+         * Upgrades the config for an individual processor of the appropriate type, if necessary.
+         *
+         * @param processorConfig The config to upgrade, which will be mutated if required
+         * @return Whether an upgrade was required
+         */
+        boolean maybeUpgrade(Map<String, Object> processorConfig);
     }
 }

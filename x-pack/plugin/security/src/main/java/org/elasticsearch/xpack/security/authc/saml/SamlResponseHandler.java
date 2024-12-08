@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.opensaml.saml.saml2.core.Status;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.StatusDetail;
@@ -26,14 +27,20 @@ public class SamlResponseHandler extends SamlObjectHandler {
 
     protected void checkInResponseTo(StatusResponseType response, Collection<String> allowedSamlRequestIds) {
         if (Strings.hasText(response.getInResponseTo()) && allowedSamlRequestIds.contains(response.getInResponseTo()) == false) {
-            logger.debug("The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider " +
-                "incorrectly populates the InResponseTo attribute", response.getID());
-            throw samlException("SAML content is in-response-to [{}] but expected one of {} ",
-                response.getInResponseTo(), allowedSamlRequestIds);
+            logger.debug(
+                "The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider "
+                    + "incorrectly populates the InResponseTo attribute",
+                response.getID()
+            );
+            throw samlException(
+                "SAML content is in-response-to [{}] but expected one of {} ",
+                response.getInResponseTo(),
+                allowedSamlRequestIds
+            );
         }
     }
 
-    protected String getStatusCodeMessage(Status status) {
+    protected static String getStatusCodeMessage(Status status) {
         StatusCode firstLevel = status.getStatusCode();
         StatusCode subLevel = firstLevel.getStatusCode();
         StringBuilder sb = new StringBuilder();
@@ -59,16 +66,22 @@ public class SamlResponseHandler extends SamlObjectHandler {
         return sb.toString();
     }
 
-    protected void checkResponseDestination(StatusResponseType response, String spConfiguredUrl) {
+    protected static void checkResponseDestination(StatusResponseType response, String spConfiguredUrl) {
         if (spConfiguredUrl.equals(response.getDestination()) == false) {
             if (response.isSigned() || Strings.hasText(response.getDestination())) {
-                throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
-                    + " but this realm uses " + spConfiguredUrl);
+                throw samlException(
+                    "SAML response "
+                        + response.getID()
+                        + " is for destination "
+                        + response.getDestination()
+                        + " but this realm uses "
+                        + spConfiguredUrl
+                );
             }
         }
     }
 
-    protected void checkStatus(Status status) {
+    protected static void checkStatus(Status status) {
         if (status == null || status.getStatusCode() == null) {
             throw samlException("SAML Response has no status code");
         }
@@ -77,16 +90,16 @@ public class SamlResponseHandler extends SamlObjectHandler {
         }
     }
 
-    protected boolean isSuccess(Status status) {
+    protected static boolean isSuccess(Status status) {
         return StatusCode.SUCCESS.equals(status.getStatusCode().getValue());
     }
 
-    private String getMessage(Status status) {
+    private static String getMessage(Status status) {
         final StatusMessage sm = status.getStatusMessage();
-        return sm == null ? null : sm.getMessage();
+        return sm == null ? null : sm.getValue();
     }
 
-    private String getDetail(Status status) {
+    private static String getDetail(Status status) {
         final StatusDetail sd = status.getStatusDetail();
         return sd == null ? null : SamlUtils.toString(sd.getDOM());
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm.action;
 
@@ -15,7 +16,7 @@ public class GetLifecycleRequestTests extends AbstractWireSerializingTestCase<Re
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20));
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
@@ -28,6 +29,6 @@ public class GetLifecycleRequestTests extends AbstractWireSerializingTestCase<Re
         String[] originalPolicies = request.getPolicyNames();
         String[] newPolicies = Arrays.copyOf(originalPolicies, originalPolicies.length + 1);
         newPolicies[originalPolicies.length] = randomAlphaOfLength(5);
-        return new Request(newPolicies);
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, newPolicies);
     }
 }

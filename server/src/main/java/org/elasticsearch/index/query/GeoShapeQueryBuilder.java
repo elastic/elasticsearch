@@ -1,41 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -61,22 +52,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      *            Shape used in the Query
      */
     public GeoShapeQueryBuilder(String fieldName, Geometry shape) {
-        super(fieldName, shape);
-    }
-
-    /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
-     * field name using the given Shape
-     *
-     * @param fieldName
-     *            Name of the field that will be queried
-     * @param shape
-     *            Shape used in the Query
-     *
-     * @deprecated use {@link #GeoShapeQueryBuilder(String, Geometry)} instead
-     */
-    @Deprecated
-    public GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
         super(fieldName, shape);
     }
 
@@ -126,13 +101,21 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      * @param relation relation of the shapes
      * @return this
      */
+    @Override
     public GeoShapeQueryBuilder relation(ShapeRelation relation) {
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
         }
         if (SpatialStrategy.TERM.equals(strategy) && relation != ShapeRelation.INTERSECTS) {
-            throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
-                + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+            throw new IllegalArgumentException(
+                "current strategy ["
+                    + strategy.getStrategyName()
+                    + "] only supports relation ["
+                    + ShapeRelation.INTERSECTS.getRelationName()
+                    + "] found relation ["
+                    + relation.getRelationName()
+                    + "]"
+            );
         }
         this.relation = relation;
         return this;
@@ -148,13 +131,21 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      * @return this
      */
     public GeoShapeQueryBuilder strategy(SpatialStrategy strategy) {
-        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
-            throw new IllegalArgumentException("strategy [" + strategy.getStrategyName() + "] only supports relation ["
-                + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+        if (strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+            throw new IllegalArgumentException(
+                "strategy ["
+                    + strategy.getStrategyName()
+                    + "] only supports relation ["
+                    + ShapeRelation.INTERSECTS.getRelationName()
+                    + "] found relation ["
+                    + relation.getRelationName()
+                    + "]"
+            );
         }
         this.strategy = strategy;
         return this;
     }
+
     /**
      * @return The spatial strategy to use for building the geo shape Query
      */
@@ -175,25 +166,25 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
-                                                        String indexedShapeId) {
+    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId) {
         return new GeoShapeQueryBuilder(fieldName, shapeSupplier, indexedShapeId);
     }
 
     @Override
-    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
+    public Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
         if ((fieldType instanceof GeoShapeQueryable) == false) {
-            throw new QueryShardException(context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
+            throw new QueryShardException(
+                context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+            );
         }
         final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldName, strategy, relation, context));
+        return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), strategy, relation, shape));
     }
 
     @Override
     protected boolean doEquals(GeoShapeQueryBuilder other) {
-        return super.doEquals((AbstractGeometryQueryBuilder)other)
-            && Objects.equals(strategy, other.strategy);
+        return super.doEquals((AbstractGeometryQueryBuilder) other) && Objects.equals(strategy, other.strategy);
     }
 
     @Override
@@ -203,28 +194,29 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     protected GeoShapeQueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        GeoShapeQueryBuilder builder = (GeoShapeQueryBuilder)super.doRewrite(queryRewriteContext);
+        GeoShapeQueryBuilder builder = (GeoShapeQueryBuilder) super.doRewrite(queryRewriteContext);
         builder.strategy(strategy);
         return builder;
     }
 
     private static class ParsedGeoShapeQueryParams extends ParsedGeometryQueryParams {
         SpatialStrategy strategy;
+        private final GeometryParser geometryParser = new GeometryParser(true, true, true);
 
         @Override
         protected boolean parseXContentField(XContentParser parser) throws IOException {
             SpatialStrategy strategy;
             if (SHAPE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                this.shape = ShapeParser.parse(parser);
+                try {
+                    this.shape = geometryParser.parse(parser);
+                } catch (ParseException e) {
+                    throw new IOException(e);
+                }
                 return true;
             } else if (STRATEGY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 String strategyName = parser.text();
                 strategy = SpatialStrategy.fromString(strategyName);
-                if (strategy == null) {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
-                } else {
-                    this.strategy = strategy;
-                }
+                this.strategy = strategy;
                 return true;
             }
             return false;
@@ -232,8 +224,10 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     public static GeoShapeQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        ParsedGeoShapeQueryParams pgsqp =
-            (ParsedGeoShapeQueryParams) AbstractGeometryQueryBuilder.parsedParamsFromXContent(parser, new ParsedGeoShapeQueryParams());
+        ParsedGeoShapeQueryParams pgsqp = (ParsedGeoShapeQueryParams) AbstractGeometryQueryBuilder.parsedParamsFromXContent(
+            parser,
+            new ParsedGeoShapeQueryParams()
+        );
 
         GeoShapeQueryBuilder builder;
 
@@ -270,5 +264,10 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         builder.boost(pgsqp.boost);
         builder.ignoreUnmapped(pgsqp.ignoreUnmapped);
         return builder;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

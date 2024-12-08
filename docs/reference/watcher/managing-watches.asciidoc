@@ -1,0 +1,35 @@
+[role="xpack"]
+[[managing-watches]]
+== Managing watches
+
+{watcher} provides as set of APIs you can use to manage your watches:
+
+* Use the <<watcher-api-put-watch,create or update watch API>> to add or update watches
+* Use the <<watcher-api-get-watch,get watch API>> to retrieve watches
+* Use the <<watcher-api-delete-watch,delete watch API>> to delete watches
+* Use the <<watcher-api-activate-watch,activate watch API>> to activate watches
+* Use the <<watcher-api-deactivate-watch,deactivate watch API>> to deactivate watches
+* Use the <<watcher-api-ack-watch,ack watch API>> to acknowledge watches
+
+[discrete]
+[[listing-watches]]
+=== Listing watches
+
+Currently there is not dedicated API for listing the stored watches. However,
+since {watcher} stores its watches in the `.watches` index, you can list them
+by executing a search on this index.
+
+IMPORTANT:	You can only perform read actions on the `.watches` index. You must
+            use the {watcher} APIs to create, update, and delete watches. If {es}
+            {security-features} are enabled, we recommend you only grant users
+            `read` privileges on the `.watches` index.
+
+For example, the following returns the first 100 watches:
+
+[source,console]
+--------------------------------------------------
+GET /_watcher/_query/watches
+{
+  "size" : 100
+}
+--------------------------------------------------

@@ -1,0 +1,44 @@
+---
+"Source filtering":
+
+
+  - do:
+      index:
+        index:  test_1
+        id:     "1"
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+  - do:
+      indices.refresh:
+        index: test_1
+
+  - do:
+      explain: { index:  test_1, id: "1", _source: false, body: { query: { match_all: {}} } }
+  - match:   { _index:   test_1  }
+  - match:   { _id:      "1"       }
+  - is_false:  get._source
+
+  - do:
+      explain: { index:  test_1, id: "1", _source: true, body: { query: { match_all: {}} } }
+  - match:  { get._source.include.field1: v1 }
+
+  - do:
+      explain: { index:  test_1, id: "1", _source: include.field1, body: { query: { match_all: {}} } }
+  - match:  { get._source.include.field1: v1 }
+  - is_false: get._source.include.field2
+
+  - do:
+      explain: { index:  test_1, id: "1", _source_includes: include.field1, body: { query: { match_all: {}} } }
+  - match:  { get._source.include.field1: v1 }
+  - is_false: get._source.include.field2
+
+  - do:
+      explain: { index:  test_1, id: "1", _source_includes: "include.field1,include.field2", body: { query: { match_all: {}} } }
+  - match:  { get._source.include.field1: v1 }
+  - match:  { get._source.include.field2: v2 }
+  - is_false: get._source.count
+
+  - do:
+      explain: { index:  test_1, id: "1", _source_includes: include, _source_excludes: "*.field2", body: { query: { match_all: {}} } }
+  - match:  { get._source.include.field1: v1 }
+  - is_false: get._source.include.field2
+  - is_false: get._source.count

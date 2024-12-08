@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.state;
@@ -34,9 +24,9 @@ import java.util.Objects;
  */
 public class ClusterStateResponse extends ActionResponse {
 
-    private ClusterName clusterName;
-    private ClusterState clusterState;
-    private boolean waitForTimedOut = false;
+    private final ClusterName clusterName;
+    private final ClusterState clusterState;
+    private final boolean waitForTimedOut;
 
     public ClusterStateResponse(StreamInput in) throws IOException {
         super(in);
@@ -86,24 +76,18 @@ public class ClusterStateResponse extends ActionResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateResponse response = (ClusterStateResponse) o;
-        return waitForTimedOut == response.waitForTimedOut &&
-            Objects.equals(clusterName, response.clusterName) &&
-            // Best effort. Only compare cluster state version and master node id,
-            // because cluster state doesn't implement equals()
-            Objects.equals(getVersion(clusterState), getVersion(response.clusterState)) &&
-            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
+        return waitForTimedOut == response.waitForTimedOut && Objects.equals(clusterName, response.clusterName) &&
+        // Best effort. Only compare cluster state version and master node id,
+        // because cluster state doesn't implement equals()
+            Objects.equals(getVersion(clusterState), getVersion(response.clusterState))
+            && Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
     }
 
     @Override
     public int hashCode() {
         // Best effort. Only use cluster state version and master node id,
-        // because cluster state doesn't implement  hashcode()
-        return Objects.hash(
-            clusterName,
-            getVersion(clusterState),
-            getMasterNodeId(clusterState),
-            waitForTimedOut
-        );
+        // because cluster state doesn't implement hashcode()
+        return Objects.hash(clusterName, getVersion(clusterState), getMasterNodeId(clusterState), waitForTimedOut);
     }
 
     private static String getMasterNodeId(ClusterState clusterState) {

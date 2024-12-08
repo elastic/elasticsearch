@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
@@ -44,13 +47,13 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     public TokenMetadata(StreamInput input) throws IOException {
         currentKeyHash = input.readByteArray();
-        keys = Collections.unmodifiableList(input.readList(KeyAndTimestamp::new));
+        keys = input.readCollectionAsImmutableList(KeyAndTimestamp::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByteArray(currentKeyHash);
-        out.writeList(keys);
+        out.writeCollection(keys);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -62,11 +65,10 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
         return TYPE;
     }
 
-
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // never render this to the user
-        return builder;
+        return Collections.emptyIterator();
     }
 
     @Override
@@ -74,7 +76,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TokenMetadata that = (TokenMetadata)o;
+        TokenMetadata that = (TokenMetadata) o;
         return keys.equals(that.keys) && Arrays.equals(currentKeyHash, that.currentKeyHash);
     }
 
@@ -91,8 +93,8 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override

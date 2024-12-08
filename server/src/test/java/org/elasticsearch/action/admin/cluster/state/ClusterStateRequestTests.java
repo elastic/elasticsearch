@@ -1,32 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 /**
@@ -38,27 +30,31 @@ public class ClusterStateRequestTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
 
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metadata(randomBoolean())
-                    .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
+            ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(randomBoolean())
+                .metadata(randomBoolean())
+                .nodes(randomBoolean())
+                .blocks(randomBoolean())
+                .indices("testindex", "testindex2")
+                .indicesOptions(indicesOptions);
 
-            Version testVersion = VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
-            // TODO: change version to V_6_6_0 after backporting:
-            if (testVersion.onOrAfter(Version.V_7_0_0)) {
-                if (randomBoolean()) {
-                    clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
-                }
-                if (randomBoolean()) {
-                    clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
-                }
+            TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.current()
+            );
+            if (randomBoolean()) {
+                clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
             }
 
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(testVersion);
+            output.setTransportVersion(testVersion);
             clusterStateRequest.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(testVersion);
+            streamInput.setTransportVersion(testVersion);
             ClusterStateRequest deserializedCSRequest = new ClusterStateRequest(streamInput);
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
@@ -73,9 +69,11 @@ public class ClusterStateRequestTests extends ESTestCase {
     }
 
     public void testWaitForMetadataVersion() {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        expectThrows(IllegalArgumentException.class,
-            () -> clusterStateRequest.waitForMetadataVersion(randomLongBetween(Long.MIN_VALUE, 0)));
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterStateRequest.waitForMetadataVersion(randomLongBetween(Long.MIN_VALUE, 0))
+        );
         clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
     }
 
@@ -84,5 +82,30 @@ public class ClusterStateRequestTests extends ESTestCase {
         assertThat(in.expandWildcardsClosed(), equalTo(out.expandWildcardsClosed()));
         assertThat(in.expandWildcardsOpen(), equalTo(out.expandWildcardsOpen()));
         assertThat(in.allowNoIndices(), equalTo(out.allowNoIndices()));
+    }
+
+    public void testDescription() {
+        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().getDescription(), equalTo("cluster state [master timeout [30s]]"));
+        assertThat(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).masterNodeTimeout(TimeValue.timeValueMinutes(5)).getDescription(),
+            equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]")
+        );
+        assertThat(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().routingTable(true).getDescription(),
+            containsString("routing table")
+        );
+        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().nodes(true).getDescription(), containsString("nodes"));
+        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().metadata(true).getDescription(), containsString("metadata"));
+        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().blocks(true).getDescription(), containsString("blocks"));
+        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().customs(true).getDescription(), containsString("customs"));
+        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).local(true).getDescription(), containsString("local"));
+        assertThat(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(23L).getDescription(),
+            containsString("wait for metadata version [23] with timeout [1m]")
+        );
+        assertThat(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices("foo", "bar").getDescription(),
+            containsString("indices [foo, bar]")
+        );
     }
 }

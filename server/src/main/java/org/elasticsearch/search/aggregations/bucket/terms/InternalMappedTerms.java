@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,11 +33,22 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected long docCountError;
+    protected Long docCountError;
 
-    protected InternalMappedTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
-            Map<String, Object> metadata, DocValueFormat format, int shardSize,
-            boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
+    protected InternalMappedTerms(
+        String name,
+        BucketOrder reduceOrder,
+        BucketOrder order,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        int shardSize,
+        boolean showTermDocCountError,
+        long otherDocCount,
+        List<B> buckets,
+        Long docCountError
+    ) {
         super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
@@ -62,22 +63,34 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        docCountError = in.readZLong();
+        if (in.readBoolean()) {
+            docCountError = in.readZLong();
+        } else {
+            docCountError = null;
+        }
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
         otherDocCount = in.readVLong();
-        buckets = in.readList(stream -> bucketReader.read(stream, format, showTermDocCountError));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format, showTermDocCountError));
     }
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        out.writeZLong(docCountError);
+        if (docCountError != null) {
+            out.writeBoolean(true);
+            out.writeZLong(docCountError);
+        } else {
+            out.writeBoolean(false);
+        }
         out.writeNamedWriteable(format);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeList(buckets);
+        out.writeVInt(buckets.size());
+        for (var bucket : buckets) {
+            bucket.writeTo(out, showTermDocCountError);
+        }
     }
 
     @Override
@@ -86,12 +99,17 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
+    protected boolean getShowDocCountError() {
+        return showTermDocCountError;
+    }
+
+    @Override
     protected int getShardSize() {
         return shardSize;
     }
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountError;
     }
 
@@ -119,13 +137,13 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        InternalMappedTerms<?,?> that = (InternalMappedTerms<?,?>) obj;
+        InternalMappedTerms<?, ?> that = (InternalMappedTerms<?, ?>) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(format, that.format)
-                && Objects.equals(otherDocCount, that.otherDocCount)
-                && Objects.equals(showTermDocCountError, that.showTermDocCountError)
-                && Objects.equals(shardSize, that.shardSize)
-                && Objects.equals(docCountError, that.docCountError);
+            && Objects.equals(format, that.format)
+            && Objects.equals(otherDocCount, that.otherDocCount)
+            && Objects.equals(showTermDocCountError, that.showTermDocCountError)
+            && Objects.equals(shardSize, that.shardSize)
+            && Objects.equals(docCountError, that.docCountError);
     }
 
     @Override
@@ -135,6 +153,6 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
+        return doXContentCommon(builder, params, showTermDocCountError, docCountError, otherDocCount, buckets);
     }
 }

@@ -1,29 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
@@ -43,8 +34,14 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    @SuppressWarnings("this-escape")
+    public AggregatorFactory(
+        String name,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.context = context;
         this.parent = parent;
@@ -52,19 +49,24 @@ public abstract class AggregatorFactory {
         this.metadata = metadata;
     }
 
+    /**
+     * Climbs up the aggregation factory tree to find the sampling context if one exists.
+     * @return Optional SamplingContext
+     */
+    public Optional<SamplingContext> getSamplingContext() {
+        if (parent != null) {
+            return parent.getSamplingContext();
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public String name() {
         return name;
     }
 
-    public void doValidate() {
-    }
-
-    protected abstract Aggregator createInternal(
-        SearchContext context,   // TODO remove this in favor of using AggregationContext in the ctor
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException;
+    protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException;
 
     /**
      * Creates the aggregator.
@@ -75,8 +77,8 @@ public abstract class AggregatorFactory {
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    public final Aggregator create(SearchContext context, Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
-        return createInternal(context, parent, cardinality, this.metadata);
+    public final Aggregator create(Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
+        return createInternal(parent, cardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {

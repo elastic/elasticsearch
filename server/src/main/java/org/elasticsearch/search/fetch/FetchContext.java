@@ -1,38 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext.InnerHitSubContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -44,14 +38,53 @@ import java.util.List;
 public class FetchContext {
 
     private final SearchContext searchContext;
-    private final SearchLookup searchLookup;
+    private final SourceLoader sourceLoader;
+    private final FetchSourceContext fetchSourceContext;
+    private final StoredFieldsContext storedFieldsContext;
 
     /**
      * Create a FetchContext based on a SearchContext
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getQueryShardContext().newFetchLookup();
+        this.sourceLoader = searchContext.newSourceLoader();
+        this.storedFieldsContext = buildStoredFieldsContext(searchContext);
+        this.fetchSourceContext = buildFetchSourceContext(searchContext);
+    }
+
+    private static FetchSourceContext buildFetchSourceContext(SearchContext in) {
+        FetchSourceContext fsc = in.fetchSourceContext();
+        StoredFieldsContext sfc = in.storedFieldsContext();
+        if (fsc == null) {
+            boolean hasStoredFields = in.hasStoredFields();
+            boolean hasScriptFields = in.hasScriptFields();
+            // TODO it seems a bit odd that we disable implicit source loading if we've asked
+            // for stored fields or script fields? But not eg doc_value fields or via
+            // the `fields` API
+            if (hasStoredFields == false && hasScriptFields == false) {
+                fsc = FetchSourceContext.of(true);
+            }
+        }
+        if (sfc != null && sfc.fetchFields()) {
+            for (String field : sfc.fieldNames()) {
+                if (SourceFieldMapper.NAME.equals(field)) {
+                    fsc = fsc == null ? FetchSourceContext.of(true) : FetchSourceContext.of(true, fsc.includes(), fsc.excludes());
+                }
+            }
+        }
+        if (sfc != null && sfc.fetchFields() == false) {
+            fsc = null;
+        }
+        return fsc;
+    }
+
+    private static StoredFieldsContext buildStoredFieldsContext(SearchContext in) {
+        StoredFieldsContext sfc = in.storedFieldsContext();
+        if (sfc == null) {
+            // if nothing is requested then we just do a standard metadata stored fields request
+            sfc = StoredFieldsContext.metadataOnly();
+        }
+        return sfc;
     }
 
     /**
@@ -69,17 +102,17 @@ public class FetchContext {
     }
 
     /**
-     * The {@code SearchLookup} for the this context
-     */
-    public SearchLookup searchLookup() {
-        return searchLookup;
-    }
-
-    /**
-     * The original query
+     * The original query, not rewritten.
      */
     public Query query() {
         return searchContext.query();
+    }
+
+    /**
+     * The original query in its rewritten form.
+     */
+    public Query rewrittenQuery() {
+        return searchContext.rewrittenQuery();
     }
 
     /**
@@ -100,7 +133,14 @@ public class FetchContext {
      * Configuration for fetching _source
      */
     public FetchSourceContext fetchSourceContext() {
-        return searchContext.fetchSourceContext();
+        return this.fetchSourceContext;
+    }
+
+    /**
+     * Configuration for fetching stored fields
+     */
+    public StoredFieldsContext storedFieldsContext() {
+        return storedFieldsContext;
     }
 
     /**
@@ -115,6 +155,19 @@ public class FetchContext {
      */
     public List<RescoreContext> rescore() {
         return searchContext.rescore();
+    }
+
+    /**
+     * The rank builder used in the original search
+     */
+    public RankBuilder rankBuilder() {
+        return searchContext.request().source() == null ? null : searchContext.request().source().rankBuilder();
+    }
+
+    public List<String> queryNames() {
+        return searchContext.request().source() == null
+            ? Collections.emptyList()
+            : searchContext.request().source().subSearches().stream().map(x -> x.getQueryBuilder().queryName()).toList();
     }
 
     /**
@@ -134,10 +187,10 @@ public class FetchContext {
             String name = searchContext.collapse().getFieldName();
             if (dvContext == null) {
                 return new FetchDocValuesContext(
-                    searchContext.getQueryShardContext(),
+                    searchContext.getSearchExecutionContext(),
                     Collections.singletonList(new FieldAndFormat(name, null))
                 );
-            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).noneMatch(name::equals)) {
                 dvContext.fields().add(new FieldAndFormat(name, null));
             }
         }
@@ -156,7 +209,7 @@ public class FetchContext {
      * backwards offsets in term vectors
      */
     public boolean containsBrokenAnalysis(String field) {
-        return getQueryShardContext().containsBrokenAnalysis(field);
+        return getSearchExecutionContext().containsBrokenAnalysis(field);
     }
 
     /**
@@ -201,7 +254,32 @@ public class FetchContext {
         return searchContext.getSearchExt(name);
     }
 
-    public QueryShardContext getQueryShardContext() {
-        return searchContext.getQueryShardContext();
+    public SearchExecutionContext getSearchExecutionContext() {
+        return searchContext.getSearchExecutionContext();
+    }
+
+    /**
+     * Loads source {@code _source} during a GET or {@code _search}.
+     */
+    public SourceLoader sourceLoader() {
+        return sourceLoader;
+    }
+
+    /**
+     * For a hit document that's being processed, return the source lookup representing the
+     * root document. This method is used to pass down the root source when processing this
+     * document's nested inner hits.
+     *
+     * @param hitContext The context of the hit that's being processed.
+     */
+    public Source getRootSource(FetchSubPhase.HitContext hitContext) {
+        // Usually the root source simply belongs to the hit we're processing. But if
+        // there are multiple layers of inner hits and we're in a nested context, then
+        // the root source is found on the inner hits context.
+        if (searchContext instanceof InnerHitSubContext innerHitsContext && hitContext.hit().getNestedIdentity() != null) {
+            return innerHitsContext.getRootLookup();
+        } else {
+            return hitContext.source();
+        }
     }
 }

@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.versioning;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -35,17 +25,16 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
-            client().prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
+            prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<>() {
                 @Override
-                public void onResponse(IndexResponse response) {
+                public void onResponse(DocWriteResponse response) {
                     latch.countDown();
                 }
 
@@ -62,12 +51,12 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
 
         assertThat(failure.get(), nullValue());
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().get();
 
         logger.info("done indexing, check all have the same field value");
-        Map masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
+        Map<String, Object> masterSource = client().prepareGet("test", "1").get().getSourceAsMap();
         for (int i = 0; i < (cluster().size() * 5); i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
+            assertThat(client().prepareGet("test", "1").get().getSourceAsMap(), equalTo(masterSource));
         }
     }
 }

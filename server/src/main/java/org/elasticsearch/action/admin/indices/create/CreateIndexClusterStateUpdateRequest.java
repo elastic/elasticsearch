@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -22,11 +12,11 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -34,25 +24,30 @@ import java.util.Set;
 /**
  * Cluster state update request that allows to create an index
  */
-public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
+public class CreateIndexClusterStateUpdateRequest {
 
     private final String cause;
     private final String index;
     private String dataStreamName;
     private final String providedName;
+    private long nameResolvedAt;
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private SystemDataStreamDescriptor systemDataStreamDescriptor;
+    private boolean isFailureIndex = false;
 
-    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private final Set<ClusterBlock> blocks = new HashSet<>();
-
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
+    private boolean performReroute = true;
+
+    private ComposableIndexTemplate matchingTemplate;
 
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
@@ -95,6 +90,24 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * At what point in time the provided name was resolved into the index name
+     */
+    public CreateIndexClusterStateUpdateRequest nameResolvedInstant(long nameResolvedAt) {
+        this.nameResolvedAt = nameResolvedAt;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
+        this.systemDataStreamDescriptor = systemDataStreamDescriptor;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest isFailureIndex(boolean isFailureIndex) {
+        this.isFailureIndex = isFailureIndex;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -115,12 +128,12 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return aliases;
     }
 
-    public Set<ClusterBlock> blocks() {
-        return blocks;
-    }
-
     public Index recoverFrom() {
         return recoverFrom;
+    }
+
+    public SystemDataStreamDescriptor systemDataStreamDescriptor() {
+        return systemDataStreamDescriptor;
     }
 
     /**
@@ -129,6 +142,13 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
      */
     public String getProvidedName() {
         return providedName;
+    }
+
+    /**
+     * The instant at which the name provided by the user was resolved
+     */
+    public long getNameResolvedAt() {
+        return nameResolvedAt;
     }
 
     public ActiveShardCount waitForActiveShards() {
@@ -154,25 +174,72 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return dataStreamName;
     }
 
+    public boolean isFailureIndex() {
+        return isFailureIndex;
+    }
+
     public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
         this.dataStreamName = dataStreamName;
         return this;
     }
 
+    public boolean performReroute() {
+        return performReroute;
+    }
+
+    public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
+        this.performReroute = performReroute;
+        return this;
+    }
+
+    /**
+     * @return The composable index template that matches with the index that will be created by this request.
+     */
+    public ComposableIndexTemplate matchingTemplate() {
+        return matchingTemplate;
+    }
+
+    /**
+     * Sets the composable index template that matches with index that will be created by this request.
+     */
+    public CreateIndexClusterStateUpdateRequest setMatchingTemplate(ComposableIndexTemplate matchingTemplate) {
+        this.matchingTemplate = matchingTemplate;
+        return this;
+    }
+
     @Override
     public String toString() {
-        return "CreateIndexClusterStateUpdateRequest{" +
-            "cause='" + cause + '\'' +
-            ", index='" + index + '\'' +
-            ", dataStreamName='" + dataStreamName + '\'' +
-            ", providedName='" + providedName + '\'' +
-            ", recoverFrom=" + recoverFrom +
-            ", resizeType=" + resizeType +
-            ", copySettings=" + copySettings +
-            ", settings=" + settings +
-            ", aliases=" + aliases +
-            ", blocks=" + blocks +
-            ", waitForActiveShards=" + waitForActiveShards +
-            '}';
+        return "CreateIndexClusterStateUpdateRequest{"
+            + "cause='"
+            + cause
+            + '\''
+            + ", index='"
+            + index
+            + '\''
+            + ", dataStreamName='"
+            + dataStreamName
+            + '\''
+            + ", providedName='"
+            + providedName
+            + '\''
+            + ", recoverFrom="
+            + recoverFrom
+            + ", resizeType="
+            + resizeType
+            + ", copySettings="
+            + copySettings
+            + ", settings="
+            + settings
+            + ", aliases="
+            + aliases
+            + ", waitForActiveShards="
+            + waitForActiveShards
+            + ", systemDataStreamDescriptor="
+            + systemDataStreamDescriptor
+            + ", matchingTemplate="
+            + matchingTemplate
+            + ", isFailureIndex="
+            + isFailureIndex
+            + '}';
     }
 }

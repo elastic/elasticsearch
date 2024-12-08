@@ -1,15 +1,6 @@
-[[breaking-changes]]
-= Breaking changes
+include::migration_intro.asciidoc[]
 
-[partintro]
---
-This section discusses the changes that you need to be aware of to migrate
-your application to {version}. For more information about what's new in this
-release, see the <<release-highlights>> and <<es-release-notes>>.
+* <<migrating-9.0,Migrating to 9.0>>
 
-For information about how to upgrade your cluster, see <<setup-upgrade>>.
+include::migrate_9_0.asciidoc[]
 
-* <<breaking-changes-8.0,Breaking changes in 8.0>>
-
---
-include::migrate_8_0.asciidoc[]

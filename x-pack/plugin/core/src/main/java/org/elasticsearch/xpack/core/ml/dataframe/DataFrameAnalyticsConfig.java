@@ -1,29 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,11 +35,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
+
+    public static final String BLANK_ID = "blank_data_frame_id";
+    public static final String BLANK_DEST_INDEX = "blank_dest_index";
 
     public static final String TYPE = "data_frame_analytics_config";
 
@@ -61,6 +68,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
     public static final ParseField MAX_NUM_THREADS = new ParseField("max_num_threads");
+    public static final ParseField META = new ParseField("_meta");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -74,25 +82,34 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareObject(Builder::setSource, DataFrameAnalyticsSource.createParser(ignoreUnknownFields), SOURCE);
         parser.declareObject(Builder::setDest, DataFrameAnalyticsDest.createParser(ignoreUnknownFields), DEST);
         parser.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p, ignoreUnknownFields), ANALYSIS);
-        parser.declareField(Builder::setAnalyzedFields,
+        parser.declareField(
+            Builder::setAnalyzedFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYZED_FIELDS,
-            OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        parser.declareField(Builder::setModelMemoryLimit,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()), MODEL_MEMORY_LIMIT, VALUE);
+            OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
+        parser.declareField(
+            Builder::setModelMemoryLimit,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()),
+            MODEL_MEMORY_LIMIT,
+            VALUE
+        );
         parser.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
         parser.declareInt(Builder::setMaxNumThreads, MAX_NUM_THREADS);
+        parser.declareObject(Builder::setMeta, (p, c) -> p.mapOrdered(), META);
         if (ignoreUnknownFields) {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
             // Creation time is set automatically during PUT, so create_time supplied in the _body_ of a REST request will be rejected.
-            parser.declareField(Builder::setCreateTime,
+            parser.declareField(
+                Builder::setCreateTime,
                 p -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
                 CREATE_TIME,
-                ObjectParser.ValueType.VALUE);
+                ObjectParser.ValueType.VALUE
+            );
             // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
-            parser.declareString(Builder::setVersion, Version::fromString, VERSION);
+            parser.declareString(Builder::setVersion, MlConfigVersion::fromString, VERSION);
         }
         return parser;
     }
@@ -122,14 +139,26 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final ByteSizeValue modelMemoryLimit;
     private final Map<String, String> headers;
     private final Instant createTime;
-    private final Version version;
+    private final MlConfigVersion version;
     private final boolean allowLazyStart;
     private final int maxNumThreads;
+    private final Map<String, Object> meta;
 
-    private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
-                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
-                                     FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart,
-                                     Integer maxNumThreads) {
+    private DataFrameAnalyticsConfig(
+        String id,
+        String description,
+        DataFrameAnalyticsSource source,
+        DataFrameAnalyticsDest dest,
+        DataFrameAnalysis analysis,
+        Map<String, String> headers,
+        ByteSizeValue modelMemoryLimit,
+        FetchSourceContext analyzedFields,
+        Instant createTime,
+        MlConfigVersion version,
+        boolean allowLazyStart,
+        Integer maxNumThreads,
+        Map<String, Object> meta
+    ) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.description = description;
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
@@ -146,34 +175,28 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", MAX_NUM_THREADS.getPreferredName());
         }
         this.maxNumThreads = maxNumThreads == null ? 1 : maxNumThreads;
+        this.meta = meta == null ? null : Collections.unmodifiableMap(meta);
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
         this.id = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            description = in.readOptionalString();
-        } else {
-            description = null;
-        }
+        this.description = in.readOptionalString();
         this.source = new DataFrameAnalyticsSource(in);
         this.dest = new DataFrameAnalyticsDest(in);
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
-        this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::new);
-        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
-        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            createTime = in.readOptionalInstant();
-            version = in.readBoolean() ? Version.readVersion(in) : null;
+        this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::readFrom);
+        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
+        this.headers = in.readImmutableMap(StreamInput::readString);
+        this.createTime = in.readOptionalInstant();
+        this.version = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
+        this.allowLazyStart = in.readBoolean();
+        this.maxNumThreads = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            Map<String, Object> readMeta = in.readGenericMap();
+            this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
         } else {
-            createTime = null;
-            version = null;
+            this.meta = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            allowLazyStart = in.readBoolean();
-        } else {
-            allowLazyStart = false;
-        }
-        maxNumThreads = in.readVInt();
     }
 
     public String getId() {
@@ -212,7 +235,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return createTime;
     }
 
-    public Version getVersion() {
+    public MlConfigVersion getVersion() {
         return version;
     }
 
@@ -224,21 +247,35 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return maxNumThreads;
     }
 
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final boolean forInternalStorage = params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false);
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (createTime != null) {
-                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+                builder.timestampFieldsFromUnixEpochMillis(
+                    CREATE_TIME.getPreferredName(),
+                    CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
             }
             if (version != null) {
                 builder.field(VERSION.getPreferredName(), version);
             }
-            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-                builder.field(HEADERS.getPreferredName(), headers);
+            if (headers.isEmpty() == false) {
+                if (forInternalStorage) {
+                    assertNoAuthorizationHeader(headers);
+                    builder.field(HEADERS.getPreferredName(), headers);
+                } else {
+                    XContentUtils.addAuthorizationInfo(builder, headers);
+                }
             }
-            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
         }
@@ -248,8 +285,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(SOURCE.getPreferredName(), source);
         builder.field(DEST.getPreferredName(), dest);
         builder.startObject(ANALYSIS.getPreferredName());
-        builder.field(analysis.getWriteableName(), analysis,
-            new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString())));
+        builder.field(
+            analysis.getWriteableName(),
+            analysis,
+            new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString()))
+        );
         builder.endObject();
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
@@ -257,6 +297,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
         builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
+        if (meta != null) {
+            builder.field(META.getPreferredName(), meta);
+        }
         builder.endObject();
         return builder;
     }
@@ -264,28 +307,25 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeOptionalString(description);
-        }
+        out.writeOptionalString(description);
         source.writeTo(out);
         dest.writeTo(out);
         out.writeNamedWriteable(analysis);
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalInstant(createTime);
-            if (version != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(version, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeMap(headers, StreamOutput::writeString);
+        out.writeOptionalInstant(createTime);
+        if (version != null) {
+            out.writeBoolean(true);
+            MlConfigVersion.writeVersion(version, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeBoolean(allowLazyStart);
-        }
+        out.writeBoolean(allowLazyStart);
         out.writeVInt(maxNumThreads);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeGenericMap(meta);
+        }
     }
 
     @Override
@@ -305,13 +345,27 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(createTime, other.createTime)
             && Objects.equals(version, other.version)
             && Objects.equals(allowLazyStart, other.allowLazyStart)
-            && maxNumThreads == other.maxNumThreads;
+            && maxNumThreads == other.maxNumThreads
+            && Objects.equals(meta, other.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version,
-            allowLazyStart, maxNumThreads);
+        return Objects.hash(
+            id,
+            description,
+            source,
+            dest,
+            analysis,
+            headers,
+            getModelMemoryLimit(),
+            analyzedFields,
+            createTime,
+            version,
+            allowLazyStart,
+            maxNumThreads,
+            meta
+        );
     }
 
     @Override
@@ -328,7 +382,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
      */
     @Nullable
     public static String extractJobIdFromDocId(String docId) {
-        String jobId = docId.replaceAll("^" + TYPE +"-", "");
+        String jobId = docId.replaceAll("^" + TYPE + "-", "");
         return jobId.equals(docId) ? null : jobId;
     }
 
@@ -344,9 +398,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private ByteSizeValue maxModelMemoryLimit;
         private Map<String, String> headers = Collections.emptyMap();
         private Instant createTime;
-        private Version version;
+        private MlConfigVersion version;
         private boolean allowLazyStart;
         private Integer maxNumThreads;
+        private Map<String, Object> meta;
 
         public Builder() {}
 
@@ -364,12 +419,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.modelMemoryLimit = config.modelMemoryLimit;
             this.maxModelMemoryLimit = maxModelMemoryLimit;
             if (config.analyzedFields != null) {
-                this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
+                this.analyzedFields = FetchSourceContext.of(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
             this.createTime = config.createTime;
             this.version = config.version;
             this.allowLazyStart = config.allowLazyStart;
             this.maxNumThreads = config.maxNumThreads;
+            this.meta = config.meta;
         }
 
         public String getId() {
@@ -408,6 +464,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
+            assertNoAuthorizationHeader(this.headers);
             return this;
         }
 
@@ -421,7 +478,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setVersion(Version version) {
+        public Builder setVersion(MlConfigVersion version) {
             this.version = version;
             return this;
         }
@@ -436,13 +493,31 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setMeta(Map<String, Object> meta) {
+            this.meta = meta;
+            return this;
+        }
+
         /**
          * Builds {@link DataFrameAnalyticsConfig} object.
          */
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
-            return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, headers, modelMemoryLimit, analyzedFields,
-                createTime, version, allowLazyStart, maxNumThreads);
+            return new DataFrameAnalyticsConfig(
+                id,
+                description,
+                source,
+                dest,
+                analysis,
+                headers,
+                modelMemoryLimit,
+                analyzedFields,
+                createTime,
+                version,
+                allowLazyStart,
+                maxNumThreads,
+                meta
+            );
         }
 
         /**
@@ -452,10 +527,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
          */
         public DataFrameAnalyticsConfig buildForExplain() {
             return new DataFrameAnalyticsConfig(
-                id != null ? id : "dummy",
+                id != null ? id : BLANK_ID,
                 description,
                 source,
-                dest != null ? dest : new DataFrameAnalyticsDest("dummy", null),
+                dest != null ? dest : new DataFrameAnalyticsDest(BLANK_DEST_INDEX, null),
                 analysis,
                 headers,
                 modelMemoryLimit,
@@ -463,7 +538,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 createTime,
                 version,
                 allowLazyStart,
-                maxNumThreads);
+                maxNumThreads,
+                meta
+            );
         }
 
         private void applyMaxModelMemoryLimit() {
@@ -474,13 +551,17 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                     // Explicit setting lower than minimum is an error
                     throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(
-                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit, MIN_MODEL_MEMORY_LIMIT.getStringRep()));
+                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW,
+                            modelMemoryLimit,
+                            MIN_MODEL_MEMORY_LIMIT.getStringRep()
+                        )
+                    );
                 }
                 if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
                     // Explicit setting higher than limit is an error
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(
-                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX, modelMemoryLimit, maxModelMemoryLimit));
+                        Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX, modelMemoryLimit, maxModelMemoryLimit)
+                    );
                 }
             } else {
                 // Default is silently capped if higher than limit

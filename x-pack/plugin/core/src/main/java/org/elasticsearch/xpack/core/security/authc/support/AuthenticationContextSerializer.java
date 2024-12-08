@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
@@ -21,6 +24,8 @@ import java.util.Base64;
  * {@link org.elasticsearch.common.util.concurrent.ThreadContext} under a specified key
  */
 public class AuthenticationContextSerializer {
+
+    private static final Logger logger = LogManager.getLogger(AuthenticationContextSerializer.class);
 
     private final String contextKey;
 
@@ -47,8 +52,7 @@ public class AuthenticationContextSerializer {
         return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
     }
 
-    Authentication deserializeHeaderAndPutInContext(String headerValue, ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
+    Authentication deserializeHeaderAndPutInContext(String headerValue, ThreadContext ctx) throws IOException, IllegalArgumentException {
         assert ctx.getTransient(contextKey) == null;
 
         Authentication authentication = decode(headerValue);
@@ -57,11 +61,16 @@ public class AuthenticationContextSerializer {
     }
 
     public static Authentication decode(String header) throws IOException {
-        byte[] bytes = Base64.getDecoder().decode(header);
-        StreamInput input = StreamInput.wrap(bytes);
-        Version version = Version.readVersion(input);
-        input.setVersion(version);
-        return new Authentication(input);
+        try {
+            byte[] bytes = Base64.getDecoder().decode(header);
+            StreamInput input = StreamInput.wrap(bytes);
+            TransportVersion version = TransportVersion.readVersion(input);
+            input.setTransportVersion(version);
+            return new Authentication(input);
+        } catch (IOException | RuntimeException e) {
+            logger.warn("Failed to decode authentication [" + header + "]", e);
+            throw e;
+        }
     }
 
     public Authentication getAuthentication(ThreadContext context) {

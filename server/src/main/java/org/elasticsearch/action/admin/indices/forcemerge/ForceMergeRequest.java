@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.UUIDs;
@@ -39,9 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * to force merge down to. Defaults to simply checking if a merge needs
  * to execute, and if so, executes it
  *
- * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
- * @see ForceMergeResponse
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#forceMerge(ForceMergeRequest)
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
@@ -50,12 +39,16 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
     }
-    
+
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    /**
+     * Should this task store its result?
+     */
+    private boolean shouldStoreResult;
 
-    private static final Version FORCE_MERGE_UUID_SIMPLE_VERSION = Version.V_8_0_0;
+    private static final TransportVersion FORCE_MERGE_UUID_SIMPLE_VERSION = TransportVersions.V_8_0_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
@@ -78,7 +71,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
             forceMergeUUID = in.readString();
         } else {
             forceMergeUUID = in.readOptionalString();
@@ -142,12 +135,30 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         return this;
     }
 
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public ForceMergeRequest setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+        return this;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
+    }
+
     @Override
     public String getDescription() {
-        return "Force-merge indices " + Arrays.toString(indices()) +
-            ", maxSegments[" + maxNumSegments +
-            "], onlyExpungeDeletes[" + onlyExpungeDeletes +
-            "], flush[" + flush + "]";
+        return "Force-merge indices "
+            + Arrays.toString(indices())
+            + ", maxSegments["
+            + maxNumSegments
+            + "], onlyExpungeDeletes["
+            + onlyExpungeDeletes
+            + "], flush["
+            + flush
+            + "]";
     }
 
     @Override
@@ -156,7 +167,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
             out.writeString(forceMergeUUID);
         } else {
             out.writeOptionalString(forceMergeUUID);
@@ -167,18 +178,23 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationError = super.validate();
         if (onlyExpungeDeletes && maxNumSegments != Defaults.MAX_NUM_SEGMENTS) {
-            validationError = addValidationError("cannot set only_expunge_deletes and max_num_segments at the same time, those two " +
-                "parameters are mutually exclusive", validationError);
+            validationError = addValidationError(
+                "cannot set only_expunge_deletes and max_num_segments at the same time, those two " + "parameters are mutually exclusive",
+                validationError
+            );
         }
         return validationError;
     }
 
     @Override
     public String toString() {
-        return "ForceMergeRequest{" +
-                "maxNumSegments=" + maxNumSegments +
-                ", onlyExpungeDeletes=" + onlyExpungeDeletes +
-                ", flush=" + flush +
-                '}';
+        return "ForceMergeRequest{"
+            + "maxNumSegments="
+            + maxNumSegments
+            + ", onlyExpungeDeletes="
+            + onlyExpungeDeletes
+            + ", flush="
+            + flush
+            + '}';
     }
 }

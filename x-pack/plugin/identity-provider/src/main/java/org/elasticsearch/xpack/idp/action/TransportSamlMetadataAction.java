@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -21,9 +23,13 @@ public class TransportSamlMetadataAction extends HandledTransportAction<SamlMeta
     private final SamlFactory samlFactory;
 
     @Inject
-    public TransportSamlMetadataAction(TransportService transportService, ActionFilters actionFilters,
-                                       SamlIdentityProvider idp, SamlFactory factory) {
-        super(SamlMetadataAction.NAME, transportService, actionFilters, SamlMetadataRequest::new);
+    public TransportSamlMetadataAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SamlIdentityProvider idp,
+        SamlFactory factory
+    ) {
+        super(SamlMetadataAction.NAME, transportService, actionFilters, SamlMetadataRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.identityProvider = idp;
         this.samlFactory = factory;
     }

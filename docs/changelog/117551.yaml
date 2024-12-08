@@ -1,0 +1,5 @@
+pr: 117551
+summary: Fix stats by constant expresson with alias
+area: ES|QL
+type: bug
+issues: []

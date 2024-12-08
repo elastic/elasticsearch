@@ -1,37 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -66,6 +66,14 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     public void testExistsQueryStoreEnabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -94,7 +102,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         byte[] value = new byte[100];
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
-        assertEquals(0, doc.rootDoc().getFields("field").length);
+        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
     public void testStoredValue() throws IOException {
@@ -128,5 +136,131 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
+    }
+
+    public void testDefaultsForTimeSeriesIndex() throws IOException {
+        var isStored = randomBoolean();
+
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "binary");
+            if (isStored) {
+                b.field("store", "true");
+            }
+            b.endObject();
+
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+            b.startObject("dimension");
+            b.field("type", "keyword");
+            b.field("time_series_dimension", "true");
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
+            b.field("@timestamp", "2000-10-10T23:40:53.384Z");
+            b.field("dimension", "dimension1");
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var docValuesField = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY).findFirst();
+        assertTrue("Doc values are not present", docValuesField.isPresent());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        if (rarely()) return null;
+        byte[] value = randomByteArrayOfLength(randomIntBetween(1, 50));
+        return Base64.getEncoder().encodeToString(value);
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "binary").field("doc_values", true); // enable doc_values so the test is happy
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value.v1(), value.v2(), this::mapping);
+                }
+
+                List<Tuple<String, byte[]>> values = randomList(1, maxValues, this::generateValue);
+
+                var in = values.stream().map(Tuple::v1).toList();
+
+                var outList = values.stream()
+                    .map(Tuple::v2)
+                    .map(BytesCompareUnsigned::new)
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .sorted()
+                    .map(b -> encode(b.bytes))
+                    .toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+
+            private Tuple<String, byte[]> generateValue() {
+                var len = randomIntBetween(1, 256);
+                var bytes = randomByteArrayOfLength(len);
+
+                return Tuple.tuple(encode(bytes), bytes);
+            }
+
+            private String encode(byte[] bytes) {
+                return Base64.getEncoder().encodeToString(bytes);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "binary").field("doc_values", "true");
+
+                if (rarely()) {
+                    b.field("store", false);
+                }
+            }
+
+            private record BytesCompareUnsigned(byte[] bytes) implements Comparable<BytesCompareUnsigned> {
+                @Override
+                public int compareTo(BytesCompareUnsigned o) {
+                    return Arrays.compareUnsigned(bytes, o.bytes);
+                }
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

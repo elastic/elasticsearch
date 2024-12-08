@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.logstash.action;
@@ -12,10 +13,11 @@ import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.logstash.Logstash;
@@ -28,7 +30,7 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
 
     @Inject
     public TransportDeletePipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeletePipelineAction.NAME, transportService, actionFilters, DeletePipelineRequest::new);
+        super(DeletePipelineAction.NAME, transportService, actionFilters, DeletePipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 
@@ -44,7 +46,7 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
             );
     }
 
-    private void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
+    private static void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         if (cause instanceof IndexNotFoundException) {
             listener.onResponse(new DeletePipelineResponse(false));

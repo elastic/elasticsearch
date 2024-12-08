@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps
@@ -45,12 +35,12 @@ public final class LongLongHash extends AbstractHash {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
-    //Constructor with configurable capacity and load factor.
+    // Constructor with configurable capacity and load factor.
     public LongLongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            keys = bigArrays.newLongArray(2 * capacity, false);
+            keys = bigArrays.newLongArray(2 * maxSize, false);
         } finally {
             if (keys == null) {
                 close();
@@ -59,7 +49,7 @@ public final class LongLongHash extends AbstractHash {
     }
 
     /**
-     * Return the first key at {@code 0 &lt;= index &lt;= capacity()}. The
+     * Return the first key at {@code 0 <= index <= capacity()}. The
      * result is undefined if the slot is unused.
      */
     public long getKey1(long id) {
@@ -79,7 +69,7 @@ public final class LongLongHash extends AbstractHash {
      */
     public long find(long key1, long key2) {
         final long slot = slot(hash(key1, key2), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
             long keyOffset = 2 * id;
             if (id == -1 || (keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2)) {
@@ -91,10 +81,10 @@ public final class LongLongHash extends AbstractHash {
     private long set(long key1, long key2, long id) {
         assert size < maxSize;
         final long slot = slot(hash(key1, key2), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key1, key2);
                 ++size;
                 return id;
@@ -109,18 +99,20 @@ public final class LongLongHash extends AbstractHash {
 
     private void append(long id, long key1, long key2) {
         long keyOffset = 2 * id;
-        keys = bigArrays.grow(keys, keyOffset + 2);
         keys.set(keyOffset, key1);
         keys.set(keyOffset + 1, key2);
     }
 
-    private void reset(long key1, long key2, long id) {
+    private void reset(long id) {
+        final LongArray keys = this.keys;
+        final long keyOffset = id * 2;
+        final long key1 = keys.get(keyOffset);
+        final long key2 = keys.get(keyOffset + 1);
         final long slot = slot(hash(key1, key2), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key1, key2);
+                setId(index, id);
                 break;
             }
         }
@@ -135,6 +127,7 @@ public final class LongLongHash extends AbstractHash {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            keys = bigArrays.resize(keys, maxSize * 2);
         }
         assert size < maxSize;
         return set(key1, key2, size);
@@ -142,12 +135,9 @@ public final class LongLongHash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        long keyOffset = id * 2;
-        final long key1 = keys.set(keyOffset, 0);
-        final long key2 = keys.set(keyOffset + 1, 0);
-        reset(key1, key2, id);
+        reset(id);
     }
 
     @Override
@@ -156,6 +146,6 @@ public final class LongLongHash extends AbstractHash {
     }
 
     static long hash(long key1, long key2) {
-        return 31 * BitMixer.mix(key1) +  BitMixer.mix(key2);
+        return 31 * BitMixer.mix(key1) + BitMixer.mix(key2);
     }
 }

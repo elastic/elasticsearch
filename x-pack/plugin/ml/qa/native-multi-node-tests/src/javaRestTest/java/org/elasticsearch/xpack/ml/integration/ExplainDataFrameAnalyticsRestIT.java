@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -22,7 +24,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
@@ -56,10 +57,9 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("{"
-                + "  \"password\" : \"" + password + "\","
-                + "  \"roles\" : [ " + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", ")) + " ]"
-                + "}");
+        request.setJsonEntity(Strings.format("""
+            { "password" : "%s",  "roles" : [ %s ] }
+            """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
@@ -76,39 +76,48 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity("{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "      \"airline\": {"
-                + "        \"type\":\"keyword\""
-                + "       },"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-            + "    }"
-                + "  }"
-                + "}");
+        // space in 'time stamp' is intentional
+        createAirlineDataRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time stamp": {
+                    "type": "date"
+                  },
+                  "airline": {
+                    "type": "keyword"
+                  },
+                  "responsetime": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createAirlineDataRequest);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
+        bulk.append("""
+            {"index": {"_index": "airline-data", "_id": 1}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"AAA","responsetime":135.22}
+            {"index": {"_index": "airline-data", "_id": 2}}
+            {"time stamp":"2016-06-01T01:59:00Z","airline":"AAA","responsetime":541.76}
+
+            """);
 
         bulkIndex(bulk.toString());
     }
 
     public void testExplain_GivenSecondaryHeadersAndConfig() throws IOException {
-        String config = "{\n" +
-            "  \"source\": {\n" +
-            "    \"index\": \"airline-data\"\n" +
-            "  },\n" +
-            "  \"analysis\": {\n" +
-            "    \"regression\": {\n" +
-            "      \"dependent_variable\": \"responsetime\"\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
-
+        String config = """
+            {
+              "source": {
+                "index": "airline-data"
+              },
+              "analysis": {
+                "regression": {
+                  "dependent_variable": "responsetime"
+                }
+              }
+            }""";
 
         { // Request with secondary headers without perms
             Request explain = explainRequestViaConfig(config);
@@ -131,20 +140,21 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     }
 
     public void testExplain_GivenSecondaryHeadersAndPreviouslyStoredConfig() throws IOException {
-        String config = "{\n" +
-            "  \"source\": {\n" +
-            "    \"index\": \"airline-data\"\n" +
-            "  },\n" +
-            "  \"dest\": {\n" +
-            "    \"index\": \"response_prediction\"\n" +
-            "  },\n" +
-            "  \"analysis\":\n" +
-            "    {\n" +
-            "      \"regression\": {\n" +
-            "        \"dependent_variable\": \"responsetime\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "}";
+        String config = """
+            {
+              "source": {
+                "index": "airline-data"
+              },
+              "dest": {
+                "index": "response_prediction"
+              },
+              "analysis":
+                {
+                  "regression": {
+                    "dependent_variable": "responsetime"
+                  }
+                }
+            }""";
 
         String configId = "explain_test";
 

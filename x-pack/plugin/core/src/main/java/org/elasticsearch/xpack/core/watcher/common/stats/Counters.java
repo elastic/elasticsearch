@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.common.stats;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,18 +21,18 @@ import java.util.Map;
  * Calling toNestedMap() will create a nested map, where each dot of the key name will nest deeper
  * The main reason for this class is that the stats producer should not be worried about how the map is actually nested
  */
-public class Counters implements Writeable {
+public final class Counters implements Writeable {
 
-    private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
+    private Map<String, Long> counters = new HashMap<>();
 
     public Counters(StreamInput in) throws IOException {
-        int counters = in.readVInt();
-        for (int i = 0; i < counters; i++) {
+        int numCounters = in.readVInt();
+        for (int i = 0; i < numCounters; i++) {
             inc(in.readString(), in.readVLong());
         }
     }
 
-    public Counters(String ... names) {
+    public Counters(String... names) {
         for (String name : names) {
             set(name);
         }
@@ -44,7 +43,7 @@ public class Counters implements Writeable {
      * @param name Name of the counter
      */
     public void set(String name) {
-        counters.put(name, 0);
+        counters.put(name, 0L);
     }
 
     /**
@@ -61,7 +60,7 @@ public class Counters implements Writeable {
      * @param count Incremental value
      */
     public void inc(String name, long count) {
-        counters.addTo(name, count);
+        counters.merge(name, count, Long::sum);
     }
 
     public long get(String name) {
@@ -83,9 +82,9 @@ public class Counters implements Writeable {
     @SuppressWarnings("unchecked")
     public Map<String, Object> toNestedMap() {
         Map<String, Object> map = new HashMap<>();
-        for (ObjectLongCursor<String> counter : counters) {
-            if (counter.key.contains(".")) {
-                String[] parts = counter.key.split("\\.");
+        for (var counter : counters.entrySet()) {
+            if (counter.getKey().contains(".")) {
+                String[] parts = counter.getKey().split("\\.");
                 Map<String, Object> curr = map;
                 for (int i = 0; i < parts.length; i++) {
                     String part = parts[i];
@@ -98,11 +97,11 @@ public class Counters implements Writeable {
                             curr = (Map<String, Object>) curr.get(part);
                         }
                     } else {
-                        curr.put(part, counter.value);
+                        curr.put(part, counter.getValue());
                     }
                 }
             } else {
-                map.put(counter.key, counter.value);
+                map.put(counter.getKey(), counter.getValue());
             }
         }
 
@@ -112,17 +111,17 @@ public class Counters implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(counters.size());
-        for (ObjectLongCursor<String> cursor : counters) {
-            out.writeString(cursor.key);
-            out.writeVLong(cursor.value);
+        for (var entry : counters.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVLong(entry.getValue());
         }
     }
 
     public static Counters merge(List<Counters> counters) {
         Counters result = new Counters();
         for (Counters c : counters) {
-            for (ObjectLongCursor<String> cursor : c.counters) {
-                result.inc(cursor.key, cursor.value);
+            for (var entry : c.counters.entrySet()) {
+                result.inc(entry.getKey(), entry.getValue());
             }
         }
 

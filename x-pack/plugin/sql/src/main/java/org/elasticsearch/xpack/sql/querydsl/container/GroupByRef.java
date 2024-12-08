@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 /**
  * Reference to a GROUP BY agg (typically this gets translated to a composite key).
@@ -13,17 +15,18 @@ import org.elasticsearch.xpack.ql.execution.search.AggRef;
 public class GroupByRef extends AggRef {
 
     public enum Property {
-        VALUE, COUNT;
+        VALUE,
+        COUNT;
     }
-    
+
     private final String key;
     private final Property property;
-    private final boolean isDateTimeBased;
+    private final DataType dataType;
 
-    public GroupByRef(String key, Property property, boolean isDateTimeBased) {
+    public GroupByRef(String key, Property property, DataType dataType) {
         this.key = key;
         this.property = property == null ? Property.VALUE : property;
-        this.isDateTimeBased = isDateTimeBased;
+        this.dataType = dataType;
     }
 
     public String key() {
@@ -34,8 +37,8 @@ public class GroupByRef extends AggRef {
         return property;
     }
 
-    public boolean isDateTimeBased() {
-        return isDateTimeBased;
+    public DataType dataType() {
+        return dataType;
     }
 
     @Override

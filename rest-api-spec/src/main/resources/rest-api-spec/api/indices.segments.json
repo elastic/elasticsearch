@@ -5,6 +5,10 @@
       "description":"Provides low-level information about segments in a Lucene index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -47,11 +51,6 @@
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
-      },
-      "verbose":{
-        "type":"boolean",
-        "description":"Includes detailed memory usage by Lucene.",
-        "default":false
       }
     }
   }

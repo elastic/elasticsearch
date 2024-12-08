@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Arrays;
@@ -36,7 +38,8 @@ public final class EnrichStore {
     private EnrichStore() {}
 
     /**
-     * Adds a new enrich policy or overwrites an existing policy if there is already a policy with the same name.
+     * Adds a new enrich policy. If a policy already exists with the same name then
+     * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
      * @param name      The unique name of the policy
@@ -77,25 +80,13 @@ public final class EnrichStore {
             );
         }
 
-        final EnrichPolicy finalPolicy;
-        if (policy.getElasticsearchVersion() == null) {
-            finalPolicy = new EnrichPolicy(
-                policy.getType(),
-                policy.getQuery(),
-                policy.getIndices(),
-                policy.getMatchField(),
-                policy.getEnrichFields(),
-                Version.CURRENT
-            );
-        } else {
-            finalPolicy = policy;
-        }
         updateClusterState(clusterService, handler, current -> {
-            for (String indexExpression : finalPolicy.getIndices()) {
+            for (String indexExpression : policy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
                     current,
                     IndicesOptions.strictExpandOpen(),
+                    true,
                     indexExpression
                 );
                 for (String concreteIndex : concreteIndices) {
@@ -106,15 +97,15 @@ public final class EnrichStore {
                         throw new IllegalArgumentException("source index [" + concreteIndex + "] has no mapping");
                     }
                     Map<String, Object> mappingSource = mapping.getSourceAsMap();
-                    EnrichPolicyRunner.validateMappings(name, finalPolicy, concreteIndex, mappingSource);
+                    EnrichPolicyRunner.validateMappings(name, policy, concreteIndex, mappingSource);
                 }
             }
 
             final Map<String, EnrichPolicy> policies = getPolicies(current);
-            if (policies.get(name) != null) {
+            EnrichPolicy existing = policies.putIfAbsent(name, policy);
+            if (existing != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
-            policies.put(name, finalPolicy);
             return policies;
         });
     }
@@ -181,7 +172,7 @@ public final class EnrichStore {
         Consumer<Exception> handler,
         Function<ClusterState, Map<String, EnrichPolicy>> function
     ) {
-        clusterService.submitStateUpdateTask("update-enrich-metadata", new ClusterStateUpdateTask() {
+        submitUnbatchedTask(clusterService, "update-enrich-metadata", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -193,14 +184,23 @@ public final class EnrichStore {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 handler.accept(null);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 handler.accept(e);
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

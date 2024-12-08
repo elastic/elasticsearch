@@ -1,0 +1,2 @@
+# Default postgresql pg_log format pattern
+POSTGRESQL %{DATESTAMP:timestamp} %{TZ:event.timezone} %{DATA:user.name} %{GREEDYDATA:postgresql.log.connection_id} %{POSINT:process.pid:int}

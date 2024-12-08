@@ -1,41 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipelineRequest;
 
 public class PutPipelineRequestTests extends ESTestCase {
 
     public void testSerializationWithXContent() throws IOException {
-        PutPipelineRequest request = new PutPipelineRequest("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        PutPipelineRequest request = putJsonPipelineRequest("1", "{}");
         assertEquals(XContentType.JSON, request.getXContentType());
 
         BytesStreamOutput output = new BytesStreamOutput();
@@ -52,17 +42,23 @@ public class PutPipelineRequestTests extends ESTestCase {
         XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
         pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
         pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
-        //Start first processor
+        // Start first processor
         pipelineBuilder.startObject();
         pipelineBuilder.startObject("set");
         pipelineBuilder.field("field", "foo");
         pipelineBuilder.field("value", "bar");
         pipelineBuilder.endObject();
         pipelineBuilder.endObject();
-        //End first processor
+        // End first processor
         pipelineBuilder.endArray();
         pipelineBuilder.endObject();
-        PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), xContentType);
+        PutPipelineRequest request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "1",
+            BytesReference.bytes(pipelineBuilder),
+            xContentType
+        );
         XContentBuilder requestBuilder = XContentBuilder.builder(xContentType.xContent());
         BytesReference actualRequestBody = BytesReference.bytes(request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS));
         assertEquals(BytesReference.bytes(pipelineBuilder), actualRequestBody);

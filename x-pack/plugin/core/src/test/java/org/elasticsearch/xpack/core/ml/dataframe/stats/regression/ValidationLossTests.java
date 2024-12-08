@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.regression;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.FoldValuesTests;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
@@ -50,15 +51,17 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
         return createRandom();
     }
 
+    @Override
+    protected ValidationLoss mutateInstance(ValidationLoss instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ValidationLoss createRandom() {
-        return new ValidationLoss(
-            randomAlphaOfLength(10),
-            randomList(5, FoldValuesTests::createRandom)
-        );
+        return new ValidationLoss(randomAlphaOfLength(10), randomList(5, FoldValuesTests::createRandom));
     }
 
     @Override
-    protected ValidationLoss mutateInstanceForVersion(ValidationLoss instance, Version version) {
+    protected ValidationLoss mutateInstanceForVersion(ValidationLoss instance, TransportVersion version) {
         return instance;
     }
 
@@ -73,14 +76,18 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
         assertThat(
             Strings.toString(
                 validationLoss,
-                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "false"))),
-            not(containsString(foldValuesFieldName)));
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "false"))
+            ),
+            not(containsString(foldValuesFieldName))
+        );
 
         // FOR_INTERNAL_STORAGE param explicitly set to "true", fold values are outputted
         assertThat(
             Strings.toString(
                 validationLoss,
-                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))),
-            containsString(foldValuesFieldName));
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+            ),
+            containsString(foldValuesFieldName)
+        );
     }
 }

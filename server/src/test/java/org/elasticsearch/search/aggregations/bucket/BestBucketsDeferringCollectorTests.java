@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -26,8 +16,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -36,7 +26,11 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -68,7 +62,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
@@ -83,8 +77,9 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(termQuery, collector);
-        collector.prepareSelectedBuckets(0);
+        indexSearcher.search(termQuery, collector.asCollector());
+        collector.postCollection();
+        collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -96,8 +91,9 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), collector);
-        collector.prepareSelectedBuckets(0);
+        indexSearcher.search(new MatchAllDocsQuery(), collector.asCollector());
+        collector.postCollection();
+        collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -110,17 +106,22 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     private BucketCollector bla(Set<Integer> docIds) {
         return new BucketCollector() {
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
-                        docIds.add(ctx.docBase + doc);
+                        docIds.add(aggCtx.getLeafReaderContext().docBase + doc);
                     }
                 };
             }
 
             @Override
             public void preCollection() throws IOException {
+
+            }
+
+            @Override
+            public void postCollection() throws IOException {
 
             }
 
@@ -142,7 +143,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
             }
         }, (deferringCollector, finalCollector) -> {
-            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+            deferringCollector.prepareSelectedBuckets(toLongArray(0, 8, 9));
 
             equalTo(Map.of(0L, List.of(0, 1, 2, 3, 4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9)));
         });
@@ -159,13 +160,13 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
             }
         }, (deferringCollector, finalCollector) -> {
-            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+            deferringCollector.prepareSelectedBuckets(toLongArray(0, 8, 9));
 
             assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9))));
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/60021")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60021")
     public void testBucketMergeAndDeleteLastEntry() throws Exception {
         testCase((deferringCollector, delegate) -> new LeafBucketCollector() {
             @Override
@@ -177,10 +178,18 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
             }
         }, (deferringCollector, finalCollector) -> {
-            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+            deferringCollector.prepareSelectedBuckets(toLongArray(0, 8, 9));
 
             assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(0, 1, 2, 3), 1L, List.of(8), 2L, List.of(9))));
         });
+    }
+
+    private LongArray toLongArray(long... lons) {
+        LongArray longArray = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(lons.length);
+        for (int i = 0; i < lons.length; i++) {
+            longArray.set(i, lons[i]);
+        }
+        return longArray;
     }
 
     private void testCase(
@@ -195,7 +204,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                IndexSearcher indexSearcher = newSearcher(indexReader);
 
                 Query query = new MatchAllDocsQuery();
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false);
@@ -203,21 +212,21 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();
                 deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));
                 deferringCollector.preCollection();
-                indexSearcher.search(query, new BucketCollector() {
+                indexSearcher.search(query, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
                     }
 
                     @Override
-                    public void preCollection() throws IOException {}
-
-                    @Override
-                    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(ctx);
+                    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(
+                            new AggregationExecutionContext(context, null, null, null)
+                        );
                         return leafCollector.apply(deferringCollector, delegate);
                     }
                 });
+                deferringCollector.postCollection();
                 verify.accept(deferringCollector, finalCollector);
             }
         }
@@ -232,7 +241,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -243,5 +252,10 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         @Override
         public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {
+
+        }
     }
 }

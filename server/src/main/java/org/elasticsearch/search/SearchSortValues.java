@@ -1,37 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit.Fields;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 public class SearchSortValues implements ToXContentFragment, Writeable {
@@ -43,8 +31,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     private final Object[] rawSortValues;
 
     SearchSortValues(Object[] sortValues) {
-        this.formattedSortValues = Objects.requireNonNull(sortValues, "sort values must not be empty");
-        this.rawSortValues = EMPTY_ARRAY;
+        this(Objects.requireNonNull(sortValues, "sort values must not be empty"), EMPTY_ARRAY);
     }
 
     public SearchSortValues(Object[] rawSortValues, DocValueFormat[] sortValueFormats) {
@@ -54,22 +41,27 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("formattedSortValues and sortValueFormats must hold the same number of items");
         }
         this.rawSortValues = rawSortValues;
-        this.formattedSortValues = Arrays.copyOf(rawSortValues, rawSortValues.length);
+        this.formattedSortValues = new Object[rawSortValues.length];
         for (int i = 0; i < rawSortValues.length; ++i) {
-            Object sortValue = rawSortValues[i];
-            if (sortValue instanceof BytesRef) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
-            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
-            } else {
-                this.formattedSortValues[i] = sortValue;
-            }
+            final Object v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean || v instanceof Map
+                : v + " was not formatted";
+            formattedSortValues[i] = v;
         }
     }
 
-    SearchSortValues(StreamInput in) throws IOException {
-        this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+    public static SearchSortValues readFrom(StreamInput in) throws IOException {
+        Object[] formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        Object[] rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        if (formattedSortValues.length == 0 && rawSortValues.length == 0) {
+            return EMPTY;
+        }
+        return new SearchSortValues(formattedSortValues, rawSortValues);
+    }
+
+    private SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
+        this.formattedSortValues = formattedSortValues;
+        this.rawSortValues = rawSortValues;
     }
 
     @Override
@@ -88,11 +80,6 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             builder.endArray();
         }
         return builder;
-    }
-
-    public static SearchSortValues fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        return new SearchSortValues(parser.list().toArray());
     }
 
     /**
@@ -118,8 +105,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             return false;
         }
         SearchSortValues that = (SearchSortValues) o;
-        return Arrays.equals(formattedSortValues, that.formattedSortValues) &&
-            Arrays.equals(rawSortValues, that.rawSortValues);
+        return Arrays.equals(formattedSortValues, that.formattedSortValues) && Arrays.equals(rawSortValues, that.rawSortValues);
     }
 
     @Override

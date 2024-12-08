@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -32,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.ToLongFunction;
 
 public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder> {
 
@@ -63,32 +53,32 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
             switch (minDocCount) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            default:
-                fail();
+                case 0:
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
+                    break;
+                default:
+                    fail();
             }
             factory.minDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
             switch (shardMinDocCount) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            default:
-                fail();
+                case 0:
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
+                    break;
+                default:
+                    fail();
             }
             factory.shardMinDocCount(shardMinDocCount);
         }
@@ -102,14 +92,14 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            RegExp includeRegexp = null, excludeRegexp = null;
+            String includeRegexp = null, excludeRegexp = null;
             SortedSet<BytesRef> includeValues = null, excludeValues = null;
             boolean hasIncludeOrExclude = false;
 
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    includeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    includeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     includeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -122,7 +112,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    excludeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    excludeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     excludeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -144,7 +134,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         if (randomBoolean()) {
             List<BucketOrder> order = randomOrder();
-            if(order.size() == 1 && randomBoolean()) {
+            if (order.size() == 1 && randomBoolean()) {
                 factory.order(order.get(0));
             } else {
                 factory.order(order);
@@ -159,28 +149,77 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
     private List<BucketOrder> randomOrder() {
         List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
-        case 0:
-            orders.add(BucketOrder.key(randomBoolean()));
-            break;
-        case 1:
-            orders.add(BucketOrder.count(randomBoolean()));
-            break;
-        case 2:
-            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-            break;
-        case 3:
-            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-            break;
-        case 4:
-            int numOrders = randomIntBetween(1, 3);
-            for (int i = 0; i < numOrders; i++) {
-                orders.addAll(randomOrder());
+            case 0 -> orders.add(BucketOrder.key(randomBoolean()));
+            case 1 -> orders.add(BucketOrder.count(randomBoolean()));
+            case 2 -> orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+            case 3 -> orders.add(
+                BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean())
+            );
+            case 4 -> {
+                int numOrders = randomIntBetween(1, 3);
+                for (int i = 0; i < numOrders; i++) {
+                    orders.addAll(randomOrder());
+                }
             }
-            break;
-        default:
-            fail();
+            default -> fail();
         }
         return orders;
     }
 
+    public void testSupportsParallelCollection() {
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("map");
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("global_ordinals");
+            assertTrue(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 49)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(51, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            assertFalse(terms.supportsParallelCollection(field -> -1));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            assertTrue(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.subAggregation(new TermsAggregationBuilder("name") {
+                @Override
+                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                    return false;
+                }
+            });
+            assertFalse(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(10);
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(1, 9)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(10, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(randomIntBetween(1, 100));
+            terms.minDocCount(0);
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(1, 100)));
+        }
+    }
 }

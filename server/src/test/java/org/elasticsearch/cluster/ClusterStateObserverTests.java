@@ -1,36 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -50,20 +43,22 @@ public class ClusterStateObserverTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(DiscoveryNodes.builder()).build();
         when(clusterApplierService.state()).thenReturn(clusterState);
 
-        final ClusterStateObserver clusterStateObserver
-                = new ClusterStateObserver(clusterState, clusterApplierService, null, logger, new ThreadContext(Settings.EMPTY));
+        final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
+            clusterState.version(),
+            clusterApplierService,
+            null,
+            logger,
+            new ThreadContext(Settings.EMPTY)
+        );
         clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
-            public void onNewClusterState(ClusterState state) {
-            }
+            public void onNewClusterState(ClusterState state) {}
 
             @Override
-            public void onClusterServiceClose() {
-            }
+            public void onClusterServiceClose() {}
 
             @Override
-            public void onTimeout(TimeValue timeout) {
-            }
+            public void onTimeout(TimeValue timeout) {}
 
             @Override
             public String toString() {
@@ -72,6 +67,30 @@ public class ClusterStateObserverTests extends ESTestCase {
         });
 
         assertTrue(listenerAdded.get());
+    }
+
+    public void testWaitForState() throws Exception {
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(DiscoveryNodes.builder()).build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final PlainActionFuture<ClusterState> future = new PlainActionFuture<>();
+        ClusterStateObserver.waitForState(clusterService, new ThreadContext(Settings.EMPTY), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                future.onResponse(state);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                fail("should not be called");
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                fail("should not be called");
+            }
+        }, cs -> cs == clusterState, null, logger);
+        assertSame(clusterState, future.get(0L, TimeUnit.NANOSECONDS));
     }
 
 }

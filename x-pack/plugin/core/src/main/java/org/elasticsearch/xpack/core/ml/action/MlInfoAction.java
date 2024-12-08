@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -11,8 +12,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +26,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";
 
     private MlInfoAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -46,7 +47,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Map<String, Object> info;
+        private final Map<String, Object> info;
 
         public Response(Map<String, Object> info) {
             this.info = info;
@@ -56,18 +57,13 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
             this.info = Collections.emptyMap();
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            info = in.readMap();
-        }
-
         public Map<String, Object> getInfo() {
             return info;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(info);
+            out.writeGenericMap(info);
         }
 
         @Override

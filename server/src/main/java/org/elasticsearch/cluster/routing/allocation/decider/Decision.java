@@ -1,32 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,14 +65,11 @@ public abstract class Decision implements ToXContent, Writeable {
             final String label = in.readOptionalString();
             final String explanation = in.readOptionalString();
             if (label == null && explanation == null) {
-                switch (type) {
-                    case YES:
-                        return YES;
-                    case THROTTLE:
-                        return THROTTLE;
-                    case NO:
-                        return NO;
-                }
+                return switch (type) {
+                    case YES -> YES;
+                    case THROTTLE -> THROTTLE;
+                    case NO -> NO;
+                };
             }
             return new Single(type, label, explanation);
         }
@@ -105,16 +92,12 @@ public abstract class Decision implements ToXContent, Writeable {
 
         public static Type readFrom(StreamInput in) throws IOException {
             int i = in.readVInt();
-            switch (i) {
-                case 0:
-                    return NO;
-                case 1:
-                    return YES;
-                case 2:
-                    return THROTTLE;
-                default:
-                    throw new IllegalArgumentException("No Type for integer [" + i + "]");
-            }
+            return switch (i) {
+                case 0 -> NO;
+                case 1 -> YES;
+                case 2 -> THROTTLE;
+                default -> throw new IllegalArgumentException("No Type for integer [" + i + "]");
+            };
         }
 
         @Override
@@ -227,9 +210,7 @@ public abstract class Decision implements ToXContent, Writeable {
             }
 
             Decision.Single s = (Decision.Single) object;
-            return this.type == s.type &&
-                       Objects.equals(label, s.label) &&
-                       Objects.equals(explanationString, s.explanationString);
+            return this.type == s.type && Objects.equals(label, s.label) && Objects.equals(explanationString, s.explanationString);
         }
 
         @Override
@@ -359,10 +340,7 @@ public abstract class Decision implements ToXContent, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(true); // flag indicating it is a multi decision
-            out.writeVInt(getDecisions().size());
-            for (Decision d : getDecisions()) {
-                d.writeTo(out);
-            }
+            out.writeCollection(getDecisions());
         }
     }
 }

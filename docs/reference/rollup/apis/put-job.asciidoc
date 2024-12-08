@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-put-job]]
 === Create {rollup-jobs} API
 [subs="attributes"]
@@ -7,9 +6,13 @@
 <titleabbrev>Create {rollup-jobs}</titleabbrev>
 ++++
 
-Creates a {rollup-job}.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
-experimental[]
+WARNING: From 8.15.0 invoking this API in a cluster with no rollup usage will fail with a message about Rollup's
+deprecation and planned removal. A cluster either needs to contain a rollup job or a rollup index in order for this API
+to be allowed to execute.
+
+Creates a {rollup-job}.
 
 [[rollup-put-job-api-request]]
 ==== {api-request-title}
@@ -91,7 +94,7 @@ documents without a timestamp and a `date_histogram` group. The
 +
 .Properties of `date_histogram`
 [%collapsible%open]
-===== 
+=====
 `calendar_interval` or `fixed_interval`::::
 (Required, <<time-units,time units>>) The interval of time buckets to be
 generated when rolling up. For example, `60m` produces 60 minute (hourly)
@@ -101,7 +104,7 @@ hourly (`60m`) intervals are configured, <<rollup-search,rollup search>>
 can execute aggregations with 60m or greater (weekly, monthly, etc) intervals.
 So define the interval as the smallest unit that you wish to later query. For
 more information about the difference between calendar and fixed time
-intervals, see <<rollup-understanding-group-intervals>>.
+intervals, see <<calendar_and_fixed_intervals>>.
 +
 --
 NOTE: Smaller, more granular intervals take up proportionally more space.
@@ -137,11 +140,11 @@ in `UTC`.
 //Begin histogram
 `histogram`:::
 (Optional, object) The histogram group aggregates one or more numeric fields
-into numeric histogram intervals. 
+into numeric histogram intervals.
 +
 .Properties of `histogram`
 [%collapsible%open]
-===== 
+=====
 `fields`::::
 (Required, array) The set of fields that you wish to build histograms for. All
 fields specified must be some kind of numeric. Order does not matter.
@@ -173,7 +176,7 @@ judicious which high-cardinality fields are included for that reason.
 +
 .Properties of `terms`
 [%collapsible%open]
-===== 
+=====
 
 `fields`::::
 (Required, string) The set of fields that you wish to collect terms for. This
@@ -236,6 +239,10 @@ the indexer.
 (Required, string) The index that contains the rollup results. The index can
 be shared with other {rollup-jobs}. The data is stored so that it doesn't
 interfere with unrelated jobs.
+
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).
 
 [[rollup-put-job-api-example]]
 ==== {api-example-title}

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.secure_sm;
@@ -108,8 +98,7 @@ public class SecureSM extends SecurityManager {
         // intellij test runner (before IDEA version 2019.3)
         "com\\.intellij\\.rt\\.execution\\.junit\\..*",
         // intellij test runner (since IDEA version 2019.3)
-        "com\\.intellij\\.rt\\.junit\\..*"
-    };
+        "com\\.intellij\\.rt\\.junit\\..*" };
 
     // java.security.debug support
     private static final boolean DEBUG = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
@@ -155,7 +144,7 @@ public class SecureSM extends SecurityManager {
     }
 
     @SuppressForbidden(reason = "java.security.debug messages go to standard error")
-    private void debugThreadGroups(final ThreadGroup caller, final ThreadGroup target) {
+    private static void debugThreadGroups(final ThreadGroup caller, final ThreadGroup target) {
         System.err.println("access: caller group=" + caller);
         System.err.println("access: target group=" + target);
     }
@@ -165,11 +154,23 @@ public class SecureSM extends SecurityManager {
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
     private static final Permission MODIFY_ARBITRARY_THREAD_PERMISSION = new ThreadPermission("modifyArbitraryThread");
 
+    // Returns true if the given thread is an instance of the JDK's InnocuousThread.
+    private static boolean isInnocuousThread(Thread t) {
+        final Class<?> c = t.getClass();
+        return c.getModule() == Object.class.getModule()
+            && (c.getName().equals("jdk.internal.misc.InnocuousThread")
+                || c.getName().equals("java.util.concurrent.ForkJoinWorkerThread$InnocuousForkJoinWorkerThread"));
+    }
+
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
 
-        // first, check if we can modify threads at all.
-        checkPermission(MODIFY_THREAD_PERMISSION);
+        boolean targetThreadIsInnocuous = isInnocuousThread(t);
+        // we don't need to check if innocuous thread is modifying itself (like changes its name)
+        if (Thread.currentThread() != t || targetThreadIsInnocuous == false) {
+            // first, check if we can modify threads at all.
+            checkPermission(MODIFY_THREAD_PERMISSION);
+        }
 
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
@@ -177,7 +178,7 @@ public class SecureSM extends SecurityManager {
 
         if (target == null) {
             return;    // its a dead thread, do nothing.
-        } else if (source.parentOf(target) == false) {
+        } else if (source.parentOf(target) == false && targetThreadIsInnocuous == false) {
             checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }
@@ -185,11 +186,21 @@ public class SecureSM extends SecurityManager {
     private static final Permission MODIFY_THREADGROUP_PERMISSION = new RuntimePermission("modifyThreadGroup");
     private static final Permission MODIFY_ARBITRARY_THREADGROUP_PERMISSION = new ThreadPermission("modifyArbitraryThreadGroup");
 
+    // Returns true if the given thread is an instance of the JDK's InnocuousThread.
+    private static boolean isInnocuousThreadGroup(ThreadGroup t) {
+        final Class<?> c = t.getClass();
+        return c.getModule() == Object.class.getModule() && t.getName().equals("InnocuousForkJoinWorkerThreadGroup");
+    }
+
     protected void checkThreadGroupAccess(ThreadGroup g) {
         Objects.requireNonNull(g);
 
+        boolean targetThreadGroupIsInnocuous = isInnocuousThreadGroup(g);
+
         // first, check if we can modify thread groups at all.
-        checkPermission(MODIFY_THREADGROUP_PERMISSION);
+        if (targetThreadGroupIsInnocuous == false) {
+            checkPermission(MODIFY_THREADGROUP_PERMISSION);
+        }
 
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
@@ -197,7 +208,7 @@ public class SecureSM extends SecurityManager {
 
         if (source == null) {
             return; // we are a dead thread, do nothing
-        } else if (source.parentOf(target) == false) {
+        } else if (source.parentOf(target) == false && targetThreadGroupIsInnocuous == false) {
             checkPermission(MODIFY_ARBITRARY_THREADGROUP_PERMISSION);
         }
     }
@@ -217,15 +228,12 @@ public class SecureSM extends SecurityManager {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
-                final String systemClassName = System.class.getName(),
-                        runtimeClassName = Runtime.class.getName();
+                final String systemClassName = System.class.getName(), runtimeClassName = Runtime.class.getName();
                 String exitMethodHit = null;
                 for (final StackTraceElement se : Thread.currentThread().getStackTrace()) {
                     final String className = se.getClassName(), methodName = se.getMethodName();
-                    if (
-                        ("exit".equals(methodName) || "halt".equals(methodName)) &&
-                        (systemClassName.equals(className) || runtimeClassName.equals(className))
-                    ) {
+                    if (("exit".equals(methodName) || "halt".equals(methodName))
+                        && (systemClassName.equals(className) || runtimeClassName.equals(className))) {
                         exitMethodHit = className + '#' + methodName + '(' + status + ')';
                         continue;
                     }

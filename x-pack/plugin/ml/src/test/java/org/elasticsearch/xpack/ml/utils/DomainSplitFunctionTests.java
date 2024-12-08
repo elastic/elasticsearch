@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.utils;
@@ -44,8 +45,11 @@ public class DomainSplitFunctionTests extends ESTestCase {
         assertDomainSplit("example", "local", "example.local");
         assertDomainSplit("b.example", "local", "b.example.local");
         assertDomainSplit("a.b.example", "local", "a.b.example.local");
-        assertDomainSplit("r192494180984795-1-1041782-channel-live.ums", "ustream.tv",
-                "r192494180984795-1-1041782-channel-live.ums.ustream.tv");
+        assertDomainSplit(
+            "r192494180984795-1-1041782-channel-live.ums",
+            "ustream.tv",
+            "r192494180984795-1-1041782-channel-live.ums.ustream.tv"
+        );
     }
 
     private void assertDomainSplit(String expectedSubDomain, String expectedDomain, String hostName) {

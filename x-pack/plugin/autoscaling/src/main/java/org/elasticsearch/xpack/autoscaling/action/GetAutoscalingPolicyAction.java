@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -12,8 +13,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.io.IOException;
@@ -25,7 +27,7 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
     public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_policy";
 
     private GetAutoscalingPolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -36,7 +38,8 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
             return name;
         }
 
-        public Request(final String name) {
+        public Request(TimeValue masterNodeTimeout, final String name) {
+            super(masterNodeTimeout);
             this.name = Objects.requireNonNull(name);
         }
 

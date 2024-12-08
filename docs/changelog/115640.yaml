@@ -1,0 +1,6 @@
+pr: 115640
+summary: Fix NPE on plugin sync
+area: Infra/CLI
+type: bug
+issues:
+ - 114818

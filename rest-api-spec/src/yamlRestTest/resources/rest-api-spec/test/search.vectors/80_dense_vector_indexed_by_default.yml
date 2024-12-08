@@ -1,0 +1,176 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.11.0"
+      reason: 'dense_vector indexed by default was added in 8.11'
+
+---
+"Indexed by default with cosine similarity":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.vector.type: dense_vector }
+  - match: { test.mappings.properties.vector.dims: 5 }
+  - match: { test.mappings.properties.vector.index: true }
+  - match: { test.mappings.properties.vector.similarity: cosine }
+---
+"Indexed by default with specified similarity and index options":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                similarity: dot_product
+                index_options:
+                  type: hnsw
+                  m: 32
+                  ef_construction: 200
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match:
+      test:
+        mappings:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 5
+              index: true
+              similarity: dot_product
+              index_options:
+                type: hnsw
+                m: 32
+                ef_construction: 200
+
+---
+"Not indexed vector":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match:
+      test:
+        mappings:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 5
+              index: false
+---
+"Not indexed vector - vector similarity":
+  - do:
+      catch: /Field \[similarity\] can only be specified for a field of type \[dense_vector\] when it is indexed/
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+                similarity: dot_product
+
+---
+"Not indexed vector - index options":
+  - do:
+      catch: /Field \[index_options\] can only be specified for a field of type \[dense_vector\] when it is indexed/
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+                index_options:
+                  type: hnsw
+                  m: 32
+                  ef_construction: 200
+---
+"Default index options for dense_vector":
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
+  - do:
+      indices.create:
+        index: test_default_index_options
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test_default_index_options
+
+  - match: { test_default_index_options.mappings.properties.vector.type: dense_vector }
+  - match: { test_default_index_options.mappings.properties.vector.dims: 5 }
+  - match: { test_default_index_options.mappings.properties.vector.index: true }
+  - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
+  - match: { test_default_index_options.mappings.properties.vector.index_options.type: int8_hnsw }
+---
+"Default index options for dense_vector element type byte":
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
+  - do:
+      indices.create:
+        index: test_default_index_options
+        body:
+          mappings:
+            properties:
+              vector:
+                element_type: byte
+                type: dense_vector
+                dims: 5
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test_default_index_options
+
+  - match: { test_default_index_options.mappings.properties.vector.type: dense_vector }
+  - match: { test_default_index_options.mappings.properties.vector.dims: 5 }
+  - match: { test_default_index_options.mappings.properties.vector.index: true }
+  - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
+  - is_false: test_default_index_options.mappings.properties.vector.index_options.type

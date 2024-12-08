@@ -1,31 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction.EmptyResult;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
-import java.util.List;
 
 public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransportSearchableSnapshotsAction<
     ClearSearchableSnapshotsCacheRequest,
-    ClearSearchableSnapshotsCacheResponse,
+    BroadcastResponse,
     EmptyResult> {
 
     @Inject
@@ -44,7 +44,7 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
             actionFilters,
             indexNameExpressionResolver,
             ClearSearchableSnapshotsCacheRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             indicesService,
             licenseState,
             false
@@ -53,20 +53,20 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
 
     @Override
     protected EmptyResult readShardResult(StreamInput in) {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override
-    protected ClearSearchableSnapshotsCacheResponse newResponse(
+    protected ResponseFactory<BroadcastResponse, EmptyResult> getResponseFactory(
         ClearSearchableSnapshotsCacheRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<EmptyResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new ClearSearchableSnapshotsCacheResponse(totalShards, successfulShards, failedShards, shardFailures);
+        return (totalShards, successfulShards, failedShards, emptyResults, shardFailures) -> new BroadcastResponse(
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -80,7 +80,7 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
         ShardRouting shardRouting,
         SearchableSnapshotDirectory directory
     ) {
-        directory.clearCache();
+        directory.clearCache(false, true);
         return EmptyResult.INSTANCE;
     }
 }

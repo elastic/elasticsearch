@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -37,7 +39,7 @@ public class Least extends ArbitraryConditionalFunction {
 
     @Override
     public Object fold() {
-        Set<Object> values = new LinkedHashSet<>(children().size());
+        Set<Object> values = Sets.newLinkedHashSetWithExpectedSize(children().size());
         for (Expression e : children()) {
             values.add(SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType));
         }

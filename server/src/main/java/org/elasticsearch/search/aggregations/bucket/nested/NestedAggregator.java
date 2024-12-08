@@ -1,24 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
-
-import com.carrotsearch.hppc.LongArrayList;
 
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,9 +20,10 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -43,9 +32,12 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -58,27 +50,36 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
-    NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                     SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException {
+    NestedAggregator(
+        String name,
+        AggregatorFactories factories,
+        NestedObjectMapper parentObjectMapper,
+        NestedObjectMapper childObjectMapper,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
-            : Queries.newNonNestedFilter();
+        Query parentFilter = parentObjectMapper != null
+            ? parentObjectMapper.nestedTypeFilter()
+            : Queries.newNonNestedFilter(context.getIndexSettings().getIndexVersionCreated());
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
+    public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
+        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(aggCtx.getLeafReaderContext());
         IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
         Weight weight = searcher.createWeight(searcher.rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        Scorer childDocsScorer = weight.scorer(ctx);
+        Scorer childDocsScorer = weight.scorer(aggCtx.getLeafReaderContext());
 
-        final BitSet parentDocs = parentFilter.getBitSet(ctx);
+        final BitSet parentDocs = parentFilter.getBitSet(aggCtx.getLeafReaderContext());
         final DocIdSetIterator childDocs = childDocsScorer != null ? childDocsScorer.iterator() : null;
         if (collectsFromSingleBucket) {
             return new LeafBucketCollectorBase(sub, null) {
@@ -112,6 +113,11 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         processBufferedDocs();
     }
 
+    @Override
+    protected void doPostCollection() throws IOException {
+        processBufferedDocs();
+    }
+
     private void processBufferedDocs() throws IOException {
         if (bufferingNestedLeafBucketCollector != null) {
             bufferingNestedLeafBucketCollector.processBufferedChildBuckets();
@@ -119,10 +125,16 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        processBufferedDocs();
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalNested(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override
@@ -135,7 +147,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         final BitSet parentDocs;
         final LeafBucketCollector sub;
         final DocIdSetIterator childDocs;
-        final LongArrayList bucketBuffer = new LongArrayList();
+        final List<Long> bucketBuffer = new ArrayList<>();
 
         Scorable scorer;
         int currentParentDoc = -1;
@@ -179,7 +191,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
                 return;
             }
 
-
             final int prevParentDoc = parentDocs.prevSetBit(currentParentDoc - 1);
             int childDocId = childDocs.docID();
             if (childDocId <= prevParentDoc) {
@@ -187,11 +198,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
             }
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
-                cachedScorer.doc = childDocId;
-                final long[] buffer = bucketBuffer.buffer;
-                final int size = bucketBuffer.size();
-                for (int i = 0; i < size; i++) {
-                    collectBucket(sub, childDocId, buffer[i]);
+                for (var bucket : bucketBuffer) {
+                    collectBucket(sub, childDocId, bucket);
                 }
             }
             bucketBuffer.clear();
@@ -199,17 +207,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     private static class CachedScorable extends Scorable {
-        int doc;
         float score;
 
         @Override
-        public final float score() { return score; }
-
-        @Override
-        public int docID() {
-            return doc;
+        public final float score() {
+            return score;
         }
-
     }
 
 }

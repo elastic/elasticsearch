@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.utils.persistence;
@@ -54,7 +55,7 @@ public class WrappedBatchedJobsIterator implements Iterator<Job> {
         return currentBatch.hasNext() ? currentBatch.next() : null;
     }
 
-    private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
+    private static VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
         List<Job> jobs = builders.stream().map(Job.Builder::build).collect(Collectors.toList());
         return new VolatileCursorIterator<>(jobs);
     }

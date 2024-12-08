@@ -1,5 +1,14 @@
-apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.yaml-rest-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
   name 'x-pack-test-deprecated-query'
@@ -7,16 +16,22 @@ esplugin {
   classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
 }
 
+dependencies {
+  clusterPlugins project(xpackModule('async-search'))
+}
+
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
-    includeXpack 'async_search'
+    include '_common', 'indices', 'index', 'async_search'
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
 }
 
-test.enabled = false
+// Test clusters run with security disabled
+tasks.named("yamlRestTest") {
+  buildParams.withFipsEnabledOnly(it)
+}

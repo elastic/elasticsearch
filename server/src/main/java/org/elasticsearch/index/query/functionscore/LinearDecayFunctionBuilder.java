@@ -1,25 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -50,6 +42,13 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
     }
 
     @Override
+    protected void validateDecay(double decay) {
+        if (decay < 0 || decay >= 1.0) {
+            throw new IllegalStateException("decay function: decay must be in range [0..1)!");
+        }
+    }
+
+    @Override
     public String getName() {
         return NAME;
     }
@@ -57,6 +56,11 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
     @Override
     public DecayFunction getDecayFunction() {
         return LINEAR_DECAY_FUNCTION;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     private static final class LinearDecayScoreFunction implements DecayFunction {
@@ -68,9 +72,7 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
+            return Explanation.match((float) evaluate(value, scale), "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
         }
 
         @Override
@@ -85,10 +87,7 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
 
         @Override
         public boolean equals(Object obj) {
-            if (super.equals(obj)) {
-                return true;
-            }
-            return obj != null && getClass() != obj.getClass();
+            return obj == this || (obj != null && obj.getClass() == this.getClass());
         }
     }
 }

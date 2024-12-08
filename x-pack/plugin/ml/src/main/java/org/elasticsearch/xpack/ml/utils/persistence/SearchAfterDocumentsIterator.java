@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -102,22 +103,25 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
         SearchResponse searchResponse = doSearch(searchAfterFields());
-        if (trackTotalHits && totalHits.get() == 0) {
-            totalHits.set(searchResponse.getHits().getTotalHits().value);
+        try {
+            if (trackTotalHits && totalHits.get() == 0) {
+                totalHits.set(searchResponse.getHits().getTotalHits().value());
+            }
+            return mapHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
         }
-        return mapHits(searchResponse);
     }
 
-    private SearchResponse doSearch(Object [] searchAfterValues) {
+    private SearchResponse doSearch(Object[] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
-            .size(batchSize)
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder().size(batchSize)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
             .sort(sortField()));

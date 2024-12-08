@@ -1,0 +1,3 @@
+subprojects {
+  group = "org.elasticsearch.ingest-geoip.qa"
+}

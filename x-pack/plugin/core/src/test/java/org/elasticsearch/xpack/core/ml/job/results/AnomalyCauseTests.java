@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause> {
+public class AnomalyCauseTests extends AbstractXContentSerializingTestCase<AnomalyCause> {
 
     @Override
     protected AnomalyCause createTestInstance() {
@@ -89,6 +90,11 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
     }
 
     @Override
+    protected AnomalyCause mutateInstance(AnomalyCause instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<AnomalyCause> instanceReader() {
         return AnomalyCause::new;
     }
@@ -101,8 +107,7 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
     public void testStrictParser() throws IOException {
         String json = "{\"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> AnomalyCause.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AnomalyCause.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

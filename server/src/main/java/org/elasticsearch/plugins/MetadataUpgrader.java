@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -24,16 +14,26 @@ import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Upgrades {@link Metadata} on startup on behalf of installed {@link Plugin}s
  */
 public class MetadataUpgrader {
     public final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;
+    public final Map<String, UnaryOperator<Metadata.Custom>> customMetadataUpgraders;
 
-    public MetadataUpgrader(Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders) {
+    public MetadataUpgrader(
+        Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders,
+        Collection<Map<String, UnaryOperator<Metadata.Custom>>> customMetadataUpgraders
+    ) {
         this.indexTemplateMetadataUpgraders = templates -> {
             Map<String, IndexTemplateMetadata> upgradedTemplates = new HashMap<>(templates);
             for (UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader : indexTemplateMetadataUpgraders) {
@@ -41,5 +41,29 @@ public class MetadataUpgrader {
             }
             return upgradedTemplates;
         };
+        this.customMetadataUpgraders = customMetadataUpgraders.stream()
+            // Flatten the stream of maps into a stream of entries
+            .flatMap(map -> map.entrySet().stream())
+            .collect(
+                groupingBy(
+                    // Group by the type of custom metadata to be upgraded (the entry key)
+                    Map.Entry::getKey,
+                    // For each type, extract the operators (the entry values), collect to a list, and make an operator which combines them
+                    collectingAndThen(mapping(Map.Entry::getValue, toList()), CombiningCustomUpgrader::new)
+                )
+            );
     }
+
+    private record CombiningCustomUpgrader(List<UnaryOperator<Metadata.Custom>> upgraders) implements UnaryOperator<Metadata.Custom> {
+
+        @Override
+        public Metadata.Custom apply(Metadata.Custom custom) {
+            Metadata.Custom upgraded = custom;
+            for (UnaryOperator<Metadata.Custom> upgrader : upgraders) {
+                upgraded = upgrader.apply(upgraded);
+            }
+            return upgraded;
+        }
+    }
+
 }

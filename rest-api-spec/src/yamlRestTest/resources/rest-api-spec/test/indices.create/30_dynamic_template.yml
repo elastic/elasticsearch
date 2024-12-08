@@ -1,0 +1,90 @@
+---
+"Create index with dynamic_mappings, match is single-valued":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - mytemplate:
+                  match: "*name"
+                  mapping:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_true: test_index.mappings
+
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.match: "*name"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.mapping.type: "keyword"}
+
+---
+"Create index with dynamic_mappings, using lists for some match/unmatch sections":
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
+      reason: Arrays in dynamic templates added in 8.9
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - mytemplate:
+                  match:
+                    - "*name"
+                    - "user*"
+                  unmatch:
+                    - "*one"
+                    - "two*"
+                  path_match:
+                    - "name.*"
+                    - "user.name.*"
+                  path_unmatch: "*.middle"
+                  mapping:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_true: test_index.mappings
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.match.0: "*name"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.match.1: "user*"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.unmatch.0: "*one"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.unmatch.1: "two*"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.path_match.0: "name.*"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.path_match.1: "user.name.*"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.path_unmatch: "*.middle"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.mapping.type: "keyword" }
+
+---
+"Create index with dynamic_mappings, with wildcard match_mapping_type and an unmatch_mapping_type array":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: unmatch_mapping_type in dynamic templates added in 8.13
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - mytemplate:
+                  match_mapping_type: "*"
+                  unmatch_mapping_type:
+                    - "object"
+                    - "boolean"
+                  mapping:
+                    type: long
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_true: test_index.mappings
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.match_mapping_type: "*"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.unmatch_mapping_type.0: "object"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.unmatch_mapping_type.1: "boolean"}
+  - match: { test_index.mappings.dynamic_templates.0.mytemplate.mapping.type: "long" }

@@ -1,0 +1,7 @@
+pr: 115091
+summary: Added stricter range type checks and runtime warnings for ENRICH
+area: ES|QL
+type: bug
+issues:
+ - 107357
+ - 116799

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -30,8 +20,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSort.ForFloats> {
     @Override
-    public BucketedSort.ForFloats build(SortOrder sortOrder, DocValueFormat format, int bucketSize,
-            BucketedSort.ExtraData extra, double[] values) {
+    public BucketedSort.ForFloats build(
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra,
+        double[] values
+    ) {
         return new BucketedSort.ForFloats(bigArrays(), sortOrder, format, bucketSize, extra) {
             @Override
             public boolean needsScores() {
@@ -99,7 +94,7 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
         /*
          * The explicit cast to float is important because it reduces
          * the expected precision to the one we can provide. Sneaky. Computers
-         * are sneaky. 
+         * are sneaky.
          */
         return SortValue.from((float) v);
     }
@@ -116,7 +111,7 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
             MockScorable scorer = new MockScorable();
             leaf.setScorer(scorer);
             scorer.score = 10;
-            leaf.collect(0, 0); 
+            leaf.collect(0, 0);
             scorer.score = 1;
             leaf.collect(0, 0);
             scorer.score = 0;
@@ -126,17 +121,11 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
     }
 
     private class MockScorable extends Scorable {
-        private int doc;
         private float score;
 
         @Override
         public float score() throws IOException {
             return score;
-        }
-
-        @Override
-        public int docID() {
-            return doc;
         }
     }
 
@@ -144,30 +133,40 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
      * Check that we can store the largest bucket theoretically possible.
      */
     public void testBiggest() throws IOException {
-        try (BucketedSort sort = new BucketedSort.ForFloats(bigArrays(), SortOrder.DESC, DocValueFormat.RAW,
-                BucketedSort.ForFloats.MAX_BUCKET_SIZE, BucketedSort.NOOP_EXTRA_DATA) {
-            @Override
-            public boolean needsScores() { return false; }
+        try (
+            BucketedSort sort = new BucketedSort.ForFloats(
+                bigArrays(),
+                SortOrder.DESC,
+                DocValueFormat.RAW,
+                BucketedSort.ForFloats.MAX_BUCKET_SIZE,
+                BucketedSort.NOOP_EXTRA_DATA
+            ) {
+                @Override
+                public boolean needsScores() {
+                    return false;
+                }
 
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf(ctx) {
-                    int doc;
-                    @Override
-                    protected boolean advanceExact(int doc) throws IOException {
-                        this.doc = doc;
-                        return true;
-                    }
+                public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                    return new Leaf(ctx) {
+                        int doc;
 
-                    @Override
-                    protected float docValue() {
-                        return doc;
-                    }
+                        @Override
+                        protected boolean advanceExact(int doc) throws IOException {
+                            this.doc = doc;
+                            return true;
+                        }
 
-                    @Override
-                    public void setScorer(Scorable scorer) {}
-                };
+                        @Override
+                        protected float docValue() {
+                            return doc;
+                        }
+
+                        @Override
+                        public void setScorer(Scorable scorer) {}
+                    };
+                }
             }
-        }) {
+        ) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
             int extra = between(0, 1000);
             int max = BucketedSort.ForFloats.MAX_BUCKET_SIZE + extra;
@@ -183,8 +182,10 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
 
     public void testTooBig() {
         int tooBig = BucketedSort.ForFloats.MAX_BUCKET_SIZE + 1;
-        Exception e = expectThrows(IllegalArgumentException.class, () ->
-                build(randomFrom(SortOrder.values()), DocValueFormat.RAW, tooBig, BucketedSort.NOOP_EXTRA_DATA, new double[] {}));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> build(randomFrom(SortOrder.values()), DocValueFormat.RAW, tooBig, BucketedSort.NOOP_EXTRA_DATA, new double[] {})
+        );
         assertThat(e.getMessage(), equalTo("bucket size must be less than [2^24] but was [" + tooBig + "]"));
     }
 }

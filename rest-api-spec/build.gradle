@@ -2,7 +2,9 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restTests {
@@ -10,14 +12,59 @@ restResources {
   }
 }
 
+// REST API specifications are published under the Apache 2.0 License
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+
+configurations {
+  // configuration to make use by external yaml rest test plugin in our examples
+  // easy and efficient
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
 artifacts {
+  basicRestSpecs(new File(projectDir, "src/main/resources"))
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
-  restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-testClusters.all {
-  module ':modules:mapper-extras'
+dependencies {
+  clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:reindex")
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
 }
 
-test.enabled = false
-jarHell.enabled = false
+tasks.register('enforceYamlTestConvention').configure {
+  def tree = fileTree('src/main/resources/rest-api-spec/test')
+  doLast {
+    if (tree.files) {
+      throw new GradleException("There are YAML tests in src/main source set. These should be moved to src/yamlRestTest.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention'
+}
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
+  task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
+  task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
+  task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
+  task.skipTest("tsdb/20_mapping/stored source is supported", "no longer serialize source_mode")
+  task.skipTest("tsdb/20_mapping/Synthetic source", "no longer serialize source_mode")
+  task.skipTest("logsdb/10_settings/create logs index", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
+  task.skipTest("search/520_fetch_fields/fetch _seq_no via fields", "error code is changed from 5xx to 400 in 9.0")
+})

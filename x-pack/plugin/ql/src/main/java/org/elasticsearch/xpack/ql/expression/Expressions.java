@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
@@ -24,31 +25,10 @@ import static java.util.Collections.emptyList;
 
 public final class Expressions {
 
-    public enum ParamOrdinal {
-        DEFAULT,
-        FIRST,
-        SECOND,
-        THIRD,
-        FOURTH,
-        FIFTH;
-
-        public static ParamOrdinal fromIndex(int index) {
-            switch (index) {
-                case 0: return ParamOrdinal.FIRST;
-                case 1: return ParamOrdinal.SECOND;
-                case 2: return ParamOrdinal.THIRD;
-                case 3: return ParamOrdinal.FOURTH;
-                case 4: return ParamOrdinal.FIFTH;
-                default: return ParamOrdinal.DEFAULT;
-            }
-        }
-    }
-
-
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
+        return exp instanceof NamedExpression ne ? ne : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -92,13 +72,42 @@ public final class Expressions {
         return false;
     }
 
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
     public static Nullability nullable(List<? extends Expression> exps) {
-        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+        Nullability value = Nullability.FALSE;
+        for (Expression exp : exps) {
+            switch (exp.nullable()) {
+                case UNKNOWN:
+                    return Nullability.UNKNOWN;
+                case TRUE:
+                    value = Nullability.TRUE;
+                    break;
+                default:
+                    // not nullable
+                    break;
+            }
+        }
+        return value;
+    }
+
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (!exp.foldable()) {
+            if (exp.foldable() == false) {
                 return false;
             }
         }
@@ -127,7 +136,7 @@ public final class Expressions {
     }
 
     public static String name(Expression e) {
-        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.sourceText();
+        return e instanceof NamedExpression ne ? ne.name() : e.sourceText();
     }
 
     public static boolean isNull(Expression e) {
@@ -144,8 +153,8 @@ public final class Expressions {
     }
 
     public static Attribute attribute(Expression e) {
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).toAttribute();
+        if (e instanceof NamedExpression ne) {
+            return ne.toAttribute();
         }
         return null;
     }
@@ -155,7 +164,7 @@ public final class Expressions {
     }
 
     public static boolean equalsAsAttribute(Expression left, Expression right) {
-        if (!left.semanticEquals(right)) {
+        if (left.semanticEquals(right) == false) {
             Attribute l = attribute(left);
             return (l != null && l.semanticEquals(attribute(right)));
         }
@@ -166,8 +175,8 @@ public final class Expressions {
         // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
         List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();
         for (NamedExpression ne : named) {
-            if (ne instanceof Alias) {
-                aliases.add(new Tuple<>(ne.toAttribute(), ((Alias) ne).child()));
+            if (ne instanceof Alias as) {
+                aliases.add(new Tuple<>(ne.toAttribute(), as.child()));
             }
         }
         return aliases;
@@ -190,10 +199,9 @@ public final class Expressions {
 
         for (Attribute a : attributes) {
             if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
-                if (a instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) a;
+                if (a instanceof FieldAttribute fa) {
                     // skip nested fields and seen multi-fields
-                    if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
+                    if (fa.isNested() == false && seenMultiFields.contains(fa.parent()) == false) {
                         filtered.add(a);
                         seenMultiFields.add(a);
                     }
@@ -210,11 +218,11 @@ public final class Expressions {
         if (e.foldable()) {
             return new ConstantInput(e.source(), e, e.fold());
         }
-        if (e instanceof NamedExpression) {
-            return new AttributeInput(e.source(), e, ((NamedExpression) e).toAttribute());
+        if (e instanceof NamedExpression ne) {
+            return new AttributeInput(e.source(), e, ne.toAttribute());
         }
-        if (e instanceof Function) {
-            return ((Function) e).asPipe();
+        if (e instanceof Function f) {
+            return f.asPipe();
         }
         throw new QlIllegalArgumentException("Cannot create pipe for {}", e);
     }

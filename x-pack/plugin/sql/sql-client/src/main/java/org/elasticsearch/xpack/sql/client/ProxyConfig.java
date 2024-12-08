@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -39,7 +40,7 @@ class ProxyConfig {
     }
 
     @SuppressForbidden(reason = "create the actual proxy")
-    private Proxy createProxy(Proxy.Type type, Object[] address) {
+    private static Proxy createProxy(Proxy.Type type, Object[] address) {
         return new Proxy(type, new InetSocketAddress((String) address[0], (int) address[1]));
     }
 
@@ -53,7 +54,7 @@ class ProxyConfig {
 
     // returns hostname (string), port (int)
     private static Object[] host(String address, int defaultPort) {
-        if (!StringUtils.hasText(address)) {
+        if (StringUtils.hasText(address) == false) {
             return null;
         }
         try {

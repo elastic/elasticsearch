@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,6 +32,11 @@ public class RegressionConfigTests extends AbstractBWCSerializationTestCase<Regr
     }
 
     @Override
+    protected RegressionConfig mutateInstance(RegressionConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RegressionConfig> instanceReader() {
         return RegressionConfig::new;
     }
@@ -46,7 +52,7 @@ public class RegressionConfigTests extends AbstractBWCSerializationTestCase<Regr
     }
 
     @Override
-    protected RegressionConfig mutateInstanceForVersion(RegressionConfig instance, Version version) {
+    protected RegressionConfig mutateInstanceForVersion(RegressionConfig instance, TransportVersion version) {
         return instance;
     }
 }

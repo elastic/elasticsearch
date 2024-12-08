@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories;
@@ -42,32 +32,42 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         logger.info("-->  registering a repository is blocked when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().cluster().preparePutRepository("test-repo-blocks")
+            assertBlocked(
+                clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks")
                     .setType("fs")
                     .setVerify(false)
-                    .setSettings(Settings.builder().put("location",  randomRepoPath())), Metadata.CLUSTER_READ_ONLY_BLOCK);
+                    .setSettings(Settings.builder().put("location", randomRepoPath())),
+                Metadata.CLUSTER_READ_ONLY_BLOCK
+            );
         } finally {
             setClusterReadOnly(false);
         }
 
         logger.info("-->  registering a repository is allowed when the cluster is not read only");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.builder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
     }
 
     public void testVerifyRepositoryWithBlocks() {
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.builder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
             setClusterReadOnly(true);
-            VerifyRepositoryResponse response = client().admin().cluster()
-                .prepareVerifyRepository("test-repo-blocks").execute().actionGet();
+            VerifyRepositoryResponse response = clusterAdmin().prepareVerifyRepository(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "test-repo-blocks"
+            ).get();
             assertThat(response.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
         } finally {
             setClusterReadOnly(false);
@@ -75,33 +75,40 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
     }
 
     public void testDeleteRepositoryWithBlocks() {
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.builder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
 
         logger.info("-->  deleting a repository is blocked when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().cluster().prepareDeleteRepository("test-repo-blocks"), Metadata.CLUSTER_READ_ONLY_BLOCK);
+            assertBlocked(
+                clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks"),
+                Metadata.CLUSTER_READ_ONLY_BLOCK
+            );
         } finally {
             setClusterReadOnly(false);
         }
 
         logger.info("-->  deleting a repository is allowed when the cluster is not read only");
-        assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo-blocks"));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks"));
     }
 
     public void testGetRepositoryWithBlocks() {
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.builder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
             setClusterReadOnly(true);
-            GetRepositoriesResponse response = client().admin().cluster().prepareGetRepositories("test-repo-blocks").execute().actionGet();
+            GetRepositoriesResponse response = clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, "test-repo-blocks").get();
             assertThat(response.repositories(), hasSize(1));
         } finally {
             setClusterReadOnly(false);

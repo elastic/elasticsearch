@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps
@@ -38,12 +28,12 @@ public final class LongHash extends AbstractHash {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
-    //Constructor with configurable capacity and load factor.
+    // Constructor with configurable capacity and load factor.
     public LongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            keys = bigArrays.newLongArray(capacity, false);
+            keys = bigArrays.newLongArray(maxSize, false);
         } finally {
             if (keys == null) {
                 close();
@@ -63,7 +53,7 @@ public final class LongHash extends AbstractHash {
      */
     public long find(long key) {
         final long slot = slot(hash(key), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
             if (id == -1 || keys.get(id) == key) {
                 return id;
@@ -74,10 +64,10 @@ public final class LongHash extends AbstractHash {
     private long set(long key, long id) {
         assert size < maxSize;
         final long slot = slot(hash(key), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key);
                 ++size;
                 return id;
@@ -88,17 +78,16 @@ public final class LongHash extends AbstractHash {
     }
 
     private void append(long id, long key) {
-        keys = bigArrays.grow(keys, id + 1);
         keys.set(id, key);
     }
 
-    private void reset(long key, long id) {
+    private void reset(long id) {
+        final long key = keys.get(id);
         final long slot = slot(hash(key), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key);
+                setId(index, id);
                 break;
             }
         }
@@ -112,6 +101,7 @@ public final class LongHash extends AbstractHash {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            keys = bigArrays.resize(keys, maxSize);
         }
         assert size < maxSize;
         return set(key, size);
@@ -119,10 +109,9 @@ public final class LongHash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        final long key = keys.set(id, 0);
-        reset(key, id);
+        reset(id);
     }
 
     @Override

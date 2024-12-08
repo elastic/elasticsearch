@@ -1,0 +1,64 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Pipeline - Connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_pipeline:
+        connector_id: test-non-existent-connector
+        body:
+          pipeline:
+            extract_binary_content: true
+            name: test-pipeline
+            reduce_whitespace: true
+            run_ml_inference: false
+
+---
+"Update Connector Pipeline":
+  - do:
+      connector.update_pipeline:
+        connector_id: test-connector
+        body:
+          pipeline:
+            extract_binary_content: true
+            name: test-pipeline
+            reduce_whitespace: true
+            run_ml_inference: false
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { pipeline.extract_binary_content: true }
+  - match: { pipeline.name: test-pipeline }
+  - match: { pipeline.reduce_whitespace: true }
+  - match: { pipeline.run_ml_inference: false }
+
+---
+"Update Connector Pipeline - Required fields are missing":
+  - do:
+      catch: "bad_request"
+      connector.update_pipeline:
+        connector_id: test-connector
+        body:
+          pipeline:
+            extract_binary_content: true
+            name: test-pipeline
+            run_ml_inference: false
+
+

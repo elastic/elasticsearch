@@ -1,10 +1,12 @@
 [role="xpack"]
-[testenv="basic"]
 [[transform-painless-examples]]
 = Painless examples for {transforms}
 ++++
 <titleabbrev>Painless examples</titleabbrev>
 ++++
+
+
+IMPORTANT: The examples that use the `scripted_metric` aggregation are not supported on {es} Serverless.
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
 more about the Painless scripting language in the 
@@ -12,7 +14,7 @@ more about the Painless scripting language in the
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
-* <<painless-group-by>>
+// * <<painless-group-by>>
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>
@@ -37,6 +39,8 @@ This snippet shows how to find the latest document, in other words the document
 with the latest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation in a {transform}, which provides a metric output.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,js]
 --------------------------------------------------
@@ -77,9 +81,8 @@ returned by each shard and returns the document with the latest timestamp
 (`last_doc`). In the response, the top hit (in other words, the `latest_doc`) is 
 nested below the `latest_doc` field.
 
-Check the
-<<scripted-metric-aggregation-scope,scope of scripts>>
-for detailed explanation on the respective scripts.
+Check the <<scripted-metric-aggregation-scope,scope of scripts>> for detailed 
+explanation on the respective scripts.
 
 You can retrieve the last value in a similar way: 
 
@@ -108,6 +111,101 @@ You can retrieve the last value in a similar way:
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+
+[discrete]
+[[top-hits-stored-scripts]]
+=== Getting top hits by using stored scripts
+
+You can also use the power of 
+{ref}/create-stored-script-api.html[stored scripts] to get the latest value. 
+Stored scripts reduce compilation time,  make searches faster, and are 
+updatable. 
+
+1. Create the stored scripts:
++
+--
+[source,js]
+--------------------------------------------------
+POST _scripts/last-value-map-init
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        state.timestamp_latest = 0L; state.last_value = ''
+    """
+  }
+}
+
+POST _scripts/last-value-map
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+      def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli();
+        if (current_date > state.timestamp_latest)
+        {state.timestamp_latest = current_date;
+        state.last_value = doc[params['key']].value;}
+    """
+  }
+}
+
+POST _scripts/last-value-combine
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        return state
+    """
+  }
+}
+
+POST _scripts/last-value-reduce
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        def last_value = '';
+        def timestamp_latest = 0L;
+        for (s in states) {if (s.timestamp_latest > (timestamp_latest))
+        {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}}
+        return last_value
+    """
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+--
+
+2. Use the stored scripts in a scripted metric aggregation.
++
+--
+[source,js]
+--------------------------------------------------
+"aggregations":{
+   "latest_value":{
+      "scripted_metric":{
+         "init_script":{
+            "id":"last-value-map-init"
+         },
+         "map_script":{
+            "id":"last-value-map",
+            "params":{
+               "key":"field_with_last_value" <1>
+            }
+         },
+         "combine_script":{
+            "id":"last-value-combine"
+         },
+         "reduce_script":{
+            "id":"last-value-reduce"
+         }
+--------------------------------------------------
+// NOTCONSOLE
+<1> The parameter `field_with_last_value` can be set any field that you want the 
+latest value for.
+--
+
 
 [[painless-time-features]]
 == Getting time features by using aggregations
@@ -153,6 +251,7 @@ type field.
 <7> Sets `date` based on the timestamp of the document.
 <8> Returns the month value from `date`.
 
+////
 [[painless-group-by]]
 == Using Painless in `group_by`
 
@@ -288,6 +387,8 @@ them. The table below shows how normalization modifies the output of the
 | "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
 | "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
 |===
+////
+
 
 [[painless-bucket-script]]
 == Getting duration by using bucket script
@@ -357,6 +458,8 @@ example for details.
 The example below assumes that the HTTP response codes are stored as keywords in 
 the `response` field of the documents.
 
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
+
 [source,js]
 --------------------------------------------------
 "aggregations": { <1>
@@ -411,7 +514,9 @@ Finally, returns the `counts` array with the response counts.
 == Comparing indices by using scripted metric aggregations
 
 This example shows how to compare the content of two indices by a {transform} 
-that uses a scripted metric aggregation. 
+that uses a scripted metric aggregation.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,console]
 --------------------------------------------------
@@ -527,6 +632,8 @@ By using the `sessionid` as a group-by field, you are able to enumerate events
 through the session and get more details of the session by using scripted metric 
 aggregation.
 
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
+
 [source,js]
 --------------------------------------------------
 POST _transform/_preview
@@ -572,11 +679,11 @@ POST _transform/_preview
                 all_docs.add(span); 
               }
             }
-            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].millis.compareTo(o2['@timestamp'].millis)); 
+            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].toEpochMilli().compareTo(o2['@timestamp'].toEpochMilli())); 
             def size = all_docs.size();
             def min_time = all_docs[0]['@timestamp'];
             def max_time = all_docs[size-1]['@timestamp'];
-            def duration = max_time.millis - min_time.millis;
+            def duration = max_time.toEpochMilli() - min_time.toEpochMilli();
             def entry_page = all_docs[0]['url'];
             def exit_path = all_docs[size-1]['url'];
             def first_referrer = all_docs[0]['referrer'];
@@ -618,7 +725,7 @@ The API call results in a similar response:
 {
   "num_pages_viewed" : 2.0,
   "session_details" : {
-    "duration" : 131374,
+    "duration" : 100300001,
     "first_referrer" : "https://www.bing.com/",
     "entry_page" : "http://www.leroymerlin.fr/v3/p/produits/materiaux-menuiserie/porte-coulissante-porte-interieure-escalier-et-rambarde/barriere-de-securite-l1308218463",
     "first_time" : "2017-01-10T21:22:52.982Z",
@@ -631,7 +738,7 @@ The API call results in a similar response:
 {
   "num_pages_viewed" : 10.0,
   "session_details" : {
-    "duration" : 343112,
+    "duration" : 343100405,
     "first_referrer" : "https://www.google.fr/",
     "entry_page" : "http://www.leroymerlin.fr/",
     "first_time" : "2017-01-10T16:57:39.937Z",

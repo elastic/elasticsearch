@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
@@ -29,7 +31,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
 
     private FlushJobAction() {
-        super(NAME, FlushJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -61,13 +63,13 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
 
         private boolean calcInterim = false;
         private boolean waitForNormalization = true;
+        private boolean refreshRequired = true;
         private String start;
         private String end;
         private String advanceTime;
         private String skipTime;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -77,6 +79,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
             waitForNormalization = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                refreshRequired = in.readBoolean();
+            }
         }
 
         @Override
@@ -88,6 +93,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
             out.writeBoolean(waitForNormalization);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                out.writeBoolean(refreshRequired);
+            }
         }
 
         public Request(String jobId) {
@@ -138,8 +146,12 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return waitForNormalization;
         }
 
+        public boolean isRefreshRequired() {
+            return refreshRequired;
+        }
+
         /**
-         * Used internally. Datafeeds do not need to wait renormalization to complete before continuing.
+         * Used internally. Datafeeds do not need to wait for renormalization to complete before continuing.
          *
          * For large jobs, renormalization can take minutes, causing datafeeds to needlessly pause execution.
          */
@@ -147,9 +159,19 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             this.waitForNormalization = waitForNormalization;
         }
 
+        /**
+         * Used internally. For datafeeds, there is no need for the results to be searchable after the flush,
+         * as the datafeed itself does not search them immediately.
+         *
+         * Particularly for short bucket spans these refreshes could be a significant cost.
+         **/
+        public void setRefreshRequired(boolean refreshRequired) {
+            this.refreshRequired = refreshRequired;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization);
+            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization, refreshRequired);
         }
 
         @Override
@@ -161,13 +183,14 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) &&
-                    calcInterim == other.calcInterim &&
-                    waitForNormalization == other.waitForNormalization &&
-                    Objects.equals(start, other.start) &&
-                    Objects.equals(end, other.end) &&
-                    Objects.equals(advanceTime, other.advanceTime) &&
-                    Objects.equals(skipTime, other.skipTime);
+            return Objects.equals(jobId, other.jobId)
+                && calcInterim == other.calcInterim
+                && waitForNormalization == other.waitForNormalization
+                && refreshRequired == other.refreshRequired
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(advanceTime, other.advanceTime)
+                && Objects.equals(skipTime, other.skipTime);
         }
 
         @Override
@@ -201,8 +224,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             super(null, null);
             this.flushed = flushed;
             // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
-            this.lastFinalizedBucketEnd =
-                (lastFinalizedBucketEnd != null) ? Instant.ofEpochMilli(lastFinalizedBucketEnd.toEpochMilli()) : null;
+            this.lastFinalizedBucketEnd = (lastFinalizedBucketEnd != null)
+                ? Instant.ofEpochMilli(lastFinalizedBucketEnd.toEpochMilli())
+                : null;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -231,9 +255,11 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.startObject();
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
-                builder.timeField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
+                builder.timestampFieldsFromUnixEpochMillis(
+                    FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
-                    lastFinalizedBucketEnd.toEpochMilli());
+                    lastFinalizedBucketEnd.toEpochMilli()
+                );
             }
             builder.endObject();
             return builder;
@@ -244,8 +270,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return flushed == response.flushed &&
-                    Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
+            return flushed == response.flushed && Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
         }
 
         @Override

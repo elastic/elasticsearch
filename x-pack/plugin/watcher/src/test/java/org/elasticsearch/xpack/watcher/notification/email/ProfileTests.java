@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -10,13 +11,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.util.HashSet;
+
 import javax.mail.BodyPart;
 import javax.mail.Part;
 import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
-
-import java.util.HashSet;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -26,24 +27,32 @@ public class ProfileTests extends ESTestCase {
 
     public void testThatInlineAttachmentsAreCreated() throws Exception {
         String path = "/org/elasticsearch/xpack/watcher/actions/email/service/logo.png";
-        Attachment attachment = new Attachment.Stream("inline.png", "inline.png", true,
-                () -> EmailServiceTests.class.getResourceAsStream(path));
+        Attachment attachment = new Attachment.Stream(
+            "inline.png",
+            "inline.png",
+            true,
+            () -> EmailServiceTests.class.getResourceAsStream(path)
+        );
 
         Email email = Email.builder()
-                .id("foo")
-                .from("foo@example.org")
-                .to("bar@example.org")
-                .subject(randomAlphaOfLength(10))
-                .attach(attachment)
-                .build();
+            .id("foo")
+            .from("foo@example.org")
+            .to("bar@example.org")
+            .subject(randomAlphaOfLength(10))
+            .attach(attachment)
+            .build();
 
         Settings settings = Settings.builder()
-                .put("xpack.notification.email.default_account", "foo")
-                .put("xpack.notification.email.account.foo.smtp.host", "_host")
-                .build();
+            .put("xpack.notification.email.default_account", "foo")
+            .put("xpack.notification.email.account.foo.smtp.host", "_host")
+            .build();
 
-        EmailService service = new EmailService(settings, null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        EmailService service = new EmailService(
+            settings,
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
         Session session = service.getAccount("foo").getConfig().createSession();
         MimeMessage mimeMessage = Profile.STANDARD.toMimeMessage(email, session);
 

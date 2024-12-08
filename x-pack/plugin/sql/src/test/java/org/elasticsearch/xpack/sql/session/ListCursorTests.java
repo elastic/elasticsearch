@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.plugin.CursorTests;
@@ -18,7 +18,7 @@ import java.util.List;
 
 public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCursor> {
     public static ListCursor randomPagingListCursor() {
-        int size = between(1, 20);
+        int size = between(1, 100);
         int depth = between(1, 20);
 
         List<List<?>> values = new ArrayList<>(size);
@@ -30,15 +30,8 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
     }
 
     @Override
-    protected ListCursor mutateInstance(ListCursor instance) throws IOException {
-        return new ListCursor(instance.data(),
-                randomValueOtherThan(instance.pageSize(), () -> between(1, 20)),
-                instance.columnCount());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Cursors.getNamedWriteables());
+    protected ListCursor mutateInstance(ListCursor instance) {
+        return new ListCursor(instance.data(), randomValueOtherThan(instance.pageSize(), () -> between(1, 20)), instance.columnCount());
     }
 
     @Override
@@ -52,7 +45,7 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
     }
 
     @Override
-    protected ListCursor copyInstance(ListCursor instance, Version version) throws IOException {
+    protected ListCursor copyInstance(ListCursor instance, TransportVersion version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {

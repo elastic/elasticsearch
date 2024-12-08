@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeInfo.NodeCtor3;
@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrTime;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter;
@@ -33,11 +35,11 @@ public abstract class BaseDateTimeFormatFunction extends BinaryDateTimeFunction 
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isDateOrTime(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isDateOrTime(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isString(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isString(right(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

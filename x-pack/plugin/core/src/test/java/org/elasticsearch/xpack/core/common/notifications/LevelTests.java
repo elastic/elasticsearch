@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
@@ -30,5 +31,11 @@ public class LevelTests extends ESTestCase {
         assertThat(Level.INFO.ordinal(), equalTo(0));
         assertThat(Level.WARNING.ordinal(), equalTo(1));
         assertThat(Level.ERROR.ordinal(), equalTo(2));
+    }
+
+    public void testLog4JLevel() {
+        assertThat(Level.INFO.log4jLevel(), equalTo(org.apache.logging.log4j.Level.INFO));
+        assertThat(Level.WARNING.log4jLevel(), equalTo(org.apache.logging.log4j.Level.WARN));
+        assertThat(Level.ERROR.log4jLevel(), equalTo(org.apache.logging.log4j.Level.ERROR));
     }
 }

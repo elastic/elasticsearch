@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -60,12 +52,12 @@ public class GceDiscoverTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                        .put(super.nodeSettings(nodeOrdinal))
-                        .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
-                        .put("cloud.gce.project_id", "test")
-                        .put("cloud.gce.zone", "test")
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
+            .put("cloud.gce.project_id", "test")
+            .put("cloud.gce.zone", "test")
             .build();
     }
 
@@ -74,32 +66,36 @@ public class GceDiscoverTests extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         registerGceNode(masterNode);
 
-        ClusterStateResponse clusterStateResponse = client(masterNode).admin().cluster().prepareState()
-                                                                            .setMasterNodeTimeout("1s")
-                                                                            .clear()
-                                                                            .setNodes(true)
-                                                                            .get();
+        ClusterStateResponse clusterStateResponse = client(masterNode).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+            .clear()
+            .setNodes(true)
+            .get();
         assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
 
         // start another node
         final String secondNode = internalCluster().startNode();
         registerGceNode(secondNode);
-        clusterStateResponse = client(secondNode).admin().cluster().prepareState()
-                                                                            .setMasterNodeTimeout("1s")
-                                                                            .clear()
-                                                                            .setNodes(true)
-                                                                            .setLocal(true)
-                                                                            .get();
+        clusterStateResponse = client(secondNode).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+            .clear()
+            .setNodes(true)
+            .setLocal(true)
+            .get();
         assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
 
         // wait for the cluster to form
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
+        assertNoTimeout(client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(2)).get());
         assertNumberOfNodes(2);
 
         // add one more node and wait for it to join
         final String thirdNode = internalCluster().startDataOnlyNode();
         registerGceNode(thirdNode);
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(3)).get());
+        assertNoTimeout(client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(3)).get());
         assertNumberOfNodes(3);
     }
 
@@ -124,7 +120,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
      * @param expected the expected number of nodes
      */
     private static void assertNumberOfNodes(final int expected) {
-        assertEquals(expected, client().admin().cluster().prepareNodesInfo().clear().get().getNodes().size());
+        assertEquals(expected, clusterAdmin().prepareNodesInfo().clear().get().getNodes().size());
     }
 
     /**
@@ -172,8 +168,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
-                }
+                public void close() throws IOException {}
             };
         }
     }

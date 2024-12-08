@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -17,10 +18,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformIndexerStatsTests extends AbstractSerializingTestCase<TransformIndexerStats> {
+public class TransformIndexerStatsTests extends AbstractXContentSerializingTestCase<TransformIndexerStats> {
 
     public static TransformIndexerStats randomStats() {
         return new TransformIndexerStats(
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
@@ -47,6 +50,11 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
     @Override
     protected TransformIndexerStats createTestInstance() {
         return randomStats();
+    }
+
+    @Override
+    protected TransformIndexerStats mutateInstance(TransformIndexerStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -98,6 +106,7 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_PAGES.getPreferredName(), stats.getNumPages());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(), stats.getOutputDocuments());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName(), stats.getNumDeletedDocuments());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
         xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
         xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -107,6 +116,7 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
         xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
         xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
         xContentFieldIfNotZero(
             builder,
             TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),

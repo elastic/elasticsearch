@@ -1,0 +1,171 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  description 'The S3 repository plugin adds S3 repositories'
+  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+}
+
+versions << [
+  'aws': '1.12.270'
+]
+
+dependencies {
+  api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-sts:${versions.aws}"
+  api "com.amazonaws:jmespath-java:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  api "joda-time:joda-time:2.10.14"
+
+  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
+  // and whitelist this hack in JarHell
+  api 'javax.xml.bind:jaxb-api:2.2.2'
+
+  testImplementation project(':test:fixtures:s3-fixture')
+
+  internalClusterTestImplementation project(':test:fixtures:minio-fixture')
+  internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+
+  yamlRestTestImplementation project(':modules:repository-s3')
+  yamlRestTestImplementation project(':test:fixtures:s3-fixture')
+  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  yamlRestTestImplementation project(':test:framework')
+  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+
+  javaRestTestImplementation project(':modules:repository-s3')
+  javaRestTestImplementation project(':test:fixtures:aws-sts-fixture')
+  javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+  javaRestTestImplementation project(':test:fixtures:minio-fixture')
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  javaRestTestImplementation project(':test:framework')
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+}
+
+esplugin.bundleSpec.from('config/repository-s3') {
+    into 'config'
+}
+
+def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
+  include '**/RepositoryCredentialsTests.class'
+  systemProperty 'es.allow_insecure_settings', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
+}
+
+tasks.named('test').configure {
+  // this is tested explicitly in separate test tasks
+  exclude '**/RepositoryCredentialsTests.class'
+}
+
+boolean useFixture = false
+String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+// If all these variables are missing then we are testing against the internal fixture instead, which has the following credentials hard-coded in.
+
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+  useFixture = true
+  s3PermanentAccessKey = 's3_test_access_key'
+  s3PermanentSecretKey = 's3_test_secret_key'
+  s3PermanentBucket = 'bucket'
+  s3PermanentBasePath = 'base_path'
+}
+
+tasks.named("internalClusterTest").configure {
+  // this is tested explicitly in a separate test task
+  exclude '**/S3RepositoryThirdPartyTests.class'
+  // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
+
+// 3rd Party Tests, i.e. testing against a real S3 repository
+tasks.register("s3ThirdPartyTest", Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  include '**/S3RepositoryThirdPartyTests.class'
+  systemProperty("tests.use.fixture", Boolean.toString(useFixture))
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
+
+  // test container accesses ~/.testcontainers.properties read
+  systemProperty "tests.security.manager", "false"
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'javax.jms.Message',
+          'software.amazon.ion.IonReader',
+          'software.amazon.ion.IonSystem',
+          'software.amazon.ion.IonType',
+          'software.amazon.ion.IonWriter',
+          'software.amazon.ion.Timestamp',
+          'software.amazon.ion.system.IonBinaryWriterBuilder',
+          'software.amazon.ion.system.IonSystemBuilder',
+          'software.amazon.ion.system.IonTextWriterBuilder',
+          'software.amazon.ion.system.IonWriterBuilder',
+          // We don't use the kms dependency
+          'com.amazonaws.services.kms.AWSKMS',
+          'com.amazonaws.services.kms.AWSKMSClient',
+          'com.amazonaws.services.kms.AWSKMSClientBuilder',
+          'com.amazonaws.services.kms.model.DecryptRequest',
+          'com.amazonaws.services.kms.model.DecryptResult',
+          'com.amazonaws.services.kms.model.EncryptRequest',
+          'com.amazonaws.services.kms.model.EncryptResult',
+          'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+          'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+          'javax.activation.DataHandler'
+  )
+}
+
+tasks.named("check").configure {
+  dependsOn(tasks.withType(Test))
+  dependsOn(testRepositoryCreds)
+}
+

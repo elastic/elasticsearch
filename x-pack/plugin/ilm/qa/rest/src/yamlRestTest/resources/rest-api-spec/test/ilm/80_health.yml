@@ -1,0 +1,17 @@
+---
+"basic ILM health indicator test":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
+
+  - do:
+      health_report: { }
+
+  - is_true: cluster_name
+  # This test might execute before the health node has received all health info, resulting in status "unknown"
+  - is_true: status
+  - match: { indicators.ilm.status: "green" }
+  - match: { indicators.ilm.symptom: "Index Lifecycle Management is running" }
+  - match: { indicators.ilm.details.ilm_status: "RUNNING" }
+  - is_true: indicators.ilm.details.policies
+  - exists: indicators.ilm.details.stagnating_indices

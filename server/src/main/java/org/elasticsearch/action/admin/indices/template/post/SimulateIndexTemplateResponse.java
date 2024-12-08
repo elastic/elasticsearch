@@ -1,35 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,15 +39,31 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Nullable
     // the resolved settings, mappings and aliases for the matched templates, if any
-    private Template resolvedTemplate;
+    private final Template resolvedTemplate;
 
     @Nullable
     // a map of template names and their index patterns that would overlap when matching the given index name
-    private Map<String, List<String>> overlappingTemplates;
+    private final Map<String, List<String>> overlappingTemplates;
+
+    @Nullable
+    private final RolloverConfiguration rolloverConfiguration;
 
     public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
+        this(resolvedTemplate, overlappingTemplates, null);
+    }
+
+    public SimulateIndexTemplateResponse(
+        @Nullable Template resolvedTemplate,
+        @Nullable Map<String, List<String>> overlappingTemplates,
+        @Nullable RolloverConfiguration rolloverConfiguration
+    ) {
         this.resolvedTemplate = resolvedTemplate;
         this.overlappingTemplates = overlappingTemplates;
+        this.rolloverConfiguration = rolloverConfiguration;
+    }
+
+    public RolloverConfiguration getRolloverConfiguration() {
+        return rolloverConfiguration;
     }
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
@@ -62,13 +71,19 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         resolvedTemplate = in.readOptionalWriteable(Template::new);
         if (in.readBoolean()) {
             int overlappingTemplatesCount = in.readInt();
-            overlappingTemplates = new HashMap<>(overlappingTemplatesCount, 1L);
+            overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
             for (int i = 0; i < overlappingTemplatesCount; i++) {
                 String templateName = in.readString();
-                overlappingTemplates.put(templateName, in.readStringList());
+                overlappingTemplates.put(templateName, in.readStringCollectionAsList());
             }
         } else {
             this.overlappingTemplates = null;
+        }
+        rolloverConfiguration = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+            ? in.readOptionalWriteable(RolloverConfiguration::new)
+            : null;
+        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
+            in.readOptionalWriteable(DataStreamGlobalRetention::read);
         }
     }
 
@@ -85,20 +100,27 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         } else {
             out.writeBoolean(false);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeOptionalWriteable(rolloverConfiguration);
+        }
+        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
+            out.writeOptionalWriteable(null);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (this.resolvedTemplate != null) {
-            builder.field(TEMPLATE.getPreferredName(), this.resolvedTemplate);
+            builder.field(TEMPLATE.getPreferredName());
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());
             for (Map.Entry<String, List<String>> entry : overlappingTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), entry.getKey());
-                builder.field(INDEX_PATTERNS.getPreferredName(), entry.getValue());
+                builder.stringListField(INDEX_PATTERNS.getPreferredName(), entry.getValue());
                 builder.endObject();
             }
             builder.endArray();
@@ -117,17 +139,22 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         }
         SimulateIndexTemplateResponse that = (SimulateIndexTemplateResponse) o;
         return Objects.equals(resolvedTemplate, that.resolvedTemplate)
-            && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates);
+            && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates)
+            && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resolvedTemplate, overlappingTemplates);
+        return Objects.hash(resolvedTemplate, overlappingTemplates, rolloverConfiguration);
     }
 
     @Override
     public String toString() {
-        return "SimulateIndexTemplateResponse{" + "resolved template=" + resolvedTemplate + ", overlapping templates="
-            + String.join("|", overlappingTemplates.keySet()) + "}";
+        return "SimulateIndexTemplateResponse{"
+            + "resolved template="
+            + resolvedTemplate
+            + ", overlapping templates="
+            + String.join("|", overlappingTemplates.keySet())
+            + "}";
     }
 }

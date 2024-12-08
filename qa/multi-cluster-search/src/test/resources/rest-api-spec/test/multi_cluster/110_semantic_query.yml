@@ -1,0 +1,37 @@
+---
+setup:
+  - requires:
+        cluster_features: "gte_v8.15.0"
+        reason: semantic query introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: test-index
+        ignore_unavailable: true
+
+---
+"Test that semantic query does not support cross-cluster search":
+  - do:
+      catch: bad_request
+      search:
+        index: "test-index,my_remote_cluster:test-index"
+        body:
+          query:
+            semantic:
+              field: "field"
+              query: "test query"
+
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "semantic query does not support cross-cluster search" }

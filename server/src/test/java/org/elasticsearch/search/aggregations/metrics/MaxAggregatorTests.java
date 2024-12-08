@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -33,21 +23,18 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
@@ -66,15 +53,14 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -97,9 +83,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MaxAggregatorTests extends AggregatorTestCase {
 
-    private final String SCRIPT_NAME = "script_name";
+    private static final String SCRIPT_NAME = "script_name";
 
-    private final long SCRIPT_VALUE = 19L;
+    private static final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
     public static final String SUM_FIELD_PARAMS_SCRIPT = "sum_field_params";
@@ -152,33 +138,32 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
         nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> MaxAggregatorTests.randomDouble());
 
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
             scripts,
             nonDeterministicScripts,
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.DATE);
+        return List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE);
     }
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new MaxAggregationBuilder("_name")
-            .field(fieldName);
+        return new MaxAggregationBuilder("_name").field(fieldName);
     }
 
     public void testNoDocs() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -188,27 +173,27 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(7, max.getValue(), 0);
+            assertEquals(7, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(7, max.getValue(), 0);
+            assertEquals(7, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -218,7 +203,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(1, max.getValue(), 0);
+            assertEquals(1, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -228,32 +213,32 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
 
     public void testUnmappedField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
+            assertEquals(max.value(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(max.getValue(), 19.0, 0);
+            assertEquals(max.value(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testMissingFieldOptimization() throws IOException {
@@ -265,7 +250,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(emptyList());
         }, max -> {
-            assertEquals(max.getValue(), 19.0, 0);
+            assertEquals(max.value(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -273,58 +258,58 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testScript() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name")
-            .field("number")
+        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(max.getValue(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
+            assertEquals(max.value(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
 
-    private void testAggregation(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalMax> verify) throws IOException {
+    private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)
+        throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMax> verify,
-        MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<Max> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     public void testMaxShortcutRandom() throws Exception {
         testMaxShortcutCase(
             () -> randomLongBetween(Integer.MIN_VALUE, Integer.MAX_VALUE),
             (n) -> new LongPoint("number", n.longValue()),
-            (v) -> LongPoint.decodeDimension(v, 0));
+            (v) -> LongPoint.decodeDimension(v, 0)
+        );
 
-        testMaxShortcutCase(
-            () -> randomInt(),
-            (n) -> new IntPoint("number", n.intValue()),
-            (v) -> IntPoint.decodeDimension(v, 0));
+        testMaxShortcutCase(() -> randomInt(), (n) -> new IntPoint("number", n.intValue()), (v) -> IntPoint.decodeDimension(v, 0));
 
-        testMaxShortcutCase(
-            () -> randomFloat(),
-            (n) -> new FloatPoint("number", n.floatValue()),
-            (v) -> FloatPoint.decodeDimension(v, 0));
+        testMaxShortcutCase(() -> randomFloat(), (n) -> new FloatPoint("number", n.floatValue()), (v) -> FloatPoint.decodeDimension(v, 0));
 
         testMaxShortcutCase(
             () -> randomDouble(),
             (n) -> new DoublePoint("number", n.doubleValue()),
-            (v) -> DoublePoint.decodeDimension(v, 0));
+            (v) -> DoublePoint.decodeDimension(v, 0)
+        );
     }
 
-    private void testMaxShortcutCase(Supplier<Number> randomNumber,
-                                        Function<Number, Field> pointFieldFunc,
-                                        Function<byte[], Number> pointConvertFunc) throws IOException {
+    private void testMaxShortcutCase(
+        Supplier<Number> randomNumber,
+        Function<Number, Field> pointFieldFunc,
+        Function<byte[], Number> pointConvertFunc
+    ) throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
         IndexWriter indexWriter = new IndexWriter(directory, config);
@@ -341,7 +326,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 document.add(new StringField("id", Integer.toString(docID), Field.Store.NO));
                 document.add(pointFieldFunc.apply(nextValue));
                 documents.add(document);
-                docID ++;
+                docID++;
             }
         }
         // insert some documents without a value for the metric field.
@@ -353,14 +338,14 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Collections.sort(values, Comparator.comparingDouble(t -> t.v2().doubleValue()));
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             LeafReaderContext ctx = reader.leaves().get(0);
-            Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number" , pointConvertFunc);
-            assertThat(res, equalTo(values.get(values.size()-1).v2()));
+            Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number", pointConvertFunc);
+            assertThat(res, equalTo(values.get(values.size() - 1).v2()));
         }
-        for (int i = values.size()-1; i > 0; i--) {
+        for (int i = values.size() - 1; i > 0; i--) {
             indexWriter.deleteDocuments(new Term("id", values.get(i).v1().toString()));
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 LeafReaderContext ctx = reader.leaves().get(0);
-                Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number" , pointConvertFunc);
+                Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number", pointConvertFunc);
                 if (res != null) {
                     assertThat(res, equalTo(values.get(i - 1).v2()));
                 } else {
@@ -371,7 +356,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexWriter.deleteDocuments(new Term("id", values.get(0).v1().toString()));
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             LeafReaderContext ctx = reader.leaves().get(0);
-            Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number" , pointConvertFunc);
+            Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number", pointConvertFunc);
             assertThat(res, equalTo(null));
         }
         indexWriter.close();
@@ -397,7 +382,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.equals(maxPackedValue, 0,  numBytes, maxValue, 0, numBytes)) {
+                if (Arrays.equals(maxPackedValue, 0, numBytes, maxValue, 0, numBytes)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
@@ -407,13 +392,13 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedField() throws IOException {
-        testAggregation( new MatchAllDocsQuery(), iw -> {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
         }, max -> {
-            assertEquals(10, max.getValue(), 0);
+            assertEquals(10, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -421,17 +406,15 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testSingleValuedFieldWithFormatter() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name")
-            .format("0000.0")
-            .field("value");
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").format("0000.0").field("value");
 
-       testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(10.0, max.getValue(), 0);
+            assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
             assertEquals("0010.0", max.getValueAsString());
         }, fieldType);
@@ -451,74 +434,31 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-
-        Global global = (Global) aggregator.buildTopLevel();
+        Global global = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
         assertEquals("global", global.getName());
         assertEquals(10L, global.getDocCount());
         assertNotNull(global.getAggregations());
-        assertEquals(1, global.getAggregations().asMap().size());
+        assertEquals(1, global.getAggregations().asList().size());
 
         Max max = global.getAggregations().get("max");
         assertNotNull(max);
         assertEquals("max", max.getName());
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals(max, ((InternalAggregation) global).getProperty("max"));
-        assertEquals(10.0, (double) ((InternalAggregation)global).getProperty("max.value"), 0);
-        assertEquals(10.0, (double) ((InternalAggregation)max).getProperty("value"), 0);
+        assertEquals(10.0, (double) ((InternalAggregation) global).getProperty("max.value"), 0);
+        assertEquals(10.0, (double) ((InternalAggregation) max).getProperty("value"), 0);
 
         indexReader.close();
         directory.close();
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
-        }
-        indexWriter.close();
-
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
-        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
-
-        MaxAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-
-        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, max.getValue(), 0);
-        assertEquals("max", max.getName());
-        assertTrue(AggregationInspectionHelper.hasValue(max));
-
-        multiReader.close();
-        directory.close();
-        unmappedDirectory.close();
-    }
-
     public void testSingleValuedFieldWithValueScript() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("value")
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -528,7 +468,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             }
         }, max -> {
             assertTrue(AggregationInspectionHelper.hasValue(max));
-            assertEquals(10.0, max.getValue(), 0);
+            assertEquals(10.0, max.value(), 0);
             assertEquals("max", max.getName());
         }, fieldType);
     }
@@ -537,8 +477,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         Map<String, Object> params = Collections.singletonMap("inc", 1);
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("value")
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -547,7 +486,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(11.0, max.getValue(), 0);
+            assertEquals(11.0, max.value(), 0);
             assertEquals("max", max.getName());
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
@@ -563,7 +502,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -571,8 +510,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testMultiValuedFieldWithValueScript() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("values")
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -584,7 +522,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -593,8 +531,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
         Map<String, Object> params = Collections.singletonMap("inc", 1);
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("values")
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -606,7 +543,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(13.0, max.getValue(), 0);
+            assertEquals(13.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -614,8 +551,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testScriptSingleValued() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap()));
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap())
+        );
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
@@ -623,7 +561,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(10.0, max.getValue(), 0);
+            assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -635,8 +573,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         params.put("inc", 1);
         params.put("field", "value");
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
+        );
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
@@ -644,7 +583,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(11.0, max.getValue(), 0);
+            assertEquals(11.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -652,8 +591,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testScriptMultiValued() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap()));
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())
+        );
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
@@ -664,7 +604,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -676,8 +616,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
+        );
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
@@ -688,7 +629,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(13.0, max.getValue(), 0);
+            assertEquals(13.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -704,24 +645,19 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         // Do not add any documents
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-
-        Global global = (Global) aggregator.buildTopLevel();
+        Global global = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
         assertEquals("global", global.getName());
         assertEquals(0L, global.getDocCount());
         assertNotNull(global.getAggregations());
-        assertEquals(1, global.getAggregations().asMap().size());
+        assertEquals(1, global.getAggregations().asList().size());
 
         Max max = global.getAggregations().get("max");
         assertNotNull(max);
         assertEquals("max", max.getName());
-        assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+        assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
 
         indexReader.close();
         directory.close();
@@ -733,8 +669,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
-            .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))
-                .subAggregation(AggregationBuilders.max("max").field("value")));
+            .subAggregation(
+                AggregationBuilders.filter("filter", termQuery("value", 100)).subAggregation(AggregationBuilders.max("max").field("value"))
+            );
 
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -744,14 +681,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-
-        Terms terms = (Terms) aggregator.buildTopLevel();
+        Terms terms = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);
@@ -769,7 +701,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             Max max = filter.getAggregations().get("max");
             assertNotNull(max);
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
         }
 
         indexReader.close();
@@ -790,30 +722,31 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max") .field("values");
-        ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
-            .field("values");
+        MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max").field("values");
+        ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count").field("values");
 
-        MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, indexSearcher, fieldType);
-        ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, indexSearcher, fieldType);
+        try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
+            MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, context);
+            ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, context);
 
-        BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator);
-        bucketCollector.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator));
+            bucketCollector.preCollection();
+            context.searcher().search(new MatchAllDocsQuery(), bucketCollector.asCollector());
+            bucketCollector.postCollection();
 
-        InternalMax max = (InternalMax) maxAggregator.buildAggregation(0L);
-        assertNotNull(max);
-        assertEquals(12.0, max.getValue(), 0);
-        assertEquals("max", max.getName());
+            Max max = (Max) maxAggregator.buildAggregation(0L);
+            assertNotNull(max);
+            assertEquals(12.0, max.value(), 0);
+            assertEquals("max", max.getName());
 
-        InternalValueCount count = (InternalValueCount) countAggregator.buildAggregation(0L);
-        assertNotNull(count);
-        assertEquals(20L, count.getValue());
-        assertEquals("count", count.getName());
+            InternalValueCount count = (InternalValueCount) countAggregator.buildAggregation(0L);
+            assertNotNull(count);
+            assertEquals(20L, count.getValue());
+            assertEquals("count", count.getName());
 
+        }
         indexReader.close();
         directory.close();
     }
@@ -834,46 +767,53 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        for (Aggregator.SubAggCollectionMode collectionMode : Aggregator.SubAggCollectionMode.values()) {
-            MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max")
-                .field("values");
-            ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
-                .field("values");
-            TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms")
-                .userValueTypeHint(ValueType.NUMERIC)
-                .field("value").collectMode(collectionMode)
-                .subAggregation(new MaxAggregationBuilder("sub_max").field("invalid"));
+        try (
+            AggregationContext context = createAggregationContext(
+                indexReader,
+                new MatchAllDocsQuery(),
+                multiValuesfieldType,
+                singleValueFieldType
+            )
+        ) {
+            for (Aggregator.SubAggCollectionMode collectionMode : Aggregator.SubAggCollectionMode.values()) {
+                MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max").field("values");
+                ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count").field("values");
+                TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
+                    .field("value")
+                    .collectMode(collectionMode)
+                    .subAggregation(new MaxAggregationBuilder("sub_max").field("invalid"));
 
-            MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, indexSearcher, multiValuesfieldType);
-            ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, indexSearcher, multiValuesfieldType);
-            TermsAggregator termsAggregator = createAggregator(termsAggregationBuilder, indexSearcher, singleValueFieldType);
+                MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, context);
+                ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, context);
+                TermsAggregator termsAggregator = createAggregator(termsAggregationBuilder, context);
 
-            BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator, termsAggregator);
-            bucketCollector.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+                BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator, termsAggregator));
+                bucketCollector.preCollection();
+                context.searcher().search(new MatchAllDocsQuery(), bucketCollector.asCollector());
+                bucketCollector.postCollection();
 
-            InternalMax max = (InternalMax) maxAggregator.buildTopLevel();
-            assertNotNull(max);
-            assertEquals(12.0, max.getValue(), 0);
-            assertEquals("max", max.getName());
+                Max max = (Max) maxAggregator.buildTopLevel();
+                assertNotNull(max);
+                assertEquals(12.0, max.value(), 0);
+                assertEquals("max", max.getName());
 
-            InternalValueCount count = (InternalValueCount) countAggregator.buildTopLevel();
-            assertNotNull(count);
-            assertEquals(20L, count.getValue());
-            assertEquals("count", count.getName());
+                InternalValueCount count = (InternalValueCount) countAggregator.buildTopLevel();
+                assertNotNull(count);
+                assertEquals(20L, count.getValue());
+                assertEquals("count", count.getName());
 
-            Terms terms = (Terms) termsAggregator.buildTopLevel();
-            assertNotNull(terms);
-            List<? extends Terms.Bucket> buckets = terms.getBuckets();
-            assertNotNull(buckets);
-            assertEquals(10, buckets.size());
+                Terms terms = (Terms) termsAggregator.buildTopLevel();
+                assertNotNull(terms);
+                List<? extends Terms.Bucket> buckets = terms.getBuckets();
+                assertNotNull(buckets);
+                assertEquals(10, buckets.size());
 
-            for (Terms.Bucket b : buckets) {
-                InternalMax subMax = b.getAggregations().get("sub_max");
-                assertEquals(Double.NEGATIVE_INFINITY, subMax.getValue(), 0);
+                for (Terms.Bucket b : buckets) {
+                    Max subMax = b.getAggregations().get("sub_max");
+                    assertEquals(Double.NEGATIVE_INFINITY, subMax.value(), 0);
+                }
             }
         }
 
@@ -891,39 +831,22 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("value");
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
 
-        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
-        MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        Max max = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
 
-        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        // Test that an aggregation not using a script does get cached
-        assertTrue(context.getQueryShardContext().isCacheable());
-
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 
     /**
@@ -937,56 +860,31 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("value")
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
-        MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        Max max = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
 
-        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        // Test that an aggregation using a script does not get cached
-        assertTrue(context.getQueryShardContext().isCacheable());
-
-        aggregationBuilder = new MaxAggregationBuilder("max")
-            .field("value")
+        aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
-        context = createSearchContext(indexSearcher, null, fieldType);
-        aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        max = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType).withShouldBeCached(false));
 
-        max = (InternalMax) aggregator.buildAggregation(0L);
-
-        assertTrue(max.getValue() >= 0.0);
-        assertTrue(max.getValue() <= 1.0);
+        assertTrue(max.value() >= 0.0);
+        assertTrue(max.value() <= 1.0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        // Test that an aggregation using a nondeterministic script does not get cached
-        assertFalse(context.getQueryShardContext().isCacheable());
-
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 }

@@ -1,29 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.example.role;
 
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.realm.CustomRealmIT;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.INDEX;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_A;
@@ -35,13 +33,15 @@ import static org.hamcrest.Matchers.is;
  */
 public class CustomRolesProviderIT extends ESRestTestCase {
     private static final String TEST_USER = "test_user";
-    private static final String TEST_PWD = "change_me";
+    private static final String TEST_PWD = "test-user-password";
 
     private static final RequestOptions AUTH_OPTIONS;
     static {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
+        options.addHeader(
+            UsernamePasswordToken.BASIC_AUTH_HEADER,
+            UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray()))
+        );
         AUTH_OPTIONS = options.build();
     }
 
@@ -54,9 +54,19 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     }
 
     public void setupTestUser(String role) throws IOException {
-        new TestRestHighLevelClient().security().putUser(
-            PutUserRequest.withPassword(new User(TEST_USER, List.of(role)), TEST_PWD.toCharArray(), true, RefreshPolicy.IMMEDIATE),
-            RequestOptions.DEFAULT);
+        final String endpoint = "/_security/user/" + TEST_USER;
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        final String body = Strings.format("""
+            {
+                "username": "%s",
+                "password": "%s",
+                "roles": [ "%s" ]
+            }
+            """, TEST_USER, TEST_PWD, role);
+        request.setJsonEntity(body);
+        request.addParameters(Map.of("refresh", "true"));
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
     }
 
     public void testAuthorizedCustomRoleSucceeds() throws Exception {
@@ -88,9 +98,4 @@ public class CustomRolesProviderIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
     }
 
-    private class TestRestHighLevelClient extends RestHighLevelClient {
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, Collections.emptyList());
-        }
-    }
 }

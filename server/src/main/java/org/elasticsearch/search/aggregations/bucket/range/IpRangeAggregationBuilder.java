@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -42,16 +29,20 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 
 public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
@@ -61,15 +52,19 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     );
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
-    public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, IpRangeAggregationBuilder::new);
+    public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        IpRangeAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
 
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
-            for (Range range : ranges) agg.addRange(range);
+            for (Range range : ranges) {
+                agg.addRange(range);
+            }
         }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
@@ -108,7 +103,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
-    public static class Range implements ToXContentObject {
+    public static class Range implements ToXContentObject, Writeable {
 
         private final String key;
         private final String from;
@@ -135,8 +130,8 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             byte upper[] = address.getAddress();
             for (int i = prefixLength; i < 8 * lower.length; i++) {
                 int m = 1 << (7 - (i & 7));
-                lower[i >> 3] &= ~m;
-                upper[i >> 3] |= m;
+                lower[i >> 3] &= (byte) ~m;
+                upper[i >> 3] |= (byte) m;
             }
             this.key = key;
             try {
@@ -163,22 +158,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             this.to = in.readOptionalString();
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(key);
             out.writeOptionalString(from);
             out.writeOptionalString(to);
-        }
-
-        public String getKey() {
-            return key;
-        }
-
-        public String getFrom() {
-            return from;
-        }
-
-        public String getTo() {
-            return to;
         }
 
         @Override
@@ -187,9 +171,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
                 return false;
             }
             Range that = (Range) obj;
-            return Objects.equals(key, that.key)
-                    && Objects.equals(from, that.from)
-                    && Objects.equals(to, that.to);
+            return Objects.equals(key, that.key) && Objects.equals(from, that.from) && Objects.equals(to, that.to);
         }
 
         @Override
@@ -227,7 +209,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
-        this.ranges =  new ArrayList<>(clone.ranges);
+        this.ranges = new ArrayList<>(clone.ranges);
         this.keyed = clone.keyed;
     }
 
@@ -237,27 +219,18 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    public String getType() {
-        return NAME;
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
+    public String getType() {
+        return NAME;
     }
 
     public IpRangeAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
-    }
-
-    public boolean keyed() {
-        return keyed;
-    }
-
-    /** Get the current list or ranges that are configured on this aggregation. */
-    public List<Range> getRanges() {
-        return Collections.unmodifiableList(ranges);
     }
 
     /** Add a new {@link Range} to this aggregation. */
@@ -359,10 +332,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
+        out.writeCollection(ranges);
         out.writeBoolean(keyed);
     }
 
@@ -382,17 +352,32 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-                AggregationContext context, ValuesSourceConfig config,
-                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
+        IpRangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
-        if(this.ranges.size() == 0){
+        if (this.ranges.size() == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
-        return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, context, parent, subFactoriesBuilder, metadata);
+
+        return new BinaryRangeAggregatorFactory(
+            name,
+            config,
+            ranges,
+            keyed,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -413,7 +398,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
-        return keyed == that.keyed
-            && ranges.equals(that.ranges);
+        return keyed == that.keyed && ranges.equals(that.ranges);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

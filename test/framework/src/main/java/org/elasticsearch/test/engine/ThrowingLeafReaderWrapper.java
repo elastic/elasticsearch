@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -31,6 +21,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
 
@@ -39,7 +30,7 @@ import java.io.IOException;
  * are called on is. This allows to test parts of the system under certain
  * error conditions that would otherwise not be possible.
  */
-public class ThrowingLeafReaderWrapper extends FilterLeafReader {
+public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader {
 
     private final Thrower thrower;
 
@@ -55,7 +46,11 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         DocsEnum,
         DocsAndPositionsEnum,
         Fields,
-        Norms, NumericDocValues, BinaryDocValues, SortedDocValues, SortedSetDocValues;
+        Norms,
+        NumericDocValues,
+        BinaryDocValues,
+        SortedDocValues,
+        SortedSetDocValues;
     }
 
     /**
@@ -89,13 +84,6 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
             return terms == null ? null : new ThrowingTerms(terms, thrower);
         }
         return terms;
-    }
-
-    @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields fields = super.getTermVectors(docID);
-        thrower.maybeThrow(Flags.TermVectors);
-        return fields == null ? null : new ThrowingFields(fields, thrower);
     }
 
     /**
@@ -166,7 +154,6 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         }
     }
 
-
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
         thrower.maybeThrow(Flags.NumericDocValues);
@@ -198,7 +185,6 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         return super.getNormValues(field);
     }
 
-
     @Override
     public CacheHelper getCoreCacheHelper() {
         return in.getCoreCacheHelper();
@@ -207,5 +193,10 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     @Override
     public CacheHelper getReaderCacheHelper() {
         return in.getReaderCacheHelper();
+    }
+
+    @Override
+    protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+        return reader;
     }
 }

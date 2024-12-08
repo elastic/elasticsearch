@@ -1,35 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.test.eql.stats;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.eql.DataLoader;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 
 /**
  * Tests a random number of queries that increase various (most of the times, one query will "touch" multiple metrics values) metrics.
  */
 public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
-    private RestHighLevelClient highLevelClient;
-    private Map<String, Integer> baseMetrics = new HashMap<String, Integer>();
+    private Map<String, Integer> baseMetrics = new HashMap<>();
     private Integer baseAllTotalQueries = 0;
     private Integer baseAllFailedQueries = 0;
 
@@ -41,7 +41,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Before
-    private void getBaseMetrics() throws UnsupportedOperationException, IOException {
+    public void getBaseMetrics() throws UnsupportedOperationException, IOException {
         Map<String, Object> baseStats = getStats();
         List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
 
@@ -99,7 +99,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
      *          }
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private Map getFeaturesMetrics(Map perNodeStats) {
+    private static Map getFeaturesMetrics(Map perNodeStats) {
         Map featuresMetrics = (Map) ((Map) perNodeStats.get("stats")).get("features");
         featuresMetrics.putAll((Map) featuresMetrics.get("keys"));
         featuresMetrics.putAll((Map) featuresMetrics.get("sequences"));
@@ -113,9 +113,10 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         // it doesn't matter if the index is already there (probably created by another test); _if_ its mapping is the expected one
         // it should be enough
         if (client().performRequest(new Request("HEAD", "/" + DataLoader.TEST_INDEX)).getStatusLine().getStatusCode() == 404) {
-            DataLoader.loadDatasetIntoEs(highLevelClient(), this::createParser);
+            DataLoader.loadDatasetIntoEs(client(), this::createParser);
         }
 
+        String defaultPipe = "pipe_tail";
         //
         // random event queries
         //
@@ -141,7 +142,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
             runEql("sequence [process where serial_event_id == 1] [process where serial_event_id == 2]");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head");
+        metricsToCheck = Set.of("sequence", "sequence_queries_two", defaultPipe);
         assertFeaturesMetrics(randomSequenceExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -166,18 +167,27 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomMaxspanExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomMaxspanExecutions;
         for (int i = 0; i < randomMaxspanExecutions; i++) {
-            runEql("sequence with maxspan=1d" +
-                "  [process where serial_event_id < 4] by exit_code" +
-                "  [process where opcode == 1] by user" +
-                "  [process where opcode == 2] by user" +
-                "  [file where parent_process_name == \\\"file_delete_event\\\"] by exit_code" +
-                " until [process where opcode==1] by ppid" +
-                " | head 4" +
-                " | tail 2");
+            runEql(
+                "sequence with maxspan=1d"
+                    + "  [process where serial_event_id < 4] by exit_code"
+                    + "  [process where opcode == 1] by pid"
+                    + "  [process where opcode == 2] by pid"
+                    + "  [file where parent_process_name == \\\"file_delete_event\\\"] by exit_code"
+                    + " until [process where opcode==1] by ppid"
+                    + " | head 4"
+                    + " | tail 2"
+            );
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_maxspan", "sequence_queries_four", "pipe_head", "pipe_tail", "join_keys_one",
-            "sequence_until");
+        metricsToCheck = Set.of(
+            "sequence",
+            "sequence_maxspan",
+            "sequence_queries_four",
+            "pipe_head",
+            "pipe_tail",
+            "join_keys_one",
+            "sequence_until"
+        );
         assertFeaturesMetrics(randomMaxspanExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -188,13 +198,15 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomThreeQueriesSequences = randomIntBetween(1, 15);
         allTotalQueries += randomThreeQueriesSequences;
         for (int i = 0; i < randomThreeQueriesSequences; i++) {
-            runEql("sequence with maxspan=1d" +
-                "  [process where serial_event_id < 4] by exit_code" +
-                "  [process where opcode == 1] by user" +
-                "  [process where opcode == 2] by user");
+            runEql(
+                "sequence with maxspan=1d"
+                    + "  [process where serial_event_id < 4] by user"
+                    + "  [process where opcode == 1] by user"
+                    + "  [process where opcode == 2] by user"
+            );
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_three", "pipe_head", "join_keys_one", "sequence_maxspan");
+        metricsToCheck = Set.of("sequence", "sequence_queries_three", "join_keys_one", "sequence_maxspan", defaultPipe);
         assertFeaturesMetrics(randomThreeQueriesSequences, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -205,13 +217,15 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomFiveQueriesSequences = randomIntBetween(1, 15);
         allTotalQueries += randomFiveQueriesSequences;
         for (int i = 0; i < randomFiveQueriesSequences; i++) {
-            runEql("sequence by user, ppid, exit_code with maxspan=1m" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]" +
-                "  [file where parent_process_name == \\\"file_delete_event\\\"]" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]" +
-                "| tail 4");
+            runEql(
+                "sequence by user, ppid, exit_code with maxspan=1m"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+                    + "  [file where parent_process_name == \\\"file_delete_event\\\"]"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+                    + "| tail 4"
+            );
         }
         responseAsMap = getStats();
         metricsToCheck = Set.of("sequence", "sequence_queries_five_or_more", "pipe_tail", "join_keys_three", "sequence_maxspan");
@@ -225,12 +239,14 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomFourJoinKeysExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomFourJoinKeysExecutions;
         for (int i = 0; i < randomFourJoinKeysExecutions; i++) {
-            runEql("sequence by exit_code, user, serial_event_id, pid" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]");
+            runEql(
+                "sequence by exit_code, user, serial_event_id, pid"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+            );
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head", "join_keys_four");
+        metricsToCheck = Set.of("sequence", "sequence_queries_two", "join_keys_four", defaultPipe);
         assertFeaturesMetrics(randomFourJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -241,12 +257,14 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomFiveJoinKeysExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomFiveJoinKeysExecutions;
         for (int i = 0; i < randomFiveJoinKeysExecutions; i++) {
-            runEql("sequence by exit_code, user, serial_event_id, pid, ppid" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]");
+            runEql(
+                "sequence by exit_code, user, serial_event_id, pid, ppid"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+            );
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head", "join_keys_five_or_more");
+        metricsToCheck = Set.of("sequence", "sequence_queries_two", "join_keys_five_or_more", defaultPipe);
         assertFeaturesMetrics(randomFiveJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -276,15 +294,15 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
     }
 
-    private void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) throws IOException {
+    private void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
 
-    private void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) throws IOException {
+    private void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allFailedQueries, responseAsMap, "failed");
     }
 
-    private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
+    private static Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
         Request request = new Request("GET", "/_eql/stats");
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
@@ -296,7 +314,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
     private void runEql(String eql) throws IOException {
         Request request = new Request("POST", DataLoader.TEST_INDEX + "/_eql/search");
-        request.setJsonEntity("{\"query\":\"" + eql +"\"}");
+        request.setJsonEntity("{\"query\":\"" + eql + "\"}");
         runRequest(request);
     }
 
@@ -304,14 +322,14 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void assertFeaturesMetrics(int expected, Map<String, Object> responseAsMap, Set<String> metricsToCheck) throws IOException {
-        for(String metricName : metricsToCheck) {
+    private void assertFeaturesMetrics(int expected, Map<String, Object> responseAsMap, Set<String> metricsToCheck) {
+        for (String metricName : metricsToCheck) {
             assertFeatureMetric(expected, responseAsMap, metricName);
         }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertFeatureMetric(int expected, Map<String, Object> responseAsMap, String feature) throws IOException {
+    private void assertFeatureMetric(int expected, Map<String, Object> responseAsMap, String feature) {
         List<Map<String, ?>> nodesListStats = (List<Map<String, ?>>) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -327,7 +345,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) throws IOException {
+    private static void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -338,7 +356,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
 
-    private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
+    private static void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) {
         assertQueryMetric(expected, responseAsMap, "_all", metric);
     }
 
@@ -360,15 +378,9 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         }
     }
 
-    private RestHighLevelClient highLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(
-                    client(),
-                    ignore -> {
-                    },
-                    Collections.emptyList()) {
-            };
-        }
-        return highLevelClient;
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

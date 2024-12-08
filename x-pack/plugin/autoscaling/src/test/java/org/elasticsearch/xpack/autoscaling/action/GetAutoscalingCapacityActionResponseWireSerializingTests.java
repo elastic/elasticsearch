@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -39,6 +40,11 @@ public class GetAutoscalingCapacityActionResponseWireSerializingTests extends Ab
             results.put(randomAlphaOfLength(8), randomAutoscalingDeciderResults());
         }
         return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(results));
+    }
+
+    @Override
+    protected GetAutoscalingCapacityAction.Response mutateInstance(GetAutoscalingCapacityAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
 }

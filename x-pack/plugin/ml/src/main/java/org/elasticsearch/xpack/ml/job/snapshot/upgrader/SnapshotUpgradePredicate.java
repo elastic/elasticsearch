@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
@@ -10,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -55,9 +57,9 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
             return true;
         }
         SnapshotUpgradeTaskState snapshotUpgradeTaskState = (SnapshotUpgradeTaskState) persistentTask.getState();
-        SnapshotUpgradeState snapshotUpgradeState = snapshotUpgradeTaskState == null ?
-            SnapshotUpgradeState.STOPPED :
-            snapshotUpgradeTaskState.getState();
+        SnapshotUpgradeState snapshotUpgradeState = snapshotUpgradeTaskState == null
+            ? SnapshotUpgradeState.STOPPED
+            : snapshotUpgradeTaskState.getState();
         String reason = snapshotUpgradeTaskState == null ? "" : snapshotUpgradeTaskState.getReason();
         PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
         // This logic is only appropriate when opening a job, not when reallocating following a failure,
@@ -70,8 +72,13 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
             return true;
         }
         if (snapshotUpgradeState == SnapshotUpgradeState.FAILED) {
-            exception = ExceptionsHelper.serverError("Unexpected state [" + snapshotUpgradeState
-                + "] while waiting for to be assigned to a node; recorded reason [" + reason + "]");
+            exception = ExceptionsHelper.serverError(
+                "Unexpected state ["
+                    + snapshotUpgradeState
+                    + "] while waiting for to be assigned to a node; recorded reason ["
+                    + reason
+                    + "]"
+            );
             shouldCancel = true;
             return true;
         }

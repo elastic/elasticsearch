@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch;
 
@@ -22,10 +12,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,22 +30,24 @@ public interface FetchSubPhase {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private final SourceLookup sourceLookup;
-        private final Map<String, Object> cache;
+        private final Source source;
+        private final Map<String, List<Object>> loadedFields;
+        private final RankDoc rankDoc;
 
         public HitContext(
             SearchHit hit,
             LeafReaderContext context,
             int docId,
-            SourceLookup sourceLookup,
-            Map<String, Object> cache
+            Map<String, List<Object>> loadedFields,
+            Source source,
+            RankDoc rankDoc
         ) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup = sourceLookup;
-            sourceLookup.setSegmentAndDocument(context, docId);
-            this.cache = cache;
+            this.source = source;
+            this.loadedFields = loadedFields;
+            this.rankDoc = rankDoc;
         }
 
         public SearchHit hit() {
@@ -81,17 +76,21 @@ public interface FetchSubPhase {
          * In most cases, the hit document's source is loaded eagerly at the start of the
          * {@link FetchPhase}. This lookup will contain the preloaded source.
          */
-        public SourceLookup sourceLookup() {
-            return sourceLookup;
+        public Source source() {
+            return source;
+        }
+
+        public Map<String, List<Object>> loadedFields() {
+            return loadedFields;
+        }
+
+        @Nullable
+        public RankDoc rankDoc() {
+            return this.rankDoc;
         }
 
         public IndexReader topLevelReader() {
             return ReaderUtil.getTopLevelContext(readerContext).reader();
-        }
-
-        // TODO move this into Highlighter
-        public Map<String, Object> cache() {
-            return cache;
         }
     }
 
@@ -102,4 +101,5 @@ public interface FetchSubPhase {
      * implementation should return {@code null}
      */
     FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException;
+
 }

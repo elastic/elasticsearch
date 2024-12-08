@@ -1,26 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -34,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
@@ -43,10 +43,10 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopTransformAction() {
-        super(NAME, StopTransformAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
@@ -54,12 +54,14 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         private final boolean waitForCheckpoint;
         private Set<String> expandedIds;
 
-        public Request(String id,
-                       boolean waitForCompletion,
-                       boolean force,
-                       @Nullable TimeValue timeout,
-                       boolean allowNoMatch,
-                       boolean waitForCheckpoint) {
+        public Request(
+            String id,
+            boolean waitForCompletion,
+            boolean force,
+            @Nullable TimeValue timeout,
+            boolean allowNoMatch,
+            boolean waitForCheckpoint
+        ) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
@@ -78,16 +80,8 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             if (in.readBoolean()) {
                 expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
             }
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                this.allowNoMatch = in.readBoolean();
-            } else {
-                this.allowNoMatch = true;
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                this.waitForCheckpoint = in.readBoolean();
-            } else {
-                this.waitForCheckpoint = false;
-            }
+            this.allowNoMatch = in.readBoolean();
+            this.waitForCheckpoint = in.readBoolean();
         }
 
         public String getId() {
@@ -106,7 +100,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             return expandedIds;
         }
 
-        public void setExpandedIds(Set<String> expandedIds ) {
+        public void setExpandedIds(Set<String> expandedIds) {
             this.expandedIds = expandedIds;
         }
 
@@ -127,24 +121,19 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             boolean hasExpandedIds = expandedIds != null;
             out.writeBoolean(hasExpandedIds);
             if (hasExpandedIds) {
-                out.writeStringArray(expandedIds.toArray(new String[0]));
+                out.writeStringCollection(expandedIds);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(allowNoMatch);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeBoolean(waitForCheckpoint);
-            }
+            out.writeBoolean(allowNoMatch);
+            out.writeBoolean(waitForCheckpoint);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             if (force && waitForCheckpoint) {
-                return addValidationError(new ParameterizedMessage(
-                    "cannot set both [{}] and [{}] to true",
-                        TransformField.FORCE,
-                        TransformField.WAIT_FOR_CHECKPOINT).getFormattedMessage(),
-                    null);
+                return addValidationError(
+                    format("cannot set both [%s] and [%s] to true", TransformField.FORCE, TransformField.WAIT_FOR_CHECKPOINT),
+                    null
+                );
             }
             return null;
         }
@@ -171,20 +160,20 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
                 return false;
             }
 
-            return Objects.equals(id, other.id) &&
-                    Objects.equals(waitForCompletion, other.waitForCompletion) &&
-                    Objects.equals(force, other.force) &&
-                    Objects.equals(expandedIds, other.expandedIds) &&
-                    Objects.equals(waitForCheckpoint, other.waitForCheckpoint) &&
-                    allowNoMatch == other.allowNoMatch;
+            return Objects.equals(id, other.id)
+                && Objects.equals(waitForCompletion, other.waitForCompletion)
+                && Objects.equals(force, other.force)
+                && Objects.equals(expandedIds, other.expandedIds)
+                && Objects.equals(waitForCheckpoint, other.waitForCheckpoint)
+                && allowNoMatch == other.allowNoMatch;
         }
 
         @Override
         public boolean match(Task task) {
             if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String id = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
                 if (expandedIds != null) {
-                    return expandedIds.contains(id);
+                    return expandedIds.contains(taskId);
                 }
             }
 
@@ -206,9 +195,11 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             this.acknowledged = acknowledged;
         }
 
-        public Response(List<TaskOperationFailure> taskFailures,
-                        List<? extends ElasticsearchException> nodeFailures,
-                        boolean acknowledged) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            boolean acknowledged
+        ) {
             super(taskFailures, nodeFailures);
             this.acknowledged = acknowledged;
         }
@@ -234,10 +225,8 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return acknowledged == response.acknowledged;
         }

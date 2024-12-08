@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -60,7 +50,6 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     /** Collect a value in the given bucket */
     public abstract void collect(long bucketOrd, long hash);
 
-
     /** Clone the data structure at the given bucket */
     public AbstractHyperLogLogPlusPlus clone(long bucketOrd, BigArrays bigArrays) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
@@ -93,12 +82,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucketOrd);
             while (iterator.next()) {
                 byte runLength = iterator.value();
-                Integer numOccurances = values.get(runLength);
-                if (numOccurances == null) {
-                    values.put(runLength, 1);
-                } else {
-                    values.put(runLength, numOccurances + 1);
-                }
+                values.merge(runLength, 1, Integer::sum);
             }
             return values;
         }
@@ -116,7 +100,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         } else {
             out.writeBoolean(HYPERLOGLOG);
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucket);
-            while (iterator.next()){
+            while (iterator.next()) {
                 out.writeByte(iterator.value());
             }
         }
@@ -128,7 +112,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         if (algorithm == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
             final long size = in.readVLong();
-            HyperLogLogPlusPlusSparse counts  = new HyperLogLogPlusPlusSparse(precision, bigArrays, 1);
+            HyperLogLogPlusPlusSparse counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, 1);
             counts.ensureCapacity(0, size);
             for (long i = 0; i < size; ++i) {
                 counts.addEncoded(0, in.readInt());

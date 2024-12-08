@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -10,11 +11,12 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+
+import java.util.Objects;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import java.util.Objects;
 
 /**
  * {@code SecurityHttpClientConfigCallback} configures a {@link RestClient} for user authentication and SSL / TLS.
@@ -38,8 +40,7 @@ class SecurityHttpClientConfigCallback implements RestClientBuilder.HttpClientCo
      * @param sslStrategy The SSL strategy, if SSL / TLS have been supplied
      * @throws NullPointerException if {@code sslStrategy} is {@code null}
      */
-    SecurityHttpClientConfigCallback(final SSLIOSessionStrategy sslStrategy,
-                                     @Nullable final CredentialsProvider credentialsProvider) {
+    SecurityHttpClientConfigCallback(final SSLIOSessionStrategy sslStrategy, @Nullable final CredentialsProvider credentialsProvider) {
         this.sslStrategy = Objects.requireNonNull(sslStrategy);
         this.credentialsProvider = credentialsProvider;
     }

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.stats;
@@ -28,7 +18,6 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -50,7 +39,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
         if (CollectionUtils.isEmpty(groups) == false) {
-            groupsSt = new HashMap<>(groupsStats.size());
+            groupsSt = Maps.newMapWithExpectedSize(groupsStats.size());
             if (groups.length == 1 && groups[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
                     groupsSt.put(entry.getKey(), entry.getValue().stats());
@@ -68,13 +57,10 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> {
-            if (searchContext.hasOnlySuggest()) {
-                statsHolder.suggestCurrent.inc();
-            } else {
-                statsHolder.queryCurrent.inc();
-            }
-        });
+        computeStats(
+            searchContext,
+            searchContext.hasOnlySuggest() ? statsHolder -> statsHolder.suggestCurrent.inc() : statsHolder -> statsHolder.queryCurrent.inc()
+        );
     }
 
     @Override
@@ -82,26 +68,21 @@ public final class ShardSearchStats implements SearchOperationListener {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestCurrent.dec();
-                assert statsHolder.suggestCurrent.count() >= 0;
             } else {
                 statsHolder.queryCurrent.dec();
-                assert statsHolder.queryCurrent.count() >= 0;
+                statsHolder.queryFailure.inc();
             }
         });
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        computeStats(searchContext, statsHolder -> {
-            if (searchContext.hasOnlySuggest()) {
-                statsHolder.suggestMetric.inc(tookInNanos);
-                statsHolder.suggestCurrent.dec();
-                assert statsHolder.suggestCurrent.count() >= 0;
-            } else {
-                statsHolder.queryMetric.inc(tookInNanos);
-                statsHolder.queryCurrent.dec();
-                assert statsHolder.queryCurrent.count() >= 0;
-            }
+        computeStats(searchContext, searchContext.hasOnlySuggest() ? statsHolder -> {
+            statsHolder.suggestMetric.inc(tookInNanos);
+            statsHolder.suggestCurrent.dec();
+        } : statsHolder -> {
+            statsHolder.queryMetric.inc(tookInNanos);
+            statsHolder.queryCurrent.dec();
         });
     }
 
@@ -112,7 +93,10 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
+        computeStats(searchContext, statsHolder -> {
+            statsHolder.fetchCurrent.dec();
+            statsHolder.fetchFailure.inc();
+        });
     }
 
     @Override
@@ -120,14 +104,14 @@ public final class ShardSearchStats implements SearchOperationListener {
         computeStats(searchContext, statsHolder -> {
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
-            assert statsHolder.fetchCurrent.count() >= 0;
         });
     }
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         consumer.accept(totalStats);
-        if (searchContext.groupStats() != null) {
-            for (String group : searchContext.groupStats()) {
+        var groupStats = searchContext.groupStats();
+        if (groupStats != null) {
+            for (String group : groupStats) {
                 consumer.accept(groupStats(group));
             }
         }
@@ -186,12 +170,25 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric scrollCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
 
+        final CounterMetric queryFailure = new CounterMetric();
+        final CounterMetric fetchFailure = new CounterMetric();
+
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
-                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
-                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count(),
-                    scrollMetric.count(), TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()), scrollCurrent.count(),
-                    suggestMetric.count(), TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()), suggestCurrent.count()
+                queryMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
+                queryCurrent.count(),
+                queryFailure.count(),
+                fetchMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
+                fetchCurrent.count(),
+                fetchFailure.count(),
+                scrollMetric.count(),
+                TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
+                scrollCurrent.count(),
+                suggestMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
+                suggestCurrent.count()
             );
         }
     }

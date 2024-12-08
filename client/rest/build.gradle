@@ -1,15 +1,13 @@
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,14 +16,28 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
+java {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}
 
 group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-client'
+
+base {
+  archivesName = 'elasticsearch-rest-client'
+}
+
+// LLRC is licenses under Apache 2.0
+projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -39,11 +51,16 @@ dependencies {
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(CheckForbiddenApis).configureEach {
+tasks.named("processResources").configure {
+  expand versions: [
+    elasticsearch: VersionProperties.getElasticsearch()
+  ]
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
@@ -54,23 +71,21 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
+  modifyBundledSignatures { signatures ->
+    signatures -= 'jdk-non-portable'
+    signatures += 'jdk-internal'
+    signatures
+  }
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 tasks.named("jarHell").configure {
   enabled = false
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.client.RestClientTestCase'
-    }
-  }
+tasks.named('testTestingConventions').configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -79,7 +94,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
-          'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',
@@ -87,4 +101,8 @@ tasks.named("thirdPartyAudit").configure {
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener'
   )
+}
+
+tasks.withType(LicenseHeadersTask.class).configureEach {
+  approvedLicenses = ['Apache', 'Generated', 'Vendored']
 }

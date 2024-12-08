@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation.logging;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.Filter;
@@ -15,7 +18,8 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -27,7 +31,8 @@ import java.util.function.Consumer;
  */
 @Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class DeprecationIndexingAppender extends AbstractAppender {
-    public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation-elasticsearch";
+    private static final Logger logger = LogManager.getLogger(DeprecationIndexingAppender.class);
+    public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
     private final Consumer<IndexRequest> requestConsumer;
 
@@ -39,9 +44,10 @@ public class DeprecationIndexingAppender extends AbstractAppender {
 
     /**
      * Creates a new appender.
-     * @param name the appender's name
-     * @param filter a filter to apply directly on the appender
-     * @param layout the layout to use for formatting message. It must return a JSON string.
+     *
+     * @param name            the appender's name
+     * @param filter          a filter to apply directly on the appender
+     * @param layout          the layout to use for formatting message. It must return a JSON string.
      * @param requestConsumer a callback to handle the actual indexing of the log message.
      */
     public DeprecationIndexingAppender(String name, Filter filter, Layout<String> layout, Consumer<IndexRequest> requestConsumer) {
@@ -55,6 +61,13 @@ public class DeprecationIndexingAppender extends AbstractAppender {
      */
     @Override
     public void append(LogEvent event) {
+        logger.trace(
+            () -> Strings.format(
+                "Received deprecation log event. Appender is %s. message = %s",
+                isEnabled ? "enabled" : "disabled",
+                event.getMessage().getFormattedMessage()
+            )
+        );
         if (this.isEnabled == false) {
             return;
         }
@@ -70,10 +83,11 @@ public class DeprecationIndexingAppender extends AbstractAppender {
     /**
      * Sets whether this appender is enabled or disabled. When disabled, the appender will
      * not perform indexing operations.
-     * @param isEnabled the enabled status of the appender.
+     *
+     * @param enabled the enabled status of the appender.
      */
-    public void setEnabled(boolean isEnabled) {
-        this.isEnabled = isEnabled;
+    public void setEnabled(boolean enabled) {
+        this.isEnabled = enabled;
     }
 
     /**

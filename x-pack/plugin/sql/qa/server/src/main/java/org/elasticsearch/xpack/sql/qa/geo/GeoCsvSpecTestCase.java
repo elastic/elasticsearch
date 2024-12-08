@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.qa.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
+import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.junit.Before;
 
 import java.sql.Connection;
@@ -19,9 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.ql.SpecReader.Parser;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
 /**
  * Tests comparing sql queries executed against our jdbc client
@@ -69,7 +72,7 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
     // make sure ES uses UTC (otherwise JDBC driver picks up the JVM timezone per spec/convention)
     @Override
     protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
+        Properties connectionProperties = super.connectionProperties();
         connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
         return connectionProperties;
     }

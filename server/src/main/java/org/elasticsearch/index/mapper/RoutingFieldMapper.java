@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
@@ -40,16 +29,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     public static class Defaults {
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-
         public static final boolean REQUIRED = false;
     }
 
@@ -66,24 +45,21 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(required);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { required };
         }
 
         @Override
         public RoutingFieldMapper build() {
-            return new RoutingFieldMapper(required.getValue());
+            return RoutingFieldMapper.get(required.getValue());
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new RoutingFieldMapper(Defaults.REQUIRED),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
+
+    public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
     static final class RoutingFieldType extends StringFieldType {
-
-        static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -95,28 +71,48 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
     }
 
+    /**
+     * Should we require {@code routing} on CRUD operations?
+     */
     private final boolean required;
 
+    private static final RoutingFieldMapper REQUIRED = new RoutingFieldMapper(true);
+    private static final RoutingFieldMapper NOT_REQUIRED = new RoutingFieldMapper(false);
+
+    private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
+
+    public static RoutingFieldMapper get(boolean required) {
+        return required ? REQUIRED : NOT_REQUIRED;
+    }
+
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);
+        super(FIELD_TYPE);
         this.required = required;
     }
 
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return ANALYZERS;
+    }
+
+    /**
+     * Should we require {@code routing} on CRUD operations?
+     */
     public boolean required() {
         return this.required;
     }
 
     @Override
-    public void preParse(ParseContext context) {
-        String routing = context.sourceToParse().routing();
+    public void preParse(DocumentParserContext context) {
+        String routing = context.routing();
         if (routing != null) {
-            context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
-            createFieldNamesField(context);
+            context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
+            context.addToFieldNames(fieldType().name());
         }
     }
 
@@ -124,5 +120,4 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

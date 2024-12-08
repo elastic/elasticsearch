@@ -1,4 +1,0 @@
----
-"Basic sanity check":
-  - do:
-      cluster.reroute: {}

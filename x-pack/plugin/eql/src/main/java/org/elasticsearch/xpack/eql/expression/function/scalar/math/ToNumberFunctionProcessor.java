@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -53,7 +55,7 @@ public class ToNumberFunctionProcessor implements Processor {
             return null;
         }
 
-        if (!(value instanceof String || value instanceof Character)) {
+        if ((value instanceof String || value instanceof Character) == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", value);
         }
 
@@ -78,7 +80,7 @@ public class ToNumberFunctionProcessor implements Processor {
                 return Long.parseLong(value.toString(), radix);
             }
         } catch (NumberFormatException e) {
-            throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", value, radix);
+            throw new InvalidArgumentException(e, "Unable to convert [{}] to number of base [{}]", value, radix);
         }
 
     }
@@ -109,7 +111,6 @@ public class ToNumberFunctionProcessor implements Processor {
     public int hashCode() {
         return Objects.hash(value, base);
     }
-
 
     @Override
     public String getWriteableName() {

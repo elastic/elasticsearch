@@ -1,9 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
+
+import org.elasticsearch.xpack.sql.proto.core.CheckedBiFunction;
+import org.elasticsearch.xpack.sql.proto.core.CheckedConsumer;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
@@ -16,6 +20,7 @@ import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLClientInfoException;
@@ -27,6 +32,9 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -36,7 +44,7 @@ import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
  * Low-level http client using the built-in {@link HttpURLConnection}.
@@ -49,16 +57,24 @@ public class JreHttpUrlConnection implements Closeable {
      * error.
      */
     public static final String SQL_STATE_BAD_SERVER = "bad_server";
-    private static final String SQL_NOT_AVAILABLE_ERROR_MESSAGE = "Incorrect HTTP method for uri [" + SQL_QUERY_REST_ENDPOINT
-            + "?error_trace] and method [POST], allowed:";
+    private static final String SQL_NOT_AVAILABLE_ERROR_MESSAGE = "Incorrect HTTP method for uri ["
+        + SQL_QUERY_REST_ENDPOINT
+        + "?error_trace] and method [POST], allowed:";
 
     public static <R> R http(String path, String query, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
         final URI uriPath = appendSegmentToPath(cfg.baseUri(), path);  // update path if needed
         final String uriQuery = query == null ? uriPath.getQuery() : query; // update query if needed
         final URL url;
         try {
-            url = new URI(uriPath.getScheme(), null, uriPath.getHost(), uriPath.getPort(), uriPath.getPath(), uriQuery,
-                    uriPath.getFragment()).toURL();
+            url = new URI(
+                uriPath.getScheme(),
+                null,
+                uriPath.getHost(),
+                uriPath.getPort(),
+                uriPath.getPath(),
+                uriQuery,
+                uriPath.getFragment()
+            ).toURL();
         } catch (URISyntaxException | MalformedURLException ex) {
             throw new ClientException("Cannot build url using base: [" + uriPath + "] query: [" + query + "] path: [" + path + "]", ex);
         }
@@ -101,7 +117,7 @@ public class JreHttpUrlConnection implements Closeable {
         // HttpURL adds this header by default, HttpS does not
         // adding it here to be consistent
         con.setRequestProperty("Accept-Charset", "UTF-8");
-        //con.setRequestProperty("Accept-Encoding", GZIP);
+        // con.setRequestProperty("Accept-Encoding", GZIP);
 
         setupSSL(cfg);
         setupBasicAuth(cfg);
@@ -137,17 +153,18 @@ public class JreHttpUrlConnection implements Closeable {
     }
 
     public <R> ResponseOrException<R> request(
-            CheckedConsumer<OutputStream, IOException> doc,
-            CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
-            String requestMethod
+        CheckedConsumer<OutputStream, IOException> doc,
+        CheckedBiFunction<InputStream, Function<String, List<String>>, R, IOException> parser,
+        String requestMethod
     ) throws ClientException {
         return request(doc, parser, requestMethod, "application/json");
     }
 
     public <R> ResponseOrException<R> request(
-            CheckedConsumer<OutputStream, IOException> doc,
-            CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
-            String requestMethod, String contentTypeHeader
+        CheckedConsumer<OutputStream, IOException> doc,
+        CheckedBiFunction<InputStream, Function<String, List<String>>, R, IOException> parser,
+        String requestMethod,
+        String contentTypeHeader
     ) throws ClientException {
         try {
             con.setRequestMethod(requestMethod);
@@ -161,10 +178,7 @@ public class JreHttpUrlConnection implements Closeable {
             }
             if (shouldParseBody(con.getResponseCode())) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
-                    return new ResponseOrException<>(parser.apply(
-                            new BufferedInputStream(stream),
-                            con::getHeaderField
-                            ));
+                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), getHeaderFields(con)));
                 }
             }
             return parserError();
@@ -173,7 +187,19 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    private boolean shouldParseBody(int responseCode) {
+    private static Function<String, List<String>> getHeaderFields(URLConnection con) {
+        return header -> {
+            List<String> values = new LinkedList<>();
+            for (Map.Entry<String, List<String>> entry : con.getHeaderFields().entrySet()) {
+                if (header.equalsIgnoreCase(entry.getKey())) {
+                    values.addAll(entry.getValue());
+                }
+            }
+            return values;
+        };
+    }
+
+    private static boolean shouldParseBody(int responseCode) {
         return responseCode == 200 || responseCode == 201 || responseCode == 202;
     }
 
@@ -183,26 +209,43 @@ public class JreHttpUrlConnection implements Closeable {
             failure = RemoteFailure.parseFromResponse(stream);
         }
         if (con.getResponseCode() >= 500) {
-            return new ResponseOrException<>(new SQLException("Server encountered an error ["
-                    + failure.reason() + "]. [" + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+            return new ResponseOrException<>(
+                new SQLException(
+                    "Server encountered an error [" + failure.reason() + "]. [" + failure.remoteTrace() + "]",
+                    SQL_STATE_BAD_SERVER
+                )
+            );
         }
         SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
         if (type == null) {
             // check if x-pack or sql are not available (x-pack not installed or sql not enabled)
-            // by checking the error message the server is sending back 
+            // by checking the error message the server is sending back
             if (con.getResponseCode() >= HttpURLConnection.HTTP_BAD_REQUEST && failure.reason().contains(SQL_NOT_AVAILABLE_ERROR_MESSAGE)) {
-                return new ResponseOrException<>(new SQLException("X-Pack/SQL does not seem to be available"
-                        + " on the Elasticsearch node using the access path '"
-                        + con.getURL().getHost()
-                        + (con.getURL().getPort() > 0 ? ":" + con.getURL().getPort() : "")
-                        + "'."
-                        + " Please verify X-Pack is installed and SQL enabled. Alternatively, check if any proxy is interfering"
-                        + " the communication to Elasticsearch",
-                        SQL_STATE_BAD_SERVER));
+                return new ResponseOrException<>(
+                    new SQLException(
+                        "X-Pack/SQL does not seem to be available"
+                            + " on the Elasticsearch node using the access path '"
+                            + con.getURL().getHost()
+                            + (con.getURL().getPort() > 0 ? ":" + con.getURL().getPort() : "")
+                            + "'."
+                            + " Please verify X-Pack is installed and SQL enabled. Alternatively, check if any proxy is interfering"
+                            + " the communication to Elasticsearch",
+                        SQL_STATE_BAD_SERVER
+                    )
+                );
             }
-            return new ResponseOrException<>(new SQLException("Server sent bad type ["
-                    + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
-                    + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+            return new ResponseOrException<>(
+                new SQLException(
+                    "Server sent bad type ["
+                        + failure.type()
+                        + "]. Original type was ["
+                        + failure.reason()
+                        + "]. ["
+                        + failure.remoteTrace()
+                        + "]",
+                    SQL_STATE_BAD_SERVER
+                )
+            );
         }
         return new ResponseOrException<>(type.asException(failure.reason()));
     }
@@ -250,7 +293,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     @Override
     public void close() {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
 
             // consume streams
@@ -302,6 +345,7 @@ public class JreHttpUrlConnection implements Closeable {
                 case "analysis_exception":
                 case "resource_not_found_exception":
                 case "verification_exception":
+                case "invalid_argument_exception":
                     return DATA;
                 case "planning_exception":
                 case "mapping_exception":

@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -34,9 +23,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -47,7 +37,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * tests using all versions
  */
 @ESIntegTestCase.SuiteScopeTestCase
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
@@ -67,13 +57,13 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         internalCluster().wipeIndices("idx2");
     }
 
-    private void prepareIndex(ZonedDateTime date, int numHours, int stepSizeHours, int idxIdStart)
-        throws IOException, InterruptedException {
+    private void prepareIndex(ZonedDateTime date, int numHours, int stepSizeHours, int idxIdStart) throws IOException,
+        InterruptedException {
 
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
-            reqs[i - idxIdStart] = client().prepareIndex("idx2").setId("" + i)
-                    .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
+            reqs[i - idxIdStart] = prepareIndex("idx2").setId("" + i)
+                .setSource(jsonBuilder().startObject().timestampField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }
         indexRandom(true, reqs);
@@ -82,45 +72,43 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     public void testSingleValueWithPositiveOffset() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, 1, 0);
 
-        SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("2h")
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+        assertResponse(
+            prepareSearch("idx2").setQuery(matchAllQuery())
+                .addAggregation(
+                    dateHistogram("date_histo").field("date").offset("2h").format(DATE_FORMAT).fixedInterval(DateHistogramInterval.DAY)
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                Histogram histo = response.getAggregations().get("date_histo");
+                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                assertThat(buckets.size(), equalTo(2));
 
-        Histogram histo = response.getAggregations().get("date_histo");
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(2));
-
-        checkBucketFor(buckets.get(0), ZonedDateTime.of(2014, 3, 10, 2, 0, 0, 0, ZoneOffset.UTC), 2L);
-        checkBucketFor(buckets.get(1), ZonedDateTime.of(2014, 3, 11, 2, 0, 0, 0, ZoneOffset.UTC), 3L);
+                checkBucketFor(buckets.get(0), ZonedDateTime.of(2014, 3, 10, 2, 0, 0, 0, ZoneOffset.UTC), 2L);
+                checkBucketFor(buckets.get(1), ZonedDateTime.of(2014, 3, 11, 2, 0, 0, 0, ZoneOffset.UTC), 3L);
+            }
+        );
     }
 
     public void testSingleValueWithNegativeOffset() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, -1, 0);
 
-        SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("-2h")
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+        assertResponse(
+            prepareSearch("idx2").setQuery(matchAllQuery())
+                .addAggregation(
+                    dateHistogram("date_histo").field("date").offset("-2h").format(DATE_FORMAT).fixedInterval(DateHistogramInterval.DAY)
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                Histogram histo = response.getAggregations().get("date_histo");
+                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                assertThat(buckets.size(), equalTo(2));
 
-        Histogram histo = response.getAggregations().get("date_histo");
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(2));
-
-        checkBucketFor(buckets.get(0), ZonedDateTime.of(2014, 3, 9, 22, 0, 0, 0, ZoneOffset.UTC), 2L);
-        checkBucketFor(buckets.get(1), ZonedDateTime.of(2014, 3, 10, 22, 0, 0, 0, ZoneOffset.UTC), 3L);
+                checkBucketFor(buckets.get(0), ZonedDateTime.of(2014, 3, 9, 22, 0, 0, 0, ZoneOffset.UTC), 2L);
+                checkBucketFor(buckets.get(1), ZonedDateTime.of(2014, 3, 10, 22, 0, 0, 0, ZoneOffset.UTC), 3L);
+            }
+        );
     }
 
     /**
@@ -130,27 +118,29 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 12, 1, 0);
         prepareIndex(date("2014-03-14T00:00:00+00:00"), 12, 1, 13);
 
-        SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
+        assertResponse(
+            prepareSearch("idx2").setQuery(matchAllQuery())
+                .addAggregation(
+                    dateHistogram("date_histo").field("date")
                         .offset("6h")
                         .minDocCount(0)
                         .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+                        .fixedInterval(DateHistogramInterval.DAY)
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(24L));
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(24L));
+                Histogram histo = response.getAggregations().get("date_histo");
+                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                assertThat(buckets.size(), equalTo(5));
 
-        Histogram histo = response.getAggregations().get("date_histo");
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(5));
-
-        checkBucketFor(buckets.get(0), ZonedDateTime.of(2014, 3, 10, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
-        checkBucketFor(buckets.get(1), ZonedDateTime.of(2014, 3, 11, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
-        checkBucketFor(buckets.get(2), ZonedDateTime.of(2014, 3, 12, 6, 0, 0, 0, ZoneOffset.UTC), 0L);
-        checkBucketFor(buckets.get(3), ZonedDateTime.of(2014, 3, 13, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
-        checkBucketFor(buckets.get(4), ZonedDateTime.of(2014, 3, 14, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
+                checkBucketFor(buckets.get(0), ZonedDateTime.of(2014, 3, 10, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
+                checkBucketFor(buckets.get(1), ZonedDateTime.of(2014, 3, 11, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
+                checkBucketFor(buckets.get(2), ZonedDateTime.of(2014, 3, 12, 6, 0, 0, 0, ZoneOffset.UTC), 0L);
+                checkBucketFor(buckets.get(3), ZonedDateTime.of(2014, 3, 13, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
+                checkBucketFor(buckets.get(4), ZonedDateTime.of(2014, 3, 14, 6, 0, 0, 0, ZoneOffset.UTC), 6L);
+            }
+        );
     }
 
     /**

@@ -1,34 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,16 +30,44 @@ import java.util.Objects;
  * display values of this field.
  */
 public final class FieldAndFormat implements Writeable, ToXContentObject {
-    private static final ParseField FIELD_FIELD = new ParseField("field");
-    private static final ParseField FORMAT_FIELD = new ParseField("format");
+    private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
-    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
-        new ConstructingObjectParser<>("fetch_field_and_format",
-        a -> new FieldAndFormat((String) a[0], (String) a[1]));
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField FORMAT_FIELD = new ParseField("format");
+    public static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
+
+    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>(
+        "fetch_field_and_format",
+        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
+    }
+
+    private static CheckedFunction<XContentParser, String, IOException> ignoreUseFieldMappingStringParser() {
+        return (p) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return null;
+            } else {
+                String text = p.text();
+                if (text.equals(USE_DEFAULT_FORMAT)) {
+                    DEPRECATION_LOGGER.compatibleCritical(
+                        "explicit_default_format",
+                        "["
+                            + USE_DEFAULT_FORMAT
+                            + "] is a special format that was only used to "
+                            + "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore."
+                    );
+                    return null;
+                } else {
+                    return text;
+                }
+            }
+        };
     }
 
     /**
@@ -69,6 +89,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (format != null) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
+        if (this.includeUnmapped != null) {
+            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
+        }
         builder.endObject();
         return builder;
     }
@@ -79,28 +102,38 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     /** The format of the field, or {@code null} if defaults should be used. */
     public final String format;
 
-    /** Sole constructor. */
+    /** Whether to include unmapped fields or not. */
+    public final Boolean includeUnmapped;
+
     public FieldAndFormat(String field, @Nullable String format) {
+        this(field, format, null);
+    }
+
+    public FieldAndFormat(String field, @Nullable String format, @Nullable Boolean includeUnmapped) {
         this.field = Objects.requireNonNull(field);
         this.format = format;
+        this.includeUnmapped = includeUnmapped;
     }
 
     /** Serialization constructor. */
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
         format = in.readOptionalString();
+        this.includeUnmapped = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeOptionalString(format);
+        out.writeOptionalBoolean(this.includeUnmapped);
     }
 
     @Override
     public int hashCode() {
         int h = field.hashCode();
         h = 31 * h + Objects.hashCode(format);
+        h = 31 * h + Objects.hashCode(includeUnmapped);
         return h;
     }
 
@@ -110,6 +143,6 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
             return false;
         }
         FieldAndFormat other = (FieldAndFormat) obj;
-        return field.equals(other.field) && Objects.equals(format, other.format);
+        return field.equals(other.field) && Objects.equals(format, other.format) && Objects.equals(includeUnmapped, other.includeUnmapped);
     }
 }

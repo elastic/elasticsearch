@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Collections.emptyMap;
+import java.util.TreeMap;
 
 /**
  * Representation of field mapped differently across indices.
@@ -20,14 +21,17 @@ public class InvalidMappedField extends EsField {
 
     private final String errorMessage;
 
-    public InvalidMappedField(String name, String errorMessage) {
-        super(name, DataTypes.UNSUPPORTED, emptyMap(), false);
+    public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
+        super(name, DataTypes.UNSUPPORTED, properties, false);
         this.errorMessage = errorMessage;
     }
 
+    public InvalidMappedField(String name, String errorMessage) {
+        this(name, errorMessage, new TreeMap<String, EsField>());
+    }
+
     public InvalidMappedField(String name) {
-        super(name, DataTypes.UNSUPPORTED, emptyMap(), false);
-        this.errorMessage = StringUtils.EMPTY;
+        this(name, StringUtils.EMPTY, new TreeMap<String, EsField>());
     }
 
     public String errorMessage() {
@@ -45,7 +49,7 @@ public class InvalidMappedField extends EsField {
             InvalidMappedField other = (InvalidMappedField) obj;
             return Objects.equals(errorMessage, other.errorMessage);
         }
-        
+
         return false;
     }
 

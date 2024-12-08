@@ -1,10 +1,13 @@
 [role="xpack"]
-[testenv="basic"]
 [[migration-api]]
 == Migration APIs
 
-The migration APIs simplify upgrading {xpack} indices from one version to another.
+The migration APIs power {kib}'s **Upgrade Assistant** feature.
+
+include::apis/shared-migration-apis-tip.asciidoc[]
 
 * <<migration-api-deprecation>>
+* <<feature-migration-api>>
 
 include::apis/deprecation.asciidoc[]
+include::apis/feature-migration.asciidoc[]

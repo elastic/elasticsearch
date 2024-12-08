@@ -1,26 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.aggregation;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -37,7 +28,7 @@ public class ProfilingAggregator extends Aggregator {
     private final AggregationProfiler profiler;
     private AggregationProfileBreakdown profileBreakdown;
 
-    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
+    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) {
         this.profiler = profiler;
         this.delegate = delegate;
     }
@@ -78,15 +69,23 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_AGGREGATION);
+        InternalAggregation[] result;
         timer.start();
         try {
-            return delegate.buildAggregations(owningBucketOrds);
+            result = delegate.buildAggregations(owningBucketOrds);
         } finally {
             timer.stop();
-            delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
         }
+        profileBreakdown.addDebugInfo("built_buckets", result.length);
+        delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
+        return result;
+    }
+
+    @Override
+    public void releaseAggregations() {
+        delegate.releaseAggregations();
     }
 
     @Override
@@ -95,11 +94,11 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
-            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(aggCtx), profileBreakdown);
         } finally {
             timer.stop();
         }
@@ -108,7 +107,7 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.INITIALIZE);
         timer.start();
         try {
             delegate.preCollection();
@@ -116,6 +115,17 @@ public class ProfilingAggregator extends Aggregator {
             timer.stop();
         }
         profiler.pollLastElement();
+    }
+
+    @Override
+    public void postCollection() throws IOException {
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.POST_COLLECTION);
+        timer.start();
+        try {
+            delegate.postCollection();
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override

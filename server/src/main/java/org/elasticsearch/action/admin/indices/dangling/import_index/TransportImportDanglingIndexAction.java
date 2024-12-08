@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.dangling.import_index;
@@ -23,18 +13,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.find.TransportFindDanglingIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,11 +35,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},
+ * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexRequest},
  * this class first checks that such a dangling index exists. It then calls {@link LocalAllocateDangledIndices}
  * to perform the actual allocation.
  */
 public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, AcknowledgedResponse> {
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/import");
     private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);
 
     private final LocalAllocateDangledIndices danglingIndexAllocator;
@@ -61,17 +53,13 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
         LocalAllocateDangledIndices danglingIndexAllocator,
         NodeClient nodeClient
     ) {
-        super(ImportDanglingIndexAction.NAME, transportService, actionFilters, ImportDanglingIndexRequest::new);
+        super(TYPE.name(), transportService, actionFilters, ImportDanglingIndexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.danglingIndexAllocator = danglingIndexAllocator;
         this.nodeClient = nodeClient;
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        ImportDanglingIndexRequest importRequest,
-        ActionListener<AcknowledgedResponse> importListener
-    ) {
+    protected void doExecute(Task task, ImportDanglingIndexRequest importRequest, ActionListener<AcknowledgedResponse> importListener) {
         findDanglingIndex(importRequest, new ActionListener<>() {
             @Override
             public void onResponse(IndexMetadata indexMetaDataToImport) {
@@ -109,10 +97,10 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
-
-        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID), new ActionListener<>() {
-            @Override
-            public void onResponse(FindDanglingIndexResponse response) {
+        this.nodeClient.execute(
+            TransportFindDanglingIndexAction.TYPE,
+            new FindDanglingIndexRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
@@ -122,7 +110,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                         e.addSuppressed(failure);
                     }
 
-                    listener.onFailure(e);
+                    l.onFailure(e);
                     return;
                 }
 
@@ -133,23 +121,18 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetadata::getVersion));
 
                 if (metaDataSortedByVersion.isEmpty()) {
-                    listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                    l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
                     return;
                 }
 
                 logger.debug(
                     "Metadata versions {} found for index UUID [{}], selecting the highest",
-                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
+                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).toList(),
                     indexUUID
                 );
 
-                listener.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
-            }
-
-            @Override
-            public void onFailure(Exception exp) {
-                listener.onFailure(exp);
-            }
-        });
+                l.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
+            })
+        );
     }
 }

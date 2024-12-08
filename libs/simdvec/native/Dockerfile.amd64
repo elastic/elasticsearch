@@ -1,0 +1,16 @@
+FROM debian:latest
+
+RUN apt update
+RUN apt install -y wget
+RUN echo "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-18 main" > /etc/apt/sources.list.d/clang.list
+RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+RUN apt update
+RUN apt install -y clang-18 openjdk-17-jdk
+RUN ln -s /usr/bin/clang-18 /usr/bin/clang
+RUN ln -s /usr/bin/clang++-18 /usr/bin/clang++
+COPY . /workspace
+WORKDIR /workspace
+RUN ./gradlew --quiet --console=plain clean buildSharedLibrary
+RUN strip --strip-unneeded build/output/libvec.so
+
+CMD cat build/output/libvec.so

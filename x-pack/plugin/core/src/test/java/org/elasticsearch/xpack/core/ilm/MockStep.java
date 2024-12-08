@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -16,6 +17,11 @@ public class MockStep extends Step implements Writeable {
 
     public MockStep(StepKey stepKey, Step.StepKey nextStepKey) {
         super(stepKey, nextStepKey);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return false;
     }
 
     public MockStep(Step other) {
@@ -35,15 +41,15 @@ public class MockStep extends Step implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getKey().getPhase());
-        out.writeString(getKey().getAction());
-        out.writeString(getKey().getName());
+        out.writeString(getKey().phase());
+        out.writeString(getKey().action());
+        out.writeString(getKey().name());
         boolean hasNextStep = getNextStepKey() != null;
         out.writeBoolean(hasNextStep);
         if (hasNextStep) {
-            out.writeString(getNextStepKey().getPhase());
-            out.writeString(getNextStepKey().getAction());
-            out.writeString(getNextStepKey().getName());
+            out.writeString(getNextStepKey().phase());
+            out.writeString(getNextStepKey().action());
+            out.writeString(getNextStepKey().name());
         }
     }
 }

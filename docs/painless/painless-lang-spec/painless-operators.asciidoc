@@ -2,10 +2,10 @@
 === Operators
 
 An operator is the most basic action that can be taken to evaluate values in a
-script. An expression is one-to-many consecutive operations.  Precedence is the
+script. An expression is one-to-many consecutive operations. Precedence is the
 order in which an operator will be evaluated relative to another operator.
 Associativity is the direction within an expression in which a specific operator
-is evaluated.  The following table lists all available operators:
+is evaluated. The following table lists all available operators:
 
 [cols="<6,<3,^3,^2,^4"]
 |====

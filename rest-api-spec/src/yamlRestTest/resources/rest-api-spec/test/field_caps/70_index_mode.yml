@@ -1,0 +1,59 @@
+---
+setup:
+  - requires:
+      cluster_features: "mapper.query_index_mode"
+      reason: "require index_mode"
+
+  - do:
+      indices.create:
+        index: test_metrics
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [container]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              container:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+---
+Field-caps:
+  - do:
+      field_caps:
+        index: "test*"
+        fields: "*"
+        body: { index_filter: { term: { _index_mode: "time_series" } } }
+  - match: { indices: [ "test_metrics" ] }
+  - do:
+      field_caps:
+        index: "test*"
+        fields: "*"
+        body: { index_filter: { term: { _index_mode: "logs" } } }
+  - match: { indices: [ ] }
+  - do:
+      field_caps:
+        index: "test*"
+        fields: "*"
+        body: { index_filter: { term: { _index_mode: "standard" } } }
+  - match: { indices: [ "test" ] }
+  - do:
+      field_caps:
+        index: "test*"
+        fields: "*"
+  - match: { indices: [ "test" , "test_metrics" ] }

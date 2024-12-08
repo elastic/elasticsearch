@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -11,8 +12,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
-import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
+
+import java.util.List;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingDeciders;
@@ -28,7 +32,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     public void testAddPolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
@@ -39,11 +43,11 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
         final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(
             policy.name(),
-            AutoscalingTestCase.randomRoles(),
+            new TreeSet<>(randomSubsetOf(randomIntBetween(1, 5), List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))),
             mutateAutoscalingDeciders(policy.deciders())
         );
         putAutoscalingPolicy(updatedPolicy);
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
@@ -73,6 +77,19 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         );
     }
 
+    public void testPutNoDeciderPolicy() {
+        String policyName = randomAlphaOfLength(8);
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> putAutoscalingPolicy(new AutoscalingPolicy(policyName, new TreeSet<>(), new TreeMap<>()))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("no default nor user configured deciders for policy [" + policyName + "] with roles [[]]")
+        );
+    }
+
     private AutoscalingPolicy putRandomAutoscalingPolicy() {
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
         putAutoscalingPolicy(policy);
@@ -81,6 +98,8 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     private void putAutoscalingPolicy(final AutoscalingPolicy policy) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()

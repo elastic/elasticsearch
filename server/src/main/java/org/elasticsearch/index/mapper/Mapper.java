@@ -1,194 +1,170 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.apache.lucene.document.FieldType;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public abstract static class Builder {
+    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
 
-        public String name;
+    public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
-        protected Builder(String name) {
+    // Only relevant for synthetic source mode.
+    public enum SourceKeepMode {
+        NONE("none"),      // No source recording
+        ARRAYS("arrays"),  // Store source for arrays of mapped fields
+        ALL("all");        // Store source for both singletons and arrays of mapped fields
+
+        SourceKeepMode(String name) {
             this.name = name;
         }
 
-        public String name() {
-            return this.name;
+        static SourceKeepMode from(String input) {
+            if (input == null) {
+                input = "null";
+            }
+            if (input.equals(NONE.name)) {
+                return NONE;
+            }
+            if (input.equals(ALL.name)) {
+                return ALL;
+            }
+            if (input.equals(ARRAYS.name)) {
+                return ARRAYS;
+            }
+            throw new IllegalArgumentException(
+                "Unknown "
+                    + SYNTHETIC_SOURCE_KEEP_PARAM
+                    + " value ["
+                    + input
+                    + "], accepted values are ["
+                    + String.join(",", Arrays.stream(SourceKeepMode.values()).map(SourceKeepMode::toString).toList())
+                    + "]"
+            );
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        public void toXContent(XContentBuilder builder) throws IOException {
+            builder.field(SYNTHETIC_SOURCE_KEEP_PARAM, name);
+        }
+
+        private final String name;
+    }
+
+    // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
+    // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
+    // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
+    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
+        SourceKeepMode.class,
+        settings -> {
+            var indexMode = IndexSettings.MODE.get(settings);
+            if (indexMode == IndexMode.LOGSDB) {
+                return SourceKeepMode.ARRAYS.toString();
+            } else {
+                return SourceKeepMode.NONE.toString();
+            }
+        },
+        "index.mapping.synthetic_source_keep",
+        value -> {
+            if (value == SourceKeepMode.ALL) {
+                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");
+            }
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic
+    );
+
+    public abstract static class Builder {
+
+        private String leafName;
+
+        @SuppressWarnings("this-escape")
+        protected Builder(String leafName) {
+            setLeafName(leafName);
+        }
+
+        public final String leafName() {
+            return this.leafName;
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(ContentPath contentPath);
+        public abstract Mapper build(MapperBuilderContext context);
+
+        void setLeafName(String leafName) {
+            this.leafName = internFieldName(leafName);
+        }
     }
 
     public interface TypeParser {
+        Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException;
 
-        class ParserContext {
-
-            private final Function<String, SimilarityProvider> similarityLookupService;
-            private final Function<String, TypeParser> typeParsers;
-            private final Function<String, RuntimeFieldType.Parser> runtimeTypeParsers;
-            private final Version indexVersionCreated;
-            private final Supplier<QueryShardContext> queryShardContextSupplier;
-            private final DateFormatter dateFormatter;
-            private final ScriptService scriptService;
-            private final IndexAnalyzers indexAnalyzers;
-            private final IndexSettings indexSettings;
-            private final BooleanSupplier idFieldDataEnabled;
-
-            public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 Function<String, TypeParser> typeParsers,
-                                 Function<String, RuntimeFieldType.Parser> runtimeTypeParsers,
-                                 Version indexVersionCreated,
-                                 Supplier<QueryShardContext> queryShardContextSupplier,
-                                 DateFormatter dateFormatter,
-                                 ScriptService scriptService,
-                                 IndexAnalyzers indexAnalyzers,
-                                 IndexSettings indexSettings,
-                                 BooleanSupplier idFieldDataEnabled) {
-                this.similarityLookupService = similarityLookupService;
-                this.typeParsers = typeParsers;
-                this.runtimeTypeParsers = runtimeTypeParsers;
-                this.indexVersionCreated = indexVersionCreated;
-                this.queryShardContextSupplier = queryShardContextSupplier;
-                this.dateFormatter = dateFormatter;
-                this.scriptService = scriptService;
-                this.indexAnalyzers = indexAnalyzers;
-                this.indexSettings = indexSettings;
-                this.idFieldDataEnabled = idFieldDataEnabled;
-            }
-
-            public IndexAnalyzers getIndexAnalyzers() {
-                return indexAnalyzers;
-            }
-
-            public IndexSettings getIndexSettings() {
-                return indexSettings;
-            }
-
-            public BooleanSupplier isIdFieldDataEnabled() {
-                return idFieldDataEnabled;
-            }
-
-            public Settings getSettings() {
-                return indexSettings.getSettings();
-            }
-
-            public SimilarityProvider getSimilarity(String name) {
-                return similarityLookupService.apply(name);
-            }
-
-            public TypeParser typeParser(String type) {
-                return typeParsers.apply(type);
-            }
-
-            public Version indexVersionCreated() {
-                return indexVersionCreated;
-            }
-
-            public Supplier<QueryShardContext> queryShardContextSupplier() {
-                return queryShardContextSupplier;
-            }
-
-            /**
-             * Gets an optional default date format for date fields that do not have an explicit format set
-             *
-             * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
-             */
-            public DateFormatter getDateFormatter() {
-                return dateFormatter;
-            }
-
-            public boolean isWithinMultiField() { return false; }
-
-            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
-
-            protected Function<String, RuntimeFieldType.Parser> runtimeTypeParsers() { return runtimeTypeParsers; }
-
-            protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
-
-            /**
-             * The {@linkplain ScriptService} to compile scripts needed by the {@linkplain Mapper}.
-             */
-            public ScriptService scriptService() {
-                return scriptService;
-            }
-
-            public ParserContext createMultiFieldContext(ParserContext in) {
-                return new MultiFieldParserContext(in);
-            }
-
-            static class MultiFieldParserContext extends ParserContext {
-                MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
-                        in.queryShardContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
-                        in.idFieldDataEnabled);
-                }
-
-                @Override
-                public boolean isWithinMultiField() { return true; }
-            }
+        /**
+         * Whether we can parse this type on indices with the given index created version.
+         */
+        default boolean supportsVersion(IndexVersion indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
         }
-
-        Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
-    private final String simpleName;
+    private final String leafName;
 
-    public Mapper(String simpleName) {
-        Objects.requireNonNull(simpleName);
-        this.simpleName = simpleName;
+    @SuppressWarnings("this-escape")
+    public Mapper(String leafName) {
+        Objects.requireNonNull(leafName);
+        this.leafName = internFieldName(leafName);
     }
 
-    /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
-     * TODO: make this protected once Mapper and FieldMapper are merged together */
-    public final String simpleName() {
-        return simpleName;
+    /**
+     * Returns the name of the field.
+     * When the field has a parent object, its leaf name won't include the entire path.
+     * When subobjects are disabled, its leaf name will be the same as {@link #fullPath()} in practice, because its parent is the root.
+     */
+    public final String leafName() {
+        return leafName;
     }
 
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
-    public abstract String name();
+    public abstract String fullPath();
 
     /**
      * Returns a name representing the type of this mapper.
      */
     public abstract String typeName();
 
-    /** Return the merge of {@code mergeWith} into this.
-     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith);
+    /**
+     * Return the merge of {@code mergeWith} into this.
+     * Both {@code this} and {@code mergeWith} will be left unmodified.
+     */
+    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -196,4 +172,60 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Create a {@link SourceLoader.SyntheticFieldLoader} to populate synthetic source.
+     *
+     * @throws IllegalArgumentException if the field is configured in a way that doesn't
+     *         support synthetic source. This translates nicely into a 400 error when
+     *         users configure synthetic source in the mapping without configuring all
+     *         fields properly.
+     */
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();
+
+    /**
+     * Interns the given field name string through a {@link StringLiteralDeduplicator}.
+     * @param fieldName field name to intern
+     * @return interned field name string
+     */
+    public static String internFieldName(String fieldName) {
+        return fieldNameStringDeduplicator.deduplicate(fieldName);
+    }
+
+    private static final Map<FieldType, FieldType> fieldTypeDeduplicator = new ConcurrentHashMap<>();
+
+    /**
+     * Freezes the given {@link FieldType} instances and tries to deduplicate it as long as the field does not return a non-empty value for
+     * {@link FieldType#getAttributes()}.
+     *
+     * @param fieldType field type to deduplicate
+     * @return deduplicated field type
+     */
+    public static FieldType freezeAndDeduplicateFieldType(FieldType fieldType) {
+        fieldType.freeze();
+        var attributes = fieldType.getAttributes();
+        if ((attributes != null && attributes.isEmpty() == false) || fieldType.getClass() != FieldType.class) {
+            // don't deduplicate subclasses or types with non-empty attribute maps to avoid memory leaks
+            return fieldType;
+        }
+        if (fieldTypeDeduplicator.size() > 1000) {
+            // guard against the case where we run up too many combinations via (vector-)dimensions combinations
+            fieldTypeDeduplicator.clear();
+        }
+        return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
+    }
+
+    /**
+     * The total number of fields as defined in the mapping.
+     * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
+     */
+    public abstract int getTotalFieldsCount();
 }

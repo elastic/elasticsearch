@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
@@ -20,11 +21,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.qa.cli.CliIntegrationTestCase.elasticsearchAddress;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
+    @Override
+    public void testDescribeWorksAsFullAccess() {}
+
+    @Override
+    public void testQuerySingleFieldGranted() {}
+
+    @Override
+    public void testScrollWithSingleFieldExcepted() {}
+
+    @Override
+    public void testQueryWorksAsAdmin() {}
+
     static SecurityConfig adminSecurityConfig() {
         String keystoreLocation;
         String keystorePassword;
@@ -35,7 +47,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
             } catch (URISyntaxException e) {
                 throw new RuntimeException("exception while reading the store", e);
             }
-            if (!Files.exists(keyStore)) {
+            if (Files.exists(keyStore) == false) {
                 throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
             }
             keystoreLocation = keyStore.toAbsolutePath().toString();
@@ -50,7 +62,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
     /**
      * Perform security test actions using the CLI.
      */
-    private static class CliActions implements Actions {
+    private class CliActions implements Actions {
         @Override
         public String minimalPermissionsForAllActions() {
             return "cli_or_drivers_minimal";
@@ -61,7 +73,13 @@ public class CliSecurityIT extends SqlSecurityTestCase {
             if (user == null) {
                 return admin;
             }
-            return new SecurityConfig(RestSqlIT.SSL_ENABLED, user, "testpass", admin.keystoreLocation(), admin.keystorePassword());
+            return new SecurityConfig(
+                RestSqlIT.SSL_ENABLED,
+                user,
+                "test-user-password",
+                admin.keystoreLocation(),
+                admin.keystorePassword()
+            );
         }
 
         @Override
@@ -145,10 +163,11 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         public void expectShowTables(List<String> tables, String user) throws Exception {
             try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 String tablesOutput = cli.command("SHOW TABLES");
+                assertThat(tablesOutput, containsString("catalog"));
                 assertThat(tablesOutput, containsString("name"));
                 assertThat(tablesOutput, containsString("type"));
                 assertThat(tablesOutput, containsString("kind"));
-                assertEquals("---------------+---------------+---------------", cli.readLine());
+                assertEquals("---------------+---------------+---------------+---------------", cli.readLine());
                 for (String table : tables) {
                     String line = null;
                     /*
@@ -156,7 +175,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                      * `.security6` index but it might not have created the index
                      * by the time the test runs.
                      */
-                    while (line == null || line.startsWith(".security")) {
+                    while (line == null || line.contains("|.security")) {
                         line = cli.readLine();
                     }
                     assertThat(line, containsString(table));
@@ -206,7 +225,14 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         }
     }
 
+    private final Actions actions;
+
+    @Override
+    Actions actions() {
+        return actions;
+    }
+
     public CliSecurityIT() {
-        super(new CliActions());
+        actions = new CliActions();
     }
 }

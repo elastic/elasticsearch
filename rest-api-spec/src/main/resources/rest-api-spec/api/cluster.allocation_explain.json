@@ -5,6 +5,11 @@
       "description":"Provides explanations for shard allocations in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -17,6 +22,10 @@
       ]
     },
     "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for connection to master node"
+      },
       "include_yes_decisions":{
         "type":"boolean",
         "description":"Return 'YES' decisions in explanation (default: false)"
@@ -27,7 +36,7 @@
       }
     },
     "body":{
-      "description":"The index, shard, and primary flag to explain. Empty means 'explain the first unassigned shard'"
+      "description":"The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'"
     }
   }
 }

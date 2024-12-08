@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotConfig> {
+public class ModelPlotConfigTests extends AbstractXContentSerializingTestCase<ModelPlotConfig> {
 
     public void testConstructorDefaults() {
         ModelPlotConfig modelPlotConfig = new ModelPlotConfig();
@@ -32,6 +33,11 @@ public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotC
     @Override
     protected ModelPlotConfig createTestInstance() {
         return createRandomized();
+    }
+
+    @Override
+    protected ModelPlotConfig mutateInstance(ModelPlotConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static ModelPlotConfig createRandomized() {

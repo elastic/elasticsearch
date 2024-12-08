@@ -1,33 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 import java.util.Base64;
 
 public final class Uid {
 
-    public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
 
     private static final int UTF8 = 0xff;
@@ -57,9 +48,22 @@ public final class Uid {
                 // The last 3 symbols (18 bits) are encoding 2 bytes (16 bits)
                 // so the last symbol only actually uses 16-12=4 bits and can only take 16 values
                 last = id.charAt(length - 1);
-                if (last != 'A' && last != 'E' && last != 'I' && last != 'M' && last != 'Q'&& last != 'U'&& last != 'Y'
-                    && last != 'c'&& last != 'g'&& last != 'k' && last != 'o' && last != 's' && last != 'w'
-                    && last != '0' && last != '4' && last != '8') {
+                if (last != 'A'
+                    && last != 'E'
+                    && last != 'I'
+                    && last != 'M'
+                    && last != 'Q'
+                    && last != 'U'
+                    && last != 'Y'
+                    && last != 'c'
+                    && last != 'g'
+                    && last != 'k'
+                    && last != 'o'
+                    && last != 's'
+                    && last != 'w'
+                    && last != '0'
+                    && last != '4'
+                    && last != '8') {
                     return false;
                 }
                 break;
@@ -69,22 +73,8 @@ public final class Uid {
         }
         for (int i = 0; i < length; ++i) {
             final char c = id.charAt(i);
-            final boolean allowed =
-                (c >= '0' && c <= '9') ||
-                    (c >= 'A' && c <= 'Z') ||
-                    (c >= 'a' && c <= 'z') ||
-                    c == '-' || c == '_';
+            final boolean allowed = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_';
             if (allowed == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static boolean isPositiveNumeric(String id) {
-        for (int i = 0; i < id.length(); ++i) {
-            final char c = id.charAt(i);
-            if (c < '0' || c > '9') {
                 return false;
             }
         }
@@ -104,7 +94,7 @@ public final class Uid {
             } else {
                 b2 = id.charAt(i + 1) - '0';
             }
-            b[1 + i/2] = (byte) ((b1 << 4) | b2);
+            b[1 + i / 2] = (byte) ((b1 << 4) | b2);
         }
         return new BytesRef(b);
     }
@@ -124,7 +114,7 @@ public final class Uid {
     }
 
     private static BytesRef encodeUtf8Id(String id) {
-        byte[] b = new byte[1 + UnicodeUtil.maxUTF8Length(id.length())];
+        byte[] b = new byte[1 + UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length())];
         // Prepend a byte that indicates that the content is an utf8 string
         b[0] = (byte) UTF8;
         int length = UnicodeUtil.UTF16toUTF8(id, 0, id.length(), b, 1);
@@ -139,7 +129,7 @@ public final class Uid {
         if (id.isEmpty()) {
             throw new IllegalArgumentException("Ids can't be empty");
         }
-        if (isPositiveNumeric(id)) {
+        if (Numbers.isPositiveNumeric(id)) {
             // common for ids that come from databases with auto-increments
             return encodeNumericId(id);
         } else if (isURLBase64WithoutPadding(id)) {
@@ -180,7 +170,7 @@ public final class Uid {
         } else if ((idBytes.length == length && offset == 0) == false) { // no need to copy if it's not a slice
             idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
     }
 
     /** Decode an indexed id back to its original form.
@@ -196,13 +186,10 @@ public final class Uid {
             throw new IllegalArgumentException("Ids can't be empty");
         }
         final int magicChar = Byte.toUnsignedInt(idBytes[offset]);
-        switch (magicChar) {
-            case NUMERIC:
-                return decodeNumericId(idBytes, offset, length);
-            case UTF8:
-                return decodeUtf8Id(idBytes, offset, length);
-            default:
-                return decodeBase64Id(idBytes, offset, length);
-        }
+        return switch (magicChar) {
+            case NUMERIC -> decodeNumericId(idBytes, offset, length);
+            case UTF8 -> decodeUtf8Id(idBytes, offset, length);
+            default -> decodeBase64Id(idBytes, offset, length);
+        };
     }
 }

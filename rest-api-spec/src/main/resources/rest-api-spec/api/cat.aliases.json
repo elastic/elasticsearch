@@ -5,6 +5,10 @@
       "description":"Shows information about currently configured aliases to indices including filter and routing infos."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -31,10 +35,6 @@
       "format":{
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
-      },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
       },
       "h":{
         "type":"list",
@@ -65,6 +65,11 @@
         ],
         "default": "all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for waiting for new cluster state in case it is blocked",
+        "default":"30s"
       }
     }
   }

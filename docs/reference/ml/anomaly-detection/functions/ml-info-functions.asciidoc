@@ -1,5 +1,5 @@
-[[ml-info-functions]]
-= Information Content Functions
+["appendix",role="exclude",id="ml-info-functions"]
+= Information content functions
 
 The information content functions detect anomalies in the amount of information
 that is contained in strings within a bucket. These functions can be used as

@@ -1,0 +1,5 @@
+pr: 114899
+summary: "ES|QL: Fix stats by constant expression"
+area: ES|QL
+type: bug
+issues: []

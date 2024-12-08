@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -136,7 +138,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     public void testAddNumberToIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> add(r, L(1)));
-        assertEquals("Cannot compute [+] between [IntervalDayTime] [Integer]", expect.getMessage());
+        assertEquals("Cannot compute [+] between [IntervalDayTime] and [Integer]", expect.getMessage());
     }
 
     public void testSubYearMonthIntervals() {
@@ -210,7 +212,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     public void testSubNumberFromIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> sub(r, L(1)));
-        assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
+        assertEquals("Cannot compute [-] between [IntervalDayTime] and [Integer]", expect.getMessage());
     }
 
     public void testMulIntervalNumber() {
@@ -228,18 +230,48 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         Period p = interval.interval();
         assertEquals(Period.ofYears(2).negated(), p);
     }
-    
+
     public void testMulNullInterval() {
         Literal literal = interval(Period.ofMonths(1), INTERVAL_MONTH);
         Mul result = new Mul(EMPTY, L(null), literal);
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Mul(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
+    }
+
+    public void testMulIntegerIntervalYearMonthOverflow() {
+        Literal l = interval(Period.ofYears(1).plusMonths(11), INTERVAL_YEAR);
+        ArithmeticException expect = expectThrows(ArithmeticException.class, () -> mul(l, L(Integer.MAX_VALUE)));
+        assertEquals("integer overflow", expect.getMessage());
+    }
+
+    public void testMulLongIntervalYearMonthOverflow() {
+        Literal l = interval(Period.ofYears(1), INTERVAL_YEAR);
+        Exception expect = expectThrows(InvalidArgumentException.class, () -> mul(l, L(Long.MAX_VALUE)));
+        assertEquals("[9223372036854775807] out of [integer] range", expect.getMessage());
+    }
+
+    public void testMulUnsignedLongIntervalYearMonthOverflow() {
+        Literal l = interval(Period.ofYears(1), INTERVAL_YEAR);
+        Exception expect = expectThrows(InvalidArgumentException.class, () -> mul(l, L(UNSIGNED_LONG_MAX)));
+        assertEquals("[18446744073709551615] out of [long] range", expect.getMessage());
+    }
+
+    public void testMulLongIntervalDayTimeOverflow() {
+        Literal l = interval(Duration.ofDays(1), INTERVAL_DAY);
+        ArithmeticException expect = expectThrows(ArithmeticException.class, () -> mul(l, L(Long.MAX_VALUE)));
+        assertEquals("Exceeds capacity of Duration: 796899343984252629724800000000000", expect.getMessage());
+    }
+
+    public void testMulUnsignedLongIntervalDayTimeOverflow() {
+        Literal l = interval(Duration.ofDays(1), INTERVAL_DAY);
+        Exception expect = expectThrows(InvalidArgumentException.class, () -> mul(l, L(UNSIGNED_LONG_MAX)));
+        assertEquals("[18446744073709551615] out of [long] range", expect.getMessage());
     }
 
     public void testAddNullInterval() {
@@ -248,7 +280,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Add(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -261,7 +293,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Sub(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -294,8 +326,9 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     }
 
     private static Literal interval(TemporalAmount value, DataType intervalType) {
-        Object i = value instanceof Period ? new IntervalYearMonth((Period) value, intervalType)
-                 : new IntervalDayTime((Duration) value, intervalType);
+        Object i = value instanceof Period
+            ? new IntervalYearMonth((Period) value, intervalType)
+            : new IntervalDayTime((Duration) value, intervalType);
         return new Literal(EMPTY, i, SqlDataTypes.fromJava(i));
     }
 }

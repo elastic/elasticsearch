@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.process;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.ml.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -133,13 +134,8 @@ public class NativeStorageProvider {
         return minLocalStorageAvailable;
     }
 
+    // non-static indirection to enable mocking in tests
     long getUsableSpace(Path path) throws IOException {
-        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
-
-        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
-        if (freeSpaceInBytes < 0) {
-            freeSpaceInBytes = Long.MAX_VALUE;
-        }
-        return freeSpaceInBytes;
+        return Environment.getUsableSpace(path);
     }
 }

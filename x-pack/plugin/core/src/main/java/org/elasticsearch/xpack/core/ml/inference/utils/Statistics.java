@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.utils;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.common.Numbers;
 
 public final class Statistics {
 
-    private Statistics(){}
+    private Statistics() {}
 
     /**
      * Calculates the softMax of the passed values.
@@ -51,7 +52,7 @@ public final class Statistics {
     }
 
     public static double sigmoid(double value) {
-        return 1/(1 + Math.exp(-value));
+        return 1 / (1 + Math.exp(-value));
     }
 
     private static boolean isValid(double v) {

@@ -1,26 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -34,10 +25,11 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
 
         AtomicLong fakeRelativeClock = new AtomicLong();
-        RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
-                100,
-                fakeRelativeClock::get);
+        RepositoriesStatsArchive repositoriesStatsArchive = new RepositoriesStatsArchive(
+            TimeValue.timeValueMillis(retentionTimeInMillis),
+            100,
+            fakeRelativeClock::get
+        );
 
         for (int i = 0; i < randomInt(10); i++) {
             RepositoryStatsSnapshot repoStats = createRepositoryStats(RepositoryStats.EMPTY_STATS);
@@ -47,14 +39,14 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         fakeRelativeClock.set(retentionTimeInMillis * 2);
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
-            RepositoryStatsSnapshot repoStats = createRepositoryStats(new RepositoryStats(Map.of("GET", 10L)));
+            RepositoryStatsSnapshot repoStats = createRepositoryStats(new RepositoryStats(Map.of("GET", new BlobStoreActionStats(10, 13))));
             repositoriesStatsArchive.archive(repoStats);
         }
 
         List<RepositoryStatsSnapshot> archivedStats = repositoriesStatsArchive.getArchivedStats();
         assertThat(archivedStats.size(), equalTo(statsToBeRetainedCount));
         for (RepositoryStatsSnapshot repositoryStatsSnapshot : archivedStats) {
-            assertThat(repositoryStatsSnapshot.getRepositoryStats().requestCounts, equalTo(Map.of("GET", 10L)));
+            assertThat(repositoryStatsSnapshot.getRepositoryStats().actionStats, equalTo(Map.of("GET", new BlobStoreActionStats(10, 13))));
         }
     }
 
@@ -62,10 +54,11 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
 
         AtomicLong fakeRelativeClock = new AtomicLong();
-        RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
-                1,
-                fakeRelativeClock::get);
+        RepositoriesStatsArchive repositoriesStatsArchive = new RepositoriesStatsArchive(
+            TimeValue.timeValueMillis(retentionTimeInMillis),
+            1,
+            fakeRelativeClock::get
+        );
 
         assertTrue(repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS)));
 
@@ -79,10 +72,11 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
     public void testClearArchive() {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
         AtomicLong fakeRelativeClock = new AtomicLong();
-        RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
-                100,
-                fakeRelativeClock::get);
+        RepositoriesStatsArchive repositoriesStatsArchive = new RepositoriesStatsArchive(
+            TimeValue.timeValueMillis(retentionTimeInMillis),
+            100,
+            fakeRelativeClock::get
+        );
 
         int archivedStatsWithVersionZero = randomIntBetween(1, 20);
         for (int i = 0; i < archivedStatsWithVersionZero; i++) {
@@ -105,12 +99,14 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
     }
 
     private RepositoryStatsSnapshot createRepositoryStats(RepositoryStats repositoryStats, long clusterVersion) {
-        RepositoryInfo repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
+        RepositoryInfo repositoryInfo = new RepositoryInfo(
+            UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Map.of("bucket", randomAlphaOfLength(10)),
             System.currentTimeMillis(),
-            null);
+            null
+        );
         return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, true);
     }
 

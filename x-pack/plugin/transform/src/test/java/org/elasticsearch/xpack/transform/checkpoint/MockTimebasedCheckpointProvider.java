@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -36,8 +38,9 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         final long timestamp = System.currentTimeMillis();
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
 
-        if (lastCheckpoint == null) {
-            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, 0, Collections.emptyMap(), timeUpperBound));
+        if (TransformCheckpoint.isNullOrEmpty(lastCheckpoint)) {
+            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, 1, Collections.emptyMap(), timeUpperBound));
+            return;
         }
 
         listener.onResponse(
@@ -63,6 +66,7 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         TransformCheckpoint nextCheckpoint,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
         TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
@@ -83,6 +87,7 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         long lastCheckpointNumber,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
         long timestamp = System.currentTimeMillis();
@@ -104,7 +109,7 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
             timestamp - timeSyncConfig.getDelay().millis()
         );
 
-        getCheckpointingInfo(lastCheckpoint, nextCheckpoint, nextCheckpointPosition, nextCheckpointProgress, listener);
+        getCheckpointingInfo(lastCheckpoint, nextCheckpoint, nextCheckpointPosition, nextCheckpointProgress, timeout, listener);
     }
 
 }

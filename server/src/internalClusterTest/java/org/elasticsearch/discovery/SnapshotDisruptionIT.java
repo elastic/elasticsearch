@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.discovery;
 
@@ -30,8 +20,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -42,6 +31,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,8 +56,9 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
             .build();
     }
@@ -80,7 +71,8 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         createRandomIndex(idxName);
 
-        createRepository("test-repo", "fs");
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
 
         final String masterNode1 = internalCluster().getMasterName();
 
@@ -93,12 +85,10 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
-                if (snapshots != null && snapshots.entries().size() > 0) {
-                    final SnapshotsInProgress.Entry snapshotEntry = snapshots.entries().get(0);
+                if (snapshots != null && snapshots.isEmpty() == false) {
+                    final SnapshotsInProgress.Entry snapshotEntry = snapshots.forRepo(repoName).get(0);
                     if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
-                        final RepositoriesMetadata repoMeta =
-                            event.state().metadata().custom(RepositoriesMetadata.TYPE);
-                        final RepositoryMetadata metadata = repoMeta.repository("test-repo");
+                        final RepositoryMetadata metadata = RepositoriesMetadata.get(event.state()).repository(repoName);
                         if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();
@@ -113,9 +103,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String snapshot = "test-snap";
 
         logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin().cluster()
-            .prepareCreateSnapshot("test-repo", snapshot).setWaitForCompletion(true)
-            .setIndices(idxName).execute();
+        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", snapshot)
+            .setWaitForCompletion(true)
+            .setIndices(idxName)
+            .execute();
 
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
@@ -143,8 +136,9 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             final SnapshotException sne = (SnapshotException) ExceptionsHelper.unwrap(ex, SnapshotException.class);
             assertNotNull(sne);
             assertThat(
-                sne.getMessage(), either(endsWith(" Failed to update cluster state during snapshot finalization"))
-                            .or(endsWith(" no longer master")));
+                sne.getMessage(),
+                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer master"))
+            );
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 
@@ -168,8 +162,11 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot = "test-snap";
         logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin().cluster()
-                .prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute();
+        ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshot)
+            .setWaitForCompletion(true)
+            .execute();
 
         waitForBlockOnAnyDataNode(repoName);
 
@@ -189,26 +186,32 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> done");
 
         logger.info("--> recreate the index with potentially different shard counts");
-        client().admin().indices().prepareDelete(idxName).get();
+        indicesAdmin().prepareDelete(idxName).get();
         createIndex(idxName);
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture =
-                client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2")
+            .setWaitForCompletion(true)
+            .execute();
         waitForBlock(masterNode, repoName);
         unblockNode(repoName, masterNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 
         logger.info("--> create a snapshot expected to be successful");
-        final CreateSnapshotResponse successfulSnapshot =
-                client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).get();
+        final CreateSnapshotResponse successfulSnapshot = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2")
+            .setWaitForCompletion(true)
+            .get();
         final SnapshotInfo successfulSnapshotInfo = successfulSnapshot.getSnapshotInfo();
         assertThat(successfulSnapshotInfo.state(), is(SnapshotState.SUCCESS));
 
         logger.info("--> making sure snapshot delete works out cleanly");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-2").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-2").get());
     }
 
     public void testMasterFailOverDuringShardSnapshots() throws Exception {
@@ -220,13 +223,17 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "index-one";
         createIndex(indexName);
-        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        prepareIndex(indexName).setSource("foo", "bar").get();
 
         blockDataNode(repoName, dataNode);
 
         logger.info("--> create snapshot via master node client");
-        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient().admin().cluster()
-                .prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap")
+            .setWaitForCompletion(true)
+            .execute();
 
         waitForBlock(dataNode, repoName);
 
@@ -240,15 +247,20 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations(dataNode);
 
         logger.info("--> make sure isolated master responds to snapshot request");
-        final SnapshotException sne =
-                expectThrows(SnapshotException.class, () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L)));
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L))
+        );
         assertThat(sne.getMessage(), endsWith("no longer master"));
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {
-        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
-                .setSnapshots(snapshot).get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(repository).get(0);
+        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin()
+            .cluster()
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
+            .setSnapshots(snapshot)
+            .get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
@@ -261,7 +273,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
     }

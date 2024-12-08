@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -22,24 +12,26 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+
 import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -55,10 +47,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +65,7 @@ import static org.hamcrest.Matchers.hasSize;
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
 // The tests in here do a lot of state updates and other writes to disk and are slowed down too much by WindowsFS
-@LuceneTestCase.SuppressFileSystems(value = {"WindowsFS", "ExtrasFS"})
+@LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
 
     /**
@@ -83,20 +79,35 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static final byte[] BUFFER = new byte[1024];
 
     private static HttpServer httpServer;
+    private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
-    private static final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]");
+        // the EncryptedRepository can require more than one connection open at one time
+        executorService = EsExecutors.newScaling(
+            ESMockAPIBasedRepositoryIntegTestCase.class.getName(),
+            0,
+            2,
+            60,
+            TimeUnit.SECONDS,
+            true,
+            threadFactory,
+            new ThreadContext(Settings.EMPTY)
+        );
         httpServer.setExecutor(r -> {
-            try {
-                r.run();
-            } catch (Throwable t) {
-                log.error("Error in execution on mock http server IO thread", t);
-                throw t;
-            }
+            executorService.execute(() -> {
+                try {
+                    r.run();
+                } catch (Throwable t) {
+                    log.error("Error in execution on mock http server IO thread", t);
+                    throw t;
+                }
+            });
         });
         httpServer.start();
     }
@@ -111,25 +122,29 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @AfterClass
     public static void stopHttpServer() {
         httpServer.stop(0);
+        ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         httpServer = null;
     }
 
     @After
     public void tearDownHttpServer() {
         if (handlers != null) {
-            for(Map.Entry<String, HttpHandler> handler : handlers.entrySet()) {
+            for (Map.Entry<String, HttpHandler> handler : handlers.entrySet()) {
                 httpServer.removeContext(handler.getKey());
                 HttpHandler h = handler.getValue();
                 while (h instanceof DelegatingHttpHandler) {
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
                 if (h instanceof BlobStoreHttpHandler) {
-                    List<String> blobs = ((BlobStoreHttpHandler) h).blobs().keySet().stream()
-                        .filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
-                    assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
+                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobs());
                 }
             }
         }
+    }
+
+    protected static void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
+        List<String> blobs = blobsMap.keySet().stream().filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
+        assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
     }
 
     protected abstract Map<String, HttpHandler> createHttpHandlers();
@@ -140,92 +155,93 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      * Test the snapshot and restore of an index which has large segments files.
      */
     public final void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final String repository = createRepository(randomName());
+        final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
-        createIndex(index, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(index, 1, 0);
 
         final long nbDocs = randomLongBetween(10_000L, 20_000L);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
 
         flushAndRefresh(index);
-        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, snapshot)
-            .setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
     }
 
     public void testRequestStats() throws Exception {
-        final String repository = createRepository(randomName());
+        // need to use verify=false, because the verification process on master makes extra calls on placeholder repo
+        // hence impacting http metrics and failing test
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
-        createIndex(index, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(index, 1, 0);
 
         final long nbDocs = randomLongBetween(10_000L, 20_000L);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
 
         flushAndRefresh(index);
-        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, snapshot)
-            .setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
-            internalCluster().getInstances(RepositoriesService.class).spliterator(), false)
-            .map(repositoriesService -> {
-                try {
-                    return repositoriesService.repository(repository);
-                } catch (RepositoryMissingException e) {
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .map(Repository::stats)
-            .reduce(RepositoryStats::merge)
-            .get();
+            internalCluster().getInstances(RepositoriesService.class).spliterator(),
+            false
+        ).map(repositoriesService -> {
+            try {
+                return repositoriesService.repository(repository);
+            } catch (RepositoryMissingException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
+        // Since no abort request is made, filter it out from the stats (also ensure it is 0) before comparing to the mock counts
+        Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
+            .stream()
+            .filter(entry -> false == ("AbortMultipartObject".equals(entry.getKey()) && entry.getValue().requests() == 0L))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().requests()));
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
 
-        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls",
-            sdkRequestCounts,
-            mockCalls);
+        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", sdkRequestCounts, mockCalls);
 
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    private Map<String, Long> getMockRequestCounts() {
+    protected Map<String, Long> getMockRequestCounts() {
         for (HttpHandler h : handlers.values()) {
             while (h instanceof DelegatingHttpHandler) {
                 if (h instanceof HttpStatsCollectorHandler) {
@@ -238,15 +254,20 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     protected static String httpServerUrl() {
+        return "http://" + serverUrl();
+    }
+
+    protected static String serverUrl() {
         InetSocketAddress address = httpServer.getAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        return InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
     /**
      * Consumes and closes the given {@link InputStream}
      */
-    protected static void drainInputStream(final InputStream inputStream) throws IOException {
-        while (inputStream.read(BUFFER) >= 0) ;
+    public static void drainInputStream(final InputStream inputStream) throws IOException {
+        while (inputStream.read(BUFFER) >= 0)
+            ;
     }
 
     /**
@@ -396,8 +417,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             try {
                 handler.handle(exchange);
             } catch (Throwable t) {
-                logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
-                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
+                logger.error(
+                    () -> format(
+                        "Exception when handling request %s %s %s",
+                        exchange.getRemoteAddress(),
+                        exchange.getRequestMethod(),
+                        exchange.getRequestURI()
+                    ),
+                    t
+                );
                 throw t;
             }
         }

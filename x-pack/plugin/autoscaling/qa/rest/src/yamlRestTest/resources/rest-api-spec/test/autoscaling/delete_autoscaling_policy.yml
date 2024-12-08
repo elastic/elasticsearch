@@ -44,13 +44,13 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy_1
         body:
-          roles: []
+          roles: [ "data" ]
 
   - do:
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy_2
         body:
-          roles: []
+          roles: [ "data" ]
 
   - do:
       autoscaling.delete_autoscaling_policy:
@@ -72,13 +72,13 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy_delete
         body:
-          roles: []
+          roles: [ "data" ]
 
   - do:
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy_keep
         body:
-          roles: []
+          roles: [ "data" ]
 
   - do:
       autoscaling.delete_autoscaling_policy:

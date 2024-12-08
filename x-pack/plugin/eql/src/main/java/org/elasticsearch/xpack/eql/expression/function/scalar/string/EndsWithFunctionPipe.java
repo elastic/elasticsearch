@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -18,20 +19,17 @@ import java.util.Objects;
 public class EndsWithFunctionPipe extends Pipe {
 
     private final Pipe input, pattern;
-    private final boolean isCaseSensitive;
+    private final boolean caseInsensitive;
 
-    public EndsWithFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern, boolean isCaseSensitive) {
+    public EndsWithFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern, boolean caseInsensitive) {
         super(source, expression, Arrays.asList(input, pattern));
         this.input = input;
         this.pattern = pattern;
-        this.isCaseSensitive = isCaseSensitive;
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
 
@@ -56,7 +54,7 @@ public class EndsWithFunctionPipe extends Pipe {
     }
 
     protected EndsWithFunctionPipe replaceChildren(Pipe newInput, Pipe newPattern) {
-        return new EndsWithFunctionPipe(source(), expression(), newInput, newPattern, isCaseSensitive);
+        return new EndsWithFunctionPipe(source(), expression(), newInput, newPattern, caseInsensitive);
     }
 
     @Override
@@ -67,14 +65,14 @@ public class EndsWithFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<EndsWithFunctionPipe> info() {
-        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), input, pattern, isCaseSensitive);
+        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), input, pattern, caseInsensitive);
     }
 
     @Override
     public EndsWithFunctionProcessor asProcessor() {
-        return new EndsWithFunctionProcessor(input.asProcessor(), pattern.asProcessor(), isCaseSensitive);
+        return new EndsWithFunctionProcessor(input.asProcessor(), pattern.asProcessor(), caseInsensitive);
     }
-    
+
     public Pipe input() {
         return input;
     }
@@ -83,13 +81,13 @@ public class EndsWithFunctionPipe extends Pipe {
         return pattern;
     }
 
-    protected boolean isCaseSensitive() {
-        return isCaseSensitive;
+    protected boolean isCaseInsensitive() {
+        return caseInsensitive;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(input, pattern, isCaseSensitive);
+        return Objects.hash(input, pattern, caseInsensitive);
     }
 
     @Override
@@ -104,7 +102,7 @@ public class EndsWithFunctionPipe extends Pipe {
 
         EndsWithFunctionPipe other = (EndsWithFunctionPipe) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(pattern(), other.pattern())
-                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
+            && Objects.equals(pattern(), other.pattern())
+            && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }
 }

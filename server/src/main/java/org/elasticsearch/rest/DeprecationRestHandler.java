@@ -1,25 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.util.Objects;
@@ -28,26 +20,53 @@ import java.util.Objects;
  * {@code DeprecationRestHandler} provides a proxy for any existing {@link RestHandler} so that usage of the handler can be
  * logged using the {@link DeprecationLogger}.
  */
-public class DeprecationRestHandler implements RestHandler {
+public class DeprecationRestHandler extends FilterRestHandler implements RestHandler {
 
-    private final RestHandler handler;
+    public static final String DEPRECATED_ROUTE_KEY = "deprecated_route";
+
     private final String deprecationMessage;
     private final DeprecationLogger deprecationLogger;
+    private final boolean compatibleVersionWarning;
+    private final String deprecationKey;
+    private final Level deprecationLevel;
 
     /**
      * Create a {@link DeprecationRestHandler} that encapsulates the {@code handler} using the {@code deprecationLogger} to log
      * deprecation {@code warning}.
      *
      * @param handler The rest handler to deprecate (it's possible that the handler is reused with a different name!)
+     * @param method a method of a deprecated endpoint
+     * @param path a path of a deprecated endpoint
+     * @param deprecationLevel The level of the deprecation warning, must be non-null
+     *                         and either {@link Level#WARN} or {@link DeprecationLogger#CRITICAL}
      * @param deprecationMessage The message to warn users with when they use the {@code handler}
      * @param deprecationLogger The deprecation logger
+     * @param compatibleVersionWarning set to false so that a deprecation warning will be issued for the handled request,
+     *                                 set to true to that a compatibility api warning will be issue for the handled request
+     *
      * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
      * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
      */
-    public DeprecationRestHandler(RestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger) {
-        this.handler = Objects.requireNonNull(handler);
+    public DeprecationRestHandler(
+        RestHandler handler,
+        RestRequest.Method method,
+        String path,
+        Level deprecationLevel,
+        String deprecationMessage,
+        DeprecationLogger deprecationLogger,
+        boolean compatibleVersionWarning
+    ) {
+        super(handler);
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
+        this.compatibleVersionWarning = compatibleVersionWarning;
+        this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
+        if (deprecationLevel != Level.WARN && deprecationLevel != DeprecationLogger.CRITICAL) {
+            throw new IllegalArgumentException(
+                "unexpected deprecation logger level: " + deprecationLevel + ", expected either 'CRITICAL' or 'WARN'"
+            );
+        }
+        this.deprecationLevel = deprecationLevel;
     }
 
     /**
@@ -57,14 +76,23 @@ public class DeprecationRestHandler implements RestHandler {
      */
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        deprecationLogger.deprecate("deprecated_route", deprecationMessage);
+        if (compatibleVersionWarning == false) {
+            // emit a standard deprecation warning
+            if (Level.WARN == deprecationLevel) {
+                deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
+            } else if (DeprecationLogger.CRITICAL == deprecationLevel) {
+                deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+            }
+        } else {
+            // emit a compatibility warning
+            if (Level.WARN == deprecationLevel) {
+                deprecationLogger.compatible(Level.WARN, deprecationKey, deprecationMessage);
+            } else if (DeprecationLogger.CRITICAL == deprecationLevel) {
+                deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
+            }
+        }
 
-        handler.handleRequest(request, channel, client);
-    }
-
-    @Override
-    public boolean supportsContentStream() {
-        return handler.supportsContentStream();
+        getDelegate().handleRequest(request, channel, client);
     }
 
     /**
@@ -109,5 +137,10 @@ public class DeprecationRestHandler implements RestHandler {
         }
 
         return value;
+    }
+
+    // test only
+    Level getDeprecationLevel() {
+        return deprecationLevel;
     }
 }

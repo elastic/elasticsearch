@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -14,8 +15,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
 
 public class DateTimeParse extends BaseDateTimeParseFunction {
 
@@ -47,5 +48,5 @@ public class DateTimeParse extends BaseDateTimeParseFunction {
     protected String scriptMethodName() {
         return "dateTimeParse";
     }
-    
+
 }

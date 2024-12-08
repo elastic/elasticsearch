@@ -1,48 +1,48 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * Response containing a User retrieved from the security index
  */
-public class GetUsersResponse extends ActionResponse {
+public class GetUsersResponse extends ActionResponse implements ToXContentObject {
 
-    private User[] users;
-
-    public GetUsersResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        if (size < 0) {
-            users = null;
-        } else {
-            users = new User[size];
-            for (int i = 0; i < size; i++) {
-                users[i] = User.readFrom(in);
-            }
-        }
-    }
-
-    public GetUsersResponse(User... users) {
-        this.users = users;
-    }
+    private final User[] users;
+    @Nullable
+    private final Map<String, String> profileUidLookup;
 
     public GetUsersResponse(Collection<User> users) {
-        this(users.toArray(new User[users.size()]));
+        this(users, null);
+    }
+
+    public GetUsersResponse(Collection<User> users, @Nullable Map<String, String> profileUidLookup) {
+        this.users = users.toArray(User[]::new);
+        this.profileUidLookup = profileUidLookup;
     }
 
     public User[] users() {
         return users;
+    }
+
+    public Map<String, String> getProfileUidLookup() {
+        return profileUidLookup;
     }
 
     public boolean hasUsers() {
@@ -54,9 +54,37 @@ public class GetUsersResponse extends ActionResponse {
         out.writeVInt(users == null ? -1 : users.length);
         if (users != null) {
             for (User user : users) {
-                User.writeTo(user, out);
+                Authentication.AuthenticationSerializationHelper.writeUserTo(user, out);
+            }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            if (profileUidLookup != null) {
+                out.writeBoolean(true);
+                out.writeMap(profileUidLookup, StreamOutput::writeString);
+            } else {
+                out.writeBoolean(false);
             }
         }
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        for (User user : users) {
+            builder.field(user.principal());
+            builder.startObject();
+            {
+                user.innerToXContent(builder);
+                if (profileUidLookup != null) {
+                    final String profileUid = profileUidLookup.get(user.principal());
+                    if (profileUid != null) {
+                        builder.field("profile_uid", profileUid);
+                    }
+                }
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
 }

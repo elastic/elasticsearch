@@ -1,0 +1,150 @@
+---
+"Dynamic templates":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - location:
+                  mapping:
+                    type: geo_point
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_set_pipeline"
+        body:  >
+          {
+            "description": "Use location dynamic template for home_address and work_address",
+            "processors": [
+              {
+                "set" : {
+                  "field": "_dynamic_templates",
+                  "value": {
+                      "home_address": "location",
+                      "work_address": "location"
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_script_pipeline"
+        body: >
+          {
+            "description": "Use location dynamic template for home_address and work_address",
+            "processors": [
+              {
+                "script" : {
+                  "source": "ctx._dynamic_templates = [params.f1: params.type, params.f2: params.type]",
+                  "params": {
+                      "f1": "home_address",
+                      "f2": "work_address",
+                      "type": "location"
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              pipeline: my_set_pipeline
+          - { "home_address": [ -71.34, 41.12 ]}
+          - index:
+              _index: test_index
+              _id: id_2
+              pipeline: my_script_pipeline
+          - { "work_address": "41.12,-71.34"}
+  - match: { errors: false }
+  - match: { items.0.index.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      index:
+        index: test_index
+        id: id_3
+        body: { "home_address": [ -71.34, 41.12 ]}
+        refresh: true
+        pipeline: my_script_pipeline
+
+  - do:
+      index:
+        index: test_index
+        id: id_4
+        body: { "work_address": [ -71.34, 41.12 ]}
+        refresh: true
+        pipeline: my_set_pipeline
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              home_address:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: id_1 }
+  - match: { hits.hits.1._id: id_3 }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              work_address:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: id_2 }
+  - match: { hits.hits.1._id: id_4 }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_5
+              pipeline: my_set_pipeline
+              dynamic_templates:
+                school_address: location
+          - { "school_address": [ -71.34, 41.12 ]}
+  - match: { errors: false }
+  - match: { items.0.index.result: created }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              school_address:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: id_5 }

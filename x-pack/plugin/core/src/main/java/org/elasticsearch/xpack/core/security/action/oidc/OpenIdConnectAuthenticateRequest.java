@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -53,7 +54,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         redirectUri = in.readString();
         state = in.readString();
         nonce = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
             realm = in.readOptionalString();
         }
 
@@ -112,13 +113,12 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         out.writeString(redirectUri);
         out.writeString(state);
         out.writeString(nonce);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
             out.writeOptionalString(realm);
         }
     }
 
     public String toString() {
-        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + ", realm=" +realm+"}";
+        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + ", realm=" + realm + "}";
     }
 }
-

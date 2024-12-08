@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.common.stats;
@@ -102,8 +103,7 @@ public class EnumCounters<E extends Enum<E>> implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnumCounters<?> that = (EnumCounters<?>) o;
-        return Arrays.equals(toArray(), that.toArray()) &&
-            Arrays.equals(enums, that.enums);
+        return Arrays.equals(toArray(), that.toArray()) && Arrays.equals(enums, that.enums);
     }
 
     @Override
@@ -118,11 +118,11 @@ public class EnumCounters<E extends Enum<E>> implements Writeable {
         StringBuilder buf = new StringBuilder("[");
         boolean first = true;
         for (E e : enums) {
-            buf.append(e.name().toLowerCase(Locale.ROOT)).append(": ").append(get(e));
-            if (first) {
+            if (first == false) {
                 buf.append(", ");
-                first = false;
             }
+            first = false;
+            buf.append(e.name().toLowerCase(Locale.ROOT)).append(": ").append(get(e));
         }
         buf.append("]");
         return buf.toString();

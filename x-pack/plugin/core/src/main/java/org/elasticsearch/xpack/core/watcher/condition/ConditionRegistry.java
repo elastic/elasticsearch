@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -45,20 +46,29 @@ public class ConditionRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type == null) {
-                throw new ElasticsearchParseException("could not parse condition for watch [{}]. invalid definition. expected a field " +
-                        "indicating the condition type, but found", watchId, token);
+                throw new ElasticsearchParseException(
+                    "could not parse condition for watch [{}]. invalid definition. expected a field "
+                        + "indicating the condition type, but found",
+                    watchId,
+                    token
+                );
             } else {
                 factory = factories.get(type);
                 if (factory == null) {
-                    throw new ElasticsearchParseException("could not parse condition for watch [{}]. unknown condition type [{}]",
-                            watchId, type);
+                    throw new ElasticsearchParseException(
+                        "could not parse condition for watch [{}]. unknown condition type [{}]",
+                        watchId,
+                        type
+                    );
                 }
                 condition = factory.parse(clock, watchId, parser);
             }
         }
         if (condition == null) {
-            throw new ElasticsearchParseException("could not parse condition for watch [{}]. missing required condition type field",
-                    watchId);
+            throw new ElasticsearchParseException(
+                "could not parse condition for watch [{}]. missing required condition type field",
+                watchId
+            );
         }
         return condition;
     }

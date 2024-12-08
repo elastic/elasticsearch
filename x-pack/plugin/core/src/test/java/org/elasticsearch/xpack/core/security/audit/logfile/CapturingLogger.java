@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.audit.logfile;
 
@@ -16,8 +17,8 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,23 +108,12 @@ public class CapturingLogger {
             switch (event.getLevel().toString()) {
                 // we can not keep a reference to the event here because Log4j is using a thread
                 // local instance under the hood
-                case "ERROR":
-                    error.add(formatMessage(event));
-                    break;
-                case "WARN":
-                    warn.add(formatMessage(event));
-                    break;
-                case "INFO":
-                    info.add(formatMessage(event));
-                    break;
-                case "DEBUG":
-                    debug.add(formatMessage(event));
-                    break;
-                case "TRACE":
-                    trace.add(formatMessage(event));
-                    break;
-                default:
-                    throw invalidLevelException(event.getLevel());
+                case "ERROR" -> error.add(formatMessage(event));
+                case "WARN" -> warn.add(formatMessage(event));
+                case "INFO" -> info.add(formatMessage(event));
+                case "DEBUG" -> debug.add(formatMessage(event));
+                case "TRACE" -> trace.add(formatMessage(event));
+                default -> throw invalidLevelException(event.getLevel());
             }
         }
 
@@ -145,20 +135,14 @@ public class CapturingLogger {
         }
 
         public List<String> output(Level level) {
-            switch (level.toString()) {
-                case "ERROR":
-                    return error;
-                case "WARN":
-                    return warn;
-                case "INFO":
-                    return info;
-                case "DEBUG":
-                    return debug;
-                case "TRACE":
-                    return trace;
-                default:
-                    throw invalidLevelException(level);
-            }
+            return switch (level.toString()) {
+                case "ERROR" -> error;
+                case "WARN" -> warn;
+                case "INFO" -> info;
+                case "DEBUG" -> debug;
+                case "TRACE" -> trace;
+                default -> throw invalidLevelException(level);
+            };
         }
     }
 

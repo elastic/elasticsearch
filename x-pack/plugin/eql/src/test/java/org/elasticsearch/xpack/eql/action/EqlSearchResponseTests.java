@@ -1,29 +1,58 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.eql.AbstractBWCWireSerializingTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearchResponse> {
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+
+public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
+
+    public void testFromXContent() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values()).canonical();
+        EqlSearchResponse response = randomEqlSearchResponse(xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        EqlSearchResponse parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parsed = EqlSearchResponse.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    }
 
     private static class RandomSource implements ToXContentObject {
 
@@ -76,8 +105,20 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
-                hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes));
+                if (randomBoolean()) {
+                    hits.add(Event.MISSING_EVENT);
+                } else {
+                    BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
+                    Map<String, DocumentField> fetchFields = new HashMap<>();
+                    int fieldsCount = randomIntBetween(0, 5);
+                    for (int j = 0; j < fieldsCount; j++) {
+                        fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                    }
+                    if (fetchFields.isEmpty() && randomBoolean()) {
+                        fetchFields = null;
+                    }
+                    hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields, false));
+                }
             }
         }
         if (randomBoolean()) {
@@ -86,14 +127,48 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         return null;
     }
 
-    @Override
-    protected EqlSearchResponse createXContextTestInstance(XContentType xContentType) {
-        return randomEqlSearchResponse(xContentType);
+    private static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xType) {
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                String fieldName = randomAlphaOfLengthBetween(3, 10);
+                Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xType);
+                DocumentField input = new DocumentField(fieldName, tuple.v1());
+                DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                return Tuple.tuple(input, expected);
+            }
+            case 1 -> {
+                List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                return Tuple.tuple(listField, listField);
+            }
+            case 2 -> {
+                List<Object> objectValues = randomList(
+                    1,
+                    5,
+                    () -> Map.of(
+                        randomAlphaOfLength(5),
+                        randomInt(),
+                        randomAlphaOfLength(6),
+                        randomBoolean(),
+                        randomAlphaOfLength(7),
+                        randomAlphaOfLength(10)
+                    )
+                );
+                DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                return Tuple.tuple(objectField, objectField);
+            }
+            default -> throw new IllegalStateException();
+        }
     }
 
     @Override
     protected EqlSearchResponse createTestInstance() {
         return randomEqlSearchResponse(XContentType.JSON);
+    }
+
+    @Override
+    protected EqlSearchResponse mutateInstance(EqlSearchResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -117,8 +192,14 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
         } else {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+            return new EqlSearchResponse(
+                hits,
+                randomIntBetween(0, 1001),
+                randomBoolean(),
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomBoolean()
+            );
         }
     }
 
@@ -143,35 +224,86 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
         } else {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+            return new EqlSearchResponse(
+                hits,
+                randomIntBetween(0, 1001),
+                randomBoolean(),
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomBoolean()
+            );
         }
     }
 
     private static List<Supplier<Object[]>> getKeysGenerators() {
         List<Supplier<Object[]>> randoms = new ArrayList<>();
         randoms.add(() -> generateRandomStringArray(6, 11, false));
-        randoms.add(() -> randomArray(0, 6, Integer[]::new, ()-> randomInt()));
-        randoms.add(() -> randomArray(0, 6, Long[]::new, ()-> randomLong()));
-        randoms.add(() -> randomArray(0, 6, Boolean[]::new, ()-> randomBoolean()));
+        randoms.add(() -> randomArray(0, 6, Integer[]::new, () -> randomInt()));
+        randoms.add(() -> randomArray(0, 6, Long[]::new, () -> randomLong()));
+        randoms.add(() -> randomArray(0, 6, Boolean[]::new, () -> randomBoolean()));
 
         return randoms;
     }
 
     public static EqlSearchResponse createRandomInstance(TotalHits totalHits, XContentType xType) {
         int type = between(0, 1);
-        switch(type) {
-            case 0:
-                return createRandomEventsResponse(totalHits, xType);
-            case 1:
-                return createRandomSequencesResponse(totalHits, xType);
-            default:
-                return null;
-        }
+        return switch (type) {
+            case 0 -> createRandomEventsResponse(totalHits, xType);
+            case 1 -> createRandomSequencesResponse(totalHits, xType);
+            default -> null;
+        };
     }
 
     @Override
-    protected EqlSearchResponse doParseInstance(XContentParser parser) {
-        return EqlSearchResponse.fromXContent(parser);
+    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, TransportVersion version) {
+        List<Event> mutatedEvents = mutateEvents(instance.hits().events(), version);
+
+        List<Sequence> sequences = instance.hits().sequences();
+        List<Sequence> mutatedSequences = null;
+        if (sequences != null) {
+            mutatedSequences = new ArrayList<>(sequences.size());
+            for (Sequence s : sequences) {
+                mutatedSequences.add(new Sequence(s.joinKeys(), mutateEvents(s.events(), version)));
+            }
+        }
+
+        return new EqlSearchResponse(
+            new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
+            instance.took(),
+            instance.isTimeout(),
+            instance.id(),
+            instance.isRunning(),
+            instance.isPartial()
+        );
+    }
+
+    private List<Event> mutateEvents(List<Event> original, TransportVersion version) {
+        if (original == null || original.isEmpty()) {
+            return original;
+        }
+        List<Event> mutatedEvents = new ArrayList<>(original.size());
+        for (Event e : original) {
+            mutatedEvents.add(
+                new Event(
+                    e.index(),
+                    e.id(),
+                    e.source(),
+                    version.onOrAfter(TransportVersions.V_7_13_0) ? e.fetchFields() : null,
+                    version.onOrAfter(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
+                )
+            );
+        }
+        return mutatedEvents;
+    }
+
+    public void testEmptyIndexAsMissingEvent() throws IOException {
+        Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, false);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersions.V_8_9_X);// 8.9.1
+        event.writeTo(out);
+        ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().array());
+        in.setTransportVersion(TransportVersions.V_8_9_X);
+        Event event2 = Event.readFrom(in);
+        assertTrue(event2.missing());
     }
 }

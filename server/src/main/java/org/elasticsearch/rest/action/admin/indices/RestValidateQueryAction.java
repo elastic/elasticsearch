@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -23,16 +13,19 @@ import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +34,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestValidateQueryAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestValidateQueryAction.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in validate query requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -49,7 +45,8 @@ public class RestValidateQueryAction extends BaseRestHandler {
             new Route(GET, "/_validate/query"),
             new Route(POST, "/_validate/query"),
             new Route(GET, "/{index}/_validate/query"),
-            new Route(POST, "/{index}/_validate/query"));
+            new Route(POST, "/{index}/_validate/query")
+        );
     }
 
     @Override
@@ -92,17 +89,18 @@ public class RestValidateQueryAction extends BaseRestHandler {
         };
     }
 
-    private void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel) throws IOException {
+    private static void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel)
+        throws IOException {
         channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, request.explain()));
     }
 
-    private static BytesRestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {
+    private static RestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {
         builder.startObject();
         builder.field(ValidateQueryResponse.VALID_FIELD, false);
         if (explain) {
             builder.field(QueryExplanation.ERROR_FIELD, error);
         }
         builder.endObject();
-        return new BytesRestResponse(OK, builder);
+        return new RestResponse(OK, builder);
     }
 }

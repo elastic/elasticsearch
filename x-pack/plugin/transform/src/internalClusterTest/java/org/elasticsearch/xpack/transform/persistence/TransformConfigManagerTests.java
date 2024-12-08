@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -13,10 +15,27 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -29,26 +48,43 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.transform.persistence.TransformConfigManager.TO_XCONTENT_PARAMS;
 import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
     private IndexBasedTransformConfigManager transformConfigManager;
+    private ClusterService clusterService;
 
     @Before
     public void createComponents() {
-        transformConfigManager = new IndexBasedTransformConfigManager(client(), xContentRegistry());
+        clusterService = mock(ClusterService.class);
+        transformConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            xContentRegistry()
+        );
     }
 
     public void testGetMissingTransform() throws InterruptedException {
@@ -153,7 +189,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     public void testCreateReadDeleteCheckPoint() throws InterruptedException {
-        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoints();
+        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoint();
 
         // create
         assertAsync(listener -> transformConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
@@ -199,8 +235,14 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds(transformConfig1.getId(), PageParams.defaultParams(), true, listener),
-            new Tuple<>(1L, Collections.singletonList("transform1_expand")),
+            listener -> transformConfigManager.expandTransformIds(
+                transformConfig1.getId(),
+                PageParams.defaultParams(),
+                null,
+                true,
+                listener
+            ),
+            tuple(1L, tuple(singletonList("transform1_expand"), singletonList(transformConfig1))),
             null,
             null
         );
@@ -210,10 +252,11 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1_expand,transform2_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
-            new Tuple<>(2L, Arrays.asList("transform1_expand", "transform2_expand")),
+            tuple(2L, tuple(Arrays.asList("transform1_expand", "transform2_expand"), Arrays.asList(transformConfig1, transformConfig2))),
             null,
             null
         );
@@ -223,42 +266,55 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1*,transform2_expand,transform3_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
-            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
+            tuple(
+                3L,
+                tuple(
+                    Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+                    Arrays.asList(transformConfig1, transformConfig2, transformConfig3)
+                )
+            ),
             null,
             null
         );
 
         // expand 3 ids _all
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", PageParams.defaultParams(), true, listener),
-            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
+            listener -> transformConfigManager.expandTransformIds("_all", PageParams.defaultParams(), null, true, listener),
+            tuple(
+                3L,
+                tuple(
+                    Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+                    Arrays.asList(transformConfig1, transformConfig2, transformConfig3)
+                )
+            ),
             null,
             null
         );
 
         // expand 1 id _all with pagination
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(0, 1), true, listener),
-            new Tuple<>(3L, Collections.singletonList("transform1_expand")),
+            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(0, 1), null, true, listener),
+            tuple(3L, tuple(singletonList("transform1_expand"), singletonList(transformConfig1))),
             null,
             null
         );
 
         // expand 2 later ids _all with pagination
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(1, 2), true, listener),
-            new Tuple<>(3L, Arrays.asList("transform2_expand", "transform3_expand")),
+            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(1, 2), null, true, listener),
+            tuple(3L, tuple(Arrays.asList("transform2_expand", "transform3_expand"), Arrays.asList(transformConfig2, transformConfig3))),
             null,
             null
         );
 
         // expand 1 id explicitly that does not exist
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("unknown,unknown2", new PageParams(1, 2), true, listener),
-            (Tuple<Long, List<String>>) null,
+            listener -> transformConfigManager.expandTransformIds("unknown,unknown2", new PageParams(1, 2), null, true, listener),
+            (Tuple<Long, Tuple<List<String>, List<TransformConfig>>>) null,
             null,
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
@@ -271,8 +327,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id implicitly that does not exist
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("unknown*", new PageParams(1, 2), false, listener),
-            (Tuple<Long, List<String>>) null,
+            listener -> transformConfigManager.expandTransformIds("unknown*", new PageParams(1, 2), null, false, listener),
+            (Tuple<Long, Tuple<List<String>, List<TransformConfig>>>) null,
             null,
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
@@ -280,6 +336,132 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             }
         );
 
+        // add a duplicate in an old index
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
+        String docId = TransformConfig.documentId(transformConfig2.getId());
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformConfig2.getId());
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest request = new IndexRequest(oldIndex).source(source)
+                .id(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(request).actionGet();
+        }
+
+        // check that transformConfig2 gets returned, not the one from the old index or both
+        assertAsync(
+            listener -> transformConfigManager.expandTransformIds(
+                "transform1_expand,transform2_expand",
+                PageParams.defaultParams(),
+                null,
+                true,
+                listener
+            ),
+            tuple(2L, tuple(Arrays.asList("transform1_expand", "transform2_expand"), Arrays.asList(transformConfig1, transformConfig2))),
+            null,
+            null
+        );
+
+    }
+
+    public void testGetAllTransformIdsAndGetAllOutdatedTransformIds() throws Exception {
+        long numberOfTransformsToGenerate = 100L;
+        Set<String> transformIds = new HashSet<>();
+
+        for (long i = 0; i < numberOfTransformsToGenerate; ++i) {
+            String id = "transform_" + i;
+            transformIds.add(id);
+            TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(id);
+            assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
+        }
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
+
+        // test recursive retrieval
+        assertAsync(
+            listener -> transformConfigManager.expandAllTransformIds(false, 10, null, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), transformIds),
+            null,
+            null
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
+            null,
+            null
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, null, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
+            null,
+            null
+        );
+
+        // add a duplicate in an old index
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
+        String transformId = "transform_42";
+        String docId = TransformConfig.documentId(transformId);
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest request = new IndexRequest(oldIndex).source(source)
+                .id(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(request).actionGet();
+        }
+
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
+        assertAsync(
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
+            null,
+            null
+        );
+
+        // add another old one, but not with an existing id
+        final String oldTransformId = "transform_oldindex";
+        docId = TransformConfig.documentId(oldTransformId);
+        transformConfig = TransformConfigTests.randomTransformConfig(oldTransformId);
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest request = new IndexRequest(oldIndex).source(source)
+                .id(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(request).actionGet();
+        }
+
+        // add a new checkpoint doc for the old transform to check id expansion ignores other documents, see gh#80073
+        assertAsync(
+            listener -> transformConfigManager.putTransformCheckpoint(
+                TransformCheckpointTests.randomTransformCheckpoint(oldTransformId),
+                listener
+            ),
+            true,
+            null,
+            null
+        );
+
+        transformIds.add(oldTransformId);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
+        assertAsync(
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
+            null,
+            null
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, null, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
+            null,
+            null
+        );
     }
 
     public void testStoredDoc() throws InterruptedException {
@@ -290,8 +472,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener), firstIndex, null, null);
         assertAsync(
-            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
-            Tuple.tuple(storedDocs, firstIndex),
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
+            tuple(storedDocs, firstIndex),
             null,
             null
         );
@@ -305,8 +487,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null
         );
         assertAsync(
-            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
-            Tuple.tuple(updated, secondIndex),
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
+            tuple(updated, secondIndex),
             null,
             null
         );
@@ -315,10 +497,17 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
             (SeqNoPrimaryTermAndIndex) null,
             r -> fail("did not fail with version conflict."),
-            e -> assertThat(
-                e.getMessage(),
-                equalTo("Failed to persist transform statistics for transform [transform_test_stored_doc_create_read_update]")
-            )
+            e -> {
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Failed to persist transform statistics for transform [transform_test_stored_doc_create_read_update]")
+                );
+                assertThat(
+                    "Consumers utilize ExceptionsHelper to check if there was a Version Conflict",
+                    ExceptionsHelper.unwrapCause(e),
+                    instanceOf(VersionConflictEngineException.class)
+                );
+            }
         );
     }
 
@@ -340,18 +529,15 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // returned docs will be ordered by id
         expectedDocs.sort(Comparator.comparing(TransformStoredDoc::getId));
-        assertAsync(listener -> transformConfigManager.getTransformStoredDocs(ids, listener), expectedDocs, null, null);
+        assertAsync(listener -> transformConfigManager.getTransformStoredDocs(ids, null, listener), expectedDocs, null, null);
     }
 
     public void testDeleteOldTransformConfigurations() throws Exception {
-        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "1";
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
         String transformId = "transform_test_delete_old_configurations";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig("transform_test_delete_old_configurations");
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -371,7 +557,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformConfigurations(transformId, listener), true, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
         assertThat(
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
@@ -380,14 +566,11 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     public void testDeleteOldTransformStoredDocuments() throws Exception {
-        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "1";
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
         String transformId = "transform_test_delete_old_stored_documents";
         String docId = TransformStoredDoc.documentId(transformId);
         TransformStoredDoc transformStoredDoc = TransformStoredDocTests.randomTransformStoredDoc(transformId);
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(mappings()))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformStoredDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -407,7 +590,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null
         );
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
         assertThat(
@@ -415,9 +598,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             is(true)
         );
 
-        assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), true, null, null);
+        assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), 1L, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
         assertThat(
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
@@ -443,7 +626,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
                 transformId,
                 timestamp + i * 200,
                 i,
-                Collections.emptyMap(),
+                emptyMap(),
                 timestamp - 100 + i * 200
             );
             assertAsync(listener -> transformConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
@@ -455,7 +638,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             transformId,
             timestamp + randomCheckpoint * 200,
             randomCheckpoint,
-            Collections.emptyMap(),
+            emptyMap(),
             timestamp - 100 + randomCheckpoint * 200
         );
 
@@ -500,8 +683,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // test that the other docs are still there
         assertAsync(
-            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
-            Tuple.tuple(storedDocs, firstIndex),
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
+            tuple(storedDocs, firstIndex),
             null,
             null
         );
@@ -512,6 +695,98 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null,
             null
         );
+    }
 
+    public void testDeleteOldIndices() throws Exception {
+        String oldIndex = (randomBoolean()
+            ? TransformInternalIndexConstants.INDEX_PATTERN
+            : TransformInternalIndexConstants.INDEX_PATTERN_DEPRECATED) + "001";
+        String transformId = "transform_test_delete_old_indices";
+        String docId = TransformConfig.documentId(transformId);
+        TransformConfig transformConfigOld = TransformConfigTests.randomTransformConfig(transformId);
+        TransformConfig transformConfigNew = TransformConfigTests.randomTransformConfig(transformId);
+
+        // create config in old index
+        indicesAdmin().create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfigOld.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest request = new IndexRequest(oldIndex).source(source)
+                .id(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(request).actionGet();
+        }
+
+        // create config in new index
+        assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfigNew, listener), true, null, null);
+
+        assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
+        assertThat(
+            client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+            is(true)
+        );
+
+        // the new/latest one should be returned
+        assertAsync(listener -> transformConfigManager.getTransformConfiguration(transformId, listener), transformConfigNew, null, null);
+
+        // delete old indices
+        when(clusterService.state()).thenReturn(
+            createClusterStateWithTransformIndex(oldIndex, TransformInternalIndexConstants.LATEST_INDEX_NAME)
+        );
+
+        assertAsync(listener -> transformConfigManager.deleteOldIndices(listener), true, null, null);
+
+        // the config should still be there
+        assertAsync(listener -> transformConfigManager.getTransformConfiguration(transformId, listener), transformConfigNew, null, null);
+
+        // the old index should not exist anymore
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false))
+        );
+
+        // but the latest one should
+        assertThat(
+            client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+            is(true)
+        );
+    }
+
+    private static ClusterState createClusterStateWithTransformIndex(String... indexes) throws IOException {
+        Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
+        Metadata.Builder metaBuilder = Metadata.builder();
+        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        for (String index : indexes) {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder(index).settings(
+                Settings.builder()
+                    .put(TransformInternalIndex.settings(Settings.EMPTY))
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                    .build()
+            ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
+            final var indexMetadata = builder.build();
+            indexMapBuilder.put(index, indexMetadata);
+
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(indexMetadata.getIndex())
+                    .addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(indexMetadata.getIndex(), 0),
+                            "node_a",
+                            null,
+                            true,
+                            ShardRoutingState.STARTED
+                        )
+                    )
+                    .build()
+            );
+
+        }
+        csBuilder.routingTable(routingTableBuilder.build());
+        metaBuilder.indices(indexMapBuilder);
+        csBuilder.metadata(metaBuilder.build());
+
+        return csBuilder.build();
     }
 }

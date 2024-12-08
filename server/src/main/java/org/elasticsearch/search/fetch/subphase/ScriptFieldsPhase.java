@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase;
 
@@ -25,18 +15,19 @@ import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public final class ScriptFieldsPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.scriptFields() == null) {
+        if (context.scriptFields() == null || context.scriptFields().fields().isEmpty()) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
@@ -47,6 +38,15 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 leafScripts = createLeafScripts(readerContext, scriptFields);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                // If script fields need source then they will load it via SearchLookup,
+                // which has its own lazy loading config that kicks in if not overridden
+                // by other sub phases that require source. However, if script fields
+                // are present then we enforce metadata loading
+                return new StoredFieldsSpec(false, true, Set.of());
             }
 
             @Override
@@ -82,8 +82,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
         };
     }
 
-    private FieldScript[] createLeafScripts(LeafReaderContext context,
-                                            List<ScriptFieldsContext.ScriptField> scriptFields) {
+    private static FieldScript[] createLeafScripts(LeafReaderContext context, List<ScriptFieldsContext.ScriptField> scriptFields) {
         FieldScript[] scripts = new FieldScript[scriptFields.size()];
         for (int i = 0; i < scripts.length; i++) {
             try {

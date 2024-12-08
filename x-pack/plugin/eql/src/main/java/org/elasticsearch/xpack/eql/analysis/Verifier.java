@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
+import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
@@ -15,9 +17,9 @@ import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -26,10 +28,8 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_F
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -63,11 +64,6 @@ public class Verifier {
 
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
-    }
-
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     Collection<Failure> verify(LogicalPlan plan) {
@@ -86,10 +82,10 @@ public class Verifier {
 
             Set<Failure> localFailures = new LinkedHashSet<>();
 
-            if (p instanceof Unresolvable) {
-                localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
+            if (p instanceof Unresolvable unresolvable) {
+                localFailures.add(fail(p, unresolvable.unresolvedMessage()));
             } else {
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;
@@ -102,8 +98,7 @@ public class Verifier {
                         }
                         if (ae instanceof Unresolvable) {
                             // handle Attributes differently to provide more context
-                            if (ae instanceof UnresolvedAttribute) {
-                                UnresolvedAttribute ua = (UnresolvedAttribute) ae;
+                            if (ae instanceof UnresolvedAttribute ua) {
                                 // only work out the synonyms for raw unresolved attributes
                                 if (ua.customMessage() == false) {
                                     boolean useQualifier = ua.qualifier() != null;
@@ -143,17 +138,24 @@ public class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
+            Set<Failure> localFailures = new LinkedHashSet<>();
 
             plan.forEachDown(p -> {
-                Set<Failure> localFailures = new LinkedHashSet<>();
-                failures.addAll(localFailures);
+                // if the children are unresolved, so will this node; counting it will only add noise
+                if (p.childrenResolved() == false) {
+                    return;
+                }
 
+                checkFilterConditionType(p, localFailures);
+                checkJoinKeyTypes(p, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
                     p.setAnalyzed();
                 }
             });
+
+            failures.addAll(localFailures);
         }
 
         // gather metrics
@@ -165,26 +167,20 @@ public class Verifier {
                     b.set(PIPE_HEAD.ordinal());
                 } else if (p instanceof Tail) {
                     b.set(PIPE_TAIL.ordinal());
-                } else if (p instanceof Join) {
-                    Join j = (Join) p;
+                } else if (p instanceof Join j) {
 
-                    if (p instanceof Sequence) {
+                    if (p instanceof Sequence s) {
                         b.set(SEQUENCE.ordinal());
-                        Sequence s = (Sequence) p;
                         if (s.maxSpan().duration() > 0) {
                             b.set(SEQUENCE_MAXSPAN.ordinal());
                         }
-                        
+
                         int queriesCount = s.queries().size();
                         switch (queriesCount) {
-                            case 2:  b.set(SEQUENCE_QUERIES_TWO.ordinal());
-                                     break;
-                            case 3:  b.set(SEQUENCE_QUERIES_THREE.ordinal());
-                                     break;
-                            case 4:  b.set(SEQUENCE_QUERIES_FOUR.ordinal());
-                                     break;
-                            default: b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
-                                     break;
+                            case 2 -> b.set(SEQUENCE_QUERIES_TWO.ordinal());
+                            case 3 -> b.set(SEQUENCE_QUERIES_THREE.ordinal());
+                            case 4 -> b.set(SEQUENCE_QUERIES_FOUR.ordinal());
+                            default -> b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
                         }
                         if (j.until().keys().isEmpty() == false) {
                             b.set(SEQUENCE_UNTIL.ordinal());
@@ -193,14 +189,10 @@ public class Verifier {
                         b.set(FeatureMetric.JOIN.ordinal());
                         int queriesCount = j.queries().size();
                         switch (queriesCount) {
-                            case 2:  b.set(JOIN_QUERIES_TWO.ordinal());
-                                     break;
-                            case 3:  b.set(JOIN_QUERIES_THREE.ordinal());
-                                     break;
-                            case 4:  b.set(JOIN_QUERIES_FOUR.ordinal());
-                                     break;
-                            default: b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
-                                     break;
+                            case 2 -> b.set(JOIN_QUERIES_TWO.ordinal());
+                            case 3 -> b.set(JOIN_QUERIES_THREE.ordinal());
+                            case 4 -> b.set(JOIN_QUERIES_FOUR.ordinal());
+                            default -> b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
                         }
                         if (j.until().keys().isEmpty() == false) {
                             b.set(JOIN_UNTIL.ordinal());
@@ -209,18 +201,23 @@ public class Verifier {
 
                     int joinKeysCount = j.queries().get(0).keys().size();
                     switch (joinKeysCount) {
-                        case 1:  b.set(JOIN_KEYS_ONE.ordinal());
-                                 break;
-                        case 2:  b.set(JOIN_KEYS_TWO.ordinal());
-                                 break;
-                        case 3:  b.set(JOIN_KEYS_THREE.ordinal());
-                                 break;
-                        case 4:  b.set(JOIN_KEYS_FOUR.ordinal());
-                                 break;
-                        default: if (joinKeysCount >= 5) {
-                                     b.set(JOIN_KEYS_FIVE_OR_MORE.ordinal());
-                                 }
-                                 break;
+                        case 1:
+                            b.set(JOIN_KEYS_ONE.ordinal());
+                            break;
+                        case 2:
+                            b.set(JOIN_KEYS_TWO.ordinal());
+                            break;
+                        case 3:
+                            b.set(JOIN_KEYS_THREE.ordinal());
+                            break;
+                        case 4:
+                            b.set(JOIN_KEYS_FOUR.ordinal());
+                            break;
+                        default:
+                            if (joinKeysCount >= 5) {
+                                b.set(JOIN_KEYS_FIVE_OR_MORE.ordinal());
+                            }
+                            break;
                     }
                 }
             });
@@ -235,5 +232,41 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
+        if (plan instanceof Join join) {
+            List<KeyedFilter> queries = join.queries();
+            KeyedFilter until = join.until();
+            // pick first query and iterate its keys
+            KeyedFilter first = queries.get(0);
+            List<? extends NamedExpression> keys = first.keys();
+            for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
+                NamedExpression currentKey = keys.get(keyIndex);
+                for (int i = 1; i < queries.size(); i++) {
+                    KeyedFilter filter = queries.get(i);
+                    doCheckKeyTypes(join, localFailures, currentKey, filter.keys().get(keyIndex));
+                    if (until.keys().isEmpty() == false) {
+                        doCheckKeyTypes(join, localFailures, currentKey, until.keys().get(keyIndex));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void doCheckKeyTypes(Join join, Set<Failure> localFailures, NamedExpression expectedKey, NamedExpression currentKey) {
+        if (DataTypes.areCompatible(expectedKey.dataType(), currentKey.dataType()) == false) {
+            localFailures.add(
+                fail(
+                    currentKey,
+                    "{} key [{}] type [{}] is incompatible with key [{}] type [{}]",
+                    join.nodeName(),
+                    currentKey.name(),
+                    currentKey.dataType().esType(),
+                    expectedKey.name(),
+                    expectedKey.dataType().esType()
+                )
+            );
+        }
     }
 }

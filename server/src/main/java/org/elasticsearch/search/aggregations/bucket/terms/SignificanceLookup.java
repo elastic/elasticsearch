@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -26,16 +16,17 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -43,6 +34,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 
@@ -71,19 +63,42 @@ class SignificanceLookup {
     private final int supersetNumDocs;
     private TermsEnum termsEnum;
 
-    SignificanceLookup(AggregationContext context, MappedFieldType fieldType, DocValueFormat format, QueryBuilder backgroundFilter)
-        throws IOException {
+    SignificanceLookup(
+        AggregationContext context,
+        SamplingContext samplingContext,
+        MappedFieldType fieldType,
+        DocValueFormat format,
+        QueryBuilder backgroundFilter
+    ) throws IOException {
         this.context = context;
         this.fieldType = fieldType;
         this.format = format;
-        this.backgroundFilter = backgroundFilter == null ? null : context.buildQuery(backgroundFilter);
+        // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
+        // context into account.
+        // If there is a filter, that filter needs to take the sampling into account (if we are within a sampling context)
+        Query backgroundQuery = backgroundFilter == null
+            ? samplingContext.buildSamplingQueryIfNecessary(context).orElse(null)
+            : samplingContext.buildQueryWithSampler(backgroundFilter, context);
+        // Refilter to account for alias filters, if there are any.
+        if (backgroundQuery == null) {
+            Query matchAllDocsQuery = new MatchAllDocsQuery();
+            Query contextFiltered = context.filterQuery(matchAllDocsQuery);
+            if (contextFiltered != matchAllDocsQuery) {
+                this.backgroundFilter = contextFiltered;
+            } else {
+                this.backgroundFilter = null;
+            }
+        } else {
+            Query contextFiltered = context.filterQuery(backgroundQuery);
+            this.backgroundFilter = contextFiltered;
+        }
         /*
          * We need to use a superset size that includes deleted docs or we
          * could end up blowing up with bad statistics that cause us to blow
          * up later on.
          */
         IndexSearcher searcher = context.searcher();
-        supersetNumDocs = backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
+        supersetNumDocs = this.backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
     }
 
     /**
@@ -108,27 +123,37 @@ class SignificanceLookup {
                 public void close() {}
             };
         }
-        return new BackgroundFrequencyForBytes() {
-            private final BytesRefHash termToPosition = new BytesRefHash(1, bigArrays);
-            private LongArray positionToFreq = bigArrays.newLongArray(1, false);
+        final BytesRefHash termToPosition = new BytesRefHash(1, bigArrays);
+        boolean success = false;
+        try {
+            BackgroundFrequencyForBytes b = new BackgroundFrequencyForBytes() {
+                private LongArray positionToFreq = bigArrays.newLongArray(1, false);
 
-            @Override
-            public long freq(BytesRef term) throws IOException {
-                long position = termToPosition.add(term);
-                if (position < 0) {
-                    return positionToFreq.get(-1 - position);
+                @Override
+                public long freq(BytesRef term) throws IOException {
+                    long position = termToPosition.add(term);
+                    if (position < 0) {
+                        return positionToFreq.get(-1 - position);
+                    }
+                    long freq = getBackgroundFrequency(term);
+                    positionToFreq = bigArrays.grow(positionToFreq, position + 1);
+                    positionToFreq.set(position, freq);
+                    return freq;
                 }
-                long freq = getBackgroundFrequency(term);
-                positionToFreq = bigArrays.grow(positionToFreq, position + 1);
-                positionToFreq.set(position, freq);
-                return freq;
-            }
 
-            @Override
-            public void close() {
-                Releasables.close(termToPosition, positionToFreq);
+                @Override
+                public void close() {
+                    Releasables.close(termToPosition, positionToFreq);
+                }
+            };
+            success = true;
+            return b;
+        } finally {
+            if (success == false) {
+                termToPosition.close();
             }
-        };
+        }
+
     }
 
     /**
@@ -153,27 +178,37 @@ class SignificanceLookup {
                 public void close() {}
             };
         }
-        return new BackgroundFrequencyForLong() {
-            private final LongHash termToPosition = new LongHash(1, bigArrays);
-            private LongArray positionToFreq = bigArrays.newLongArray(1, false);
+        final LongHash termToPosition = new LongHash(1, bigArrays);
+        boolean success = false;
+        try {
+            BackgroundFrequencyForLong b = new BackgroundFrequencyForLong() {
 
-            @Override
-            public long freq(long term) throws IOException {
-                long position = termToPosition.add(term);
-                if (position < 0) {
-                    return positionToFreq.get(-1 - position);
+                private LongArray positionToFreq = bigArrays.newLongArray(1, false);
+
+                @Override
+                public long freq(long term) throws IOException {
+                    long position = termToPosition.add(term);
+                    if (position < 0) {
+                        return positionToFreq.get(-1 - position);
+                    }
+                    long freq = getBackgroundFrequency(term);
+                    positionToFreq = bigArrays.grow(positionToFreq, position + 1);
+                    positionToFreq.set(position, freq);
+                    return freq;
                 }
-                long freq = getBackgroundFrequency(term);
-                positionToFreq = bigArrays.grow(positionToFreq, position + 1);
-                positionToFreq.set(position, freq);
-                return freq;
-            }
 
-            @Override
-            public void close() {
-                Releasables.close(termToPosition, positionToFreq);
+                @Override
+                public void close() {
+                    Releasables.close(termToPosition, positionToFreq);
+                }
+            };
+            success = true;
+            return b;
+        } finally {
+            if (success == false) {
+                termToPosition.close();
             }
-        };
+        }
     }
 
     /**
@@ -184,11 +219,12 @@ class SignificanceLookup {
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
+        // Note that `getTermsEnum` takes into account the backgroundFilter, with already has the sampling query applied
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a terms
             // enum that will do a better job at reusing index inputs
             Term term = ((TermQuery) query).getTerm();
-            TermsEnum termsEnum = getTermsEnum(term.field());
+            TermsEnum termsEnum = getTermsEnum();
             if (termsEnum.seekExact(term.bytes())) {
                 return termsEnum.docFreq();
             }
@@ -198,10 +234,11 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        return context.searcher().count(query);
+        // use a brand new index searcher as we want to run this query on the current thread
+        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
     }
 
-    private TermsEnum getTermsEnum(String field) throws IOException {
+    private TermsEnum getTermsEnum() throws IOException {
         // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;

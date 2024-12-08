@@ -1,9 +1,0 @@
----
-"Test get SSL certificates":
-  - do:
-          ssl.certificates: {}
-
-  - length: { $body: 1 }
-  - match: { $body.0.path: "testnode.crt" }
-  - match: { $body.0.format: "PEM" }
-  - match: { $body.0.has_private_key: true }

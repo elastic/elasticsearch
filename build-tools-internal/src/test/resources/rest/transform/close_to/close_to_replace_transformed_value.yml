@@ -1,0 +1,26 @@
+---
+close_to test:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: {hits.total.value: 4}
+  - length: {aggregations.tsids.buckets: 2}
+  - match: {aggregations.tsids.buckets.0.key: "KDODRmbj7vu4rLWvjrJbpUuaET_vOYoRw6ImzKEcF4sEaGKnXSaKfM0" }
+  - match: {aggregations.tsids.buckets.0.doc_count: 2 }
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 99.99, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.1.key: "KDODRmbj7vu4rLWvjrJbpUvcUWJEddqA4Seo8jbBBBFxwC0lrefCb6A" }
+  - match: {aggregations.tsids.buckets.1.doc_count: 2 }
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.30, error: 0.01 }}

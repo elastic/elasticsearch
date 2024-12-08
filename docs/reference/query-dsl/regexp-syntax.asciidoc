@@ -37,7 +37,38 @@ backslash or surround it with double quotes. For example:
 \\                  # renders as a literal '\'
 "john@smith.com"    # renders as 'john@smith.com'
 ....
-    
+
+[NOTE]
+====
+
+The backslash is an escape character in both JSON strings and regular
+expressions. You need to escape both backslashes in a query, unless you use a
+language client, which takes care of this. For example, the string `a\b` needs
+to be indexed as `"a\\b"`:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001/_doc/1
+{
+  "my_field": "a\\b"
+}
+--------------------------------------------------
+
+This document matches the following `regexp` query:
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "regexp": {
+      "my_field.keyword": "a\\\\.*"
+    }
+  }
+}
+--------------------------------------------------
+//TEST[continued]
+====
 
 [discrete]
 [[regexp-standard-operators]]
@@ -168,6 +199,9 @@ of `COMPLEMENT|INTERVAL` enables the `COMPLEMENT` and `INTERVAL` operators.
 `ALL` (Default)::
 Enables all optional operators.
 
+`""` (empty string)::
+Alias for the `ALL` value.
+
 `COMPLEMENT`::
 +
 --
@@ -176,6 +210,21 @@ pattern. For example:
 
 ....
 a~bc   # matches 'adc' and 'aec' but not 'abc'
+....
+--
+
+`EMPTY`::
++
+--
+Enables the `#` (empty language) operator. The `#` operator doesn't match any
+string, not even an empty string.
+
+If you create regular expressions by programmatically combining values, you can
+pass `#` to specify "no string." This lets you avoid accidentally matching empty
+strings or other unwanted strings. For example:
+
+....
+#|abc  # matches 'abc' but nothing else, not even an empty string
 ....
 --
 
@@ -215,6 +264,9 @@ You can combine the `@` operator with `&` and `~` operators to create an
 @&~(abc.+)  # matches everything except terms beginning with 'abc'
 ....
 --
+
+`NONE`::
+Disables all optional operators.
 
 [discrete]
 [[regexp-unsupported-operators]]

@@ -1,42 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
-        extends InternalMultiBucketAggregation.InternalBucket implements GeoGrid.Bucket, Comparable<InternalGeoGridBucket> {
+public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregation.InternalBucketWritable
+    implements
+        GeoGrid.Bucket,
+        Comparable<InternalGeoGridBucket> {
 
     protected long hashAsLong;
     protected long docCount;
     protected InternalAggregations aggregations;
-
-    long bucketOrd;
 
     public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
@@ -60,7 +50,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         aggregations.writeTo(out);
     }
 
-    long hashAsLong() {
+    public long hashAsLong() {
         return hashAsLong;
     }
 
@@ -70,7 +60,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
     }
 
     @Override
-    public Aggregations getAggregations() {
+    public InternalAggregations getAggregations() {
         return aggregations;
     }
 
@@ -85,14 +75,12 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         return 0;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    final void bucketToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(Aggregation.CommonFields.KEY.getPreferredName(), getKeyAsString());
         builder.field(Aggregation.CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         builder.endObject();
-        return builder;
     }
 
     @Override
@@ -100,9 +88,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
-        return hashAsLong == bucket.hashAsLong &&
-            docCount == bucket.docCount &&
-            Objects.equals(aggregations, bucket.aggregations);
+        return hashAsLong == bucket.hashAsLong && docCount == bucket.docCount && Objects.equals(aggregations, bucket.aggregations);
     }
 
     @Override

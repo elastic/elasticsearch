@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -29,9 +30,9 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -47,7 +48,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
  *     ]
  * }
  */
-public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
+public abstract class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     static final String NAME = "date_histogram";
     public static final String INTERVAL = "interval";
@@ -69,9 +70,10 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[3];
 
             if (oldInterval != null) {
-                if  (calendarInterval != null || fixedInterval != null) {
-                    throw new IllegalArgumentException("Cannot use [interval] with [fixed_interval] or [calendar_interval] " +
-                        "configuration options.");
+                if (calendarInterval != null || fixedInterval != null) {
+                    throw new IllegalArgumentException(
+                        "Cannot use [interval] with [fixed_interval] or [calendar_interval] " + "configuration options."
+                    );
                 }
                 return fromUnknownTimeUnit((String) a[0], oldInterval, (DateHistogramInterval) a[4], (String) a[5]);
             } else if (calendarInterval != null && fixedInterval == null) {
@@ -86,11 +88,19 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
         PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(CALENDAR_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(FIXED_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(),  p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(CALENDAR_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(FIXED_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
@@ -108,6 +118,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      */
     public static class FixedInterval extends DateHistogramGroupConfig {
         private static final String TYPE_NAME = "fixed_interval";
+
         public FixedInterval(String field, DateHistogramInterval interval) {
             this(field, interval, null, null);
         }
@@ -138,6 +149,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      */
     public static class CalendarInterval extends DateHistogramGroupConfig {
         private static final String TYPE_NAME = "calendar_interval";
+
         public CalendarInterval(String field, DateHistogramInterval interval) {
             this(field, interval, null, null);
         }
@@ -145,8 +157,9 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         public CalendarInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
             super(field, interval, delay, timeZone);
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
-                    "as a calendar interval.");
+                throw new IllegalArgumentException(
+                    "The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval."
+                );
             }
         }
 
@@ -165,8 +178,12 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * one of the new Fixed or Calendar intervals.  It follows the old behavior where the interval is first
      * parsed with the calendar logic, and if that fails, it is assumed to be a fixed interval
      */
-    private static DateHistogramGroupConfig fromUnknownTimeUnit(String field, DateHistogramInterval interval,
-                                                                DateHistogramInterval delay, String timeZone) {
+    private static DateHistogramGroupConfig fromUnknownTimeUnit(
+        String field,
+        DateHistogramInterval interval,
+        DateHistogramInterval delay,
+        String timeZone
+    ) {
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) != null) {
             return new CalendarInterval(field, interval, delay, timeZone);
         } else {
@@ -183,19 +200,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     }
 
     /**
-     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
-     *
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
-        this(field, interval, null, null);
-    }
-
-    /**
      * Create a new {@link DateHistogramGroupConfig} using the given configuration parameters.
      * <p>
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
@@ -208,16 +212,14 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @param delay the time delay (optional)
      * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
      *
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
      * @since 7.2.0
      */
-    @Deprecated
-    public DateHistogramGroupConfig(final String field,
-                                    final DateHistogramInterval interval,
-                                    final @Nullable DateHistogramInterval delay,
-                                    final @Nullable String timeZone) {
+    protected DateHistogramGroupConfig(
+        final String field,
+        final DateHistogramInterval interval,
+        final @Nullable DateHistogramInterval delay,
+        final @Nullable String timeZone
+    ) {
         if (field == null || field.isEmpty()) {
             throw new IllegalArgumentException("Field must be a non-null, non-empty string");
         }
@@ -238,14 +240,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         }
     }
 
-    /**
-     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
-     * or {@link DateHistogramGroupConfig.FixedInterval} instead
-     *
-     * @since 7.2.0
-     */
-    @Deprecated
-    DateHistogramGroupConfig(final StreamInput in) throws IOException {
+    protected DateHistogramGroupConfig(final StreamInput in) throws IOException {
         interval = new DateHistogramInterval(in);
         field = in.readString();
         delay = in.readOptionalWriteable(DateHistogramInterval::new);
@@ -313,8 +308,10 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         return TYPE_NAME;
     }
 
-    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                                             ActionRequestValidationException validationException) {
+    public void validateMappings(
+        Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        ActionRequestValidationException validationException
+    ) {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             boolean matchesDateType = false;
@@ -324,21 +321,33 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
                     if (fieldCaps.get(dateType).isAggregatable()) {
                         return;
                     } else {
-                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                            "but is not.");
+                        validationException.addValidationError(
+                            "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                        );
                     }
                 }
             }
             if (matchesDateType == false) {
-                validationException.addValidationError("The field referenced by a date_histo group must be one of type [" +
-                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] across all " +
-                    "indices in the index pattern.  Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                validationException.addValidationError(
+                    "The field referenced by a date_histo group must be one of type ["
+                        + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                        + "] across all "
+                        + "indices in the index pattern.  Found: "
+                        + fieldCaps.keySet().toString()
+                        + " for field ["
+                        + field
+                        + "]"
+                );
             }
         } else {
-            validationException.addValidationError("Could not find one of [" +
-                Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] fields with name [" +
-                field + "] in any of the indices matching " +
-                "the index pattern.");
+            validationException.addValidationError(
+                "Could not find one of ["
+                    + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                    + "] fields with name ["
+                    + field
+                    + "] in any of the indices matching "
+                    + "the index pattern."
+            );
         }
     }
 

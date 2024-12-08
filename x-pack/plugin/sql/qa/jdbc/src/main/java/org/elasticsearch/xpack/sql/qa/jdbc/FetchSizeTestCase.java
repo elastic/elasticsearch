@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -88,6 +89,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
      * Test for {@code SELECT} that is implemented as a scroll query.
      * In this test we don't retrieve all records and rely on close() to clean the cursor
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testIncompleteScroll() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             s.setFetchSize(4);
@@ -151,6 +153,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
     /**
      * Test for {@code SELECT} that is implemented as an aggregation.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testAggregation() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             s.setFetchSize(4);
@@ -169,6 +172,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
     /**
      * Test for nested documents.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testNestedDocuments() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             s.setFetchSize(5);

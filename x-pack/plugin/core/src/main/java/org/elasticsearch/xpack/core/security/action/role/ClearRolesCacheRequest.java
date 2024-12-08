@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
@@ -15,7 +16,7 @@ import java.io.IOException;
 /**
  * The request used to clear the cache for native roles stored in an index.
  */
-public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequest> {
+public class ClearRolesCacheRequest extends BaseNodesRequest {
 
     String[] names;
 
@@ -23,10 +24,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
         super((String[]) null);
     }
 
-    public ClearRolesCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        names = in.readOptionalStringArray();
-    }
     /**
      * Sets the roles for which caches will be evicted. When not set all the roles will be evicted from the cache.
      *
@@ -44,12 +41,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
         return names;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalStringArray(names);
-    }
-
     public static class Node extends TransportRequest {
         private String[] names;
 
@@ -62,7 +53,9 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
             this.names = request.names();
         }
 
-        public String[] getNames() { return names; }
+        public String[] getNames() {
+            return names;
+        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

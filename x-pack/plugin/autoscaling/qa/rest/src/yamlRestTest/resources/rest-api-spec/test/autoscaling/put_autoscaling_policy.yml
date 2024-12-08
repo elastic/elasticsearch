@@ -4,7 +4,7 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          roles: [ master ]
+          roles: [ data_content ]
 
   - match: { "acknowledged": true }
 
@@ -19,7 +19,7 @@
   - do:
       autoscaling.get_autoscaling_policy:
         name: my_autoscaling_policy
-  - match: { roles: [ master ] }
+  - match: { roles: [ data_content ] }
   - match: { deciders.fixed: {} }
 
   # update roles
@@ -62,16 +62,6 @@
   - do:
       autoscaling.delete_autoscaling_policy:
         name: my_autoscaling_policy
----
-"Test put autoscaling policy with non-existent decider":
-  - do:
-      catch: bad_request
-      autoscaling.put_autoscaling_policy:
-        name: my_autoscaling_policy
-        body:
-          roles: [ master ]
-          deciders:
-            does_not_exist: {}
 
 ---
 "Test put autoscaling policy with non-existent roles":
@@ -89,3 +79,45 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body: {}
+
+---
+"Test put autoscaling policy with non-existent decider":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: [ master ]
+          deciders:
+            does_not_exist: {}
+
+---
+"Test put autoscaling policy with non-existent decider setting":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          deciders:
+            fixed:
+              does_not_exist: 0
+
+---
+"Test put autoscaling policy with bad setting value":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          policy:
+            fixed:
+              storage: bad
+
+---
+"Test put autoscaling policy with no default deciders":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: [ ]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.plugin;
@@ -16,17 +17,12 @@ import java.io.IOException;
 /**
  * Request to gather usage statistics
  */
-public class EqlStatsRequest extends BaseNodesRequest<EqlStatsRequest> {
+public class EqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 
     public EqlStatsRequest() {
         super((String[]) null);
-    }
-
-    public EqlStatsRequest(StreamInput in) throws IOException {
-        super(in);
-        includeStats = in.readBoolean();
     }
 
     public boolean includeStats() {
@@ -35,12 +31,6 @@ public class EqlStatsRequest extends BaseNodesRequest<EqlStatsRequest> {
 
     public void includeStats(boolean includeStats) {
         this.includeStats = includeStats;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(includeStats);
     }
 
     @Override

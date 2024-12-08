@@ -1,31 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
-
 import org.junit.Before;
 import org.mockito.InOrder;
+
+import java.util.List;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -42,6 +35,8 @@ public class DeprecationRestHandlerTests extends ESTestCase {
      */
     private final String deprecationMessage = randomAlphaOfLengthBetween(1, 30);
     private DeprecationLogger deprecationLogger;
+    private static final RestRequest.Method METHOD = RestRequest.Method.GET;
+    private static final String PATH = "/some/path";
 
     @Before
     public void setup() {
@@ -50,36 +45,70 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     }
 
     public void testNullHandler() {
-        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(null, deprecationMessage, deprecationLogger));
+        expectThrows(
+            NullPointerException.class,
+            () -> new DeprecationRestHandler(null, METHOD, PATH, null, deprecationMessage, deprecationLogger, false)
+        );
     }
 
     public void testInvalidDeprecationMessageThrowsException() {
         String invalidDeprecationMessage = randomFrom("", null, "     ");
 
-        expectThrows(IllegalArgumentException.class,
-                     () -> new DeprecationRestHandler(handler, invalidDeprecationMessage, deprecationLogger));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(handler, METHOD, PATH, null, invalidDeprecationMessage, deprecationLogger, false)
+        );
     }
 
     public void testNullDeprecationLogger() {
-        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(handler, deprecationMessage, null));
+        expectThrows(
+            NullPointerException.class,
+            () -> new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, null, false)
+        );
     }
 
-    public void testHandleRequestLogsWarningThenForwards() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        RestChannel channel = mock(RestChannel.class);
-        NodeClient client = mock(NodeClient.class);
+    public void testHandleRequestLogsThenForwards() throws Exception {
+        for (boolean compatibleVersionWarning : List.of(true, false)) {
+            RestRequest request = mock(RestRequest.class);
+            RestChannel channel = mock(RestChannel.class);
+            NodeClient client = mock(NodeClient.class);
 
-        DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger);
+            final Level deprecationLevel = randomFrom(Level.WARN, DeprecationLogger.CRITICAL);
 
-        // test it
-        deprecatedHandler.handleRequest(request, channel, client);
+            DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(
+                handler,
+                METHOD,
+                PATH,
+                deprecationLevel,
+                deprecationMessage,
+                deprecationLogger,
+                compatibleVersionWarning
+            );
 
-        InOrder inOrder = inOrder(handler, request, channel, deprecationLogger);
+            // test it
+            deprecatedHandler.handleRequest(request, channel, client);
 
-        // log, then forward
-        inOrder.verify(deprecationLogger).deprecate("deprecated_route", deprecationMessage);
-        inOrder.verify(handler).handleRequest(request, channel, client);
-        inOrder.verifyNoMoreInteractions();
+            InOrder inOrder = inOrder(handler, request, channel, deprecationLogger);
+
+            // log, then forward
+            if (compatibleVersionWarning) {
+                if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
+                    inOrder.verify(deprecationLogger).compatibleCritical("deprecated_route_GET_/some/path", deprecationMessage);
+                } else {
+                    inOrder.verify(deprecationLogger).compatible(Level.WARN, "deprecated_route_GET_/some/path", deprecationMessage);
+                }
+            } else {
+                if (deprecationLevel == null || deprecationLevel == Level.WARN) {
+                    inOrder.verify(deprecationLogger).warn(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
+                } else {
+                    inOrder.verify(deprecationLogger)
+                        .critical(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
+                }
+            }
+
+            inOrder.verify(handler).handleRequest(request, channel, client);
+            inOrder.verifyNoMoreInteractions();
+        }
     }
 
     public void testValidHeaderValue() {
@@ -99,9 +128,14 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
     public void testInvalidHeaderValue() {
         ASCIIHeaderGenerator generator = new ASCIIHeaderGenerator();
-        String value = generator.ofCodeUnitsLength(random(), 0, 25) +
-                       randomFrom('\t', '\0', '\n', (char)27 /* ESC */, (char)31 /* unit separator*/, (char)127 /* DEL */) +
-                       generator.ofCodeUnitsLength(random(), 0, 25);
+        String value = generator.ofCodeUnitsLength(random(), 0, 25) + randomFrom(
+            '\t',
+            '\0',
+            '\n',
+            (char) 27 /* ESC */,
+            (char) 31 /* unit separator*/,
+            (char) 127 /* DEL */
+        ) + generator.ofCodeUnitsLength(random(), 0, 25);
 
         assertFalse(DeprecationRestHandler.validHeaderValue(value));
 
@@ -122,14 +156,56 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
     }
 
-    public void testSupportsContentStreamTrue() {
-        when(handler.supportsContentStream()).thenReturn(true);
-        assertTrue(new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger).supportsContentStream());
+    public void testSupportsBulkContentTrue() {
+        when(handler.supportsBulkContent()).thenReturn(true);
+        assertTrue(
+            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
+                .supportsBulkContent()
+        );
     }
 
-    public void testSupportsContentStreamFalse() {
-        when(handler.supportsContentStream()).thenReturn(false);
-        assertFalse(new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger).supportsContentStream());
+    public void testSupportsBulkContentFalse() {
+        when(handler.supportsBulkContent()).thenReturn(false);
+        assertFalse(
+            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
+                .supportsBulkContent()
+        );
+    }
+
+    public void testDeprecationLevel() {
+        DeprecationRestHandler handler = new DeprecationRestHandler(
+            this.handler,
+            METHOD,
+            PATH,
+            Level.WARN,
+            deprecationMessage,
+            deprecationLogger,
+            false
+        );
+        assertEquals(Level.WARN, handler.getDeprecationLevel());
+
+        handler = new DeprecationRestHandler(
+            this.handler,
+            METHOD,
+            PATH,
+            DeprecationLogger.CRITICAL,
+            deprecationMessage,
+            deprecationLogger,
+            false
+        );
+        assertEquals(DeprecationLogger.CRITICAL, handler.getDeprecationLevel());
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(this.handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false)
+        );
+        assertEquals(exception.getMessage(), "unexpected deprecation logger level: null, expected either 'CRITICAL' or 'WARN'");
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(this.handler, METHOD, PATH, Level.OFF, deprecationMessage, deprecationLogger, false)
+        );
+        assertEquals(exception.getMessage(), "unexpected deprecation logger level: OFF, expected either 'CRITICAL' or 'WARN'");
     }
 
     /**
@@ -147,7 +223,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             char[] chars = new char[to - from + 1];
 
             for (int i = from; i <= to; ++i) {
-                chars[i - from] = (char)i;
+                chars[i - from] = (char) i;
             }
 
             return chars;

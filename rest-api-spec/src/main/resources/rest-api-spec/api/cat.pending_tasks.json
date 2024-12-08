@@ -5,6 +5,10 @@
       "description":"Returns a concise representation of the cluster pending tasks."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

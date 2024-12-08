@@ -1,0 +1,28 @@
+{
+  "profiling.flamegraph":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
+      "description":"Extracts a UI-optimized structure to render flamegraphs from Universal Profiling."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_profiling/flamegraph",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The filter conditions for the flamegraph",
+      "required":true
+    }
+  }
+}

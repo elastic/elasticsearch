@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.repositories.metering.action;
@@ -9,9 +10,10 @@ package org.elasticsearch.xpack.repositories.metering.action;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,7 +27,8 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     RepositoriesMeteringRequest,
     RepositoriesMeteringResponse,
     TransportRepositoriesStatsAction.RepositoriesNodeStatsRequest,
-    RepositoriesNodeMeteringResponse> {
+    RepositoriesNodeMeteringResponse,
+    Void> {
 
     private final RepositoriesService repositoriesService;
 
@@ -39,14 +42,11 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     ) {
         super(
             RepositoriesMeteringAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            RepositoriesMeteringRequest::new,
             RepositoriesNodeStatsRequest::new,
-            ThreadPool.Names.SAME,
-            RepositoriesNodeMeteringResponse.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.repositoriesService = repositoriesService;
     }
@@ -66,7 +66,7 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     }
 
     @Override
-    protected RepositoriesNodeMeteringResponse newNodeResponse(StreamInput in) throws IOException {
+    protected RepositoriesNodeMeteringResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new RepositoriesNodeMeteringResponse(in);
     }
 

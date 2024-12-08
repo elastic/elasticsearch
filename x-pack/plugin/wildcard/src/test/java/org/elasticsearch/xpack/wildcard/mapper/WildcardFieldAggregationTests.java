@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -35,17 +35,16 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     private WildcardFieldMapper wildcardFieldMapper;
     private WildcardFieldMapper.WildcardFieldType wildcardFieldType;
 
-
     @Before
     public void setup() {
-        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
+        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldMapper = builder.build(new ContentPath(0));
+        wildcardFieldMapper = builder.build(MapperBuilderContext.root(false, false));
 
         wildcardFieldType = wildcardFieldMapper.fieldType();
     }
 
-    private void addFields(ParseContext.Document parseDoc, Document doc, String docContent) throws IOException {
+    private void addFields(LuceneDocument parseDoc, Document doc, String docContent) throws IOException {
         ArrayList<IndexableField> fields = new ArrayList<>();
         wildcardFieldMapper.createFields(docContent, parseDoc, fields);
 
@@ -54,8 +53,8 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         }
     }
 
-    private void indexDoc(ParseContext.Document parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
-        IndexableField field = parseDoc.getByKey(wildcardFieldMapper.name());
+    private void indexDoc(LuceneDocument parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
+        IndexableField field = parseDoc.getByKey(wildcardFieldMapper.fullPath());
         if (field != null) {
             doc.add(field);
         }
@@ -64,7 +63,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
 
     private void indexStrings(RandomIndexWriter iw, String... values) throws IOException {
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         for (String value : values) {
             addFields(parseDoc, doc, value);
         }
@@ -72,64 +71,53 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
-            .field(WILDCARD_FIELD_NAME)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field(WILDCARD_FIELD_NAME)
             .order(BucketOrder.key(true));
 
-        testCase(aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                indexStrings(iw, "a");
-                indexStrings(iw, "a");
-                indexStrings(iw, "b");
-                indexStrings(iw, "b");
-                indexStrings(iw, "b");
-                indexStrings(iw, "c");
-            },
-            (StringTerms result) -> {
-                assertTrue(AggregationInspectionHelper.hasValue(result));
+        testCase(iw -> {
+            indexStrings(iw, "a");
+            indexStrings(iw, "a");
+            indexStrings(iw, "b");
+            indexStrings(iw, "b");
+            indexStrings(iw, "b");
+            indexStrings(iw, "c");
+        }, (StringTerms result) -> {
+            assertTrue(AggregationInspectionHelper.hasValue(result));
 
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("a", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("b", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(3L, result.getBuckets().get(1).getDocCount());
-                assertEquals("c", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(2).getDocCount());
-            },
-            wildcardFieldType);
+            assertEquals(3, result.getBuckets().size());
+            assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(3L, result.getBuckets().get(1).getDocCount());
+            assertEquals("c", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+        }, new AggTestConfig(aggregationBuilder, wildcardFieldType));
     }
 
     public void testCompositeTermsAggregation() throws IOException {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(
-                new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME)
-            )
+            List.of(new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME))
         );
 
-        testCase(aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                indexStrings(iw, "a");
-                indexStrings(iw, "c");
-                indexStrings(iw, "a");
-                indexStrings(iw, "d");
-                indexStrings(iw, "c");
-            },
-            (InternalComposite result) -> {
-                assertTrue(AggregationInspectionHelper.hasValue(result));
+        testCase(iw -> {
+            indexStrings(iw, "a");
+            indexStrings(iw, "c");
+            indexStrings(iw, "a");
+            indexStrings(iw, "d");
+            indexStrings(iw, "c");
+        }, (InternalComposite result) -> {
+            assertTrue(AggregationInspectionHelper.hasValue(result));
 
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("{terms_key=d}", result.afterKey().toString());
-                assertEquals("{terms_key=a}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{terms_key=c}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(2).getDocCount());
-            },
-            wildcardFieldType);
+            assertEquals(3, result.getBuckets().size());
+            assertEquals("{terms_key=d}", result.afterKey().toString());
+            assertEquals("{terms_key=a}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{terms_key=c}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+        }, new AggTestConfig(aggregationBuilder, wildcardFieldType));
     }
 
     public void testCompositeTermsSearchAfter() throws IOException {
@@ -138,7 +126,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder("name", Collections.singletonList(terms))
             .aggregateAfter(Collections.singletonMap("terms_key", "a"));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             indexStrings(iw, "a");
             indexStrings(iw, "c");
             indexStrings(iw, "a");
@@ -151,6 +139,6 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(0).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
-        }, wildcardFieldType);
+        }, new AggTestConfig(aggregationBuilder, wildcardFieldType));
     }
 }

@@ -1,0 +1,87 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  clusterModules project(':modules:repository-azure')
+  clusterModules project(xpackModule('snapshot-repo-test-kit'))
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  javaRestTestImplementation project(':test:fixtures:azure-fixture')
+}
+
+boolean useFixture = false
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
+String azureTenantId = System.getenv("azure_storage_tenant_id")
+String azureClientId = System.getenv("azure_storage_client_id")
+
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  azureTenantId = ''
+  azureClientId = ''
+  useFixture = true
+}
+
+tasks.named("javaRestTest") {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
+  systemProperty 'test.azure.tenant_id', azureTenantId
+  systemProperty 'test.azure.client_id', azureClientId
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + buildParams.testSeed
+}
+
+tasks.register("azureThirdPartyTest") {
+  dependsOn "javaRestTest"
+}
+
+tasks.register("managedIdentityJavaRestTest", RestIntegTestTask) {
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  // omitting key and sas_token so that we use a bearer token from the metadata service
+  // omitting client_id and tenant_id so that we use a bearer token from the metadata service, not from workload identity
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + buildParams.testSeed
+}
+
+tasks.register("workloadIdentityJavaRestTest", RestIntegTestTask) {
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  // random uuids to satisfy format requirements -- the actual values are not important
+  systemProperty 'test.azure.tenant_id', azureTenantId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
+  systemProperty 'test.azure.client_id', azureClientId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
+  // omitting key and sas_token so that we use a bearer token from workload identity
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + buildParams.testSeed
+}
+
+if (buildParams.inFipsJvm) {
+  // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
+  tasks.named("managedIdentityJavaRestTest").configure { enabled = false }
+  tasks.named("workloadIdentityJavaRestTest").configure { enabled = false }
+}
+
+tasks.named("check") {
+  dependsOn("managedIdentityJavaRestTest")
+  dependsOn("workloadIdentityJavaRestTest")
+}

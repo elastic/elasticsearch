@@ -13,11 +13,11 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.local.seeds: $local_ip
         flat_settings: true
 
-  - match: {transient: {cluster.remote.local.seeds: $local_ip}}
+  - match: {persistent: {cluster.remote.local.seeds: $local_ip}}
 
   - do:
       indices.create:
@@ -34,6 +34,7 @@
       ccr.follow:
         index: bar
         wait_for_active_shards: 1
+        master_timeout: 10s
         body:
           remote_cluster: local
           leader_index: foo

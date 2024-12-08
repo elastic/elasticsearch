@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -23,9 +26,8 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     protected final TTestState state;
 
     InternalTTest(String name, TTestState state, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.state = state;
-        this.format = formatter;
     }
 
     /**
@@ -33,7 +35,6 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
      */
     public InternalTTest(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         state = in.readNamedWriteable(TTestState.class);
     }
 
@@ -54,9 +55,13 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     }
 
     @Override
-    public InternalTTest reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        TTestState reduced = state.reduce(aggregations.stream().map(a -> ((InternalTTest) a).state));
-        return new InternalTTest(name, reduced, format, getMetadata());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return state.getReducer(name, format, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override
@@ -96,4 +101,3 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     }
 
 }
-

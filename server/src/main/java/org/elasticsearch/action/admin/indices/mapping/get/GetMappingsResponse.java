@@ -1,52 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
 
-public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
+public class GetMappingsResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private final ImmutableOpenMap<String, MappingMetadata> mappings;
+    private final Map<String, MappingMetadata> mappings;
 
-    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetadata> mappings) {
+    public GetMappingsResponse(Map<String, MappingMetadata> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableMap(in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
             int mappingCount = i.readVInt();
             assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
             if (mappingCount == 1) {
@@ -59,11 +50,11 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
@@ -73,17 +64,21 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
-            builder.startObject(indexEntry.key);
-            if (indexEntry.value != null) {
-                builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
-            } else {
-                builder.startObject(MAPPINGS.getPreferredName()).endObject();
-            }
-            builder.endObject();
-        }
-        return builder;
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            Iterators.single((b, p) -> b.startObject()),
+            Iterators.map(getMappings().entrySet().iterator(), indexEntry -> (builder, params) -> {
+                builder.startObject(indexEntry.getKey());
+                if (indexEntry.getValue() != null) {
+                    builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
+                } else {
+                    builder.startObject(MAPPINGS.getPreferredName()).endObject();
+                }
+                builder.endObject();
+                return builder;
+            }),
+            Iterators.single((b, p) -> b.endObject())
+        );
     }
 
     @Override

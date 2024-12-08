@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -25,42 +25,16 @@ public final class ExceptionRootCauseFinder {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = new HashSet<>(
-        Arrays.asList(
-            RestStatus.GONE,
-            RestStatus.NOT_IMPLEMENTED,
-            RestStatus.NOT_FOUND,
-            RestStatus.BAD_REQUEST,
-            RestStatus.UNAUTHORIZED,
-            RestStatus.FORBIDDEN,
-            RestStatus.METHOD_NOT_ALLOWED,
-            RestStatus.NOT_ACCEPTABLE
-        )
+    static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
+        RestStatus.GONE,
+        RestStatus.NOT_IMPLEMENTED,
+        RestStatus.NOT_FOUND,
+        RestStatus.BAD_REQUEST,
+        RestStatus.UNAUTHORIZED,
+        RestStatus.FORBIDDEN,
+        RestStatus.METHOD_NOT_ALLOWED,
+        RestStatus.NOT_ACCEPTABLE
     );
-
-    /**
-     * Unwrap the exception stack and return the most likely cause.
-     *
-     * @param t raw Throwable
-     * @return unwrapped throwable if possible
-     */
-    public static Throwable getRootCauseException(Throwable t) {
-        // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(t);
-
-        if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) t;
-            for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
-                Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
-
-                if (unwrappedShardFailure instanceof ElasticsearchException) {
-                    return unwrappedShardFailure;
-                }
-            }
-        }
-
-        return t;
-    }
 
     /**
      * Return the best error message possible given a already unwrapped exception.
@@ -89,9 +63,8 @@ public final class ExceptionRootCauseFinder {
                 return unwrappedThrowable;
             }
 
-            if (unwrappedThrowable instanceof ElasticsearchException) {
-                ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedThrowable;
-                if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+            if (unwrappedThrowable instanceof ElasticsearchException elasticsearchException) {
+                if (isExceptionIrrecoverable(elasticsearchException) && isNotIndexNotFoundException(elasticsearchException)) {
                     return elasticsearchException;
                 }
             }
@@ -100,6 +73,34 @@ public final class ExceptionRootCauseFinder {
         return null;
     }
 
-    private ExceptionRootCauseFinder() {}
+    /**
+     * We can safely recover from IndexNotFoundExceptions on Bulk responses.
+     * If the transform is running, the next checkpoint will recreate the index.
+     * If the transform is not running, the next start request will recreate the index.
+     */
+    private static boolean isNotIndexNotFoundException(ElasticsearchException elasticsearchException) {
+        return elasticsearchException instanceof IndexNotFoundException == false;
+    }
 
+    public static boolean isExceptionIrrecoverable(ElasticsearchException elasticsearchException) {
+        if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+
+            // Even if the status indicates the exception is irrecoverable, some exceptions
+            // with these status are worth retrying on.
+
+            // A TaskCancelledException occurs if a sub-action of a search encounters a circuit
+            // breaker exception. In this case the overall search task is cancelled.
+            if (elasticsearchException instanceof TaskCancelledException) {
+                return false;
+            }
+            // We can safely retry SearchContextMissingException instead of failing the transform.
+            if (elasticsearchException instanceof SearchContextMissingException) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private ExceptionRootCauseFinder() {}
 }

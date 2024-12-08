@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -40,16 +41,12 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         UPGRADED;
 
         public static CLUSTER_TYPE parse(String value) {
-            switch (value) {
-                case "old_cluster":
-                    return OLD;
-                case "mixed_cluster":
-                    return MIXED;
-                case "upgraded_cluster":
-                    return UPGRADED;
-                default:
-                    throw new AssertionError("unknown cluster type: " + value);
-            }
+            return switch (value) {
+                case "old_cluster" -> OLD;
+                case "mixed_cluster" -> MIXED;
+                case "upgraded_cluster" -> UPGRADED;
+                default -> throw new AssertionError("unknown cluster type: " + value);
+            };
         }
     }
 

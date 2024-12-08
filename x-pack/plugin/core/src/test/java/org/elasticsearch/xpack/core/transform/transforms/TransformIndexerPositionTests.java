@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TransformIndexerPositionTests extends AbstractSerializingTestCase<TransformIndexerPosition> {
+public class TransformIndexerPositionTests extends AbstractXContentSerializingTestCase<TransformIndexerPosition> {
 
     public static TransformIndexerPosition randomTransformIndexerPosition() {
         return new TransformIndexerPosition(randomPosition(), randomPosition());
@@ -24,6 +25,11 @@ public class TransformIndexerPositionTests extends AbstractSerializingTestCase<T
     @Override
     protected TransformIndexerPosition createTestInstance() {
         return randomTransformIndexerPosition();
+    }
+
+    @Override
+    protected TransformIndexerPosition mutateInstance(TransformIndexerPosition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -38,7 +44,7 @@ public class TransformIndexerPositionTests extends AbstractSerializingTestCase<T
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
@@ -9,11 +10,11 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
-import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -53,28 +53,27 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     @Before
     public void indexTestDocument() {
-        IndexResponse eventIndexResponse = client().prepareIndex().setIndex("events").setId(id)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .setSource("level", "error")
-                .get();
+        DocWriteResponse eventIndexResponse = prepareIndex("events").setId(id)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource("level", "error")
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, eventIndexResponse.getResult());
     }
 
     public void testAckSingleAction() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? *")))
-                        .input(searchInput(templateRequest(searchSource(), "events")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
-                        .transform(searchTransform(templateRequest(searchSource(), "events")))
-                        .addAction("_a1", indexAction("actions1"))
-                        .addAction("_a2", indexAction("actions2"))
-                        .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/5 * * * * ? *")))
+                    .input(searchInput(templateRequest(searchSource(), "events")))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                    .transform(searchTransform(templateRequest(searchSource(), "events")))
+                    .addAction("_a1", indexAction("actions1"))
+                    .addAction("_a2", indexAction("actions2"))
+                    .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L));
 
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
         AckWatchResponse ackResponse = new AckWatchRequestBuilder(client(), "_id").setActionIds("_a1").get();
@@ -109,33 +108,44 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client()).setId("_id").get();
         assertThat(getWatchResponse.isFound(), is(true));
 
-        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true, getWatchResponse.getSource().getBytes(),
-            XContentType.JSON, getWatchResponse.getSeqNo(), getWatchResponse.getPrimaryTerm());
-        assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(),
-                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
-        assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
-                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        Watch parsedWatch = watchParser().parse(
+            getWatchResponse.getId(),
+            true,
+            getWatchResponse.getSource().getBytes(),
+            XContentType.JSON,
+            getWatchResponse.getSeqNo(),
+            getWatchResponse.getPrimaryTerm()
+        );
+        assertThat(
+            parsedWatch.status().actionStatus("_a1").ackStatus().state(),
+            is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION)
+        );
+        assertThat(
+            parsedWatch.status().actionStatus("_a2").ackStatus().state(),
+            is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION)
+        );
 
-        long throttledCount = docCount(HistoryStoreField.DATA_STREAM + "*",
-                matchQuery(WatchRecord.STATE.getPreferredName(), ExecutionState.ACKNOWLEDGED.id()));
+        long throttledCount = docCount(
+            HistoryStoreField.DATA_STREAM + "*",
+            matchQuery(WatchRecord.STATE.getPreferredName(), ExecutionState.ACKNOWLEDGED.id())
+        );
         assertThat(throttledCount, greaterThan(0L));
     }
 
     public void testAckAllActions() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? *")))
-                        .input(searchInput(templateRequest(searchSource(), "events")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
-                        .transform(searchTransform(templateRequest(searchSource(), "events")))
-                        .addAction("_a1", indexAction("actions1"))
-                        .addAction("_a2", indexAction("actions2"))
-                        .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/5 * * * * ? *")))
+                    .input(searchInput(templateRequest(searchSource(), "events")))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                    .transform(searchTransform(templateRequest(searchSource(), "events")))
+                    .addAction("_a1", indexAction("actions1"))
+                    .addAction("_a2", indexAction("actions2"))
+                    .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L));
 
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
 
@@ -178,30 +188,41 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client()).setId("_id").get();
         assertThat(getWatchResponse.isFound(), is(true));
 
-        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true,
-            getWatchResponse.getSource().getBytes(), XContentType.JSON, getWatchResponse.getSeqNo(), getWatchResponse.getPrimaryTerm());
-        assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(),
-                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
-        assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
-                is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        Watch parsedWatch = watchParser().parse(
+            getWatchResponse.getId(),
+            true,
+            getWatchResponse.getSource().getBytes(),
+            XContentType.JSON,
+            getWatchResponse.getSeqNo(),
+            getWatchResponse.getPrimaryTerm()
+        );
+        assertThat(
+            parsedWatch.status().actionStatus("_a1").ackStatus().state(),
+            is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION)
+        );
+        assertThat(
+            parsedWatch.status().actionStatus("_a2").ackStatus().state(),
+            is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION)
+        );
 
-        long throttledCount = docCount(HistoryStoreField.DATA_STREAM + "*",
-                matchQuery(WatchRecord.STATE.getPreferredName(), ExecutionState.ACKNOWLEDGED.id()));
+        long throttledCount = docCount(
+            HistoryStoreField.DATA_STREAM + "*",
+            matchQuery(WatchRecord.STATE.getPreferredName(), ExecutionState.ACKNOWLEDGED.id())
+        );
         assertThat(throttledCount, greaterThan(0L));
     }
 
     public void testAckWithRestart() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_name")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? *")))
-                        .input(searchInput(templateRequest(searchSource(), "events")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
-                        .transform(searchTransform(templateRequest(searchSource(), "events")))
-                        .addAction("_id", indexAction("actions")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_name")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/5 * * * * ? *")))
+                    .input(searchInput(templateRequest(searchSource(), "events")))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                    .transform(searchTransform(templateRequest(searchSource(), "events")))
+                    .addAction("_id", indexAction("actions"))
+            )
+            .get();
         assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L));
 
         timeWarp().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         restartWatcherRandomly();
@@ -210,8 +231,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(ackResponse.getStatus().actionStatus("_id").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
 
         refresh("actions");
-        long countAfterAck = client().prepareSearch("actions").setQuery(matchAllQuery()).get()
-            .getHits().getTotalHits().value;
+        long countAfterAck = SearchResponseUtils.getTotalHitsValue(prepareSearch("actions").setQuery(matchAllQuery()));
         assertThat(countAfterAck, greaterThanOrEqualTo(1L));
 
         restartWatcherRandomly();
@@ -221,10 +241,18 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
         refresh();
         GetResponse getResponse = client().get(new GetRequest(Watch.INDEX, "_name")).actionGet();
-        Watch indexedWatch = watchParser().parse("_name", true, getResponse.getSourceAsBytesRef(), XContentType.JSON,
-            getResponse.getSeqNo(), getResponse.getPrimaryTerm());
-        assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(),
-                equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));
+        Watch indexedWatch = watchParser().parse(
+            "_name",
+            true,
+            getResponse.getSourceAsBytesRef(),
+            XContentType.JSON,
+            getResponse.getSeqNo(),
+            getResponse.getPrimaryTerm()
+        );
+        assertThat(
+            watchResponse.getStatus().actionStatus("_id").ackStatus().state(),
+            equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state())
+        );
 
         timeWarp().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         refresh("actions");

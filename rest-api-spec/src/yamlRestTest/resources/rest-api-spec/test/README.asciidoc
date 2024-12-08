@@ -1,0 +1,720 @@
+= Test Suite:
+:!compat-mode:
+
+[NOTE]
+.Required settings
+=======================================
+Certain tests require specific settings to be applied to the
+Elasticsearch instance in order to pass. You should run
+Elasticsearch as follows:
+
+[source,sh]
+---------------------
+bin/elasticsearch -Enode.attr.testattr=test -Epath.repo=/tmp -Erepositories.url.allowed_urls='http://snapshot.*'
+---------------------
+
+=======================================
+
+== Test execution
+
+Please refer to xref:/TESTING.asciidoc#testing-the-rest-layer[this section].
+
+== Test file structure
+
+A YAML test file consists of:
+
+- an optional `setup` section, followed by
+- an optional `teardown` section, followed by
+- one or more test sections
+
+For instance:
+
+    setup:
+      - do: ....
+      - do: ....
+
+    ---
+    teardown:
+      - do: ....
+
+    ---
+    "First test":
+      - do: ...
+      - match: ...
+
+    ---
+    "Second test":
+      - do: ...
+      - match: ...
+
+
+A `setup` section contains a list of commands to run before each test
+section in order to setup the same environment for each test section.
+
+A `teardown` section contains a list of commands to run after each test
+section in order to setup the same environment for each test section. This
+may be needed for modifications made by the test that are not cleared by the
+deletion of indices and templates.
+
+A test section represents an independent test, containing multiple `do`
+statements and assertions. The contents of a test section must be run in
+order, but individual test sections may be run in any order, as follows:
+
+1. run `setup` (if any)
+2. reset the `response` var and the `stash` (see below)
+2. run test contents
+3. run `teardown` (if any)
+4. delete all indices and all templates
+
+== Dot notation:
+
+Dot notation is used for (1) method calls and (2) hierarchical data structures. For
+instance, a method call like `cluster.health` would do the equivalent of:
+
+    client.cluster.health(...params...)
+
+A test against `_tokens.1.token` would examine the `token` key, in the second element
+of the `tokens` array, inside the `response` var (see below):
+
+    $val = $response->{tokens}[1]{token}  # Perl syntax roolz!
+
+If one of the levels (eg `tokens`) does not exist, it should return an undefined value.
+If no field name is given (ie the empty string) then return the current
+$val -- used for testing the whole response body.
+
+Use \. to specify paths that actually contain '.' in the key name, for example
+in the `indices.get_settings` API.
+
+== Skipping tests:
+
+If a test section should only be run for certain releases of Elasticsearch,
+then the first entry in the section (after the title) should be called
+`requires` and / or `skip` depending on the use case.
+
+A `requires` section defines requirements that have to be met in order for tests to run, such as:
+
+- `capabilities` to <<capabilities_check, require API capabilities>>.
+- `cluster_features` to <<cluster_features, require cluster features>>.
+- `test_runner_features` to <<requires_test_runner_features, require test runner features>>.
+
+A `skip` section, on the other hand, defines certain conditions that, if met, will skip the test, such as:
+
+- `capabilities` to <<capabilities_check, skip if API capabilities are present>>.
+- `cluster_features` to <<cluster_features, skip if cluster features are present>>.
+- `known_issues` to <<skip_known_issues, skip on known issues (based on cluster features)>>.
+- `awaits_fix` to <<skip_awaits_fix, always skip / mute a test due to a pending fix>>.
+- `os` to <<skip_os, skip on operating systems>>.
+- `features`: Only kept for a transition period, please use <<requires_test_runner_features, `test_runner_features`>>
+  in the `requires` section instead.
+
+Note that `skip` with `capabilities` or `cluster_features` will skip the test if *any* node in the cluster
+has the feature or capability. `requires` will only run the test if *all* of the nodes in the cluster
+have the feature or capability.
+
+`requires` and `skip` sections must specify at least one of the options mentioned above.
+Unless only `test_runner_features` or legacy test runner `features` are specified, a `reason` must be given.
+
+`requires` and `skip` can also be used at the top level of the file in the `setup` and `teardown` blocks,
+so all the tests in a file will be skipped if either any requirement fails or any skip condition applies regardless
+if defined in `setup` and `teardown`.
+
+[[capabilities_check]]
+=== Require or skip API capabilities
+
+As opposed to <<cluster_features,cluster features>>, which are aimed at performing checks internal to Elasticsearch,
+the capabilities API allows external clients to ask an Elasticsearch cluster what it supports in terms of
+particular endpoints, query parameters and other arbitrary capabilities.
+
+Only if every node in the cluster supports the requested path and method with all parameters and capabilities,
+the capabilities check passes successfully. Capabilities checks can be done both for `skip` and `requires`
+prerequisites. In either case, the _capabilities_ test runner feature must be required to allow
+other test runners to skip tests if they do not support the capabilities API yet.
+
+....
+    "Parent":
+     - requires:
+          capabilities:
+            - method: GET
+              path: /_api
+              parameters: [param1, param2]
+              capabilities: [cap1, cap2]
+          test_runner_features: [capabilities]
+          reason: Capability required to run test
+     - do:
+       ... test definitions ...
+....
+
+The `capabilities` field is an array containing one or several capabilities checks.
+
+Capabilities are declared as part of an implementation of `RestHandler`.
+Override the `supportedQueryParameters` and/or the `supportedCapabilities` methods:
+
+....
+@Override
+public Set<String> supportedQueryParameters() {
+  return Set.of("param1", "param2");
+}
+
+@Override
+public Set<String> supportedCapabilities() {
+  return Set.of("cap1", "cap2");
+}
+....
+
+[[cluster_features]]
+=== Require or skip cluster features
+
+Cluster features indicate a particular high-level _internal_ functionality and are used for coordination within
+the Elasticsearch cluster to enable functionality once supported on all nodes, e.g. usage of a new transport endpoint.
+
+In contrast to <<capabilities_check, capabilities>>, cluster features are strictly internal, though can also be used for
+skipping REST tests. Cluster features are not meant to be extremely fine-grained. In case you are not sure if you need
+a cluster feature, <<capabilities_check, capabilities>> might be the better choice.
+
+To select applicable tests (e.g. in backwards compatibility or mixed cluster tests), you can require `cluster_features`
+to be either present (`requires`) or absent (`skip`), for instance:
+
+....
+    "Parent":
+     - requires:
+          cluster_features: feature_x
+          reason:           Feature X was introduced
+     - skip:
+          cluster_features: feature_x_changed
+          reason:           Change to feature X breaks this test
+
+     - do:
+       ... test definitions ...
+....
+
+The `cluster_features` field can either be a string or an array of strings.
+
+[[synthetic_cluster_features]]
+Note: In order to smoothen the transition from version checks to cluster feature checks, a REST-test specific
+synthetic cluster feature named `gte_v{VERSION}` is available for all release versions up to 8.15.0.
+For instance, `gte_v8.12.2` would be available for all release versions greater than or equal to 8.12.2.
+
+[[skip_known_issues]]
+=== Skip on known issues
+
+Previously, it was possible to skip ranges of broken release versions using `version`.
+`known_issues` provides a more explicit way to express and skip a certain range of buggy releases based on cluster features.
+Each of possibly multiple issues is a pair of `cluster_feature` and `fixed_by`, where an issue was
+introduced by the former feature and eventually fixed by the latter one. For instance:
+
+....
+    "Parent":
+     - skip:
+          known_issues:
+            - cluster_feature: feature_y
+              fixed_by:        feature_y_fix
+            - cluster_feature: feature_z
+              fixed_by:        feature_z_fix
+          reason: Skipped for buggy feature_y until fixed by feature_y_fix and feature_z until fixed by feature_z_fix
+
+     - do:
+       ... test definitions ...
+....
+
+The `known_issues` field is an array containing one or several issues.
+
+Note: If a known issue cannot be defined in terms of existing cluster features, the previously described
+<<synthetic_cluster_features,synthetic version based cluster features>> can be used.
+
+[[skip_awaits_fix]]
+=== Skip while awaiting fix
+
+In certain cases there's no fix available yet. In order to mute a test, use `awaits_fix` with the corresponding ticket / issue.
+
+For instance:
+....
+    "Parent":
+     - skip:
+          awaits_fix: https://github.com/elastic/elasticsearch/issues/xyz
+          reason:     Muted due to #xyz
+
+     - do:
+       ... test definitions ...
+....
+
+[[skip_os]]
+=== Skip on certain operating systems
+
+The `skip` section can also be used to mute tests for certain operating systems.
+This way it is not necessary to mute the whole test if an operating system
+specific problem appears.
+
+The operating system is taken from the pretty name that elasticsearch reports
+using the `GET /_nodes` API. To obtain the name from a CI build grep the logs
+for:
+
+`initializing client, minimum es version`
+
+When muting by operating system, a `reason` is mandatory and `skip_os` must be defined as requirement in
+`test_runner_features` (see below).
+
+....
+    "Parent":
+     - requires:
+          test_runner_features: skip_os
+     - skip:
+          os:       debian-8
+          reason:   memory accounting problems on debian 8, see gh#xyz
+
+     - do:
+       ... test definitions ...
+....
+
+The `os` field can either be a string or an array of strings.
+
+[[requires_test_runner_features]]
+=== Require specific test runner features
+
+The `requires` section can also be used to list test runner features that need to be
+supported by the runner in order to execute a test. This way the up-to-date runners will
+run the test, while the ones that don't support the feature yet can
+temporarily skip it, and avoid having lots of test failures in the meantime.
+Once all runners have implemented the feature, it can be declared supported
+by default, thus the related `requires` sections can be removed from the tests.
+
+The `requires` section can also be used to selectively mute tests in certain
+cases where they would otherwise fail, see `default_shards` and `fips_140`.
+
+....
+    "Parent":
+     - requires:
+          test_runner_features:    regex
+
+     - do:
+       ... test definitions ...
+....
+
+The `test_runner_features` field can either be a string or an array of strings.
+
+Note:
+Tests that are still using `features` in the `skip` sections should be migrated to
+`test_runner_features` to avoid confusion with recently added cluster features.
+
+==== Available test runner features
+
+===== `capabilities`
+The runner supports checks against the <<capabilities_check,capabilities API>> in a `skip` or `requires`
+prerequisite section.
+
+===== `xpack`
+Requires x-pack to be enabled on the `Elasticsearch` instance the rest test is running against
+
+===== `no_xpack`
+Requires the test to run against an oss distribution of `Elasticsearch`
+
+===== `catch_unauthorized`
+
+Runner supports `catch: unauthorized` on a `do` operator.
+
+===== `default_shards`
+
+This test can only run if the cluster is running with the distributions default number of shards.
+
+The Java test runner introduces randomness and sometimes overrides the default number of shards to `2`.
+If the default number of shards is changed, test marked with this feature should *not* run
+
+===== `headers`
+
+The runner is able to set per request headers on the `do` operation
+
+===== `node_selector`
+
+Indicates the runner can parse `node_selector` under the `do` operator and use its metadata to select the node to
+perform the `do` operation on.
+
+===== `stash_in_key`
+
+Allows you to use a stashed value in any key of an object during a `match` assertion
+
+....
+- set: {nodes.$master.http.publish_address: host}
+- match:
+    $body:
+      {
+        "nodes": {
+          $host: {
+            ... stuff in here ...
+          }
+        }
+     }
+....
+
+===== `stash_in_path`
+
+Allows a stashed value to be referenced in path lookups as a single token. E.g:
+
+....
+path.$stash.value
+....
+
+===== `embedded_stash_key`
+
+Allows a stashed key to appear anywhere in the path (note the placeholder needs to be within curly brackets too in this case):
+
+....
+field1.e${placeholder}ments.element1
+....
+
+===== `stash_path_replace`
+Used only in the doc snippet tests. Allow you to do ease replacements using a special `$_path` marker.
+
+....
+// TESTRESPONSEs/somevalue/$body.${_path}/ to mean "replace
+somevalue with whatever is the response in the same position."
+....
+
+===== `warnings`
+
+The runner can assert specific warnings headers are returned by Elasticsearch through the `warning:` assertations
+under `do:`  operations. The test will fail if the warning is not found.
+
+===== `warnings_regex`
+
+The same as `warnings`, but matches warning headers with the given regular expression.
+
+
+===== `allowed_warnings`
+
+The runner will allow specific warnings headers to be returned by Elasticsearch through the `allowed_warning:` assertations
+under `do:`  operations. The test will not fail if the warning is not found.
+
+===== `allowed_warnings_regex`
+
+The same as `allowed_warnings`, but matches warning headers with the given regular expression.
+
+===== `yaml`
+
+The runner is able to send and receive `application/yaml` and perform all assertions on the returned data.
+
+===== `contains`
+
+Asserts an array of object contains an object with a property set to a certain value. e.g:
+
+...
+contains:  { nodes.$master.plugins: { name: painless-whitelist } }
+...
+
+Asserts the plugins array contains an object with a `name` property with the value `painless-whitelist`
+
+Alternatively, this can be used to assert that a string response contains a certain substring:
+
+...
+contains: { items.0.index.error.reason: "must be mapped" }
+
+===== `transform_and_set`
+
+Supports the `transform_and_set` operator as described in this document.
+
+===== `arbitrary_key`
+
+Allows you to stash an arbitrary key from a returned map e.g:
+
+....
+- set:
+    nodes._arbitrary_key_: node_id
+....
+
+This means: Stash any of the keys returned under `nodes` as `$node_id`
+
+===== `fips_140`
+
+This test should not be run when the test cluster is set in FIPS 140 mode.
+
+== Required operators:
+
+=== `do`
+
+The `do` operator calls a method on the client. For instance:
+
+....
+    - do:
+        cluster.health:
+            level: shards
+....
+
+The response from the `do` operator should be stored in the `response` var, which
+is reset (1) at the beginning of a file or (2) on the next `do`.
+
+If the arguments to `do` include `catch`, then we are expecting an error, which should
+be caught and tested. For instance:
+
+....
+    - do:
+        catch:        missing
+        get:
+            index:    test
+            type:     test
+            id:        1
+
+# And, optionally, you can assert on the contents of the precise contents of the error message:
+
+    - match: { error.type: "illegal_argument_exception" }
+    - match: { error.reason: "The request contained an illegal argument" }
+    - match: { error.caused_by.reason: "The argument was illegal because ..." }
+    - match: { error.root_cause.0.type: "illegal_argument_exception" }
+....
+
+The argument to `catch` can be any of:
+
+[horizontal]
+`bad_request`::     a 400 response from ES
+`unauthorized`::    a 401 response from ES
+`forbidden`::       a 403 response from ES
+`missing`::         a 404 response from ES
+`request_timeout`:: a 408 response from ES
+`conflict`::        a 409 response from ES
+`request`::         a 4xx-5xx error response from ES, not equal to any named response
+                    above
+`unavailable`::     a 503 response from ES
+`param`::           a client-side error indicating an unknown parameter has been passed
+                    to the method
+`/foo bar/`::       the text of the error message matches this regular expression
+
+If `catch` is specified, then the `response` var must be cleared, and the test
+should fail if no error is thrown.
+
+If the arguments to `do` include `warnings` then we are expecting a `Warning`
+header to come back from the request. If the arguments *don't* include a
+`warnings` argument then we *don't* expect the response to include a `Warning`
+header. The warnings must match exactly. Using it looks like this:
+
+....
+    - do:
+        warnings:
+            - '[index] is deprecated'
+            - quotes are not required because yaml
+            - but this argument is always a list, never a single string
+            - no matter how many warnings you expect
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
+If the arguments to `do` include `allowed_warnings` then matching `Warning`
+headers do not fail the request. Unlike the `warnings` argument, these aren't
+expected so much as "allowed". This usually comes up in backwards compatibility
+testing. Using it looks like this:
+
+....
+    - do:
+        allowed_warnings:
+            - some warning
+            - this argument is also always a list, never a single string
+            - no matter how many warnings you expect
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
+If the arguments to `do` include `node_selector` then the request is only
+sent to nodes that match the `node_selector`. It looks like this:
+
+....
+"test id":
+ - skip:
+      features: node_selector
+ - do:
+      node_selector:
+          version: " - 6.9.99"
+      index:
+          index:  test-weird-index-中文
+          type:   weird.type
+          id:     1
+          body:   { foo: bar }
+....
+
+If you list multiple selectors then the request will only go to nodes that
+match all of those selectors. The following selectors are supported:
+
+- `version`: Only nodes who's version is within the range will receive the
+request. The syntax for the pattern is the same as when `version` is within
+`skip` but also supports `current` which selects nodes of the current version.
+`current` is useful when running mixed version tests if the results vary based
+on the version of the node that received the request.
+- `attribute`: Only nodes that have an attribute matching the name and value
+of the provided attribute match.
+Looks like:
+....
+      node_selector:
+          attribute:
+              name: value
+....
+
+=== `set`
+
+For some tests, it is necessary to extract a value from the previous `response`, in
+order to reuse it in a subsequent `do` and other tests. For instance, when
+testing indexing a document without a specified ID:
+
+....
+    - do:
+        index:
+            index: test
+            type:  test
+    - set:  { _id: id }   # stash the value of `response._id` as `id`
+    - do:
+        get:
+            index: test
+            type:  test
+            id:    $id    # replace `$id` with the stashed value
+    - match: { _id: $id } # the returned `response._id` matches the stashed `id`
+....
+
+The last response obtained gets always stashed automatically as a string, called `body`.
+This is useful when needing to test apis that return text rather than json (e.g. cat api),
+as it allows to treat the whole body as an ordinary string field.
+
+Stashed values can be used in property names, eg:
+
+....
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info:
+        metric: [ transport ]
+
+  - is_true: nodes.$master.transport.profiles
+....
+
+
+Note that not only expected values can be retrieved from the stashed values (as in the
+example above), but the same goes for actual values:
+
+....
+    - match: { $body: /^.+$/ } # the returned `body` matches the provided regex if the body is text
+    - match: { $body: {} } # the returned `body` matches the JSON object if the body is JSON
+....
+
+The stash should be reset at the beginning of each test file.
+
+=== `transform_and_set`
+
+For some tests, it is necessary to extract a value and transform it from the previous `response`, in
+order to reuse it in a subsequent `do` and other tests.
+Currently, it only has support for `base64EncodeCredentials`, for unknown transformations it will not
+do anything and stash the value as is.
+For instance, when testing you may want to base64 encode username and password for
+`Basic` authorization header:
+
+....
+    - do:
+        index:
+            index: test
+            type:  test
+    - transform_and_set:  { login_creds: "#base64EncodeCredentials(user,password)" }   # stash the base64 encoded credentials of `response.user` and `response.password` as `login_creds`
+    - do:
+        headers:
+            Authorization: Basic ${login_creds} # replace `$login_creds` with the stashed value
+        get:
+            index: test
+            type:  test
+....
+
+Stashed values can be used as described in the `set` section
+
+=== `is_after`
+
+Used to compare two variables (both need to be of type String, which can be parsed to an Instant) and check, whether
+the first one is after the other one.
+
+....
+    - is_after: { result.some_field: 2023-05-25T12:30:00.000Z }
+....
+
+=== `is_true`
+
+The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null`
+or the empty string), eg:
+
+....
+    - is_true:  fields.foo  # the foo key exists in the fields hash and is "true"
+....
+
+=== `is_false`
+
+The specified key doesn't exist or has a false value (ie `0`, `false`, `undefined`,
+`null` or the empty string), eg:
+
+....
+    - is_false:  fields._source  # the _source key doesn't exist in the fields hash or is "false"
+....
+
+=== `match`
+
+Used to compare two variables (could be scalars, arrays or hashes). The two variables
+should be identical, eg:
+
+....
+    - match: { _source: { foo: bar }}
+....
+
+Supports also regular expressions with flag X for more readability (accepts whitespaces and comments):
+
+....
+  - match:
+      $body: >
+               /^  epoch  \s+  timestamp          \s+  count  \s+  \n
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
+....
+
+**Note:** `$body` is used to refer to the last obtained response body as a string, while `''` refers to the parsed representation (parsed into a Map by the Java runner for instance). Having the raw string response is for example useful when testing cat APIs.
+
+=== `close_to`
+
+Used to compare floats or doubles with a specified error bound.
+
+....
+    - close_to { path.to.actual.value, {value: 0.12345678, error: 0.00000001}}
+....
+
+**Note: you should use a feature skip along with close_to, as not all runners
+support it:**
+
+....
+    - skip:
+          features: close_to
+....
+
+=== `lt` and `gt`
+
+Compares two numeric values, eg:
+
+....
+    - lt: { foo: 10000 }  # the `foo` value is less than 10,000
+....
+
+=== `lte` and `gte`
+
+Compares two numeric values, eg:
+
+....
+    - lte: { foo: 10000 }  # the `foo` value is less than or equal to 10,000
+....
+
+=== `length`
+
+This depends on the data type of the value being examined, eg:
+
+....
+    - length: { _id: 22    }   # the `_id` string is 22 chars long
+    - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
+    - length: { _source: 5 }   # the `_source` hash has 5 keys
+....
+
+=== `exists`
+
+Checks if specified path exists with any value (empty string/list/object is permitted).
+
+....
+    - exists:  fields._source  # checks if the fields._source exist
+....

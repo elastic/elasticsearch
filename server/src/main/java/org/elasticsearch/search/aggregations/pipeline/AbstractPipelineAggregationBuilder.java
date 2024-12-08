@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,8 +22,8 @@ import java.util.Objects;
 /**
  * Base implementation of a {@link PipelineAggregationBuilder}.
  */
-public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>>
-        extends PipelineAggregationBuilder {
+public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>> extends
+    PipelineAggregationBuilder {
 
     /**
      * Field shared by many parsers.
@@ -56,22 +46,18 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     protected AbstractPipelineAggregationBuilder(StreamInput in, String type) throws IOException {
         this(in.readString(), type, in.readStringArray());
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringArray(bucketsPaths);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         doWriteTo(out);
     }
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    public String type() {
-        return type;
-    }
 
     protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
@@ -102,12 +88,8 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         }
         builder.startObject(type);
 
-        if (!overrideBucketsPath() && bucketsPaths != null) {
-            builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
-            for (String path : bucketsPaths) {
-                builder.value(path);
-            }
-            builder.endArray();
+        if (overrideBucketsPath() == false && bucketsPaths != null) {
+            builder.array(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName(), bucketsPaths);
         }
 
         internalXContent(builder, params);

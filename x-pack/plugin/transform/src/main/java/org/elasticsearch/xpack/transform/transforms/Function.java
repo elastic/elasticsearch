@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -9,14 +10,18 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -48,7 +53,7 @@ public interface Function {
      * 2. apply the collected changes as filter query and search/process them
      * 3. in case phase 1 could not collect all changes, move the collector cursor, collect changes and continue with step 2
      */
-    public interface ChangeCollector {
+    interface ChangeCollector {
 
         /**
          * Build the search query to gather the changes between 2 checkpoints.
@@ -73,13 +78,20 @@ public interface Function {
         /**
          * Build the filter query to narrow the result set given the previously collected changes.
          *
-         * TODO: it might be useful to have the full checkpoint data.
-         *
-         * @param lastCheckpointTimestamp the timestamp of the last checkpoint
-         * @param nextcheckpointTimestamp the timestamp of the next (in progress) checkpoint
+         * @param lastCheckpoint the last checkpoint
+         * @param nextCheckpoint the next (in progress) checkpoint
          * @return a filter query, null in case of no filter
          */
-        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
+        QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint);
+
+        /**
+         * Filter indices according to the given checkpoints.
+         *
+         * @param lastCheckpoint the last checkpoint
+         * @param nextCheckpoint the next (in progress) checkpoint
+         * @return set of indices to query
+         */
+        Collection<String> getIndicesToQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint);
 
         /**
          * Clear the internal state to free up memory.
@@ -105,15 +117,24 @@ public interface Function {
      * Deduce mappings based on the input mappings and the known configuration.
      *
      * @param client a client instance for querying the source mappings
+     * @param headers headers to be used to query only for what the caller is allowed to
+     * @param transformId transform id
      * @param sourceConfig the source configuration
      * @param listener listener to take the deduced mapping
      */
-    void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener);
+    void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        String transformId,
+        SourceConfig sourceConfig,
+        ActionListener<Map<String, String>> listener
+    );
 
     /**
      * Create a preview of the function.
      *
      * @param client a client instance for querying
+     * @param timeout search query timeout
      * @param headers headers to be used to query only for what the caller is allowed to
      * @param sourceConfig the source configuration
      * @param fieldTypeMap mapping of field types
@@ -122,6 +143,7 @@ public interface Function {
      */
     void preview(
         Client client,
+        @Nullable TimeValue timeout,
         Map<String, String> headers,
         SourceConfig sourceConfig,
         Map<String, String> fieldTypeMap,
@@ -153,13 +175,29 @@ public interface Function {
     void validateConfig(ActionListener<Boolean> listener);
 
     /**
+     * Returns names of fields that are critical to achieve good transform performance.
+     * Such fields should ideally be indexed, not runtime or script fields.
+     *
+     * @return list of fields names
+     */
+    List<String> getPerformanceCriticalFields();
+
+    /**
      * Runtime validation by querying the source and checking if source and config fit.
      *
      * @param client a client instance for querying the source
+     * @param headers headers to be used to query only for what the caller is allowed to
      * @param sourceConfig the source configuration
+     * @param timeout search query timeout
      * @param listener the result listener
      */
-    void validateQuery(Client client, SourceConfig sourceConfig, ActionListener<Boolean> listener);
+    void validateQuery(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        @Nullable TimeValue timeout,
+        ActionListener<Boolean> listener
+    );
 
     /**
      * Create a change collector instance and return it
@@ -200,6 +238,7 @@ public interface Function {
      * @param destinationPipeline the destination pipeline
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
+     * @param progress a progress object to record/collect progress information
      * @return a tuple with the stream of index requests and the cursor
      */
     Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
@@ -207,6 +246,7 @@ public interface Function {
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldMappings,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     );
 }

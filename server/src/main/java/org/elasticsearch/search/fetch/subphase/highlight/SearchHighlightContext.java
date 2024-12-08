@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -33,32 +23,17 @@ import java.util.Set;
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
-    private final boolean globalForceSource;
 
     public SearchHighlightContext(Collection<Field> fields) {
-        this(fields, false);
-    }
-
-    public SearchHighlightContext(Collection<Field> fields, boolean globalForceSource) {
         assert fields != null;
-        this.fields = new LinkedHashMap<>(fields.size());
+        this.fields = Maps.newLinkedHashMapWithExpectedSize(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }
-        this.globalForceSource = globalForceSource;
     }
 
     public Collection<Field> fields() {
         return fields.values();
-    }
-
-    public boolean forceSource(Field field) {
-        if (globalForceSource) {
-            return true;
-        }
-
-        Field _field = fields.get(field.field);
-        return _field == null ? false : _field.fieldOptions.forceSource;
     }
 
     public static class Field {
@@ -102,9 +77,9 @@ public class SearchHighlightContext {
 
         private Boolean requireFieldMatch;
 
-        private String highlighterType;
+        private Integer maxAnalyzedOffset;
 
-        private Boolean forceSource;
+        private String highlighterType;
 
         private String fragmenter;
 
@@ -112,7 +87,7 @@ public class SearchHighlightContext {
 
         private int boundaryMaxScan = -1;
 
-        private Character[] boundaryChars = null;
+        private char[] boundaryChars = null;
 
         private Locale boundaryScannerLocale;
 
@@ -162,6 +137,10 @@ public class SearchHighlightContext {
             return requireFieldMatch;
         }
 
+        public Integer maxAnalyzedOffset() {
+            return maxAnalyzedOffset;
+        }
+
         public String highlighterType() {
             return highlighterType;
         }
@@ -178,7 +157,7 @@ public class SearchHighlightContext {
             return boundaryMaxScan;
         }
 
-        public Character[] boundaryChars() {
+        public char[] boundaryChars() {
             return boundaryChars;
         }
 
@@ -255,13 +234,13 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder highlighterType(String type) {
-                fieldOptions.highlighterType = type;
+            Builder maxAnalyzedOffset(Integer maxAnalyzedOffset) {
+                fieldOptions.maxAnalyzedOffset = maxAnalyzedOffset;
                 return this;
             }
 
-            Builder forceSource(boolean forceSource) {
-                fieldOptions.forceSource = forceSource;
+            Builder highlighterType(String type) {
+                fieldOptions.highlighterType = type;
                 return this;
             }
 
@@ -280,7 +259,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder boundaryChars(Character[] boundaryChars) {
+            Builder boundaryChars(char[] boundaryChars) {
                 fieldOptions.boundaryChars = boundaryChars;
                 return this;
             }
@@ -344,6 +323,9 @@ public class SearchHighlightContext {
                 if (fieldOptions.requireFieldMatch == null) {
                     fieldOptions.requireFieldMatch = globalOptions.requireFieldMatch;
                 }
+                if (fieldOptions.maxAnalyzedOffset == null) {
+                    fieldOptions.maxAnalyzedOffset = globalOptions.maxAnalyzedOffset;
+                }
                 if (fieldOptions.boundaryScannerType == null) {
                     fieldOptions.boundaryScannerType = globalOptions.boundaryScannerType;
                 }
@@ -370,9 +352,6 @@ public class SearchHighlightContext {
                 }
                 if (fieldOptions.noMatchSize == -1) {
                     fieldOptions.noMatchSize = globalOptions.noMatchSize;
-                }
-                if (fieldOptions.forceSource == null) {
-                    fieldOptions.forceSource = globalOptions.forceSource;
                 }
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
@@ -31,6 +32,11 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
         );
     }
 
+    @Override
+    protected StDistanceProcessor mutateInstance(StDistanceProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Processor constantPoint(double lon, double lat) {
         return new ChainingProcessor(new ConstantProcessor("point (" + lon + " " + lat + ")"), StWkttosqlProcessor.INSTANCE);
     }
@@ -57,12 +63,16 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
     }
 
     public void testTypeCheck() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new StDistance(EMPTY, l("foo"), l(new GeoShape(1, 2))).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new StDistance(EMPTY, l("foo"), l(new GeoShape(1, 2))).makePipe().asProcessor().process(null)
+        );
         assertEquals("A geo_point or geo_shape with type point is required; received [foo]", siae.getMessage());
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new StDistance(EMPTY, l(new GeoShape(1, 2)), l("bar")).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new StDistance(EMPTY, l(new GeoShape(1, 2)), l("bar")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A geo_point or geo_shape with type point is required; received [bar]", siae.getMessage());
     }
 

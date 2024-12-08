@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -24,12 +14,12 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -209,7 +199,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
             }
             iw.addDocument(doc);
             try (IndexReader r = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(r);
+                IndexSearcher searcher = newSearcher(r);
                 return searcher.count(query) > 0;
             }
         }
@@ -224,7 +214,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
             }
             iw.addDocument(doc);
             try (IndexReader r = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(r);
+                IndexSearcher searcher = newSearcher(r);
                 return searcher.count(query) > 0;
             }
         }
@@ -233,7 +223,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
     private void assertDelegateForSingleValuedSegmentsEqualPointRange(MergedPointRangeQuery actual, Query expected) {
         /*
          * This is a lot like asserThat(actual.delegateForSingleValuedSegments(), equalTo(expected)); but
-         * that doesn't work because the subclasses aren't the same. 
+         * that doesn't work because the subclasses aren't the same.
          */
         assertThat(expected, instanceOf(PointRangeQuery.class));
         assertThat(actual.delegateForSingleValuedSegments(), instanceOf(PointRangeQuery.class));

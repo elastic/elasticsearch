@@ -1,48 +1,40 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class BinaryFieldMapper extends FieldMapper {
 
@@ -55,34 +47,41 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
-            this(name, false);
-        }
+        private final boolean isSyntheticSourceEnabled;
+        private final Parameter<Boolean> hasDocValues;
 
-        public Builder(String name, boolean hasDocValues) {
+        public Builder(String name, boolean isSyntheticSourceEnabled) {
             super(name);
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabled);
+        }
+
+        @Override
+        public Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta, stored, hasDocValues };
+        }
+
+        public BinaryFieldMapper.Builder docValues(boolean hasDocValues) {
             this.hasDocValues.setValue(hasDocValues);
+            return this;
         }
 
         @Override
-        public List<Parameter<?>> getParameters() {
-            return List.of(meta, stored, hasDocValues);
-        }
-
-        @Override
-        public BinaryFieldMapper build(ContentPath contentPath) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(contentPath), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        public BinaryFieldMapper build(MapperBuilderContext context) {
+            return new BinaryFieldMapper(
+                leafName(),
+                new BinaryFieldType(context.buildFullName(leafName()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                builderParams(this, context),
+                this
+            );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, SourceFieldMapper.isSynthetic(c.getIndexSettings())));
 
     public static final class BinaryFieldType extends MappedFieldType {
-
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
         }
@@ -97,7 +96,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -126,40 +125,40 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Binary fields do not support searching");
         }
     }
 
     private final boolean stored;
     private final boolean hasDocValues;
+    private final boolean isSyntheticSourceEnabled;
 
-    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         }
+        indexValue(context, context.parser().binaryValue());
+    }
+
+    public void indexValue(DocumentParserContext context, byte[] value) {
         if (value == null) {
             return;
         }
@@ -179,13 +178,13 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(simpleName()).init(this);
+        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabled).init(this);
     }
 
     @Override
@@ -193,38 +192,72 @@ public class BinaryFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class CustomBinaryDocValuesField extends CustomDocValuesField {
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    var in = new ByteArrayStreamInput();
+                    in.reset(value.bytes, value.offset, value.length);
 
-        private final ObjectArrayList<byte[]> bytesList;
+                    int count = in.readVInt();
+                    switch (count) {
+                        case 0:
+                            return;
+                        case 1:
+                            b.field(leafName());
+                            break;
+                        default:
+                            b.startArray(leafName());
+                    }
 
-        private int totalSize = 0;
+                    for (int i = 0; i < count; i++) {
+                        byte[] bytes = in.readByteArray();
+                        b.value(Base64.getEncoder().encodeToString(bytes));
+                    }
+
+                    if (count > 1) {
+                        b.endArray();
+                    }
+                }
+            };
+
+            return new SyntheticSourceSupport.Native(loader);
+        }
+
+        return super.syntheticSourceSupport();
+    }
+
+    public static final class CustomBinaryDocValuesField extends CustomDocValuesField {
+
+        private final List<byte[]> bytesList;
 
         public CustomBinaryDocValuesField(String name, byte[] bytes) {
             super(name);
-            bytesList = new ObjectArrayList<>();
+            bytesList = new ArrayList<>();
             add(bytes);
         }
 
         public void add(byte[] bytes) {
             bytesList.add(bytes);
-            totalSize += bytes.length;
         }
 
         @Override
         public BytesRef binaryValue() {
             try {
-                CollectionUtils.sortAndDedup(bytesList);
-                int size = bytesList.size();
-                final byte[] bytes = new byte[totalSize + (size + 1) * 5];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-                out.writeVInt(size);  // write total number of values
-                for (int i = 0; i < size; i ++) {
-                    final byte[] value = bytesList.get(i);
+                bytesList.sort(Arrays::compareUnsigned);
+                CollectionUtils.uniquify(bytesList, Arrays::compareUnsigned);
+                int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
+                int n = bytesList.size();
+                BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);
+                out.writeVInt(n);  // write total number of values
+                for (var value : bytesList) {
                     int valueLength = value.length;
                     out.writeVInt(valueLength);
                     out.writeBytes(value, 0, valueLength);
                 }
-                return new BytesRef(bytes, 0, out.getPosition());
+                return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
             }

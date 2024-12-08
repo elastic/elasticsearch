@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,42 +22,69 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Puts mapping definition into one or more indices. Best created with
- * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
+ * Puts mapping definition into one or more indices.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected.
  *
- * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", "_field_names"
+    private static final Set<String> RESERVED_FIELDS = Set.of(
+        "_uid",
+        "_id",
+        "_type",
+        "_source",
+        "_all",
+        "_analyzer",
+        "_parent",
+        "_routing",
+        "_index",
+        "_size",
+        "_timestamp",
+        "_ttl",
+        "_field_names"
     );
 
     private String[] indices;
 
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .allowEmptyExpressions(false)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowClosedIndices(true)
+                .allowAliasToMultipleIndices(true)
+                .ignoreThrottled(false)
+                .allowFailureIndices(false)
+        )
+        .build();
 
     private String source;
     private String origin = "";
@@ -81,7 +97,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String type = in.readOptionalString();
             if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
                 throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
@@ -90,12 +106,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            writeIndexOnly = in.readBoolean();
-        }
+        writeIndexOnly = in.readBoolean();
     }
 
     public PutMappingRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
     }
 
     /**
@@ -103,6 +118,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * it will be executed against all indices.
      */
     public PutMappingRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 
@@ -115,8 +131,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
-            validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
-                + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
+            validationException = addValidationError(
+                "either concrete index or unresolved indices can be set, concrete index: ["
+                    + concreteIndex
+                    + "] and indices: "
+                    + Arrays.asList(indices),
+                validationException
+            );
         }
         return validationException;
     }
@@ -309,14 +330,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeBoolean(writeIndexOnly);
-        }
+        out.writeBoolean(writeIndexOnly);
     }
 }

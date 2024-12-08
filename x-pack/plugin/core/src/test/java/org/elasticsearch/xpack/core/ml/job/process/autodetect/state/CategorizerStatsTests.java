@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
-public class CategorizerStatsTests extends AbstractSerializingTestCase<CategorizerStats> {
+public class CategorizerStatsTests extends AbstractXContentSerializingTestCase<CategorizerStats> {
 
     public void testDefaultConstructor() {
         CategorizerStats stats = new CategorizerStats.Builder("foo").build();
@@ -28,6 +29,11 @@ public class CategorizerStatsTests extends AbstractSerializingTestCase<Categoriz
     @Override
     protected CategorizerStats createTestInstance() {
         return createRandomized("foo");
+    }
+
+    @Override
+    protected CategorizerStats mutateInstance(CategorizerStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static CategorizerStats createRandomized(String jobId) {

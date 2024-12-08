@@ -1,0 +1,25 @@
+[discrete]
+[[api-java-service]]
+=== {watcher} service API
+
+The {watcher} `service` API allows the control the lifecycle of the {watcher}
+service. The following example starts the watcher service:
+
+[source,java]
+--------------------------------------------------
+WatcherServiceResponse watcherServiceResponse = watcherClient.prepareWatchService().start().get();
+--------------------------------------------------
+
+The following example stops the watcher service:
+
+[source,java]
+--------------------------------------------------
+WatcherServiceResponse watcherServiceResponse = watcherClient.prepareWatchService().stop().get();
+--------------------------------------------------
+
+The following example restarts the watcher service:
+
+[source,java]
+--------------------------------------------------
+WatcherServiceResponse watcherServiceResponse = watcherClient.prepareWatchService().restart().get();
+--------------------------------------------------

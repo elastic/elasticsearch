@@ -1,44 +1,54 @@
-apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.testclusters'
-test.enabled = false
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-testclusters'
 
 import org.elasticsearch.gradle.testclusters.RunTask
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'indices', 'snapshot'
-    includeXpack 'eql', 'indices'
-  }
-}
-
 dependencies {
   javaRestTestImplementation project(':test:framework')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(xpackModule('ql:test'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
-File serviceAccountFile = (System.getenv("eql_test_credentials_file") ?: System.getProperty("eql.test.credentials.file")) as File
+File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
+  .orElse(providers.systemProperty('eql.test.credentials.file'))
+  .map { s -> new File(s)}
+  .getOrNull()
 
-testClusters {
-  all {
-    plugin ':plugins:repository-gcs'
+Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
+  .map { s -> Boolean.parseBoolean(s) }
+  .getOrElse(false)
+
+testClusters.configureEach {
     if (serviceAccountFile) {
       keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+    }
+    if (preserveData) {
+      preserveDataDir = true
     }
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'
     jvmArgs '-Xms4g', '-Xmx4g'
-  }
-  runTask {
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+def runTaskCluster = testClusters.register('runTask') {
     jvmArgs '-Xms8g', '-Xmx8g'
-  }
 }
 
 tasks.named('javaRestTest').configure {
-  onlyIf { serviceAccountFile }
+  onlyIf("FIPS mode disabled and service accoutn file available") {
+      serviceAccountFile && buildParams.inFipsJvm == false
+  }
 
   testLogging {
     showStandardStreams = true
@@ -46,6 +56,6 @@ tasks.named('javaRestTest').configure {
 }
 
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster testClusters.runTask;
+  useCluster runTaskCluster
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

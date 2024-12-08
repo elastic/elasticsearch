@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -25,7 +26,7 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
     @Override
     protected AnalyticsStatsAction.NodeResponse createTestInstance() {
         String nodeName = randomAlphaOfLength(10);
-        DiscoveryNode node = new DiscoveryNode(nodeName, buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create(nodeName);
         EnumCounters<AnalyticsStatsAction.Item> counters = new EnumCounters<>(AnalyticsStatsAction.Item.class);
         for (AnalyticsStatsAction.Item item : AnalyticsStatsAction.Item.values()) {
             if (randomBoolean()) {
@@ -33,6 +34,11 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
             }
         }
         return new AnalyticsStatsAction.NodeResponse(node, counters);
+    }
+
+    @Override
+    protected AnalyticsStatsAction.NodeResponse mutateInstance(AnalyticsStatsAction.NodeResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testItemEnum() {
@@ -46,6 +52,7 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
         assertThat(AnalyticsStatsAction.Item.MOVING_PERCENTILES.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.NORMALIZE.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.RATE.ordinal(), equalTo(i++));
+        assertThat(AnalyticsStatsAction.Item.MULTI_TERMS.ordinal(), equalTo(i++));
         // Please add tests for newly added items here
         assertThat(AnalyticsStatsAction.Item.values().length, equalTo(i));
     }

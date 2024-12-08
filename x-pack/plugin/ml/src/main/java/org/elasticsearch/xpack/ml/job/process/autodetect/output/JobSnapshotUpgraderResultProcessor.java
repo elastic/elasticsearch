@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A runnable class that reads the autodetect process output in the
@@ -52,18 +55,22 @@ public class JobSnapshotUpgraderResultProcessor {
     private final JobResultsPersister persister;
     private final AutodetectProcess process;
     private final JobResultsPersister.Builder bulkResultsPersister;
+    private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
 
-    public JobSnapshotUpgraderResultProcessor(String jobId,
-                                              String snapshotId,
-                                              JobResultsPersister persister,
-                                              AutodetectProcess autodetectProcess) {
+    public JobSnapshotUpgraderResultProcessor(
+        String jobId,
+        String snapshotId,
+        JobResultsPersister persister,
+        AutodetectProcess autodetectProcess
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.persister = Objects.requireNonNull(persister);
         this.process = Objects.requireNonNull(autodetectProcess);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
+        this.flushListener = new FlushListener();
     }
 
     public void process() {
@@ -78,32 +85,32 @@ public class JobSnapshotUpgraderResultProcessor {
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage(
-                    "[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
+                LOGGER.warn(() -> format("[%s] [%s] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
             }
         } catch (Exception e) {
             failed = true;
 
             if (processKilled) {
-                // Don't log the stack trace in this case.  Log just enough to hint
+                // Don't log the stack trace in this case. Log just enough to hint
                 // that it would have been better to close jobs before shutting down,
                 // but we now fully expect jobs to move between nodes without doing
                 // all their graceful close activities.
                 LOGGER.warn(
                     "[{}] [{}] some model snapshot upgrade results not processed due to the process being killed",
                     jobId,
-                    snapshotId);
+                    snapshotId
+                );
             } else if (process.isProcessAliveAfterWaiting() == false) {
                 // Don't log the stack trace to not shadow the root cause.
                 LOGGER.warn(
                     "[{}] [{}] some model snapshot upgrade results not processed due to the termination of autodetect",
                     jobId,
-                    snapshotId);
+                    snapshotId
+                );
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage(
-                    "[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
+                LOGGER.error(() -> format("[%s] [%s] error parsing model snapshot upgrade output", jobId, snapshotId), e);
             }
         } finally {
             completionLatch.countDown();
@@ -121,9 +128,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(
-                        new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId),
-                        e);
+                    LOGGER.warn(() -> format("[%s] [%s] Error processing model snapshot upgrade result", jobId, snapshotId), e);
                 }
             }
         } finally {
@@ -135,14 +140,12 @@ public class JobSnapshotUpgraderResultProcessor {
         processKilled = true;
     }
 
+    public boolean isProcessKilled() {
+        return processKilled;
+    }
+
     private void logUnexpectedResult(String resultType) {
-        String msg = "["
-            + jobId
-            + "] ["
-            + snapshotId
-            + "] unexpected result read ["
-            + resultType
-            + "]";
+        String msg = "[" + jobId + "] [" + snapshotId + "] unexpected result read [" + resultType + "]";
         // This should never happen, but we definitely want to fail if -ea is provided (e.g. during tests)
         assert true : msg;
         LOGGER.info(msg);
@@ -158,11 +161,11 @@ public class JobSnapshotUpgraderResultProcessor {
             logUnexpectedResult(Bucket.RESULT_TYPE_VALUE);
         }
         List<AnomalyRecord> records = result.getRecords();
-        if (records != null && !records.isEmpty()) {
+        if (records != null && records.isEmpty() == false) {
             logUnexpectedResult(AnomalyRecord.RESULT_TYPE_VALUE);
         }
         List<Influencer> influencers = result.getInfluencers();
-        if (influencers != null && !influencers.isEmpty()) {
+        if (influencers != null && influencers.isEmpty() == false) {
             logUnexpectedResult(Influencer.RESULT_TYPE_VALUE);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
@@ -204,32 +207,55 @@ public class JobSnapshotUpgraderResultProcessor {
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {
-            logUnexpectedResult(FlushAcknowledgement.TYPE.getPreferredName());
+            LOGGER.debug(
+                () -> format(
+                    "[%s] [%s] Flush acknowledgement parsed from output for ID %s",
+                    jobId,
+                    snapshotId,
+                    flushAcknowledgement.getId()
+                )
+            );
+            flushListener.acknowledgeFlush(flushAcknowledgement, null);
         }
+    }
+
+    /**
+     * Blocks until a flush is acknowledged or the timeout expires, whichever happens first.
+     *
+     * @param flushId the id of the flush request to wait for
+     * @param timeout the timeout
+     * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
+     */
+    @Nullable
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws Exception {
+        return failed ? null : flushListener.waitForFlush(flushId, timeout);
+    }
+
+    public void clearAwaitingFlush(String flushId) {
+        flushListener.clear(flushId);
     }
 
     public void awaitCompletion() throws TimeoutException {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
             // until the state is persisted, and that can take a while
-            if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
-                TimeUnit.MINUTES) == false) {
+            if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
                 throw new TimeoutException(
                     "Timed out waiting for model snapshot upgrader results processor to complete for job "
                         + jobId
                         + " and snapshot "
-                        + snapshotId);
+                        + snapshotId
+                );
             }
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
-            persister.commitStateWrites(jobId);
+            persister.commitWrites(jobId, JobResultsPersister.CommitType.STATE);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOGGER.info("[{}] [{}] Interrupted waiting for model snapshot upgrade results processor to complete", jobId, snapshotId);
         }
     }
-
 
     /**
      * If failed then there was an error parsing the results that cannot be recovered from
@@ -246,6 +272,5 @@ public class JobSnapshotUpgraderResultProcessor {
         }
         return process.isProcessAliveAfterWaiting();
     }
-
 
 }

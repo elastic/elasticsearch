@@ -1,0 +1,5 @@
+pr: 112567
+summary: Track shard snapshot progress during node shutdown
+area: Snapshot/Restore
+type: enhancement
+issues: []

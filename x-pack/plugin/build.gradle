@@ -1,134 +1,99 @@
-import org.elasticsearch.gradle.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
-apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-test'
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
-archivesBaseName = 'x-pack'
+base {
+  archivesName = 'x-pack'
+}
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (false == isEclipse) {
-    // let the yamlRestTest see the classpath of test
-    // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
-    yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
+  testImplementation project(':test:yaml-rest-runner')
 }
 
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
+// let the yamlRestTests see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
+GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
 
 restResources {
   restApi {
-    includeCore '*'
-    includeXpack '*'
+    include '*'
   }
 }
 
-//The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
 artifacts {
-  restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
-  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
+def restTestBlacklist = []
+// TODO: fix this rest test to not depend on a hardcoded port!
+restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+if (buildParams.isSnapshotBuild() == false) {
+  // these tests attempt to install basic/internal licenses signed against the dev/public.key
+  // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+  // private key, these tests are blacklisted in non-snapshot test runs
+  restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
 
-  /*
-   * Stick the license and notice file in the jar. This isn't strictly
-   * needed because we don't publish it but it makes our super-paranoid
-   * tests happy.
-   */
-  metaInf {
-    from(project.licenseFile.parent) {
-      include project.licenseFile.name
-      rename { 'LICENSE.txt' }
+  // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
+  //  which require snapshot builds:
+  // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
+  // We disable these tests for snapshot builds to maintain release build coverage.
+  restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+}
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  usesDefaultDistribution()
+}
+
+tasks.named("yamlRestTest").configure {
+  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+}
+
+tasks.register('enforceApiSpecsConvention').configure {
+  def mainApiSpecs = fileTree('src/test/resources/rest-api-spec/api')
+  doLast {
+    if (mainApiSpecs.files) {
+      throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
     }
-    from(project.noticeFile.parent) {
-      include project.noticeFile.name
+  }
+}
+
+tasks.register('enforceYamlTestConvention').configure {
+  def mainYamlFiles = fileTree('src/test/resources/rest-api-spec/test')
+  doLast {
+    if (mainYamlFiles.files) {
+      throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
     }
   }
 }
-artifacts {
-  testArtifacts testJar
+
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
-// location for keys and certificates
-File keystoreDir = file("$buildDir/keystore")
-File nodeKey = file("$keystoreDir/testnode.pem")
-File nodeCert = file("$keystoreDir/testnode.crt")
-
-// Add key and certs to test classpath: it expects them there
-// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
-// it can run in a FIPS 140 JVM
-// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
-// https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyKeyCerts", Copy) {
-  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-    include 'testnode.crt', 'testnode.pem'
-  }
-  into keystoreDir
-}
-// Add keystores to test classpath: it expects it there
-sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
-tasks.named("processYamlRestTestResources").configure {
-  dependsOn("copyKeyCerts")
-}
-tasks.named("processJavaRestTestResources").configure {
-  dependsOn("copyKeyCerts")
-}
-
-yamlRestTest {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-
-
-  // TODO: fix this rest test to not depend on a hardcoded port!
-  def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  if (BuildParams.isSnapshotBuild() == false) {
-    // these tests attempt to install basic/internal licenses signed against the dev/public.key
-    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are blacklisted in non-snapshot test runs
-    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-  }
-  systemProperty 'tests.rest.blacklist', blacklist.join(',')
-  dependsOn "copyKeyCerts"
-}
-
-testClusters.all {
-  testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  // Integration tests are supposed to enable/disable exporters before/after each test
-  setting 'xpack.monitoring.exporters._local.type', 'local'
-  setting 'xpack.monitoring.exporters._local.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', nodeKey.name
-  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-  setting 'xpack.security.audit.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
-}
-
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
+  task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
+  task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
+  task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")
+  task.skipTest("esql/80_text/reverse text", "The output type changed from TEXT to KEYWORD.")
+  task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
+  task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"unnecessary to test compatibility")
+  task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
+})
 

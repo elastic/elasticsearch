@@ -1,30 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.test.eql;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
-import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.eql.EqlSearchRequest;
-import org.elasticsearch.client.eql.EqlSearchResponse;
-import org.elasticsearch.client.eql.EqlSearchResponse.Event;
-import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
-import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -33,31 +28,60 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toList;
-
-public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
+public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
-
-    private RestHighLevelClient highLevelClient;
 
     private final String index;
     private final String query;
     private final String name;
-    private final long[] eventIds;
+    private final List<long[]> eventIds;
+    /**
+     * Join keys can be of multiple types, but toml is very restrictive and doesn't allow mixed types values in the same array of values
+     * For now, every value will be converted to a String.
+     */
+    private final String[] joinKeys;
+
+    /**
+     * any negative value means undefined (ie. no "size" will be passed to the query)
+     */
+    private final int size;
+    private final int maxSamplesPerKey;
 
     @Before
-    private void setup() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
-            DataLoader.loadDatasetIntoEs(highLevelClient(), this::createParser);
+    public void setup() throws Exception {
+        RestClient provisioningClient = provisioningClient();
+        boolean dataLoaded = Arrays.stream(index.split(","))
+            .anyMatch(
+                indexName -> doWithRequest(
+                    new Request("HEAD", "/" + unqualifiedIndexName(indexName)),
+                    provisioningClient,
+                    response -> response.getStatusLine().getStatusCode() == 200
+                )
+            );
+
+        if (dataLoaded == false) {
+            DataLoader.loadDatasetIntoEs(provisioningClient, this::createParser);
+        }
+    }
+
+    private static boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
+        try {
+            return consumer.apply(client.performRequest(request));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
+            provisioningAdminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -79,105 +103,211 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds() });
+            results.add(
+                new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size(), spec.maxSamplesPerKey() }
+            );
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds) {
+    BaseEqlSpecTestCase(
+        String index,
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey
+    ) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
+        this.joinKeys = joinKeys;
+        this.size = size == null ? -1 : size;
+        this.maxSamplesPerKey = maxSamplesPerKey == null ? -1 : maxSamplesPerKey;
     }
 
     public void test() throws Exception {
         assertResponse(runQuery(index, query));
     }
 
-    protected void assertResponse(EqlSearchResponse response) {
-        Hits hits = response.hits();
-        if (hits.events() != null) {
-            assertEvents(hits.events());
-        }
-        else if (hits.sequences() != null) {
-            assertSequences(hits.sequences());
-        }
-        else {
+    private void assertResponse(ObjectPath response) throws Exception {
+        List<Map<String, Object>> events = response.evaluate("hits.events");
+        List<Map<String, Object>> sequences = response.evaluate("hits.sequences");
+
+        if (events != null) {
+            assertEvents(events);
+        } else if (sequences != null) {
+            assertSequences(sequences);
+        } else {
             fail("No events or sequences found");
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
-        EqlSearchRequest request = new EqlSearchRequest(index, query);
-
-        request.eventCategoryField(eventCategory());
-        request.timestampField(timestamp());
+    protected ObjectPath runQuery(String index, String query) throws Exception {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("query", query);
+        builder.field("event_category_field", eventCategory());
+        builder.field("timestamp_field", timestamp());
         String tiebreaker = tiebreaker();
         if (tiebreaker != null) {
-            request.tiebreakerField(tiebreaker());
+            builder.field("tiebreaker_field", tiebreaker);
         }
-        request.size(requestSize());
-        request.fetchSize(requestFetchSize());
-        request.resultPosition(requestResultPosition());
-        return runRequest(eqlClient(), request);
-    }
+        builder.field("size", this.size < 0 ? requestSize() : this.size);
+        builder.field("fetch_size", requestFetchSize());
+        builder.field("result_position", requestResultPosition());
+        if (maxSamplesPerKey > 0) {
+            builder.field("max_samples_per_key", maxSamplesPerKey);
+        }
+        builder.endObject();
 
-    protected  EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_eql/search");
+        Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
+        if (ccsMinimizeRoundtrips != null) {
+            request.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
+        }
         int timeout = Math.toIntExact(timeout().millis());
-
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
             .setConnectionRequestTimeout(timeout)
             .setConnectTimeout(timeout)
             .setSocketTimeout(timeout)
             .build();
-        return eqlClient.search(request, RequestOptions.DEFAULT.toBuilder().setRequestConfig(config).build());
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        request.setOptions(optionsBuilder.setRequestConfig(config).build());
+        request.setJsonEntity(Strings.toString(builder));
+        return ObjectPath.createFromResponse(client().performRequest(request));
     }
 
-    protected EqlClient eqlClient() {
-        return highLevelClient().eql();
-    }
-
-    private RestHighLevelClient highLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(
-                    client(),
-                    ignore -> {
-                    },
-                    Collections.emptyList()) {
-            };
-        }
-        return highLevelClient;
-    }
-
-    protected void assertEvents(List<Event> events) {
+    private void assertEvents(List<Map<String, Object>> events) {
         assertNotNull(events);
-        logger.info("Events {}", events);
-        long[] expected = eventIds;
+        logger.debug("Events {}", new Object() {
+            public String toString() {
+                return eventsToString(events);
+            }
+        });
+
         long[] actual = extractIds(events);
-        assertArrayEquals(LoggerMessageFormat.format(null, "unexpected result for spec[{}] [{}] -> {} vs {}", name, query, Arrays.toString(
-                expected), Arrays.toString(actual)),
-                expected, actual);
+        if (eventIds.size() == 1) {
+            long[] expected = eventIds.get(0);
+            assertArrayEquals(
+                LoggerMessageFormat.format(
+                    null,
+                    "unexpected result for spec[{}] [{}] -> {} vs {}",
+                    name,
+                    query,
+                    Arrays.toString(expected),
+                    Arrays.toString(actual)
+                ),
+                expected,
+                actual
+            );
+        } else {
+            boolean succeeded = false;
+            for (long[] expected : eventIds) {
+                if (Arrays.equals(expected, actual)) {
+                    succeeded = true;
+                    break;
+                }
+            }
+            if (succeeded == false) {
+                String msg = LoggerMessageFormat.format(
+                    null,
+                    "unexpected result for spec[{}] [{}]. Found: {} - Expected one of the following: {}",
+                    name,
+                    query,
+                    Arrays.toString(actual),
+                    eventIds.stream().map(Arrays::toString).collect(Collectors.joining(", "))
+                );
+                fail(msg);
+            }
+        }
+
+    }
+
+    private static String eventsToString(List<Map<String, Object>> events) {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        for (Map<String, Object> event : events) {
+            sj.add(event.get("_id") + "|" + event.get("_index"));
+            sj.add(event.get("_source").toString());
+            sj.add("\n");
+        }
+        return sj.toString();
     }
 
     @SuppressWarnings("unchecked")
-    private long[] extractIds(List<Event> events) {
+    private long[] extractIds(List<Map<String, Object>> events) {
         final int len = events.size();
         final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
-            Object field = events.get(i).sourceAsMap().get(tiebreaker());
-            ids[i] = ((Number) field).longValue();
+            Map<String, Object> event = events.get(i);
+            if (Boolean.TRUE.equals(event.get("missing"))) {
+                ids[i] = -1;
+            } else {
+                Map<String, Object> source = (Map<String, Object>) event.get("_source");
+                Object field = source.get(idField());
+                ids[i] = ((Number) field).longValue();
+            }
         }
         return ids;
     }
 
-    protected void assertSequences(List<Sequence> sequences) {
-        List<Event> events = sequences.stream()
-                .flatMap(s -> s.events().stream())
-                .collect(toList());
+    @SuppressWarnings("unchecked")
+    private void assertSequences(List<Map<String, Object>> sequences) {
+        List<Map<String, Object>> events = sequences.stream()
+            .flatMap(s -> ((List<Map<String, Object>>) s.getOrDefault("events", Collections.emptyList())).stream())
+            .toList();
         assertEvents(events);
+        List<Object> keys = sequences.stream()
+            .flatMap(s -> ((List<Object>) s.getOrDefault("join_keys", Collections.emptyList())).stream())
+            .toList();
+        assertJoinKeys(keys);
+    }
+
+    private void assertJoinKeys(List<Object> keys) {
+        logger.debug("Join keys {}", new Object() {
+            public String toString() {
+                return keysToString(keys);
+            }
+        });
+
+        if (joinKeys == null || joinKeys.length == 0) {
+            return;
+        }
+        String[] actual = new String[keys.size()];
+        int i = 0;
+        for (Object key : keys) {
+            if (key == null) {
+                actual[i] = "null";
+            } else {
+                actual[i] = key.toString();
+            }
+            i++;
+        }
+        assertArrayEquals(
+            LoggerMessageFormat.format(
+                null,
+                "unexpected result for spec[{}] [{}] -> {} vs {}",
+                name,
+                query,
+                Arrays.toString(joinKeys),
+                Arrays.toString(actual)
+            ),
+            joinKeys,
+            actual
+        );
+    }
+
+    private static String keysToString(List<Object> keys) {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        for (Object key : keys) {
+            sj.add(key.toString());
+            sj.add("\n");
+        }
+        return sj.toString();
     }
 
     @Override
@@ -188,25 +318,19 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     @Override
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-
-        int timeout = Math.toIntExact(timeout().millis());
-        builder.setRequestConfigCallback(
-            requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(timeout)
-                .setConnectionRequestTimeout(timeout)
-                .setSocketTimeout(timeout)
-        );
-        builder.setStrictDeprecationMode(true);
-        return builder.build();
+        return clientBuilder(settings, hosts);
     }
 
     protected String timestamp() {
         return "@timestamp";
-    };
+    }
 
-    private String eventCategory() {
+    protected String eventCategory() {
         return "event.category";
+    }
+
+    protected String idField() {
+        return tiebreaker();
     }
 
     protected abstract String tiebreaker();
@@ -224,7 +348,9 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return randomBoolean() ? "head" : "tail";
     }
 
-    protected TimeValue timeout() {
-        return TimeValue.timeValueSeconds(10);
+    // strip any qualification from the received index string
+    private static String unqualifiedIndexName(String indexName) {
+        int offset = indexName.indexOf(':');
+        return offset >= 0 ? indexName.substring(offset + 1) : indexName;
     }
 }

@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
@@ -26,7 +27,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -42,15 +43,17 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     );
 
     private static final Map<MonitoredSystem, List<String>> SUPPORTED_API_VERSIONS = Map.of(
-        MonitoredSystem.KIBANA, ALL_VERSIONS,
-        MonitoredSystem.LOGSTASH, ALL_VERSIONS,
-        MonitoredSystem.BEATS, ALL_VERSIONS);
+        MonitoredSystem.KIBANA,
+        ALL_VERSIONS,
+        MonitoredSystem.LOGSTASH,
+        ALL_VERSIONS,
+        MonitoredSystem.BEATS,
+        ALL_VERSIONS
+    );
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_monitoring/bulk"),
-            new Route(PUT, "/_monitoring/bulk"));
+        return List.of(new Route(POST, "/_monitoring/bulk"), new Route(PUT, "/_monitoring/bulk"));
     }
 
     @Override
@@ -82,20 +85,22 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
         final MonitoredSystem system = MonitoredSystem.fromSystem(id);
         if (isSupportedSystemVersion(system, version) == false) {
-            throw new IllegalArgumentException(MONITORING_VERSION + " [" + version + "] is not supported by "
-                    + MONITORING_ID + " [" + id + "]");
+            throw new IllegalArgumentException(
+                MONITORING_VERSION + " [" + version + "] is not supported by " + MONITORING_ID + " [" + id + "]"
+            );
         }
 
         final long timestamp = System.currentTimeMillis();
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
-        requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
-        return channel -> requestBuilder.execute(getRestBuilderListener(channel));
+        var content = request.content();
+        requestBuilder.add(system, content, request.getXContentType(), timestamp, intervalMillis);
+        return channel -> requestBuilder.execute(ActionListener.withRef(getRestBuilderListener(channel), content));
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 
@@ -107,7 +112,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
      * @param version the system API version
      * @return true if supported, false otherwise
      */
-    private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
+    private static boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
         final List<String> monitoredSystem = SUPPORTED_API_VERSIONS.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
     }
@@ -129,7 +134,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
                     }
                 }
                 builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
+                return new RestResponse(response.status(), builder);
             }
         };
     }

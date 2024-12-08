@@ -1,33 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -41,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
@@ -49,7 +42,8 @@ public class RestTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/{index}/_termvectors"),
             new Route(POST, "/{index}/_termvectors"),
             new Route(GET, "/{index}/_termvectors/{id}"),
-            new Route(POST, "/{index}/_termvectors/{id}"));
+            new Route(POST, "/{index}/_termvectors/{id}")
+        );
     }
 
     @Override
@@ -59,12 +53,11 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TermVectorsRequest termVectorsRequest;
-        termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
 
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
-                TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                TermVectorsRequest.parseRequest(termVectorsRequest, parser, request.getRestApiVersion());
             }
         }
         readURIParameters(termVectorsRequest, request);
@@ -97,7 +90,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
                 if (selectedFields == null) {
                     selectedFields = new HashSet<>();
                 }
-                if (!selectedFields.contains(field)) {
+                if (selectedFields.contains(field) == false) {
                     field = field.replaceAll("\\s", "");
                     selectedFields.add(field);
                 }

@@ -1,36 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
-class BucketPriorityQueue<B extends InternalGeoGridBucket> extends PriorityQueue<B> {
+import java.util.function.Function;
 
-    BucketPriorityQueue(int size) {
-        super(size);
+class BucketPriorityQueue<A, B extends InternalGeoGridBucket> extends ObjectArrayPriorityQueue<A> {
+
+    private final Function<A, B> bucketSupplier;
+
+    BucketPriorityQueue(int size, BigArrays bigArrays, Function<A, B> bucketSupplier) {
+        super(size, bigArrays);
+        this.bucketSupplier = bucketSupplier;
     }
 
     @Override
-    protected boolean lessThan(InternalGeoGridBucket o1, InternalGeoGridBucket o2) {
-        int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
+    protected boolean lessThan(A o1, A o2) {
+        final B b1 = bucketSupplier.apply(o1);
+        final B b2 = bucketSupplier.apply(o2);
+        int cmp = Long.compare(b2.getDocCount(), b1.getDocCount());
         if (cmp == 0) {
-            cmp = o2.compareTo(o1);
+            cmp = b2.compareTo(b1);
             if (cmp == 0) {
                 cmp = System.identityHashCode(o2) - System.identityHashCode(o1);
             }

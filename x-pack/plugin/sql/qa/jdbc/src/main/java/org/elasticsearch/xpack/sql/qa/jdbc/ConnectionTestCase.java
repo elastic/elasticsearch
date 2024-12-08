@@ -1,11 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
-
-import org.elasticsearch.Version;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -21,8 +20,8 @@ public abstract class ConnectionTestCase extends JdbcIntegrationTestCase {
             assertFalse(c.isClosed());
             assertTrue(c.isReadOnly());
             DatabaseMetaData md = c.getMetaData();
-            assertEquals(Version.CURRENT.major, md.getDatabaseMajorVersion());
-            assertEquals(Version.CURRENT.minor, md.getDatabaseMinorVersion());
+            assertEquals(JdbcTestUtils.CURRENT.major, md.getDatabaseMajorVersion());
+            assertEquals(JdbcTestUtils.CURRENT.minor, md.getDatabaseMinorVersion());
         }
     }
 

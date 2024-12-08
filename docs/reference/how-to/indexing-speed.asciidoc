@@ -43,7 +43,7 @@ The operation that consists of making changes visible to search - called a
 <<indices-refresh,refresh>> - is costly, and calling it often while there is
 ongoing indexing activity can hurt indexing speed.
 
-include::{es-repo-dir}/indices/refresh.asciidoc[tag=refresh-interval-default]
+include::{es-ref-dir}/indices/refresh.asciidoc[tag=refresh-interval-default]
 This is the optimal configuration if you have no or very little search traffic
 (e.g. less than one search request every 5 minutes) and want to optimize for
 indexing speed. This behavior aims to automatically optimize bulk indexing in
@@ -94,26 +94,27 @@ auto-generated ids, Elasticsearch can skip this check, which makes indexing
 faster.
 
 [discrete]
+[[indexing-use-faster-hardware]]
 === Use faster hardware
 
-If indexing is I/O bound, you should investigate giving more memory to the
-filesystem cache (see above) or buying faster drives. In particular SSD drives
-are known to perform better than spinning disks. Always use local storage,
-remote filesystems such as `NFS` or `SMB` should be avoided. Also beware of
-virtualized storage such as Amazon's `Elastic Block Storage`. Virtualized
-storage works very well with Elasticsearch, and it is appealing since it is so
-fast and simple to set up, but it is also unfortunately inherently slower on an
-ongoing basis when compared to dedicated local storage. If you put an index on
-`EBS`, be sure to use provisioned IOPS otherwise operations could be quickly
-throttled.
+If indexing is I/O-bound, consider increasing the size of the filesystem cache
+(see above) or using faster storage. Elasticsearch generally creates individual
+files with sequential writes. However, indexing involves writing multiple files
+concurrently, and a mix of random and sequential reads too, so SSD drives tend
+to perform better than spinning disks.
 
 Stripe your index across multiple SSDs by configuring a RAID 0 array. Remember
 that it will increase the risk of failure since the failure of any one SSD
 destroys the index. However this is typically the right tradeoff to make:
 optimize single shards for maximum performance, and then add replicas across
 different nodes so there's redundancy for any node failures. You can also use
-<<modules-snapshots,snapshot and restore>> to backup the index for further
+<<snapshot-restore,snapshot and restore>> to backup the index for further
 insurance.
+
+[discrete]
+==== Local vs. remote storage
+
+include::./remote-storage.asciidoc[]
 
 [discrete]
 === Indexing buffer size
@@ -139,6 +140,14 @@ setting up two clusters, configuring <<xpack-ccr,{ccr}>> to replicate data from
 one cluster to the other one, and routing all searches to the cluster that has
 the follower indices, search activity will no longer steal resources from
 indexing on the cluster that hosts the leader indices.
+
+[discrete]
+=== Avoid hot spotting
+
+<<hotspotting,Hot Spotting>> can occur when node resources, shards, or requests 
+are not evenly distributed. {es} maintains cluster state by syncing it across 
+nodes, so continually hot spotted nodes can cause overall cluster performance 
+degredation.
 
 [discrete]
 === Additional optimizations

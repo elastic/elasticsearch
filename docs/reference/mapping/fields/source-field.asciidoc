@@ -2,9 +2,17 @@
 === `_source` field
 
 The `_source` field contains the original JSON document body that was passed
-at index time.  The `_source` field itself is not indexed (and thus is not
+at index time. The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
+
+If disk usage is important to you, then consider the following options:
+
+- Using <<synthetic-source,synthetic `_source`>>, which reconstructs source content at the time of retrieval instead of storing it on disk. This shrinks disk usage, at the cost of slower access to `_source` in <<docs-get,Get>> and <<search-search,Search>> queries.
+- <<disable-source-field,Disabling the `_source` field completely>>. This shrinks disk
+usage but disables features that rely on `_source`.
+
+include::synthetic-source.asciidoc[]
 
 [[disable-source-field]]
 ==== Disabling the `_source` field
@@ -29,11 +37,13 @@ PUT my-index-000001
 ==================================================
 
 Users often disable the `_source` field without thinking about the
-consequences, and then live to regret it.  If the `_source` field isn't
+consequences, and then live to regret it. If the `_source` field isn't
 available then a number of features are not supported:
 
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
+
+* In the {kib} link:{kibana-ref}/discover.html[Discover] application, field data will not be displayed.
 
 * On the fly <<highlighting,highlighting>>.
 

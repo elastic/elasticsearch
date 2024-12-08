@@ -1,51 +1,84 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
 
-        count, sum, min, max, avg, sum_of_squares, variance, variance_population, variance_sampling,
-        std_deviation, std_deviation_population, std_deviation_sampling, std_upper, std_lower, std_upper_population, std_lower_population,
-        std_upper_sampling, std_lower_sampling;
+        count,
+        sum,
+        min,
+        max,
+        avg,
+        sum_of_squares,
+        variance,
+        variance_population,
+        variance_sampling,
+        std_deviation,
+        std_deviation_population,
+        std_deviation_sampling,
+        std_upper,
+        std_lower,
+        std_upper_population,
+        std_lower_population,
+        std_upper_sampling,
+        std_lower_sampling;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
+
+        public static boolean hasMetric(String name) {
+            try {
+                InternalExtendedStats.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
     }
+
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
 
     private final double sumOfSqrs;
     private final double sigma;
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-                                 DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalExtendedStats(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        double sumOfSqrs,
+        double sigma,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -69,6 +102,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public String getWriteableName() {
         return ExtendedStatsAggregationBuilder.NAME;
+    }
+
+    static InternalExtendedStats empty(String name, double sigma, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata);
     }
 
     @Override
@@ -115,6 +152,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return super.value(name);
     }
 
+    @Override
+    public Iterable<String> valueNames() {
+        return METRIC_NAMES;
+    }
+
     public double getSigma() {
         return this.sigma;
     }
@@ -131,14 +173,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariancePopulation() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
     public double getVarianceSampling() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        double variance = (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
@@ -158,20 +200,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getStdDeviationBound(Bounds bound) {
-        switch (bound) {
-            case UPPER:
-            case UPPER_POPULATION:
-                return getAvg() + (getStdDeviationPopulation() * sigma);
-            case UPPER_SAMPLING:
-                return getAvg() + (getStdDeviationSampling() * sigma);
-            case LOWER:
-            case LOWER_POPULATION:
-                return getAvg() - (getStdDeviationPopulation() * sigma);
-            case LOWER_SAMPLING:
-                return getAvg() - (getStdDeviationSampling() * sigma);
-            default:
-                throw new IllegalArgumentException("Unknown bounds type " + bound);
-        }
+        return switch (bound) {
+            case UPPER, UPPER_POPULATION -> getAvg() + (getStdDeviationPopulation() * sigma);
+            case UPPER_SAMPLING -> getAvg() + (getStdDeviationSampling() * sigma);
+            case LOWER, LOWER_POPULATION -> getAvg() - (getStdDeviationPopulation() * sigma);
+            case LOWER_SAMPLING -> getAvg() - (getStdDeviationSampling() * sigma);
+        };
     }
 
     @Override
@@ -211,46 +245,73 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public String getStdDeviationBoundAsString(Bounds bound) {
-        switch (bound) {
-            case UPPER:
-                return valueAsString(Metrics.std_upper.name());
-            case LOWER:
-                return valueAsString(Metrics.std_lower.name());
-            case UPPER_POPULATION:
-                return valueAsString(Metrics.std_upper_population.name());
-            case LOWER_POPULATION:
-                return valueAsString(Metrics.std_lower_population.name());
-            case UPPER_SAMPLING:
-                return valueAsString(Metrics.std_upper_sampling.name());
-            case LOWER_SAMPLING:
-                return valueAsString(Metrics.std_lower_sampling.name());
-            default:
-                throw new IllegalArgumentException("Unknown bounds type " + bound);
-        }
+        return switch (bound) {
+            case UPPER -> valueAsString(Metrics.std_upper.name());
+            case LOWER -> valueAsString(Metrics.std_lower.name());
+            case UPPER_POPULATION -> valueAsString(Metrics.std_upper_population.name());
+            case LOWER_POPULATION -> valueAsString(Metrics.std_lower_population.name());
+            case UPPER_SAMPLING -> valueAsString(Metrics.std_upper_sampling.name());
+            case LOWER_SAMPLING -> valueAsString(Metrics.std_lower_sampling.name());
+        };
     }
 
     @Override
-    public InternalExtendedStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        double sumOfSqrs = 0;
-        double compensationOfSqrs = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalExtendedStats stats = (InternalExtendedStats) aggregation;
-            if (stats.sigma != sigma) {
-                throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final AggregatorReducer statsReducer = InternalStats.getReducer(name, format, getMetadata());
+        return new AggregatorReducer() {
+
+            double sumOfSqrs = 0;
+            double compensationOfSqrs = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalExtendedStats stats = (InternalExtendedStats) aggregation;
+                if (stats.sigma != sigma) {
+                    throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
+                }
+                double value = stats.getSumOfSquares();
+                if (Double.isFinite(value) == false) {
+                    sumOfSqrs += value;
+                } else if (Double.isFinite(sumOfSqrs)) {
+                    double correctedOfSqrs = value - compensationOfSqrs;
+                    double newSumOfSqrs = sumOfSqrs + correctedOfSqrs;
+                    compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
+                    sumOfSqrs = newSumOfSqrs;
+                }
+                statsReducer.accept(aggregation);
             }
-            double value = stats.getSumOfSquares();
-            if (Double.isFinite(value) == false) {
-                sumOfSqrs += value;
-            } else if (Double.isFinite(sumOfSqrs)) {
-                double correctedOfSqrs = value - compensationOfSqrs;
-                double newSumOfSqrs = sumOfSqrs + correctedOfSqrs;
-                compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
-                sumOfSqrs = newSumOfSqrs;
+
+            @Override
+            public InternalAggregation get() {
+                InternalStats stats = (InternalStats) statsReducer.get();
+                return new InternalExtendedStats(
+                    name,
+                    stats.getCount(),
+                    stats.getSum(),
+                    stats.getMin(),
+                    stats.getMax(),
+                    sumOfSqrs,
+                    sigma,
+                    format,
+                    getMetadata()
+                );
             }
-        }
-        final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-            format, getMetadata());
+        };
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalExtendedStats(
+            name,
+            samplingContext.scaleUp(count),
+            samplingContext.scaleUp(sum),
+            min,
+            max,
+            samplingContext.scaleUp(sumOfSqrs),
+            sigma,
+            format,
+            getMetadata()
+        );
     }
 
     static class Fields {
@@ -351,7 +412,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if (super.equals(obj) == false) return false;
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
-        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
-            Double.compare(sigma, other.sigma) == 0;
+        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 && Double.compare(sigma, other.sigma) == 0;
     }
 }

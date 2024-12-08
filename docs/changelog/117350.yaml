@@ -1,0 +1,5 @@
+pr: 117350
+summary: "Improve halfbyte transposition performance, marginally improving bbq performance"
+area: Vector Search
+type: enhancement
+issues: []

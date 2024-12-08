@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -47,9 +48,7 @@ public class MonitoringServiceTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
 
         final Monitoring monitoring = new Monitoring(settings) {
             @Override
@@ -86,20 +85,13 @@ public class MonitoringServiceTests extends ESTestCase {
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
 
-        monitoringService.start();
-        assertBusy(() -> assertTrue(monitoringService.isStarted()));
-        assertTrue(monitoringService.isMonitoringActive());
-
         monitoringService.close();
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
     }
 
     public void testInterval() throws Exception {
-        final Settings settings =
-                Settings.builder()
-                        .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
-                        .build();
+        final Settings settings = Settings.builder().put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL).build();
 
         CountingExporter exporter = new CountingExporter();
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
@@ -117,16 +109,18 @@ public class MonitoringServiceTests extends ESTestCase {
 
         // take down threads
         monitoringService.setMonitoringActive(false);
+        assertWarnings(
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testSkipExecution() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         final BlockingExporter exporter = new BlockingExporter(latch);
-        final Settings settings =
-                Settings.builder()
-                        .put("xpack.monitoring.collection.enabled", true)
-                        .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
-                        .build();
+        final Settings settings = Settings.builder()
+            .put("xpack.monitoring.collection.enabled", true)
+            .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
+            .build();
 
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
 
@@ -140,6 +134,10 @@ public class MonitoringServiceTests extends ESTestCase {
         latch.countDown();
 
         assertThat(exporter.getExportsCount(), equalTo(1));
+        assertWarnings(
+            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     class CountingExporter extends Exporters {
@@ -161,16 +159,11 @@ public class MonitoringServiceTests extends ESTestCase {
         }
 
         @Override
-        protected void doStart() {
-        }
+        protected void doStart() {}
 
         @Override
-        protected void doStop() {
-        }
+        protected void doStop() {}
 
-        @Override
-        protected void doClose() {
-        }
     }
 
     class BlockingExporter extends CountingExporter {
@@ -183,27 +176,16 @@ public class MonitoringServiceTests extends ESTestCase {
 
         @Override
         public void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) {
-            super.export(docs, ActionListener.wrap(r -> {
+            super.export(docs, listener.delegateFailureAndWrap((l, r) -> {
                 try {
                     latch.await();
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 } catch (InterruptedException e) {
-                    listener.onFailure(new ExportException("BlockingExporter failed", e));
+                    l.onFailure(new ExportException("BlockingExporter failed", e));
                 }
-            }, listener::onFailure));
+            }));
 
         }
 
-        @Override
-        protected void doStart() {
-        }
-
-        @Override
-        protected void doStop() {
-        }
-
-        @Override
-        protected void doClose() {
-        }
     }
 }

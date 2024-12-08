@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.saml.support;
 
@@ -9,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.SuppressForbidden;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -26,6 +27,17 @@ import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
+import java.io.StringWriter;
+import java.io.Writer;
+import java.net.URISyntaxException;
+import java.security.SecureRandom;
+import java.security.cert.CertificateEncodingException;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
@@ -38,16 +50,6 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.net.URISyntaxException;
-import java.security.SecureRandom;
-import java.security.cert.CertificateEncodingException;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
@@ -76,12 +78,13 @@ public class SamlFactory {
         return cast(type, elementName, obj);
     }
 
-    private <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
+    private static <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
         if (type.isInstance(obj)) {
             return type.cast(obj);
         } else {
-            throw new IllegalArgumentException("Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass()
-                + " not " + type);
+            throw new IllegalArgumentException(
+                "Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass() + " not " + type
+            );
         }
     }
 
@@ -101,8 +104,9 @@ public class SamlFactory {
         if (type.isInstance(obj)) {
             return type.cast(obj);
         } else {
-            throw new IllegalArgumentException("Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass()
-                + " not " + type);
+            throw new IllegalArgumentException(
+                "Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass() + " not " + type
+            );
         }
     }
 
@@ -116,19 +120,22 @@ public class SamlFactory {
         }
     }
 
-    public <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
+    public static <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
         try {
             UnmarshallerFactory unmarshallerFactory = getUnmarshallerFactory();
             Unmarshaller unmarshaller = unmarshallerFactory.getUnmarshaller(element);
             if (unmarshaller == null) {
-                throw new ElasticsearchSecurityException("XML element [{}] cannot be unmarshalled to SAML type [{}] (no unmarshaller)",
-                    element.getTagName(), type);
+                throw new ElasticsearchSecurityException(
+                    "XML element [{}] cannot be unmarshalled to SAML type [{}] (no unmarshaller)",
+                    element.getTagName(),
+                    type
+                );
             }
             final XMLObject object = unmarshaller.unmarshall(element);
             if (type.isInstance(object)) {
                 return type.cast(object);
             }
-            Object[] args = new Object[]{element.getTagName(), type.getName(), object.getClass().getName()};
+            Object[] args = new Object[] { element.getTagName(), type.getName(), object.getClass().getName() };
             throw new ElasticsearchSecurityException("SAML object [{}] is incorrect type. Expected [{}] but was [{}]", args);
         } catch (UnmarshallingException e) {
             throw new ElasticsearchSecurityException("Failed to unmarshall SAML content [{}]", e, element.getTagName());
@@ -143,7 +150,7 @@ public class SamlFactory {
         serializer.transform(new DOMSource(element), new StreamResult(writer));
     }
 
-    public String getXmlContent(SAMLObject object){
+    public String getXmlContent(SAMLObject object) {
         return getXmlContent(object, false);
     }
 
@@ -156,24 +163,12 @@ public class SamlFactory {
         }
     }
 
-    public boolean elementNameMatches(Element element, String namespace, String localName) {
+    public static boolean elementNameMatches(Element element, String namespace, String localName) {
         return localName.equals(element.getLocalName()) && namespace.equals(element.getNamespaceURI());
     }
 
-    public String text(Element dom, int length) {
+    public static String text(Element dom, int length) {
         return text(dom, length, 0);
-    }
-
-    public String text(XMLObject xml, int prefixLength, int suffixLength) {
-        final Element dom = xml.getDOM();
-        if (dom == null) {
-            return null;
-        }
-        return text(dom, prefixLength, suffixLength);
-    }
-
-    public String text(XMLObject xml, int length) {
-        return text(xml, length, 0);
     }
 
     protected static String text(Element dom, int prefixLength, int suffixLength) {
@@ -195,29 +190,26 @@ public class SamlFactory {
         }
     }
 
-    public String describeCredentials(Collection<? extends Credential> credentials) {
-        return credentials.stream()
-            .map(c -> {
-                if (c == null) {
-                    return "<null>";
-                }
-                byte[] encoded;
-                if (c instanceof X509Credential) {
-                    X509Credential x = (X509Credential) c;
-                    try {
-                        encoded = x.getEntityCertificate().getEncoded();
-                    } catch (CertificateEncodingException e) {
-                        encoded = c.getPublicKey().getEncoded();
-                    }
-                } else {
+    public static String describeCredentials(Collection<? extends Credential> credentials) {
+        return credentials.stream().map(c -> {
+            if (c == null) {
+                return "<null>";
+            }
+            byte[] encoded;
+            if (c instanceof X509Credential x) {
+                try {
+                    encoded = x.getEntityCertificate().getEncoded();
+                } catch (CertificateEncodingException e) {
                     encoded = c.getPublicKey().getEncoded();
                 }
-                return Base64.getEncoder().encodeToString(encoded).substring(0, 64) + "...";
-            })
-            .collect(Collectors.joining(","));
+            } else {
+                encoded = c.getPublicKey().getEncoded();
+            }
+            return Base64.getEncoder().encodeToString(encoded).substring(0, 64) + "...";
+        }).collect(Collectors.joining(","));
     }
 
-    public Element toDomElement(XMLObject object) {
+    public static Element toDomElement(XMLObject object) {
         try {
             return XMLObjectSupport.marshall(object);
         } catch (MarshallingException e) {
@@ -225,9 +217,8 @@ public class SamlFactory {
         }
     }
 
-
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
-    public Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
+    public static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
         final TransformerFactory tfactory = TransformerFactory.newInstance();
         tfactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
@@ -271,8 +262,7 @@ public class SamlFactory {
         dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         dbf.setAttribute("http://apache.org/xml/features/validation/schema", true);
         dbf.setAttribute("http://apache.org/xml/features/validation/schema-full-checking", true);
-        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaLanguage",
-            XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaLanguage", XMLConstants.W3C_XML_SCHEMA_NS_URI);
         // We ship our own xsd files for schema validation since we do not trust anyone else.
         dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaSource", resolveSchemaFilePaths(schemaFiles));
         DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
@@ -280,35 +270,27 @@ public class SamlFactory {
         return documentBuilder;
     }
 
-    public String getJavaAlorithmNameFromUri(String sigAlg) {
-        switch (sigAlg) {
-            case "http://www.w3.org/2000/09/xmldsig#dsa-sha1":
-                return "SHA1withDSA";
-            case "http://www.w3.org/2000/09/xmldsig#dsa-sha256":
-                return "SHA256withDSA";
-            case "http://www.w3.org/2000/09/xmldsig#rsa-sha1":
-                return "SHA1withRSA";
-            case "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256":
-                return "SHA256withRSA";
-            case "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256":
-                return "SHA256withECDSA";
-            default:
-                throw new IllegalArgumentException("Unsupported signing algorithm identifier: " + sigAlg);
-        }
+    public static String getJavaAlorithmNameFromUri(String sigAlg) {
+        return switch (sigAlg) {
+            case "http://www.w3.org/2000/09/xmldsig#dsa-sha1" -> "SHA1withDSA";
+            case "http://www.w3.org/2000/09/xmldsig#dsa-sha256" -> "SHA256withDSA";
+            case "http://www.w3.org/2000/09/xmldsig#rsa-sha1" -> "SHA1withRSA";
+            case "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" -> "SHA256withRSA";
+            case "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256" -> "SHA256withECDSA";
+            default -> throw new IllegalArgumentException("Unsupported signing algorithm identifier: " + sigAlg);
+        };
     }
-
 
     private static String[] resolveSchemaFilePaths(String[] relativePaths) {
 
-        return Arrays.stream(relativePaths).
-            map(file -> {
-                try {
-                    return SamlFactory.class.getResource(file).toURI().toString();
-                } catch (URISyntaxException e) {
-                    LOGGER.warn("Error resolving schema file path", e);
-                    return null;
-                }
-            }).filter(Objects::nonNull).toArray(String[]::new);
+        return Arrays.stream(relativePaths).map(file -> {
+            try {
+                return SamlFactory.class.getResource(file).toURI().toString();
+            } catch (URISyntaxException e) {
+                LOGGER.warn("Error resolving schema file path", e);
+                return null;
+            }
+        }).filter(Objects::nonNull).toArray(String[]::new);
     }
 
     private static class DocumentBuilderErrorHandler implements org.xml.sax.ErrorHandler {
@@ -356,4 +338,3 @@ public class SamlFactory {
     }
 
 }
-

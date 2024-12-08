@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
@@ -13,11 +14,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 import org.hamcrest.Matchers;
-import org.joda.time.Duration;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.emptyIterable;
@@ -26,8 +27,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -57,8 +58,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
         final Set<String> rolePrivileges = Set.of("role:(.*)");
 
-        final DocumentVersion docVersion = new DocumentVersion(
-            randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
+        final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
         final SamlServiceProviderDocument document = new SamlServiceProviderDocument();
         document.setEntityId(entityId);
         document.setAuthenticationExpiry(null);
@@ -147,13 +147,13 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     private ServiceProviderDefaults configureIdentityProviderDefaults() {
         final String defaultNameId = NameID.TRANSIENT;
         final String defaultApplication = randomAlphaOfLengthBetween(4, 12);
-        final Duration defaultExpiry = Duration.standardMinutes(12);
-        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            defaultApplication, defaultNameId, defaultExpiry);
+        final Duration defaultExpiry = Duration.ofMinutes(12);
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(defaultApplication, defaultNameId, defaultExpiry);
         when(identityProvider.getServiceProviderDefaults()).thenReturn(defaults);
         return defaults;
     }
 
+    @SuppressWarnings("unchecked")
     private void mockDocument(String entityId, DocumentVersion docVersion, SamlServiceProviderDocument document) {
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -161,8 +161,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
 
             assertThat(args[0], equalTo(entityId));
 
-            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener
-                = (ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener<
+                Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
             listener.onResponse(Set.of(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document)));
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));

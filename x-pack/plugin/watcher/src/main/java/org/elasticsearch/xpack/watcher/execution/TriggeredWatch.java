@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -56,8 +57,9 @@ public class TriggeredWatch implements ToXContentObject {
 
         public TriggeredWatch parse(String id, long version, BytesReference source) {
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
+            ) {
                 return parse(id, version, parser);
             } catch (IOException e) {
                 throw new ElasticsearchException("unable to parse watch record", e);
@@ -86,7 +88,7 @@ public class TriggeredWatch implements ToXContentObject {
             }
 
             TriggeredWatch record = new TriggeredWatch(wid, triggerEvent);
-            assert record.triggerEvent() != null : "watch record [" + id +"] is missing trigger";
+            assert record.triggerEvent() != null : "watch record [" + id + "] is missing trigger";
             return record;
         }
     }
@@ -97,7 +99,7 @@ public class TriggeredWatch implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         TriggeredWatch entry = (TriggeredWatch) o;
-        if (!id.equals(entry.id)) return false;
+        if (id.equals(entry.id) == false) return false;
 
         return true;
     }

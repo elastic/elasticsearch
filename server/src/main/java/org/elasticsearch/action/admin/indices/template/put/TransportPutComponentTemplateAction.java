@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -32,26 +23,42 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutComponentTemplateAction
-    extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
+import java.util.Optional;
+import java.util.Set;
+
+public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public TransportPutComponentTemplateAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               IndexScopedSettings indexScopedSettings) {
-        super(PutComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutComponentTemplateAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportPutComponentTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        super(
+            PutComponentTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutComponentTemplateAction.Request::new,
+            indexNameExpressionResolver,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -61,20 +68,53 @@ public class TransportPutComponentTemplateAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    @Override
-    protected void masterOperation(Task task, final PutComponentTemplateAction.Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
-        ComponentTemplate componentTemplate = request.componentTemplate();
+    public static ComponentTemplate normalizeComponentTemplate(
+        ComponentTemplate componentTemplate,
+        IndexScopedSettings indexScopedSettings
+    ) {
         Template template = componentTemplate.template();
         // Normalize the index settings if necessary
         if (template.settings() != null) {
             Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             Settings settings = builder.build();
             indexScopedSettings.validate(settings, true);
-            template = new Template(settings, template.mappings(), template.aliases());
-            componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
+            template = Template.builder(template).settings(settings).build();
+            componentTemplate = new ComponentTemplate(
+                template,
+                componentTemplate.version(),
+                componentTemplate.metadata(),
+                componentTemplate.deprecated()
+            );
         }
-        indexTemplateService.putComponentTemplate(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),
-            componentTemplate, listener);
+
+        return componentTemplate;
+    }
+
+    @Override
+    protected void masterOperation(
+        Task task,
+        final PutComponentTemplateAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
+        indexTemplateService.putComponentTemplate(
+            request.cause(),
+            request.create(),
+            request.name(),
+            request.masterNodeTimeout(),
+            componentTemplate,
+            listener
+        );
+    }
+
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedComposableIndexTemplateAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
+        return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
@@ -34,7 +35,7 @@ public class FlushListenerTests extends ESTestCase {
         }).start();
         assertBusy(() -> assertTrue(listener.awaitingFlushed.containsKey("_id")));
         assertNull(flushAcknowledgementHolder.get());
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", 12345678L);
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", 12345678L, false);
         listener.acknowledgeFlush(flushAcknowledgement, null);
         assertBusy(() -> assertNotNull(flushAcknowledgementHolder.get()));
         assertEquals(1, listener.awaitingFlushed.size());
@@ -58,7 +59,7 @@ public class FlushListenerTests extends ESTestCase {
         }).start();
         assertBusy(() -> assertTrue(listener.awaitingFlushed.containsKey("_id")));
         assertNull(flushExceptionHolder.get());
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", Instant.ofEpochMilli(12345678L));
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", Instant.ofEpochMilli(12345678L), true);
         listener.acknowledgeFlush(flushAcknowledgement, new Exception("BOOM"));
         assertBusy(() -> {
             assertNotNull(flushExceptionHolder.get());

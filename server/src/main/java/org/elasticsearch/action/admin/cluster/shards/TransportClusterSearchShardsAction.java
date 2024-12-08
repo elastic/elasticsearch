@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,9 +22,10 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,29 +36,50 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportClusterSearchShardsAction extends
-    TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
+public class TransportClusterSearchShardsAction extends TransportMasterNodeReadAction<
+    ClusterSearchShardsRequest,
+    ClusterSearchShardsResponse> {
+
+    public static final ActionType<ClusterSearchShardsResponse> TYPE = new ActionType<>("indices:admin/shards/search_shards");
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportClusterSearchShardsAction(TransportService transportService, ClusterService clusterService,
-                                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                              IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClusterSearchShardsRequest::new, indexNameExpressionResolver, ClusterSearchShardsResponse::new, ThreadPool.Names.SAME);
+    public TransportClusterSearchShardsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            TYPE.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ClusterSearchShardsRequest::new,
+            indexNameExpressionResolver,
+            ClusterSearchShardsResponse::new,
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
+        );
         this.indicesService = indicesService;
     }
 
     @Override
     protected ClusterBlockException checkBlock(ClusterSearchShardsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(Task task, final ClusterSearchShardsRequest request, final ClusterState state,
-                                   final ActionListener<ClusterSearchShardsResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final ClusterSearchShardsRequest request,
+        final ClusterState state,
+        final ActionListener<ClusterSearchShardsResponse> listener
+    ) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
@@ -74,9 +87,15 @@ public class TransportClusterSearchShardsAction extends
         Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
-            final String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index, aliasMetadata -> true, true,
-                indicesAndAliases);
-            indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
+            final String[] aliases = indexNameExpressionResolver.indexAliases(
+                clusterState,
+                index,
+                Predicates.always(),
+                Predicates.always(),
+                true,
+                indicesAndAliases
+            );
+            indicesAndFilters.put(index, AliasFilter.of(aliasFilter.getQueryBuilder(), aliases));
         }
 
         Set<String> nodeIds = new HashSet<>();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
@@ -28,6 +29,11 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
         return randomUpdate();
     }
 
+    @Override
+    protected ResultsFieldUpdate mutateInstance(ResultsFieldUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testIsSupported() {
         ResultsFieldUpdate update = new ResultsFieldUpdate("foo");
         assertTrue(update.isSupported(mock(InferenceConfig.class)));
@@ -38,10 +44,10 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
             ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
             String newResultsField = config.getResultsField() + "foobar";
             ResultsFieldUpdate update = new ResultsFieldUpdate(newResultsField);
-            InferenceConfig applied = update.apply(config);
+            InferenceConfig applied = config.apply(update);
 
             assertThat(applied, instanceOf(ClassificationConfig.class));
-            ClassificationConfig appliedConfig = (ClassificationConfig)applied;
+            ClassificationConfig appliedConfig = (ClassificationConfig) applied;
             assertEquals(newResultsField, appliedConfig.getResultsField());
 
             assertEquals(appliedConfig, new ClassificationConfig.Builder(config).setResultsField(newResultsField).build());
@@ -49,10 +55,10 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
             RegressionConfig config = RegressionConfigTests.randomRegressionConfig();
             String newResultsField = config.getResultsField() + "foobar";
             ResultsFieldUpdate update = new ResultsFieldUpdate(newResultsField);
-            InferenceConfig applied = update.apply(config);
+            InferenceConfig applied = config.apply(update);
 
             assertThat(applied, instanceOf(RegressionConfig.class));
-            RegressionConfig appliedConfig = (RegressionConfig)applied;
+            RegressionConfig appliedConfig = (RegressionConfig) applied;
             assertEquals(newResultsField, appliedConfig.getResultsField());
 
             assertEquals(appliedConfig, new RegressionConfig.Builder(config).setResultsField(newResultsField).build());

@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.io.IOException;
 public class ScheduleTrigger implements Trigger {
 
     public static final String TYPE = "schedule";
+    public static final String TIMEZONE_FIELD = "timezone";
 
     private final Schedule schedule;
 
@@ -36,7 +38,7 @@ public class ScheduleTrigger implements Trigger {
 
         ScheduleTrigger trigger = (ScheduleTrigger) o;
 
-        if (!schedule.equals(trigger.schedule)) return false;
+        if (schedule.equals(trigger.schedule) == false) return false;
 
         return true;
     }
@@ -48,7 +50,13 @@ public class ScheduleTrigger implements Trigger {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(schedule.type(), schedule, params).endObject();
+        builder.startObject();
+        if (schedule instanceof CronnableSchedule cronnableSchedule && cronnableSchedule.getTimeZone() != null) {
+            builder.field(TIMEZONE_FIELD, cronnableSchedule.getTimeZone().getId());
+        }
+
+        builder.field(schedule.type(), schedule, params);
+        return builder.endObject();
     }
 
     public static Builder builder(Schedule schedule) {

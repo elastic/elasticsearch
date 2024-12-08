@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -64,11 +66,7 @@ public class DailySchedule extends CronnableSchedule {
 
     static String[] crons(DayTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        List<String> crons = new ArrayList<>(times.length);
-        for (DayTimes time : times) {
-            crons.add(time.cron());
-        }
-        return crons.toArray(new String[crons.size()]);
+        return Arrays.stream(times).map(DayTimes::cron).toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<DailySchedule> {
@@ -93,16 +91,26 @@ public class DailySchedule extends CronnableSchedule {
                         try {
                             times.add(DayTimes.parse(parser, token));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]",
-                                    pe, TYPE, currentFieldName, token);
+                            throw new ElasticsearchParseException(
+                                "could not parse [{}] schedule. invalid time value for field [{}] - [{}]",
+                                pe,
+                                TYPE,
+                                currentFieldName,
+                                token
+                            );
                         }
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 times.add(DayTimes.parse(parser, token));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] -" +
-                                        " [{}]", pe, TYPE, currentFieldName, token);
+                                throw new ElasticsearchParseException(
+                                    "could not parse [{}] schedule. invalid time value for field [{}] -" + " [{}]",
+                                    pe,
+                                    TYPE,
+                                    currentFieldName,
+                                    token
+                                );
                             }
                         }
                     }
@@ -111,7 +119,7 @@ public class DailySchedule extends CronnableSchedule {
                 }
             }
 
-            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(new DayTimes[times.size()]));
+            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(DayTimes[]::new));
         }
     }
 
@@ -119,8 +127,7 @@ public class DailySchedule extends CronnableSchedule {
 
         private Set<DayTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder at(int hour, int minute) {
             times.add(new DayTimes(hour, minute));
@@ -143,7 +150,7 @@ public class DailySchedule extends CronnableSchedule {
         }
 
         public DailySchedule build() {
-            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(new DayTimes[times.size()]));
+            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(DayTimes[]::new));
         }
     }
 

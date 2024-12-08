@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
@@ -24,8 +25,12 @@ public class ExecutablePagerDutyAction extends ExecutableAction<PagerDutyAction>
     private final TextTemplateEngine templateEngine;
     private final PagerDutyService pagerDutyService;
 
-    public ExecutablePagerDutyAction(PagerDutyAction action, Logger logger, PagerDutyService pagerDutyService,
-                                     TextTemplateEngine templateEngine) {
+    public ExecutablePagerDutyAction(
+        PagerDutyAction action,
+        Logger logger,
+        PagerDutyService pagerDutyService,
+        TextTemplateEngine templateEngine
+    ) {
         super(action, logger);
         this.pagerDutyService = pagerDutyService;
         this.templateEngine = templateEngine;

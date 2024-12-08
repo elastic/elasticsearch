@@ -1,39 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -45,8 +38,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "component_template";
     private static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ComponentTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false,
-        a -> new ComponentTemplateMetadata((Map<String, ComponentTemplate>) a[0]));
+    private static final ConstructingObjectParser<ComponentTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        a -> new ComponentTemplateMetadata((Map<String, ComponentTemplate>) a[0])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -65,7 +61,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     public ComponentTemplateMetadata(StreamInput in) throws IOException {
-        this.componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
+        this.componentTemplates = in.readMap(ComponentTemplate::new);
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
@@ -92,13 +88,13 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.componentTemplates, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.componentTemplates, StreamOutput::writeWriteable);
     }
 
     public static ComponentTemplateMetadata fromXContent(XContentParser parser) throws IOException {
@@ -106,13 +102,8 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(COMPONENT_TEMPLATE.getPreferredName());
-        for (Map.Entry<String, ComponentTemplate> template : componentTemplates.entrySet()) {
-            builder.field(template.getKey(), template.getValue());
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).xContentObjectFields(COMPONENT_TEMPLATE.getPreferredName(), componentTemplates);
     }
 
     @Override
@@ -142,13 +133,20 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;
 
         ComponentTemplateMetadataDiff(ComponentTemplateMetadata before, ComponentTemplateMetadata after) {
-            this.componentTemplateDiff = DiffableUtils.diff(before.componentTemplates, after.componentTemplates,
-                DiffableUtils.getStringKeySerializer());
+            this.componentTemplateDiff = DiffableUtils.diff(
+                before.componentTemplates,
+                after.componentTemplates,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         ComponentTemplateMetadataDiff(StreamInput in) throws IOException {
-            this.componentTemplateDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                ComponentTemplate::new, ComponentTemplate::readComponentTemplateDiffFrom);
+            this.componentTemplateDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ComponentTemplate::new,
+                ComponentTemplate::readComponentTemplateDiffFrom
+            );
         }
 
         @Override
@@ -164,6 +162,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_7_7_0;
         }
     }
 }

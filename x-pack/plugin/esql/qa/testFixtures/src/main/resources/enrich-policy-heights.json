@@ -1,0 +1,9 @@
+{
+  "range": {
+    "indices": "heights",
+    "match_field": "height_range",
+    "enrich_fields": [
+      "description"
+    ]
+  }
+}

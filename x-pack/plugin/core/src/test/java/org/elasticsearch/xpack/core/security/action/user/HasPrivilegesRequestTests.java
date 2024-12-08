@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -30,7 +31,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
 
     public void testSerializationCurrentVersion() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
 
         assertThat(copy.username(), equalTo(original.username()));
@@ -62,22 +63,22 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.clusterPrivileges(new String[0]);
         request.indexPrivileges(new IndicesPrivileges[0]);
-        request.applicationPrivileges(new ApplicationResourcePrivileges[] {
-            ApplicationResourcePrivileges.builder().privileges("read").application("*").resources("item/1").build()
-        });
+        request.applicationPrivileges(
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder().privileges("read").application("*").resources("item/1").build() }
+        );
         final ActionRequestValidationException exception = request.validate();
         assertThat(exception, notNullValue());
         assertThat(exception.validationErrors(), hasItem("Application names may not contain '*' (found '*')"));
     }
 
-    private HasPrivilegesRequest serializeAndDeserialize(HasPrivilegesRequest original, Version version) throws IOException {
+    private HasPrivilegesRequest serializeAndDeserialize(HasPrivilegesRequest original, TransportVersion version) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         original.writeTo(out);
 
-
         final StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
+        in.setTransportVersion(version);
         final HasPrivilegesRequest copy = new HasPrivilegesRequest(in);
         assertThat(in.read(), equalTo(-1));
         return copy;
@@ -87,11 +88,17 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(randomAlphaOfLength(8));
 
-        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilegeResolver.MONITOR,
-            ClusterPrivilegeResolver.MANAGE,
-            ClusterPrivilegeResolver.MANAGE_ML, ClusterPrivilegeResolver.MANAGE_SECURITY, ClusterPrivilegeResolver.MANAGE_PIPELINE,
-            ClusterPrivilegeResolver.ALL))
-            .stream().map(p -> p.name()).collect(Collectors.toList());
+        final List<String> clusterPrivileges = randomSubsetOf(
+            Arrays.asList(
+                ClusterPrivilegeResolver.MONITOR,
+                ClusterPrivilegeResolver.MANAGE,
+                ClusterPrivilegeResolver.MANAGE_ML,
+                ClusterPrivilegeResolver.MANAGE_SECURITY,
+                ClusterPrivilegeResolver.READ_SECURITY,
+                ClusterPrivilegeResolver.MANAGE_PIPELINE,
+                ClusterPrivilegeResolver.ALL
+            )
+        ).stream().map(p -> p.name()).collect(Collectors.toList());
         request.clusterPrivileges(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
 
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[randomInt(5)];

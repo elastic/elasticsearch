@@ -1,0 +1,31 @@
+---
+setup:
+  - skip:
+      features:
+        - warnings
+        - warnings_regex
+---
+"Test warnings":
+  - do:
+      warnings:
+        - "a"
+        - "b"
+      warnings_regex:
+        - "c"
+        - "d"
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+---
+"Not the test to change":
+  - do:
+      warnings:
+        - "a"
+        - "b"
+      warnings_regex:
+        - "c"
+        - "d"
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

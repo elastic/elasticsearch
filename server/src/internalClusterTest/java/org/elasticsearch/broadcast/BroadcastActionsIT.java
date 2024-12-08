@@ -1,34 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.broadcast;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BroadcastActionsIT extends ESIntegTestCase {
@@ -44,22 +34,21 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("Running Cluster Health");
-        client().index(indexRequest("test").id("1").source(source("1", "test"))).actionGet();
+        client().index(new IndexRequest("test").id("1").source(source("1", "test"))).actionGet();
         flush();
-        client().index(indexRequest("test").id("2").source(source("2", "test"))).actionGet();
+        client().index(new IndexRequest("test").id("2").source(source("2", "test"))).actionGet();
         refresh();
 
         logger.info("Count");
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0)
-                    .setQuery(matchAllQuery())
-                    .get();
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
+            assertResponse(prepareSearch("test").setSize(0).setQuery(matchAllQuery()), countResponse -> {
+                assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
+                assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
+                assertThat(countResponse.getFailedShards(), equalTo(0));
+            });
         }
     }
 

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -23,8 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,96 +29,170 @@ import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
- * The {@link BalancedShardsAllocator} re-balances the nodes allocations
- * within an cluster based on a {@link WeightFunction}. The clusters balance is defined by four parameters which can be set
- * in the cluster update API that allows changes in real-time:
- * <ul><li><code>cluster.routing.allocation.balance.shard</code> - The <b>shard balance</b> defines the weight factor
- * for shards allocated on a {@link RoutingNode}</li>
- * <li><code>cluster.routing.allocation.balance.index</code> - The <b>index balance</b> defines a factor to the number
- * of {@link org.elasticsearch.cluster.routing.ShardRouting}s per index allocated on a specific node</li>
- * <li><code>cluster.routing.allocation.balance.threshold</code> - A <b>threshold</b> to set the minimal optimization
- * value of operations that should be performed</li>
+ * The {@link BalancedShardsAllocator} allocates and balances shards on the cluster nodes using {@link WeightFunction}.
+ * The balancing attempts to:
+ * <ul>
+ *     <li>even shard count across nodes (weighted by cluster.routing.allocation.balance.shard)</li>
+ *     <li>spread shards of the same index across different nodes (weighted by cluster.routing.allocation.balance.index)</li>
+ *     <li>even write load of the data streams write indices across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
+ *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.disk_usage)</li>
  * </ul>
- * <p>
- * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
- * are used to re-balance shards based on global as well as per-index factors.
+ * The sensitivity of the algorithm is defined by cluster.routing.allocation.balance.threshold.
+ * Allocator takes into account constraints set by {@code AllocationDeciders} when allocating and balancing shards.
  */
 public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
 
-    public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, 0.0f, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.shard", 0.45f, 0.0f, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Float> THRESHOLD_SETTING =
-        Setting.floatSetting("cluster.routing.allocation.balance.threshold", 1.0f, 0.0f,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.shard",
+        0.45f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.index",
+        0.55f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.write_load",
+        10.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.disk_usage",
+        2e-11f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.threshold",
+        1.0f,
+        1.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    private volatile WeightFunction weightFunction;
+    private volatile float indexBalanceFactor;
+    private volatile float shardBalanceFactor;
+    private volatile float writeLoadBalanceFactor;
+    private volatile float diskUsageBalanceFactor;
     private volatile float threshold;
 
+    private final WriteLoadForecaster writeLoadForecaster;
+
+    public BalancedShardsAllocator() {
+        this(Settings.EMPTY);
+    }
+
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        this(createBuiltInClusterSettings(settings), WriteLoadForecaster.DEFAULT);
+    }
+
+    public BalancedShardsAllocator(ClusterSettings clusterSettings) {
+        this(clusterSettings, WriteLoadForecaster.DEFAULT);
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
-        setThreshold(THRESHOLD_SETTING.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
-        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
-    }
-
-    private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
-        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
-    }
-
-    private void setThreshold(float threshold) {
-        this.threshold = threshold;
+    public BalancedShardsAllocator(ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
+        clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
+        clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
+        clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
+        clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
+        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        assert allocation.ignoreDisable() == false;
+
         if (allocation.routingNodes().size() == 0) {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
-        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        final WeightFunction weightFunction = new WeightFunction(
+            shardBalanceFactor,
+            indexBalanceFactor,
+            writeLoadBalanceFactor,
+            diskUsageBalanceFactor
+        );
+        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
+
+        collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
+    }
+
+    private void collectAndRecordNodeWeightStats(Balancer balancer, WeightFunction weightFunction, RoutingAllocation allocation) {
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
+        for (var entry : balancer.nodes.entrySet()) {
+            var node = entry.getValue();
+            var nodeWeight = weightFunction.nodeWeight(
+                node.numShards(),
+                balancer.avgShardsPerNode(),
+                node.writeLoad(),
+                balancer.avgWriteLoadPerNode(),
+                node.diskUsageInBytes(),
+                balancer.avgDiskUsageInBytesPerNode()
+            );
+            nodeLevelWeights.put(
+                node.routingNode.node(),
+                new DesiredBalanceMetrics.NodeWeightStats(node.numShards(), node.diskUsageInBytes(), node.writeLoad(), nodeWeight)
+            );
+        }
+        allocation.routingNodes().setBalanceWeightStatsPerNode(nodeLevelWeights);
     }
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        WeightFunction weightFunction = new WeightFunction(
+            shardBalanceFactor,
+            indexBalanceFactor,
+            writeLoadBalanceFactor,
+            diskUsageBalanceFactor
+        );
+        Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         if (shard.unassigned()) {
@@ -134,8 +200,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         } else {
             moveDecision = balancer.decideMove(shard);
             if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
-                MoveDecision rebalanceDecision = balancer.decideRebalance(shard);
-                moveDecision = rebalanceDecision.withRemainDecision(moveDecision.getCanRemainDecision());
+                moveDecision = balancer.decideRebalance(shard, moveDecision.getCanRemainDecision());
             }
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
@@ -148,12 +213,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         while (unassignedIterator.hasNext()) {
             final ShardRouting shardRouting = unassignedIterator.next();
             final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
-                unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(), AllocationStatus.DECIDERS_NO,
-                        unassignedInfo.getFailedNodeIds()),
-                    shardRouting.recoverySource(), allocation.changes());
+            if (shardRouting.primary() && unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+                unassignedIterator.updateUnassigned(
+                    new UnassignedInfo(
+                        unassignedInfo.reason(),
+                        unassignedInfo.message(),
+                        unassignedInfo.failure(),
+                        unassignedInfo.failedAllocations(),
+                        unassignedInfo.unassignedTimeNanos(),
+                        unassignedInfo.unassignedTimeMillis(),
+                        unassignedInfo.delayed(),
+                        AllocationStatus.DECIDERS_NO,
+                        unassignedInfo.failedNodeIds(),
+                        unassignedInfo.lastAllocatedNodeId()
+                    ),
+                    shardRouting.recoverySource(),
+                    allocation.changes()
+                );
             }
         }
     }
@@ -169,98 +245,85 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * Returns the index related weight factor.
      */
     public float getIndexBalance() {
-        return weightFunction.indexBalance;
+        return indexBalanceFactor;
     }
 
     /**
      * Returns the shard related weight factor.
      */
     public float getShardBalance() {
-        return weightFunction.shardBalance;
-    }
-
-
-    /**
-     * This class is the primary weight function used to create balanced over nodes and shards in the cluster.
-     * Currently this function has 3 properties:
-     * <ul>
-     * <li><code>index balance</code> - balance property over shards per index</li>
-     * <li><code>shard balance</code> - balance property over shards per cluster</li>
-     * </ul>
-     * <p>
-     * Each of these properties are expressed as factor such that the properties factor defines the relative
-     * importance of the property for the weight function. For example if the weight function should calculate
-     * the weights only based on a global (shard) balance the index balance can be set to {@code 0.0} and will
-     * in turn have no effect on the distribution.
-     * </p>
-     * The weight per index is calculated based on the following formula:
-     * <ul>
-     * <li>
-     * <code>weight<sub>index</sub>(node, index) = indexBalance * (node.numShards(index) - avgShardsPerNode(index))</code>
-     * </li>
-     * <li>
-     * <code>weight<sub>node</sub>(node, index) = shardBalance * (node.numShards() - avgShardsPerNode)</code>
-     * </li>
-     * </ul>
-     * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
-     */
-    private static class WeightFunction {
-
-        private final float indexBalance;
-        private final float shardBalance;
-        private final float theta0;
-        private final float theta1;
-
-        WeightFunction(float indexBalance, float shardBalance) {
-            float sum = indexBalance + shardBalance;
-            if (sum <= 0.0f) {
-                throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
-            }
-            theta0 = shardBalance / sum;
-            theta1 = indexBalance / sum;
-            this.indexBalance = indexBalance;
-            this.shardBalance = shardBalance;
-        }
-
-        float weight(Balancer balancer, ModelNode node, String index) {
-            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
-            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            return theta0 * weightShard + theta1 * weightIndex;
-        }
+        return shardBalanceFactor;
     }
 
     /**
      * A {@link Balancer}
      */
     public static class Balancer {
-        private final Logger logger;
-        private final Map<String, ModelNode> nodes;
+        private final WriteLoadForecaster writeLoadForecaster;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
+        private final Metadata metadata;
         private final WeightFunction weight;
 
         private final float threshold;
-        private final Metadata metadata;
         private final float avgShardsPerNode;
+        private final double avgWriteLoadPerNode;
+        private final double avgDiskUsageInBytesPerNode;
+        private final Map<String, ModelNode> nodes;
         private final NodeSorter sorter;
 
-        public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
-            this.logger = logger;
+        private Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
+            this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
-            this.weight = weight;
-            this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
+            this.weight = weight;
+            this.threshold = threshold;
+            avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
+            avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
+            avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
+        }
+
+        private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
+            if (indexMetadata.ignoreDiskWatermarks()) {
+                // disk watermarks are ignored for partial searchable snapshots
+                // and is equivalent to indexMetadata.isPartialSearchableSnapshot()
+                return 0;
+            }
+            return Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0L), clusterInfo.getShardSize(shardRouting, 0L));
+        }
+
+        private float getShardWriteLoad(String index) {
+            return (float) writeLoadForecaster.getForecastedWriteLoad(metadata.index(index)).orElse(0.0);
+        }
+
+        private float maxShardSizeBytes(String index) {
+            final var indexMetadata = metadata.index(index);
+            if (indexMetadata.ignoreDiskWatermarks()) {
+                // disk watermarks are ignored for partial searchable snapshots
+                // and is equivalent to indexMetadata.isPartialSearchableSnapshot()
+                return 0;
+            }
+            var maxShardSizeBytes = indexMetadata.getForecastedShardSizeInBytes().orElse(0L);
+            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                final var shardId = new ShardId(indexMetadata.getIndex(), shard);
+                maxShardSizeBytes = maxWithNullable(maxShardSizeBytes, allocation.clusterInfo().getShardSize(shardId, true));
+                maxShardSizeBytes = maxWithNullable(maxShardSizeBytes, allocation.clusterInfo().getShardSize(shardId, false));
+            }
+            return (float) maxShardSizeBytes;
+        }
+
+        private static long maxWithNullable(long accumulator, Long newValue) {
+            return newValue == null ? accumulator : Math.max(accumulator, newValue);
         }
 
         /**
          * Returns an array view on the nodes in the balancer. Nodes should not be removed from this list.
          */
         private ModelNode[] nodesArray() {
-            return nodes.values().toArray(new ModelNode[nodes.size()]);
+            return nodes.values().toArray(ModelNode[]::new);
         }
 
         /**
@@ -277,6 +340,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return avgShardsPerNode;
         }
 
+        public double avgWriteLoadPerNode() {
+            return avgWriteLoadPerNode;
+        }
+
+        public double avgDiskUsageInBytesPerNode() {
+            return avgDiskUsageInBytesPerNode;
+        }
+
         /**
          * Returns a new {@link NodeSorter} that sorts the nodes based on their
          * current weight with respect to the index passed to the sorter. The
@@ -291,7 +362,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * The absolute value difference between two weights.
          */
         private static float absDelta(float lower, float higher) {
-            assert higher >= lower : higher + " lt " + lower +" but was expected to be gte";
+            assert higher >= lower : higher + " lt " + lower + " but was expected to be gte";
             return Math.abs(higher - lower);
         }
 
@@ -338,10 +409,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Makes a decision about moving a single shard to a different node to form a more
-         * optimally balanced cluster.  This method is invoked from the cluster allocation
+         * optimally balanced cluster. This method is invoked from the cluster allocation
          * explain API only.
          */
-        private MoveDecision decideRebalance(final ShardRouting shard) {
+        private MoveDecision decideRebalance(final ShardRouting shard, Decision canRemain) {
             if (shard.started() == false) {
                 // we can only rebalance started shards
                 return MoveDecision.NOT_TAKEN;
@@ -367,7 +438,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final float currentWeight = weight.weight(this, currentNode, idxName);
             final AllocationDeciders deciders = allocation.deciders();
             Type rebalanceDecisionType = Type.NO;
-            ModelNode assignedNode = null;
+            ModelNode targetNode = null;
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> worseBalanceNodes = new ArrayList<>();
@@ -393,10 +464,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                    final float localThreshold = sorter.minWeightDelta() * threshold;
+                    boolean deltaAboveThreshold = lessThan(currentDelta, localThreshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    boolean betterWeightWithShardAdded = nodeWeight + 1.0f < currentWeight;
+                    boolean betterWeightWithShardAdded = nodeWeight + localThreshold < currentWeight;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
@@ -405,7 +477,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         // rebalance to the node, only will get overwritten if the decision here is to
                         // THROTTLE and we get a decision with YES on another node
                         rebalanceDecisionType = canAllocate.type();
-                        assignedNode = node;
+                        targetNode = node;
                     }
                 }
                 Tuple<ModelNode, Decision> nodeResult = Tuple.tuple(node, canAllocate);
@@ -421,31 +493,48 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             int weightRanking = 0;
             List<NodeAllocationResult> nodeDecisions = new ArrayList<>(modelNodes.length - 1);
             for (Tuple<ModelNode, Decision> result : betterBalanceNodes) {
-                nodeDecisions.add(new NodeAllocationResult(
-                    result.v1().routingNode.node(), AllocationDecision.fromDecisionType(result.v2().type()), result.v2(), ++weightRanking)
+                nodeDecisions.add(
+                    new NodeAllocationResult(
+                        result.v1().routingNode.node(),
+                        AllocationDecision.fromDecisionType(result.v2().type()),
+                        result.v2(),
+                        ++weightRanking
+                    )
                 );
             }
             int currentNodeWeightRanking = ++weightRanking;
             for (Tuple<ModelNode, Decision> result : sameBalanceNodes) {
                 AllocationDecision nodeDecision = result.v2().type() == Type.NO ? AllocationDecision.NO : AllocationDecision.WORSE_BALANCE;
-                nodeDecisions.add(new NodeAllocationResult(
-                    result.v1().routingNode.node(), nodeDecision, result.v2(), currentNodeWeightRanking)
+                nodeDecisions.add(
+                    new NodeAllocationResult(result.v1().routingNode.node(), nodeDecision, result.v2(), currentNodeWeightRanking)
                 );
             }
             for (Tuple<ModelNode, Decision> result : worseBalanceNodes) {
                 AllocationDecision nodeDecision = result.v2().type() == Type.NO ? AllocationDecision.NO : AllocationDecision.WORSE_BALANCE;
-                nodeDecisions.add(new NodeAllocationResult(
-                    result.v1().routingNode.node(), nodeDecision, result.v2(), ++weightRanking)
-                );
+                nodeDecisions.add(new NodeAllocationResult(result.v1().routingNode.node(), nodeDecision, result.v2(), ++weightRanking));
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch() ? AllocationDecision.AWAITING_INFO :
-                                                            AllocationDecision.fromDecisionType(canRebalance.type());
-                return MoveDecision.cannotRebalance(canRebalance, allocationDecision, currentNodeWeightRanking, nodeDecisions);
+                // can not rebalance
+                return MoveDecision.rebalance(
+                    canRemain,
+                    canRebalance,
+                    allocation.hasPendingAsyncFetch()
+                        ? AllocationDecision.AWAITING_INFO
+                        : AllocationDecision.fromDecisionType(canRebalance.type()),
+                    null,
+                    currentNodeWeightRanking,
+                    nodeDecisions
+                );
             } else {
-                return MoveDecision.rebalance(canRebalance, AllocationDecision.fromDecisionType(rebalanceDecisionType),
-                    assignedNode != null ? assignedNode.routingNode.node() : null, currentNodeWeightRanking, nodeDecisions);
+                return MoveDecision.rebalance(
+                    canRemain,
+                    canRebalance,
+                    AllocationDecision.fromDecisionType(rebalanceDecisionType),
+                    targetNode != null ? targetNode.routingNode.node() : null,
+                    currentNodeWeightRanking,
+                    nodeDecisions
+                );
             }
         }
 
@@ -488,16 +577,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
+                final float localThreshold = sorter.minWeightDelta() * threshold;
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
                     final ModelNode maxNode = modelNodes[highIdx];
-                    advance_range:
-                    if (maxNode.numShards(index) > 0) {
+                    advance_range: if (maxNode.numShards(index) > 0) {
                         final float delta = absDelta(weights[lowIdx], weights[highIdx]);
-                        if (lessThan(delta, threshold)) {
-                            if (lowIdx > 0 && highIdx-1 > 0 // is there a chance for a higher delta?
-                                && (absDelta(weights[0], weights[highIdx-1]) > threshold) // check if we need to break at all
-                                ) {
+                        if (lessThan(delta, localThreshold)) {
+                            if (lowIdx > 0
+                                && highIdx - 1 > 0 // is there a chance for a higher delta?
+                                && (absDelta(weights[0], weights[highIdx - 1]) > localThreshold) // check if we need to break at all
+                            ) {
                                 /* This is a special case if allocations from the "heaviest" to the "lighter" nodes is not possible
                                  * due to some allocation decider restrictions like zone awareness. if one zone has for instance
                                  * less nodes than another zone. so one zone is horribly overloaded from a balanced perspective but we
@@ -511,17 +601,29 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 break advance_range;
                             }
                             if (logger.isTraceEnabled()) {
-                                logger.trace("Stop balancing index [{}]  min_node [{}] weight: [{}]" +
-                                        "  max_node [{}] weight: [{}]  delta: [{}]",
-                                        index, maxNode.getNodeId(), weights[highIdx], minNode.getNodeId(), weights[lowIdx], delta);
+                                logger.trace(
+                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
+                                    index,
+                                    maxNode.getNodeId(),
+                                    weights[highIdx],
+                                    minNode.getNodeId(),
+                                    weights[lowIdx],
+                                    delta
+                                );
                             }
                             break;
                         }
                         if (logger.isTraceEnabled()) {
-                            logger.trace("Balancing from node [{}] weight: [{}] to node [{}] weight: [{}]  delta: [{}]",
-                                    maxNode.getNodeId(), weights[highIdx], minNode.getNodeId(), weights[lowIdx], delta);
+                            logger.trace(
+                                "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}] delta: [{}]",
+                                maxNode.getNodeId(),
+                                weights[highIdx],
+                                minNode.getNodeId(),
+                                weights[lowIdx],
+                                delta
+                            );
                         }
-                        if (delta <= 1.0f) {
+                        if (delta <= localThreshold) {
                             /*
                              * prevent relocations that only swap the weights of the two nodes. a relocation must bring us closer to the
                              * balance if we only achieve the same delta the relocation is useless
@@ -530,8 +632,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                              * already know that lessThan(delta, threshold) == false and threshold defaults to 1.0, so by default we never
                              * hit this case anyway.
                              */
-                            logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]",
-                                maxNode.getNodeId(), minNode.getNodeId());
+                            logger.trace(
+                                "Couldn't find shard to relocate from node [{}] to node [{}]",
+                                maxNode.getNodeId(),
+                                minNode.getNodeId()
+                            );
                         } else if (tryRelocateShard(minNode, maxNode, index)) {
                             /*
                              * TODO we could be a bit smarter here, we don't need to fully sort necessarily
@@ -580,7 +685,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to the nodes we relocated them from.
          */
         private String[] buildWeightOrderedIndices() {
-            final String[] indices = allocation.routingTable().indicesRouting().keys().toArray(String.class);
+            final String[] indices = allocation.routingTable().indicesRouting().keySet().toArray(String[]::new);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {
                 sorter.reset(indices[i]);
@@ -633,16 +738,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
-            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
+            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
                 ShardRouting shardRouting = it.next();
                 final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                     final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
                     sourceNode.removeShard(shardRouting);
-                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(shardRouting, targetNode.getNodeId(),
-                        allocation.clusterInfo().getShardSize(shardRouting,
-                                                              ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+                        shardRouting,
+                        targetNode.getNodeId(),
+                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "move",
+                        allocation.changes()
+                    );
                     targetNode.addShard(relocatingShards.v2());
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
@@ -654,13 +763,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Makes a decision on whether to move a started shard to another node.  The following rules apply
+         * Makes a decision on whether to move a started shard to another node. The following rules apply
          * to the {@link MoveDecision} return object:
          *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
-         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
+         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
-         *      populated with the decision of moving to another node.  If {@link MoveDecision#forceMove()} ()} returns {@code true}, then
+         *      populated with the decision of moving to another node. If {@link MoveDecision#forceMove()} ()} returns {@code true}, then
          *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
@@ -671,13 +780,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return MoveDecision.NOT_TAKEN;
             }
 
-            final boolean explain = allocation.debugDecision();
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             assert sourceNode != null && sourceNode.containsShard(shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO) {
-                return MoveDecision.stay(canRemain);
+                return MoveDecision.remain(canRemain);
             }
 
             sorter.reset(shardRouting.getIndexName());
@@ -687,18 +795,33 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
+            MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
+            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
+                final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
+                if (shardsOnReplacedNode) {
+                    return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
+                }
+            }
+            return moveDecision;
+        }
+
+        private MoveDecision decideMove(
+            ShardRouting shardRouting,
+            ModelNode sourceNode,
+            Decision remainDecision,
+            BiFunction<ShardRouting, RoutingNode, Decision> decider
+        ) {
+            final boolean explain = allocation.debugDecision();
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
-            final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
+            final List<NodeAllocationResult> nodeResults = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
-                    // don't use canRebalance as we want hard filtering rules to apply. See #17698
-                    Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+                    Decision allocationDecision = decider.apply(shardRouting, target);
                     if (explain) {
-                        nodeExplanationMap.add(new NodeAllocationResult(
-                            currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
+                        nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
                     // TODO maybe we can respect throttling here too?
                     if (allocationDecision.type().higherThan(bestDecision)) {
@@ -715,8 +838,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
 
-            return MoveDecision.cannotRemain(canRemain, AllocationDecision.fromDecisionType(bestDecision),
-                targetNode != null ? targetNode.node() : null, nodeExplanationMap);
+            return MoveDecision.move(
+                remainDecision,
+                AllocationDecision.fromDecisionType(bestDecision),
+                targetNode != null ? targetNode.node() : null,
+                nodeResults
+            );
+        }
+
+        private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
+            // don't use canRebalance as we want hard filtering rules to apply. See #17698
+            return allocation.deciders().canAllocate(shardRouting, target, allocation);
+        }
+
+        private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
+            return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
         }
 
         /**
@@ -729,9 +865,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * process. In short, this method recreates the status-quo in the cluster.
          */
         private Map<String, ModelNode> buildModelFromAssigned() {
-            Map<String, ModelNode> nodes = new HashMap<>();
+            Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(rn);
+                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -753,7 +889,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private void allocateUnassigned() {
             RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
-            assert !nodes.isEmpty();
+            assert nodes.isEmpty() == false;
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
             }
@@ -770,8 +906,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (o1.primary() ^ o2.primary()) {
                     return o1.primary() ? -1 : 1;
                 }
-                final int indexCmp;
-                if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
+                if (o1.getIndexName().compareTo(o2.getIndexName()) == 0) {
                     return o1.getId() - o2.getId();
                 }
                 // this comparator is more expensive than all the others up there
@@ -779,7 +914,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // if we'd apply it earlier. this comparator will only differentiate across
                 // indices all shards of the same index is treated equally.
                 final int secondary = secondaryComparator.compare(o1, o2);
-                return secondary == 0 ? indexCmp : secondary;
+                assert secondary != 0 : "Index names are equal, should be returned early.";
+                return secondary;
             };
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical
@@ -799,8 +935,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
                     final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard);
-                    final String assignedNodeId = allocationDecision.getTargetNode() != null ?
-                                                      allocationDecision.getTargetNode().getId() : null;
+                    final String assignedNodeId = allocationDecision.getTargetNode() != null
+                        ? allocationDecision.getTargetNode().getId()
+                        : null;
                     final ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;
 
                     if (allocationDecision.getAllocationDecision() == AllocationDecision.YES) {
@@ -808,32 +945,30 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                         }
 
-                        final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
-                            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
+                        final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                         minNode.addShard(shard);
-                        if (!shard.primary()) {
+                        if (shard.primary() == false) {
                             // copy over the same replica shards to the secondary array so they will get allocated
                             // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                            while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
+                            while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
                                 secondary[secondaryLength++] = primary[++i];
                             }
                         }
                     } else {
                         // did *not* receive a YES decision
                         if (logger.isTraceEnabled()) {
-                            logger.trace("No eligible node found to assign shard [{}] allocation_status [{}]", shard,
-                                allocationDecision.getAllocationStatus());
+                            logger.trace(
+                                "No eligible node found to assign shard [{}] allocation_status [{}]",
+                                shard,
+                                allocationDecision.getAllocationStatus()
+                            );
                         }
 
                         if (minNode != null) {
                             // throttle decision scenario
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
-                            final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
-                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(),
-                                allocation.routingTable());
+                            final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
                         } else {
                             if (logger.isTraceEnabled()) {
@@ -842,8 +977,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
 
                         unassigned.ignoreShard(shard, allocationDecision.getAllocationStatus(), allocation.changes());
-                        if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
-                            while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
+                        if (shard.primary() == false) {
+                            // we could not allocate it and we are a replica - check if we can ignore the other replicas
+                            while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
                                 unassigned.ignoreShard(primary[++i], allocationDecision.getAllocationStatus(), allocation.changes());
                             }
                         }
@@ -859,9 +995,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Make a decision for allocating an unassigned shard.  This method returns a two values in a tuple: the
+         * Make a decision for allocating an unassigned shard. This method returns a two values in a tuple: the
          * first value is the {@link Decision} taken to allocate the unassigned shard, the second value is the
-         * {@link ModelNode} representing the node that the shard should be assigned to.  If the decision returned
+         * {@link ModelNode} representing the node that the shard should be assigned to. If the decision returned
          * is of type {@link Type#NO}, then the assigned node will be null.
          */
         private AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard) {
@@ -900,8 +1036,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
                 if (explain) {
-                    nodeExplanationMap.put(node.getNodeId(),
-                        new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
+                    nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                     nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
                 }
                 if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
@@ -922,15 +1057,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             final int repId = shard.id();
                             final int nodeHigh = node.highestPrimary(shard.index().getName());
                             final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
-                            updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId)
-                                                   || (nodeHigh < repId && minNodeHigh < repId))
-                                                  && (nodeHigh < minNodeHigh))
-                                                 || (nodeHigh > repId && minNodeHigh < repId));
+                            updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
+                                && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
                         } else {
                             updateMinNode = currentDecision.type() == Type.YES;
                         }
                     } else {
-                        updateMinNode = true;
+                        updateMinNode = currentWeight < minWeight;
                     }
                     if (updateMinNode) {
                         minNode = node;
@@ -954,11 +1087,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     nodeDecisions.add(new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
                 }
             }
-            return AllocateUnassignedDecision.fromDecision(
-                decision,
-                minNode != null ? minNode.routingNode.node() : null,
-                nodeDecisions
-            );
+            return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.routingNode.node() : null, nodeDecisions);
         }
 
         private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = Comparator.comparing(ShardRouting::shardId).reversed();
@@ -974,9 +1103,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
                 final Iterable<ShardRouting> shardRoutings = StreamSupport.stream(index.spliterator(), false)
                     .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
-                    .filter(maxNode::containsShard)
                     .sorted(BY_DESCENDING_SHARD_ID) // check in descending order of shard id so that the decision is deterministic
-                    ::iterator;
+                ::iterator;
 
                 final AllocationDeciders deciders = allocation.deciders();
                 for (ShardRouting shard : shardRoutings) {
@@ -994,37 +1122,48 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     maxNode.removeShard(shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    if (decision.type() == Type.YES) {
-                        /* only allocate on the cluster if we are not throttled */
-                        logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
-                        return true;
-                    } else {
-                        /* allocate on the model even if throttled */
-                        logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        assert decision.type() == Type.THROTTLE;
-                        minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
-                        return false;
-                    }
+                    assert decision.type() == Type.YES || decision.type() == Type.THROTTLE : decision.type();
+                    logger.debug(
+                        "decision [{}]: relocate [{}] from [{}] to [{}]",
+                        decision.type(),
+                        shard,
+                        maxNode.getNodeId(),
+                        minNode.getNodeId()
+                    );
+                    minNode.addShard(
+                        decision.type() == Type.YES
+                            /* only allocate on the cluster if we are not throttled */
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, "rebalance", allocation.changes()).v1()
+                            : shard.relocate(minNode.getNodeId(), shardSize)
+                    );
+                    return true;
                 }
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
         }
-
     }
 
     static class ModelNode implements Iterable<ModelIndex> {
-        private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
+        private double writeLoad = 0.0;
+        private double diskUsageInBytes = 0.0;
+        private final WriteLoadForecaster writeLoadForecaster;
+        private final Metadata metadata;
+        private final ClusterInfo clusterInfo;
         private final RoutingNode routingNode;
+        private final Map<String, ModelIndex> indices;
 
-        ModelNode(RoutingNode routingNode) {
+        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
+            this.writeLoadForecaster = writeLoadForecaster;
+            this.metadata = metadata;
+            this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
+            this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
         }
 
-        public ModelIndex getIndex(String indexId) {
-            return indices.get(indexId);
+        public ModelIndex getIndex(String indexName) {
+            return indices.get(indexName);
         }
 
         public String getNodeId() {
@@ -1044,6 +1183,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return index == null ? 0 : index.numShards();
         }
 
+        public double writeLoad() {
+            return writeLoad;
+        }
+
+        public double diskUsageInBytes() {
+            return diskUsageInBytes;
+        }
+
         public int highestPrimary(String index) {
             ModelIndex idx = indices.get(index);
             if (idx != null) {
@@ -1053,12 +1200,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public void addShard(ShardRouting shard) {
-            ModelIndex index = indices.get(shard.getIndexName());
-            if (index == null) {
-                index = new ModelIndex(shard.getIndexName());
-                indices.put(index.getIndexId(), index);
-            }
-            index.addShard(shard);
+            indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
+            IndexMetadata indexMetadata = metadata.index(shard.index());
+            writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards++;
         }
 
@@ -1070,6 +1215,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
+            IndexMetadata indexMetadata = metadata.index(shard.index());
+            writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards--;
         }
 
@@ -1087,19 +1235,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public boolean containsShard(ShardRouting shard) {
             ModelIndex index = getIndex(shard.getIndexName());
-            return index == null ? false : index.containsShard(shard);
+            return index != null && index.containsShard(shard);
         }
-
     }
 
     static final class ModelIndex implements Iterable<ShardRouting> {
-        private final String id;
-        private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
+        private final Set<ShardRouting> shards = Sets.newHashSetWithExpectedSize(4); // expect few shards of same index to be allocated on
+                                                                                     // same node
         private int highestPrimary = -1;
 
-        ModelIndex(String id) {
-            this.id = id;
-        }
+        ModelIndex() {}
 
         public int highestPrimary() {
             if (highestPrimary == -1) {
@@ -1112,10 +1257,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return highestPrimary = maxId;
             }
             return highestPrimary;
-        }
-
-        public String getIndexId() {
-            return id;
         }
 
         public int numShards() {
@@ -1135,7 +1276,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             highestPrimary = -1;
-            assert !shards.contains(shard) : "Shard already allocated on current node: " + shard;
+            assert shards.contains(shard) == false : "Shard already allocated on current node: " + shard;
             shards.add(shard);
         }
 
@@ -1179,6 +1320,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public float weight(ModelNode node) {
             return function.weight(balancer, node, index);
+        }
+
+        public float minWeightDelta() {
+            return function.minWeightDelta(balancer.getShardWriteLoad(index), balancer.maxShardSizeBytes(index));
         }
 
         @Override

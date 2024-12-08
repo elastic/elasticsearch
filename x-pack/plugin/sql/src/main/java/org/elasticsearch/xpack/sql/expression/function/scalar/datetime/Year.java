@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -17,7 +18,7 @@ import java.time.ZoneId;
  * Extract the year from a datetime.
  */
 public class Year extends DateTimeHistogramFunction {
-    
+
     public Year(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, DateTimeExtractor.YEAR);
     }
@@ -30,11 +31,6 @@ public class Year extends DateTimeHistogramFunction {
     @Override
     protected Year replaceChild(Expression newChild) {
         return new Year(source(), newChild, zoneId());
-    }
-
-    @Override
-    public String dateTimeFormat() {
-        return "year";
     }
 
     @Override

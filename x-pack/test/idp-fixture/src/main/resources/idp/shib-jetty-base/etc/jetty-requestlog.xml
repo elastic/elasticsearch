@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_0.dtd">
+<!-- =============================================================== -->
+<!-- Configure the Jetty Request Log                                 -->
+<!-- =============================================================== -->
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+  <Set name="RequestLog">
+    <New id="RequestLog" class="ch.qos.logback.access.jetty.RequestLogImpl">
+      <Set name="fileName"><Property name="jetty.base" default="." />/resources/logback-access.xml</Set>
+    </New>
+  </Set>
+  <Ref refid="RequestLog">
+    <Call name="start" />
+  </Ref>
+</Configure>

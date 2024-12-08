@@ -1,32 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -44,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
@@ -56,8 +50,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
     public void testNonLocalRequestAlwaysFindsMaster() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = client().admin().cluster().prepareState()
-                .clear().setNodes(true).setMasterNodeTimeout("100ms");
+            final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setNodes(true)
+                .setBlocks(true)
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100));
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
@@ -71,8 +68,17 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
     public void testLocalRequestAlwaysSucceeds() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
-            final DiscoveryNodes discoveryNodes = client(node).admin().cluster().prepareState()
-                .clear().setLocal(true).setNodes(true).setMasterNodeTimeout("100ms").get().getState().nodes();
+            final DiscoveryNodes discoveryNodes = client(node).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setLocal(true)
+                .setNodes(true)
+                .setBlocks(true)
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                .get()
+                .getState()
+                .nodes();
             for (DiscoveryNode discoveryNode : discoveryNodes) {
                 if (discoveryNode.getName().equals(node)) {
                     return;
@@ -85,12 +91,21 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
     public void testNonLocalRequestAlwaysFindsMasterAndWaitsForMetadata() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
-            final long metadataVersion
-                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metadata().version();
+            final long metadataVersion = internalCluster().getInstance(ClusterService.class, node)
+                .getClusterApplierService()
+                .state()
+                .metadata()
+                .version();
             final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = client(node).admin().cluster().prepareState()
-                .clear().setNodes(true).setMetadata(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))
+            final ClusterStateRequestBuilder clusterStateRequestBuilder = client(node).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setNodes(true)
+                .setMetadata(true)
+                .setBlocks(true)
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .setWaitForMetadataVersion(waitForMetadataVersion);
             final ClusterStateResponse clusterStateResponse;
             try {
@@ -109,17 +124,30 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
     public void testLocalRequestWaitsForMetadata() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
-            final long metadataVersion
-                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metadata().version();
+            final long metadataVersion = internalCluster().getInstance(ClusterService.class, node)
+                .getClusterApplierService()
+                .state()
+                .metadata()
+                .version();
             final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
-            final ClusterStateResponse clusterStateResponse = client(node).admin().cluster()
-                .prepareState().clear().setLocal(true).setMetadata(true).setWaitForMetadataVersion(waitForMetadataVersion)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))
+            final ClusterStateResponse clusterStateResponse = client(node).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setLocal(true)
+                .setMetadata(true)
+                .setBlocks(true)
+                .setWaitForMetadataVersion(waitForMetadataVersion)
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .get();
             if (clusterStateResponse.isWaitForTimedOut() == false) {
                 final Metadata metadata = clusterStateResponse.getState().metadata();
-                assertThat("waited for metadata version " + waitForMetadataVersion + " with node " + node,
-                    metadata.version(), greaterThanOrEqualTo(waitForMetadataVersion));
+                assertThat(
+                    "waited for metadata version " + waitForMetadataVersion + " with node " + node,
+                    metadata.version(),
+                    greaterThanOrEqualTo(waitForMetadataVersion)
+                );
             }
         });
     }
@@ -127,9 +155,22 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
     public void runRepeatedlyWhileChangingMaster(Runnable runnable) throws Exception {
         internalCluster().startNodes(3);
 
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().clear().setMetadata(true)
-            .get().getState().getLastCommittedConfiguration().getNodeIds().stream()
-            .filter(n -> ClusterBootstrapService.isBootstrapPlaceholder(n) == false).collect(Collectors.toSet()), hasSize(3)));
+        assertBusy(
+            () -> assertThat(
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .clear()
+                    .setMetadata(true)
+                    .setBlocks(true)
+                    .get()
+                    .getState()
+                    .getLastCommittedConfiguration()
+                    .getNodeIds()
+                    .stream()
+                    .filter(n -> ClusterBootstrapService.isBootstrapPlaceholder(n) == false)
+                    .collect(Collectors.toSet()),
+                hasSize(3)
+            )
+        );
 
         final String masterName = internalCluster().getMasterName();
 
@@ -145,22 +186,26 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             while (shutdown.get() == false) {
                 value = "none".equals(value) ? "all" : "none";
                 final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-                assertAcked(client(nonMasterNode).admin().cluster().prepareUpdateSettings().setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), value)));
+                assertAcked(
+                    client(nonMasterNode).admin()
+                        .cluster()
+                        .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), value))
+                );
             }
         }, "updating thread");
 
-        final List<MockTransportService> mockTransportServices
-            = StreamSupport.stream(internalCluster().getInstances(TransportService.class).spliterator(), false)
-            .map(ts -> (MockTransportService) ts).collect(Collectors.toList());
+        final List<MockTransportService> mockTransportServices = StreamSupport.stream(
+            internalCluster().getInstances(TransportService.class).spliterator(),
+            false
+        ).map(ts -> (MockTransportService) ts).toList();
 
         assertingThread.start();
         updatingThread.start();
 
-        final MockTransportService masterTransportService
-            = (MockTransportService) internalCluster().getInstance(TransportService.class, masterName);
+        final var masterTransportService = MockTransportService.getInstance(masterName);
 
-        for (MockTransportService mockTransportService : mockTransportServices) {
+        for (final var mockTransportService : mockTransportServices) {
             if (masterTransportService != mockTransportService) {
                 masterTransportService.addFailToSendNoConnectRule(mockTransportService);
                 mockTransportService.addFailToSendNoConnectRule(masterTransportService);
@@ -177,6 +222,27 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         assertingThread.join();
         updatingThread.join();
         internalCluster().close();
+    }
+
+    public void testFailsWithBlockExceptionIfBlockedAndBlocksNotRequested() {
+        internalCluster().startMasterOnlyNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 1).build());
+        final var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setBlocks(true).execute()).getState();
+        assertTrue(state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+
+        assertThat(
+            safeAwaitFailure(
+                SubscribableListener.<ClusterStateResponse>newForked(
+                    l -> clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().execute(l)
+                )
+            ),
+            instanceOf(ClusterBlockException.class)
+        );
+
+        internalCluster().startDataOnlyNode();
+
+        final var recoveredState = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setBlocks(randomBoolean()).execute())
+            .getState();
+        assertFalse(recoveredState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
     }
 
 }

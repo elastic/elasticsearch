@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.checkResultLength;
+
 public class ConcatFunctionProcessor extends BinaryProcessor {
 
     public static final String NAME = "scon";
@@ -22,7 +25,7 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
     public ConcatFunctionProcessor(Processor source1, Processor source2) {
         super(source1, source2);
     }
-    
+
     public ConcatFunctionProcessor(StreamInput in) throws IOException {
         super(in);
     }
@@ -54,42 +57,43 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
         if (source2 == null) {
             return source1;
         }
-        if (!(source1 instanceof String || source1 instanceof Character)) {
+        if ((source1 instanceof String || source1 instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source1);
         }
-        if (!(source2 instanceof String || source2 instanceof Character)) {
+        if ((source2 instanceof String || source2 instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source2);
         }
 
-        return source1.toString().concat(source2.toString());
+        String str1 = source1.toString();
+        String str2 = source2.toString();
+        checkResultLength(str1.length() + str2.length());
+        return str1.concat(str2);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ConcatFunctionProcessor other = (ConcatFunctionProcessor) obj;
-        return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right());
     }
 
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-    }
+    protected void doWrite(StreamOutput out) throws IOException {}
 }

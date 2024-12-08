@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -12,7 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * {@code NodeFailureListener} logs warnings for any node failure, but it can also notify a {@link Sniffer} and/or {@link HttpResource}
@@ -29,12 +30,12 @@ class NodeFailureListener extends RestClient.FailureListener {
      * The optional {@link Sniffer} associated with the {@link RestClient}.
      */
     @Nullable
-    private SetOnce<Sniffer> sniffer = new SetOnce<>();
+    private final SetOnce<Sniffer> snifferHolder = new SetOnce<>();
     /**
      * The optional {@link HttpResource} associated with the {@link RestClient}.
      */
     @Nullable
-    private SetOnce<HttpResource> resource = new SetOnce<>();
+    private final SetOnce<HttpResource> resourceHolder = new SetOnce<>();
 
     /**
      * Get the {@link Sniffer} that is notified upon node failure.
@@ -43,7 +44,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      */
     @Nullable
     public Sniffer getSniffer() {
-        return sniffer.get();
+        return snifferHolder.get();
     }
 
     /**
@@ -53,7 +54,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      * @throws SetOnce.AlreadySetException if called more than once
      */
     public void setSniffer(@Nullable final Sniffer sniffer) {
-        this.sniffer.set(sniffer);
+        this.snifferHolder.set(sniffer);
     }
 
     /**
@@ -63,7 +64,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      */
     @Nullable
     public HttpResource getResource() {
-        return resource.get();
+        return resourceHolder.get();
     }
 
     /**
@@ -73,7 +74,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      * @throws SetOnce.AlreadySetException if called more than once
      */
     public void setResource(@Nullable final HttpResource resource) {
-        this.resource.set(resource);
+        this.resourceHolder.set(resource);
     }
 
     @Override
@@ -81,8 +82,8 @@ class NodeFailureListener extends RestClient.FailureListener {
         HttpHost host = node.getHost();
         logger.warn("connection failed to node at [{}://{}:{}]", host.getSchemeName(), host.getHostName(), host.getPort());
 
-        final HttpResource resource = this.resource.get();
-        final Sniffer sniffer = this.sniffer.get();
+        final HttpResource resource = this.resourceHolder.get();
+        final Sniffer sniffer = this.snifferHolder.get();
 
         if (resource != null) {
             resource.markDirty();

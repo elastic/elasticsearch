@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCategoriesRequestTests extends AbstractSerializingTestCase<GetCategoriesAction.Request> {
+public class GetCategoriesRequestTests extends AbstractXContentSerializingTestCase<GetCategoriesAction.Request> {
 
     @Override
     protected GetCategoriesAction.Request createTestInstance() {
@@ -30,13 +31,13 @@ public class GetCategoriesRequestTests extends AbstractSerializingTestCase<GetCa
     }
 
     @Override
-    protected Writeable.Reader<GetCategoriesAction.Request> instanceReader() {
-        return GetCategoriesAction.Request::new;
+    protected GetCategoriesAction.Request mutateInstance(GetCategoriesAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<GetCategoriesAction.Request> instanceReader() {
+        return GetCategoriesAction.Request::new;
     }
 
     @Override

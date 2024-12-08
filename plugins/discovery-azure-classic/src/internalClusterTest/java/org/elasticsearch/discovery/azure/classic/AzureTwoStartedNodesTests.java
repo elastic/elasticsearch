@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.azure.classic;
@@ -23,11 +13,10 @@ import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
-        numDataNodes = 0,
-        numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 
     public void testTwoNodesShouldRunUsingPrivateOrPublicIp() {
@@ -42,12 +31,30 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
         logger.info("--> start first node");
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        assertNotNull(
+            client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNodeId()
+        );
 
         logger.info("--> start another node");
         final String node2 = internalCluster().startNode(settings);
         registerAzureNode(node2);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        assertNotNull(
+            client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNodeId()
+        );
 
         // We expect having 2 nodes as part of the cluster, let's test that
         assertNumberOfNodes(2);

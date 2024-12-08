@@ -1,0 +1,14 @@
+[#es-connectors-troubleshooting]
+=== Troubleshooting connectors
+++++
+<titleabbrev>Troubleshooting</titleabbrev>
+++++
+
+Use the following actions to help diagnose and resolve issues with <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>:
+
+* <<es-connectors-usage-indices,View index health and ingestion status>>.
+* <<es-connectors-usage-index-view,View errors, document count, sync history, and sync statuses>>.
+* <<es-connectors-usage-documents,View synced documents and index mappings>>.
+* Edit your index configuration: <<es-native-connectors,managed connector>>, <<es-build-connector,self-managed connector>>.
+
+You can also request help or support.

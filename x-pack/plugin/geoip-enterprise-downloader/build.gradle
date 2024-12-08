@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-geoip-enterprise-downloader'
+  description 'Elasticsearch Expanded Pack Plugin - Geoip Enterprise Downloader'
+  classname 'org.elasticsearch.xpack.geoip.EnterpriseDownloaderPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-geoip-enterprise-downloader'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies(project)

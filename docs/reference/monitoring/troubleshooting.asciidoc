@@ -1,9 +1,5 @@
 [[monitoring-troubleshooting]]
 == Troubleshooting monitoring
-++++
-<titleabbrev>Troubleshooting</titleabbrev>
-++++
-
 Use the information in this section to troubleshoot common problems and find
 answers for frequently asked questions. See also
 {logstash-ref}/monitoring-troubleshooting.html[Troubleshooting monitoring in {ls}].

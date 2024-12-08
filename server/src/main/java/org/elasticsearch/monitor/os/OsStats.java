@@ -1,34 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -69,7 +61,9 @@ public class OsStats implements Writeable, ToXContentFragment {
         return timestamp;
     }
 
-    public Cpu getCpu() { return cpu; }
+    public Cpu getCpu() {
+        return cpu;
+    }
 
     public Mem getMem() {
         return mem;
@@ -101,6 +95,8 @@ public class OsStats implements Writeable, ToXContentFragment {
         static final String USED_IN_BYTES = "used_in_bytes";
         static final String TOTAL = "total";
         static final String TOTAL_IN_BYTES = "total_in_bytes";
+        static final String ADJUSTED_TOTAL = "adjusted_total";
+        static final String ADJUSTED_TOTAL_IN_BYTES = "adjusted_total_in_bytes";
 
         static final String FREE_PERCENT = "free_percent";
         static final String USED_PERCENT = "used_percent";
@@ -196,9 +192,9 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Swap(StreamInput in) throws IOException {
             this.total = in.readLong();
-            assert total >= 0 : "expected total swap to be positive, got: " + total;
+            assert this.total >= 0 : "expected total swap to be positive, got: " + total;
             this.free = in.readLong();
-            assert free >= 0 : "expected free swap to be positive, got: " + total;
+            assert this.free >= 0 : "expected free swap to be positive, got: " + total;
         }
 
         @Override
@@ -208,7 +204,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public ByteSizeValue getUsed() {
@@ -223,13 +219,13 @@ public class OsStats implements Writeable, ToXContentFragment {
                 if (free > 0) {
                     logger.debug("cannot compute used swap when total swap is 0 and free swap is " + free);
                 }
-                return new ByteSizeValue(0);
+                return ByteSizeValue.ZERO;
             }
-            return new ByteSizeValue(total - free);
+            return ByteSizeValue.ofBytes(total - free);
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         @Override
@@ -248,30 +244,75 @@ public class OsStats implements Writeable, ToXContentFragment {
         private static final Logger logger = LogManager.getLogger(Mem.class);
 
         private final long total;
+        private final long adjustedTotal;
         private final long free;
 
-        public Mem(long total, long free) {
+        public Mem(long total, long adjustedTotal, long free) {
             assert total >= 0 : "expected total memory to be positive, got: " + total;
-            assert free >= 0 : "expected free memory to be positive, got: " + total;
+            assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
+            assert free >= 0 : "expected free memory to be positive, got: " + free;
+            // Extra layer of protection for when assertions are disabled
+            if (total < 0) {
+                logger.error("negative total memory [{}] found in memory stats", total);
+                total = 0;
+            }
+            if (adjustedTotal < 0) {
+                logger.error("negative adjusted total memory [{}] found in memory stats", total);
+                adjustedTotal = 0;
+            }
+            if (free < 0) {
+                logger.error("negative free memory [{}] found in memory stats", total);
+                free = 0;
+            }
             this.total = total;
+            this.adjustedTotal = adjustedTotal;
             this.free = free;
         }
 
         public Mem(StreamInput in) throws IOException {
-            this.total = in.readLong();
+            long total = in.readLong();
             assert total >= 0 : "expected total memory to be positive, got: " + total;
-            this.free = in.readLong();
-            assert free >= 0 : "expected free memory to be positive, got: " + total;
+            // Extra layer of protection for when assertions are disabled
+            if (total < 0) {
+                logger.error("negative total memory [{}] deserialized in memory stats", total);
+                total = 0;
+            }
+            this.total = total;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+                long adjustedTotal = in.readLong();
+                assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
+                if (adjustedTotal < 0) {
+                    logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
+                    adjustedTotal = 0;
+                }
+                this.adjustedTotal = adjustedTotal;
+            } else {
+                this.adjustedTotal = total;
+            }
+            long free = in.readLong();
+            assert free >= 0 : "expected free memory to be positive, got: " + free;
+            if (free < 0) {
+                logger.error("negative free memory [{}] deserialized in memory stats", free);
+                free = 0;
+            }
+            this.free = free;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+                out.writeLong(adjustedTotal);
+            }
             out.writeLong(free);
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
+        }
+
+        public ByteSizeValue getAdjustedTotal() {
+            return ByteSizeValue.ofBytes(adjustedTotal);
         }
 
         public ByteSizeValue getUsed() {
@@ -285,9 +326,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 if (free > 0) {
                     logger.debug("cannot compute used memory when total memory is 0 and free memory is " + free);
                 }
-                return new ByteSizeValue(0);
+                return ByteSizeValue.ZERO;
             }
-            return new ByteSizeValue(total - free);
+            return ByteSizeValue.ofBytes(total - free);
         }
 
         public short getUsedPercent() {
@@ -295,7 +336,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public short getFreePercent() {
@@ -306,6 +347,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.MEM);
             builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.humanReadableField(Fields.ADJUSTED_TOTAL_IN_BYTES, Fields.ADJUSTED_TOTAL, getAdjustedTotal());
             builder.humanReadableField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
             builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
             builder.field(Fields.FREE_PERCENT, getFreePercent());
@@ -321,12 +363,11 @@ public class OsStats implements Writeable, ToXContentFragment {
     public static class Cgroup implements Writeable, ToXContentFragment {
 
         private final String cpuAcctControlGroup;
-        private final long cpuAcctUsageNanos;
+        private final BigInteger cpuAcctUsageNanos;
         private final String cpuControlGroup;
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
-        // These will be null for nodes running versions prior to 6.1.0
         private final String memoryControlGroup;
         private final String memoryLimitInBytes;
         private final String memoryUsageInBytes;
@@ -347,7 +388,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the total CPU time in nanoseconds
          */
-        public long getCpuAcctUsageNanos() {
+        public BigInteger getCpuAcctUsageNanos() {
             return cpuAcctUsageNanos;
         }
 
@@ -425,14 +466,15 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Cgroup(
             final String cpuAcctControlGroup,
-            final long cpuAcctUsageNanos,
+            final BigInteger cpuAcctUsageNanos,
             final String cpuControlGroup,
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
             final CpuStat cpuStat,
             final String memoryControlGroup,
             final String memoryLimitInBytes,
-            final String memoryUsageInBytes) {
+            final String memoryUsageInBytes
+        ) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
             this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
@@ -446,7 +488,11 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         Cgroup(final StreamInput in) throws IOException {
             cpuAcctControlGroup = in.readString();
-            cpuAcctUsageNanos = in.readLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
+                cpuAcctUsageNanos = in.readBigInteger();
+            } else {
+                cpuAcctUsageNanos = BigInteger.valueOf(in.readLong());
+            }
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
@@ -459,7 +505,11 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(cpuAcctControlGroup);
-            out.writeLong(cpuAcctUsageNanos);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
+                out.writeBigInteger(cpuAcctUsageNanos);
+            } else {
+                out.writeLong(cpuAcctUsageNanos.longValue());
+            }
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
@@ -510,9 +560,9 @@ public class OsStats implements Writeable, ToXContentFragment {
          */
         public static class CpuStat implements Writeable, ToXContentFragment {
 
-            private final long numberOfElapsedPeriods;
-            private final long numberOfTimesThrottled;
-            private final long timeThrottledNanos;
+            private final BigInteger numberOfElapsedPeriods;
+            private final BigInteger numberOfTimesThrottled;
+            private final BigInteger timeThrottledNanos;
 
             /**
              * The number of elapsed periods.
@@ -520,7 +570,7 @@ public class OsStats implements Writeable, ToXContentFragment {
              * @return the number of elapsed periods as measured by
              * {@code cpu.cfs_period_us}
              */
-            public long getNumberOfElapsedPeriods() {
+            public BigInteger getNumberOfElapsedPeriods() {
                 return numberOfElapsedPeriods;
             }
 
@@ -530,7 +580,7 @@ public class OsStats implements Writeable, ToXContentFragment {
              *
              * @return the number of times
              */
-            public long getNumberOfTimesThrottled() {
+            public BigInteger getNumberOfTimesThrottled() {
                 return numberOfTimesThrottled;
             }
 
@@ -540,27 +590,43 @@ public class OsStats implements Writeable, ToXContentFragment {
              *
              * @return the total time in nanoseconds
              */
-            public long getTimeThrottledNanos() {
+            public BigInteger getTimeThrottledNanos() {
                 return timeThrottledNanos;
             }
 
-            public CpuStat(final long numberOfElapsedPeriods, final long numberOfTimesThrottled, final long timeThrottledNanos) {
+            public CpuStat(
+                final BigInteger numberOfElapsedPeriods,
+                final BigInteger numberOfTimesThrottled,
+                final BigInteger timeThrottledNanos
+            ) {
                 this.numberOfElapsedPeriods = numberOfElapsedPeriods;
                 this.numberOfTimesThrottled = numberOfTimesThrottled;
                 this.timeThrottledNanos = timeThrottledNanos;
             }
 
             CpuStat(final StreamInput in) throws IOException {
-                numberOfElapsedPeriods = in.readLong();
-                numberOfTimesThrottled = in.readLong();
-                timeThrottledNanos = in.readLong();
+                if (in.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
+                    numberOfElapsedPeriods = in.readBigInteger();
+                    numberOfTimesThrottled = in.readBigInteger();
+                    timeThrottledNanos = in.readBigInteger();
+                } else {
+                    numberOfElapsedPeriods = BigInteger.valueOf(in.readLong());
+                    numberOfTimesThrottled = BigInteger.valueOf(in.readLong());
+                    timeThrottledNanos = BigInteger.valueOf(in.readLong());
+                }
             }
 
             @Override
             public void writeTo(final StreamOutput out) throws IOException {
-                out.writeLong(numberOfElapsedPeriods);
-                out.writeLong(numberOfTimesThrottled);
-                out.writeLong(timeThrottledNanos);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
+                    out.writeBigInteger(numberOfElapsedPeriods);
+                    out.writeBigInteger(numberOfTimesThrottled);
+                    out.writeBigInteger(timeThrottledNanos);
+                } else {
+                    out.writeLong(numberOfElapsedPeriods.longValue());
+                    out.writeLong(numberOfTimesThrottled.longValue());
+                    out.writeLong(timeThrottledNanos.longValue());
+                }
             }
 
             @Override

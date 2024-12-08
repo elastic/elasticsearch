@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit;
 
@@ -21,14 +22,16 @@ import java.util.Set;
 
 public class AuditUtil {
 
-    private static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
+    // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
+    public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
+            var content = request.content();
             try {
-                return XContentHelper.convertToJson(request.content(), false, false, request.getXContentType());
+                return XContentHelper.convertToJson(content, false, false, request.getXContentType());
             } catch (IOException ioe) {
-                return "Invalid Format: " + request.content().utf8ToString();
+                return "Invalid Format: " + content.utf8ToString();
             }
         }
         return "";
@@ -61,8 +64,9 @@ public class AuditUtil {
         if (checkExisting) {
             final String existing = extractRequestId(threadContext);
             if (existing != null) {
-                throw new IllegalStateException("Cannot generate a new audit request id - existing id ["
-                    + existing + "] already registered");
+                throw new IllegalStateException(
+                    "Cannot generate a new audit request id - existing id [" + existing + "] already registered"
+                );
             }
         }
         final String requestId = UUIDs.randomBase64UUID(Randomness.get());

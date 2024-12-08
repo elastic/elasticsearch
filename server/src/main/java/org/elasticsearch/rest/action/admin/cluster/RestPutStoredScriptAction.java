@@ -1,29 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
 
@@ -32,7 +24,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
@@ -41,7 +36,8 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             new Route(POST, "/_scripts/{id}"),
             new Route(PUT, "/_scripts/{id}"),
             new Route(POST, "/_scripts/{id}/{context}"),
-            new Route(PUT, "/_scripts/{id}/{context}"));
+            new Route(PUT, "/_scripts/{id}/{context}")
+        );
     }
 
     @Override
@@ -51,15 +47,21 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String id = request.param("id");
-        String context = request.param("context");
-        BytesReference content = request.requiredContent();
-        XContentType xContentType = request.getXContentType();
-        StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
-
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
-        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
-        putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));
-        return channel -> client.admin().cluster().putStoredScript(putRequest, new RestToXContentListener<>(channel));
+        final var content = request.requiredContent();
+        final var xContentType = request.getXContentType();
+        final var putRequest = new PutStoredScriptRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            request.param("id"),
+            request.param("context"),
+            content,
+            request.getXContentType(),
+            StoredScriptSource.parse(content, xContentType)
+        );
+        return channel -> client.execute(
+            TransportPutStoredScriptAction.TYPE,
+            putRequest,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 }

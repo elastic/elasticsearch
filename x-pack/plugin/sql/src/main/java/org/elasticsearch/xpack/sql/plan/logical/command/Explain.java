@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
@@ -29,12 +30,16 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.action.ActionListener.wrap;
 
 public class Explain extends Command {
 
     public enum Type {
-        PARSED, ANALYZED, OPTIMIZED, MAPPED, EXECUTABLE, ALL;
+        PARSED,
+        ANALYZED,
+        OPTIMIZED,
+        MAPPED,
+        EXECUTABLE,
+        ALL;
 
         public String printableName() {
             return Strings.capitalize(name().toLowerCase(Locale.ROOT));
@@ -42,7 +47,8 @@ public class Explain extends Command {
     }
 
     public enum Format {
-        TEXT, GRAPHVIZ
+        TEXT,
+        GRAPHVIZ
     }
 
     private final LogicalPlan plan;
@@ -93,54 +99,57 @@ public class Explain extends Command {
         }
 
         // to avoid duplicating code, the type/verification filtering happens inside the listeners instead of outside using a CASE
-        session.analyzedPlan(plan, verify, wrap(analyzedPlan -> {
+        session.analyzedPlan(plan, verify, listener.delegateFailureAndWrap((delegate, analyzedPlan) -> {
 
             if (type == Type.ANALYZED) {
-                listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
+                delegate.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
                 return;
             }
 
             Planner planner = session.planner();
             // verification is on, exceptions can be thrown
             if (verify) {
-                session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
+                session.optimizedPlan(analyzedPlan, delegate.delegateFailureAndWrap((delegate2, optimizedPlan) -> {
                     if (type == Type.OPTIMIZED) {
-                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
+                        delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
                         return;
                     }
 
                     PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
                     if (type == Type.MAPPED) {
-                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
+                        delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                         return;
                     }
 
                     PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
                     if (type == Type.EXECUTABLE) {
-                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
+                        delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
                         return;
                     }
 
                     // Type.All
-                    listener.onResponse(Page.last(
-                            Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))));
-                }, listener::onFailure));
+                    delegate2.onResponse(
+                        Page.last(
+                            Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))
+                        )
+                    );
+                }));
             }
 
             // check errors manually to see how far the plans work out
             else {
                 // no analysis failure, can move on
-                if (session.verifier().verifyFailures(analyzedPlan).isEmpty()) {
-                    session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
+                if (session.verifier().verifyFailures(analyzedPlan, session.configuration().version()).isEmpty()) {
+                    session.optimizedPlan(analyzedPlan, delegate.delegateFailureAndWrap((delegate2, optimizedPlan) -> {
                         if (type == Type.OPTIMIZED) {
-                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
+                            delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
                             return;
                         }
 
                         PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
 
                         if (type == Type.MAPPED) {
-                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
+                            delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                             return;
                         }
 
@@ -148,38 +157,50 @@ public class Explain extends Command {
                             PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
 
                             if (type == Type.EXECUTABLE) {
-                                listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
+                                delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
                                 return;
                             }
 
-                            listener.onResponse(Page.last(Rows.singleton(output(),
-                                    printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))));
+                            delegate2.onResponse(
+                                Page.last(
+                                    Rows.singleton(
+                                        output(),
+                                        printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)
+                                    )
+                                )
+                            );
                             return;
                         }
                         // mapped failed
                         if (type != Type.ALL) {
-                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
+                            delegate2.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                             return;
                         }
 
-                        listener.onResponse(Page
-                                .last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null))));
-                    }, listener::onFailure));
+                        delegate2.onResponse(
+                            Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)))
+                        );
+                    }));
                     // cannot continue
                 } else {
                     if (type != Type.ALL) {
-                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
-                    }
-                    else {
-                        listener.onResponse(Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null))));
+                        delegate.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
+                    } else {
+                        delegate.onResponse(Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null))));
                     }
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
-    private static String printPlans(Format format, LogicalPlan parsed, LogicalPlan analyzedPlan, LogicalPlan optimizedPlan,
-            PhysicalPlan mappedPlan, PhysicalPlan executionPlan) {
+    private static String printPlans(
+        Format format,
+        LogicalPlan parsed,
+        LogicalPlan analyzedPlan,
+        LogicalPlan optimizedPlan,
+        PhysicalPlan mappedPlan,
+        PhysicalPlan executionPlan
+    ) {
         if (format == Format.TEXT) {
             StringBuilder sb = new StringBuilder();
             sb.append("Parsed\n");
@@ -236,8 +257,8 @@ public class Explain extends Command {
         }
         Explain o = (Explain) obj;
         return Objects.equals(verify, o.verify)
-                && Objects.equals(format, o.format)
-                && Objects.equals(type, o.type)
-                && Objects.equals(plan, o.plan);
+            && Objects.equals(format, o.format)
+            && Objects.equals(type, o.type)
+            && Objects.equals(plan, o.plan);
     }
 }

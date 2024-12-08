@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
@@ -10,12 +11,14 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.fielddata.plain.FormattedSortedNumericDocValues;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -24,9 +27,11 @@ import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.sorta
 
 public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     private final LeafNumericFieldData signedLongFD;
+    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD) {
+    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
         this.signedLongFD = signedLongFD;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -72,9 +77,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public ScriptDocValues<?> getScriptValues() {
-        // TODO: add support for scripts
-        throw new UnsupportedOperationException("Using unsigned_long in scripts is currently not supported!");
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
     }
 
     @Override
@@ -93,24 +97,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
-        SortedNumericDocValues values = getLongValues();
-        return new DocValueFetcher.Leaf() {
-            @Override
-            public boolean advanceExact(int docId) throws IOException {
-                return values.advanceExact(docId);
-            }
-
-            @Override
-            public int docValueCount() {
-                return values.docValueCount();
-            }
-
-            @Override
-            public Object nextValue() throws IOException {
-                return format.format(values.nextValue());
-            }
-        };
+    public FormattedDocValues getFormattedValues(DocValueFormat format) {
+        return new FormattedSortedNumericDocValues(getLongValues(), format);
     }
 
     static double convertUnsignedLongToDouble(long value) {

@@ -1,9 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -15,6 +18,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.nio.file.Path;
 import java.text.MessageFormat;
@@ -43,15 +49,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
-    private static final String LDAPCACERT_PATH = "/ca_server.pem";
+
+    @ClassRule
+    public static final OpenLdapTestContainer openLdapContainer = new OpenLdapTestContainer();
 
     @Before
     public void init() {
-        Path caPath = getDataPath(LDAPCACERT_PATH);
+        Path caPath = openLdapContainer.getCaCertPath();
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -75,52 +84,88 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings.Builder realmSettings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(realmId, new String[]{OpenLdapTests.OPEN_LDAP_DNS_URL}, Strings.EMPTY_ARRAY,
-                        groupSearchBase, LdapSearchScope.ONE_LEVEL, null, false))
-                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
-                .put(getFullSettingKey(realmId, PoolingSessionFactorySettings.BIND_DN),
-                        "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
-                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), "full");
+            .put(
+                LdapTestCase.buildLdapSettings(
+                    realmId,
+                    new String[] { openLdapContainer.getLdapUrl() },
+                    Strings.EMPTY_ARRAY,
+                    groupSearchBase,
+                    LdapSearchScope.ONE_LEVEL,
+                    null,
+                    false
+                )
+            )
+            .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
+            .put(
+                getFullSettingKey(realmId, PoolingSessionFactorySettings.BIND_DN),
+                "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"
+            )
+            .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), "full");
         if (useSecureBindPassword) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString(getFullSettingKey(realmId, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
-                OpenLdapTests.PASSWORD);
+            secureSettings.setString(
+                getFullSettingKey(realmId, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
+                OpenLdapTests.PASSWORD
+            );
             realmSettings.setSecureSettings(secureSettings);
         } else {
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), OpenLdapTests.PASSWORD);
         }
-        final Settings settings = realmSettings.put(globalSettings)
-            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build();
-        RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        final Settings settings = realmSettings.put(globalSettings).put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build();
+        RealmConfig config = new RealmConfig(
+            realmId,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
 
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
 
-        String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
+        String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
         try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {
             for (String user : users) {
-                //auth
+                // auth
                 try (LdapSession ldap = session(sessionFactory, user, new SecureString(OpenLdapTests.PASSWORD))) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(
+                        ldap.userDn(),
+                        is(
+                            equalTo(
+                                new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(
+                                    new Object[] { user },
+                                    new StringBuffer(),
+                                    null
+                                ).toString()
+                            )
+                        )
+                    );
                     assertThat(groups(ldap), hasItem(containsString("Avengers")));
                 }
 
-                //lookup
+                // lookup
                 try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(
+                        ldap.userDn(),
+                        is(
+                            equalTo(
+                                new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(
+                                    new Object[] { user },
+                                    new StringBuffer(),
+                                    null
+                                ).toString()
+                            )
+                        )
+                    );
                     assertThat(groups(ldap), hasItem(containsString("Avengers")));
                 }
             }
         }
 
         if (useSecureBindPassword == false) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{
-                config.getConcreteSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
-            });
+            assertSettingDeprecationsAndWarnings(
+                new Setting<?>[] { config.getConcreteSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD) }
+            );
         }
     }
 

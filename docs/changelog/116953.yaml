@@ -1,0 +1,6 @@
+pr: 116953
+summary: Fix false positive date detection with trailing dot
+area: Mapping
+type: bug
+issues:
+ - 116946

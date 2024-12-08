@@ -1,42 +1,39 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.url;
 
+import fixture.url.URLFixture;
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -45,12 +42,28 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public static final URLFixture urlFixture = new URLFixture();
+
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("repository-url")
+        .setting("path.repo", urlFixture::getRepositoryDir)
+        .setting("repositories.url.allowed_urls", () -> "http://snapshot.test*, " + urlFixture.getAddress())
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(urlFixture).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public RepositoryURLClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -86,15 +99,17 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
 
         // Create a FS repository using the path.repo location
         Request createFsRepositoryRequest = new Request("PUT", "/_snapshot/repository-fs");
-        createFsRepositoryRequest.setEntity(buildRepositorySettings(FsRepository.TYPE,
-                Settings.builder().put("location", pathRepo).build()));
+        createFsRepositoryRequest.setEntity(
+            buildRepositorySettings(FsRepository.TYPE, Settings.builder().put("location", pathRepo).build())
+        );
         Response createFsRepositoryResponse = client().performRequest(createFsRepositoryRequest);
         assertThat(createFsRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the file://{path.repo} URL
         Request createFileRepositoryRequest = new Request("PUT", "/_snapshot/repository-file");
-        createFileRepositoryRequest.setEntity(buildRepositorySettings("url",
-                Settings.builder().put("url", pathRepoUri.toString()).build()));
+        createFileRepositoryRequest.setEntity(
+            buildRepositorySettings("url", Settings.builder().put("url", pathRepoUri.toString()).build())
+        );
         Response createFileRepositoryResponse = client().performRequest(createFileRepositoryRequest);
         assertThat(createFileRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
@@ -106,8 +121,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
                 InetAddress inetAddress = InetAddress.getByName(new URL(allowedUrl).getHost());
                 if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress()) {
                     Request createUrlRepositoryRequest = new Request("PUT", "/_snapshot/repository-url");
-                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url",
-                            Settings.builder().put("url", allowedUrl).build()));
+                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url", Settings.builder().put("url", allowedUrl).build()));
                     Response createUrlRepositoryResponse = client().performRequest(createUrlRepositoryRequest);
                     assertThat(createUrlRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
                     break;

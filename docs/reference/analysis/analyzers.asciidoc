@@ -13,12 +13,12 @@ lowercases terms, and supports removing stop words.
 <<analysis-simple-analyzer,Simple Analyzer>>::
 
 The `simple` analyzer divides text into terms whenever it encounters a
-character which is not a letter.  It lowercases all terms.
+character which is not a letter. It lowercases all terms.
 
 <<analysis-whitespace-analyzer,Whitespace Analyzer>>::
 
 The `whitespace` analyzer divides text into terms whenever it encounters any
-whitespace character.  It does not lowercase terms.
+whitespace character. It does not lowercase terms.
 
 <<analysis-stop-analyzer,Stop Analyzer>>::
 

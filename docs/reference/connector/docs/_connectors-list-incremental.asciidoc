@@ -1,0 +1,19 @@
+* <<es-connectors-azure-blob,Azure Blob Storage>>
+* <<es-connectors-box,Box>>
+* <<es-connectors-confluence,Confluence>>
+* <<es-connectors-dropbox,Dropbox>>
+* <<es-connectors-github,GitHub>>
+* <<es-connectors-gmail,Gmail>>
+* <<es-connectors-google-cloud,Google Cloud Storage>>
+* <<es-connectors-google-drive,Google Drive>>
+* <<es-connectors-jira,Jira>>
+* <<es-connectors-network-drive,Network drive>>
+* <<es-connectors-notion,Notion>>
+* <<es-connectors-onedrive,OneDrive>>
+* <<es-connectors-outlook,Outlook>>
+* <<es-connectors-salesforce,Salesforce>>
+* <<es-connectors-servicenow,ServiceNow>>
+* <<es-connectors-sharepoint-online,SharePoint Online>>
+* <<es-connectors-sharepoint,SharePoint Server>>
+* <<es-connectors-teams,Teams>>
+* <<es-connectors-zoom,Zoom>>

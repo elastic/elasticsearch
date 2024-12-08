@@ -6,7 +6,7 @@ This group contains queries which do not fit into the other groups:
 
 <<query-dsl-distance-feature-query,`distance_feature` query>>::
 A query that computes scores based on the dynamically computed distances
-between the origin and documents' date, date_nanos and geo_point fields.
+between the origin and documents' `date`, `date_nanos`, and `geo_point` fields.
 It is able to efficiently skip non-competitive hits.
 
 <<query-dsl-mlt-query,`more_like_this` query>>::
@@ -22,7 +22,7 @@ A query that computes scores based on the values of numeric features and is
 able to efficiently skip non-competitive hits.
 
 <<query-dsl-script-query,`script` query>>::
-This query allows a script to act as a filter.  Also see the
+This query allows a script to act as a filter. Also see the
 <<query-dsl-function-score-query,`function_score` query>>.
 
 <<query-dsl-script-score-query,`script_score` query>>::
@@ -33,6 +33,9 @@ A query that accepts other queries as json or yaml string.
 
 <<query-dsl-pinned-query,`pinned` query>>::
 A query that promotes selected documents over others matching a given query.
+
+<<query-dsl-rule-query,`rule` query>>::
+A query that supports applying query-based contextual rules, defined using the <<query-rules-apis,Query Rules API>>, to a given query.
 
 include::distance-feature-query.asciidoc[]
 
@@ -49,3 +52,5 @@ include::script-score-query.asciidoc[]
 include::wrapper-query.asciidoc[]
 
 include::pinned-query.asciidoc[]
+
+include::rule-query.asciidoc[]

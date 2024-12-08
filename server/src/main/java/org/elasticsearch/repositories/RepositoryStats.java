@@ -1,24 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,28 +25,38 @@ public class RepositoryStats implements Writeable {
 
     public static final RepositoryStats EMPTY_STATS = new RepositoryStats(Collections.emptyMap());
 
-    public final Map<String, Long> requestCounts;
+    public final Map<String, BlobStoreActionStats> actionStats;
 
-    public RepositoryStats(Map<String, Long> requestCounts) {
-        this.requestCounts = Collections.unmodifiableMap(requestCounts);
+    public RepositoryStats(Map<String, BlobStoreActionStats> actionStats) {
+        this.actionStats = Collections.unmodifiableMap(actionStats);
     }
 
     public RepositoryStats(StreamInput in) throws IOException {
-        this.requestCounts = in.readMap(StreamInput::readString, StreamInput::readLong);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
+            this.actionStats = in.readMap(BlobStoreActionStats::new);
+        } else {
+            this.actionStats = in.readMap(si -> {
+                long legacyValue = in.readLong();
+                return new BlobStoreActionStats(legacyValue, legacyValue);
+            });
+        }
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
-        final Map<String, Long> result = new HashMap<>();
-        result.putAll(requestCounts);
-        for (Map.Entry<String, Long> entry : otherStats.requestCounts.entrySet()) {
-            result.merge(entry.getKey(), entry.getValue(), Math::addExact);
+        final Map<String, BlobStoreActionStats> result = new HashMap<>(actionStats);
+        for (Map.Entry<String, BlobStoreActionStats> entry : otherStats.actionStats.entrySet()) {
+            result.merge(entry.getKey(), entry.getValue(), BlobStoreActionStats::add);
         }
         return new RepositoryStats(result);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(requestCounts, StreamOutput::writeString, StreamOutput::writeLong);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
+            out.writeMap(actionStats, (so, v) -> v.writeTo(so));
+        } else {
+            out.writeMap(actionStats, (so, v) -> so.writeLong(v.requests()));
+        }
     }
 
     @Override
@@ -62,18 +64,16 @@ public class RepositoryStats implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStats that = (RepositoryStats) o;
-        return requestCounts.equals(that.requestCounts);
+        return actionStats.equals(that.actionStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestCounts);
+        return Objects.hash(actionStats);
     }
 
     @Override
     public String toString() {
-        return "RepositoryStats{" +
-            "requestCounts=" + requestCounts +
-            '}';
+        return "RepositoryStats{actionStats=" + actionStats + '}';
     }
 }

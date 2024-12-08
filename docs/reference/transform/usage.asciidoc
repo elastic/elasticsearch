@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[transform-usage]]
 = When to use {transforms}
 

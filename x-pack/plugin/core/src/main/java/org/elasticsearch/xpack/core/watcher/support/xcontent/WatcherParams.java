@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.HashMap;
@@ -50,9 +51,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
     }
 
     public static WatcherParams wrap(ToXContent.Params params) {
-        return params instanceof WatcherParams ?
-                (WatcherParams) params :
-                new WatcherParams(emptyMap(), params);
+        return params instanceof WatcherParams ? (WatcherParams) params : new WatcherParams(emptyMap(), params);
     }
 
     public static Builder builder() {

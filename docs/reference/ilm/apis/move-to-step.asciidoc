@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-move-to-step]]
 === Move to lifecycle step API
 ++++
 <titleabbrev>Move to step</titleabbrev>
 ++++
 
-Triggers execution of a specific step in the lifecycle policy.
+Triggers execution of a specific step in the <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-move-to-step-request]]
 ==== {api-request-title}
@@ -36,6 +35,12 @@ The request will fail if the current step does not match the step currently
 being executed for the index. This is to prevent the index from being moved from
 an unexpected step into the next step.
 
+When specifying the target (`next_step`) to which the index will be moved, either the `name` or both
+the `action` and `name` fields are optional. If only the phase is specified, the index will move to
+the first step of the first action in the target phase. If the phase and action are specified, the index will move to
+the first step of the specified action in the specified phase. Only actions specified in the ILM
+policy are considered valid, an index cannot move to a step that is not part of its policy.
+
 [[ilm-move-to-step-path-params]]
 ==== {api-path-parms-title}
 
@@ -45,7 +50,7 @@ an unexpected step into the next step.
 [[ilm-move-to-step-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[ilm-move-to-step-request-body]]
@@ -90,12 +95,12 @@ For more information, see <<index-lifecycle-error-handling, {ilm-init} error han
 The name of the phase that contains the action you want to perform or resume.
 
 `action`::
-(Required, string)
-The name action you want to perform or resume. 
+(Optional, string)
+The name action you want to perform or resume. Required if `name` used.
 
 `name`::
-(Required, string)
-The name of the step to move to and execute. 
+(Optional, string)
+The name of the step to move to and execute. Required if `action` used.
 
 ====
 
@@ -152,14 +157,16 @@ POST _ilm/move/my-index-000001
   },
   "next_step": { <2>
     "phase": "warm",
-    "action": "forcemerge",
-    "name": "forcemerge"
+    "action": "forcemerge", <3>
+    "name": "forcemerge" <4>
   }
 }
 --------------------------------------------------
 // TEST[continued]
 <1> The step that the index is expected to be in
 <2> The step that you want to execute
+<3> The optional action to which the index will be moved
+<4> The optional step name to which the index will be moved
 
 If the request succeeds, you receive the following result:
 
@@ -169,6 +176,26 @@ If the request succeeds, you receive the following result:
   "acknowledged": true
 }
 --------------------------------------------------
+// TEST[continued]
 
 The request will fail if the index is not in the `new` phase as specified
 by the `current_step`.
+
+The following example pushes `my-index-000001` from the end of hot phase into
+the start of warm:
+
+[source,console]
+--------------------------------------------------
+POST _ilm/move/my-index-000001
+{
+  "current_step": {
+    "phase": "hot",
+    "action": "complete",
+    "name": "complete"
+  },
+  "next_step": {
+    "phase": "warm"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip: can't consistently get ILM in a completed hot phase during CI checks]

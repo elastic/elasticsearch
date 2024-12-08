@@ -1,28 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,14 +24,15 @@ public class Header {
     private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
     private final int networkMessageSize;
-    private final Version version;
+    private final TransportVersion version;
     private final long requestId;
     private final byte status;
     // These are directly set by tests
     String actionName;
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
+    private Compression.Scheme compressionScheme = null;
 
-    Header(int networkMessageSize, long requestId, byte status, Version version) {
+    Header(int networkMessageSize, long requestId, byte status, TransportVersion version) {
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
@@ -51,7 +43,7 @@ public class Header {
         return networkMessageSize;
     }
 
-    Version getVersion() {
+    TransportVersion getVersion() {
         return version;
     }
 
@@ -59,11 +51,7 @@ public class Header {
         return requestId;
     }
 
-    byte getStatus() {
-        return status;
-    }
-
-    boolean isRequest() {
+    public boolean isRequest() {
         return TransportStatus.isRequest(status);
     }
 
@@ -75,7 +63,7 @@ public class Header {
         return TransportStatus.isError(status);
     }
 
-    boolean isHandshake() {
+    public boolean isHandshake() {
         return TransportStatus.isHandshake(status);
     }
 
@@ -85,6 +73,15 @@ public class Header {
 
     public String getActionName() {
         return actionName;
+    }
+
+    public Compression.Scheme getCompressionScheme() {
+        return compressionScheme;
+    }
+
+    public Map<String, String> getRequestHeaders() {
+        var allHeaders = getHeaders();
+        return allHeaders == null ? null : allHeaders.v1();
     }
 
     boolean needsToReadVariableHeader() {
@@ -99,7 +96,7 @@ public class Header {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
-            if (version.before(Version.V_8_0_0)) {
+            if (version.before(TransportVersions.V_8_0_0)) {
                 // discard features
                 input.readStringArray();
             }
@@ -109,9 +106,29 @@ public class Header {
         }
     }
 
+    void setCompressionScheme(Compression.Scheme compressionScheme) {
+        assert isCompressed();
+        this.compressionScheme = compressionScheme;
+    }
+
     @Override
     public String toString() {
-        return "Header{" + networkMessageSize + "}{" + version + "}{" + requestId + "}{" + isRequest() + "}{" + isError() + "}{"
-                + isHandshake() + "}{" + isCompressed() + "}{" + actionName + "}";
+        return "Header{"
+            + networkMessageSize
+            + "}{"
+            + version
+            + "}{"
+            + requestId
+            + "}{"
+            + isRequest()
+            + "}{"
+            + isError()
+            + "}{"
+            + isHandshake()
+            + "}{"
+            + isCompressed()
+            + "}{"
+            + actionName
+            + "}";
     }
 }

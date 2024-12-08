@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -13,14 +14,16 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,7 +38,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
     private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -43,24 +46,34 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
         // PutAutoFollowPatternParameters class. But since two minor version are already released with duplicate
         // follow parameters in several APIs, PutAutoFollowPatternParameters is now the Value class here.
-        private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER =
-            new ObjectParser<>("put_auto_follow_pattern_request", PutAutoFollowPatternParameters::new);
+        private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER = new ObjectParser<>(
+            "put_auto_follow_pattern_request",
+            PutAutoFollowPatternParameters::new
+        );
 
         static {
             PARSER.declareString((params, value) -> params.remoteCluster = value, REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray((params, value) -> params.leaderIndexPatterns = value, AutoFollowPattern.LEADER_PATTERNS_FIELD);
             PARSER.declareString((params, value) -> params.followIndexNamePattern = value, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
             PARSER.declareObject((params, value) -> params.settings = value, (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
+            PARSER.declareStringArray(
+                (params, value) -> params.leaderIndexExclusionPatterns = value,
+                AutoFollowPattern.LEADER_EXCLUSION_PATTERNS_FIELD
+            );
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(XContentParser parser, String name) throws IOException {
+        public static Request fromXContent(TimeValue masterNodeTimeout, TimeValue ackTimeout, XContentParser parser, String name)
+            throws IOException {
             PutAutoFollowPatternParameters parameters = PARSER.parse(parser, null);
-            Request request = new Request();
+            Request request = new Request(masterNodeTimeout, ackTimeout);
             request.setName(name);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndexPatterns(parameters.leaderIndexPatterns);
             request.setFollowIndexNamePattern(parameters.followIndexNamePattern);
+            if (parameters.leaderIndexExclusionPatterns != null) {
+                request.setLeaderIndexExclusionPatterns(parameters.leaderIndexExclusionPatterns);
+            }
             request.setSettings(parameters.settings);
             request.setParameters(parameters);
             return request;
@@ -72,8 +85,10 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         private String followIndexNamePattern;
         private Settings settings = Settings.EMPTY;
         private FollowParameters parameters = new FollowParameters();
+        private List<String> leaderIndexExclusionPatterns = Collections.emptyList();
 
-        public Request() {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
         }
 
         @Override
@@ -91,17 +106,23 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
                 }
                 int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
                 if (byteCount > MAX_NAME_BYTES) {
-                    validationException = addValidationError("[name] name is too long (" + byteCount + " > " + MAX_NAME_BYTES + ")",
-                        validationException);
+                    validationException = addValidationError(
+                        "[name] name is too long (" + byteCount + " > " + MAX_NAME_BYTES + ")",
+                        validationException
+                    );
                 }
             }
             if (remoteCluster == null) {
-                validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
-                    "] is missing", validationException);
+                validationException = addValidationError(
+                    "[" + REMOTE_CLUSTER_FIELD.getPreferredName() + "] is missing",
+                    validationException
+                );
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
-                validationException = addValidationError("[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() +
-                    "] is missing", validationException);
+                validationException = addValidationError(
+                    "[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() + "] is missing",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -128,6 +149,14 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
 
         public void setLeaderIndexPatterns(List<String> leaderIndexPatterns) {
             this.leaderIndexPatterns = leaderIndexPatterns;
+        }
+
+        public List<String> getLeaderIndexExclusionPatterns() {
+            return leaderIndexExclusionPatterns;
+        }
+
+        public void setLeaderIndexExclusionPatterns(List<String> leaderIndexExclusionPatterns) {
+            this.leaderIndexExclusionPatterns = leaderIndexExclusionPatterns;
         }
 
         public String getFollowIndexNamePattern() {
@@ -158,12 +187,15 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             super(in);
             name = in.readString();
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readStringList();
+            leaderIndexPatterns = in.readStringCollectionAsList();
             followIndexNamePattern = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 settings = Settings.readSettingsFromStream(in);
             }
             parameters = new FollowParameters(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
+                leaderIndexExclusionPatterns = in.readStringCollectionAsList();
+            }
         }
 
         @Override
@@ -173,10 +205,13 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                Settings.writeSettingsToStream(settings, out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
+                settings.writeTo(out);
             }
             parameters.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
+                out.writeStringCollection(leaderIndexExclusionPatterns);
+            }
         }
 
         @Override
@@ -185,6 +220,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
+                builder.field(AutoFollowPattern.LEADER_EXCLUSION_PATTERNS_FIELD.getPreferredName(), leaderIndexExclusionPatterns);
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
                 }
@@ -206,16 +242,17 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name) &&
-                Objects.equals(remoteCluster, request.remoteCluster) &&
-                Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
-                Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
-                Objects.equals(parameters, request.parameters);
+            return Objects.equals(name, request.name)
+                && Objects.equals(remoteCluster, request.remoteCluster)
+                && Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns)
+                && Objects.equals(leaderIndexExclusionPatterns, request.leaderIndexExclusionPatterns)
+                && Objects.equals(followIndexNamePattern, request.followIndexNamePattern)
+                && Objects.equals(parameters, request.parameters);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, remoteCluster, leaderIndexPatterns, followIndexNamePattern, parameters);
+            return Objects.hash(name, remoteCluster, leaderIndexPatterns, leaderIndexExclusionPatterns, followIndexNamePattern, parameters);
         }
 
         // This class only exists for reuse of the FollowParameters class, see comment above the parser field.
@@ -225,7 +262,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             private List<String> leaderIndexPatterns;
             private String followIndexNamePattern;
             private Settings settings = Settings.EMPTY;
-
+            private List<String> leaderIndexExclusionPatterns;
         }
 
     }

@@ -1,5 +1,13 @@
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
@@ -13,16 +21,22 @@ artifacts {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
-                'index', 'put_script', 'ingest', 'count'
-    includeXpack 'watcher', 'xpack'
+    include '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
+                'index', 'put_script', 'ingest', 'count', 'watcher', 'xpack'
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 }
+
+if (buildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}
+

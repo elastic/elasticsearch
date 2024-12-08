@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.parser;
 
@@ -70,8 +71,7 @@ public class QuotingTests extends ESTestCase {
     public void testBackQuotedAttribute() {
         String quote = "`";
         String name = "@timestamp";
-        ParsingException ex = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(quote + name + quote));
+        ParsingException ex = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(quote + name + quote));
         assertThat(ex.getMessage(), equalTo("line 1:1: backquoted identifiers not supported; please use double quotes instead"));
     }
 
@@ -87,13 +87,14 @@ public class QuotingTests extends ESTestCase {
         assertThat(ua.qualifier(), is(nullValue()));
     }
 
-
     public void testBackQuotedAttributeAndQualifier() {
         String quote = "`";
         String qualifier = "table";
         String name = "@timestamp";
-        ParsingException ex = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(quote + qualifier + quote + "." + quote + name + quote));
+        ParsingException ex = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createExpression(quote + qualifier + quote + "." + quote + name + quote)
+        );
         assertThat(ex.getMessage(), equalTo("line 1:1: backquoted identifiers not supported; please use double quotes instead"));
     }
 

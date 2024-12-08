@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -29,27 +19,31 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.PrematureChannelClosureException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
-import org.elasticsearch.common.collect.Tuple;
+
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -78,7 +72,7 @@ class Netty4HttpClient implements Closeable {
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
-            list.add(response.headers().get(Task.X_OPAQUE_ID));
+            list.add(response.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER));
         }
         return list;
     }
@@ -86,8 +80,7 @@ class Netty4HttpClient implements Closeable {
     private final Bootstrap clientBootstrap;
 
     Netty4HttpClient() {
-        clientBootstrap = new Bootstrap()
-            .channel(NettyAllocator.getChannelType())
+        clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
             .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
             .group(new NioEventLoopGroup(1));
     }
@@ -98,6 +91,7 @@ class Netty4HttpClient implements Closeable {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
             httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
+            httpRequest.headers().add("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);
@@ -119,8 +113,11 @@ class Netty4HttpClient implements Closeable {
         return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);
     }
 
-    private List<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, List<Tuple<String,
-        CharSequence>> urisAndBodies) throws InterruptedException {
+    private List<FullHttpResponse> processRequestsWithBody(
+        HttpMethod method,
+        SocketAddress remoteAddress,
+        List<Tuple<String, CharSequence>> urisAndBodies
+    ) throws InterruptedException {
         List<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
@@ -133,9 +130,8 @@ class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    private synchronized List<FullHttpResponse> sendRequests(
-        final SocketAddress remoteAddress,
-        final Collection<HttpRequest> requests) throws InterruptedException {
+    private synchronized List<FullHttpResponse> sendRequests(final SocketAddress remoteAddress, final Collection<HttpRequest> requests)
+        throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
@@ -146,9 +142,20 @@ class Netty4HttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
 
+            boolean needsFinalFlush = false;
             for (HttpRequest request : requests) {
-                channelFuture.channel().writeAndFlush(request);
+                if (ESTestCase.randomBoolean()) {
+                    channelFuture.channel().writeAndFlush(request);
+                    needsFinalFlush = false;
+                } else {
+                    channelFuture.channel().write(request);
+                    needsFinalFlush = true;
+                }
             }
+            if (needsFinalFlush) {
+                channelFuture.channel().flush();
+            }
+
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");
             }
@@ -164,7 +171,7 @@ class Netty4HttpClient implements Closeable {
 
     @Override
     public void close() {
-        clientBootstrap.config().group().shutdownGracefully().awaitUninterruptibly();
+        clientBootstrap.config().group().shutdownGracefully(0L, 0L, TimeUnit.SECONDS).awaitUninterruptibly();
     }
 
     /**
@@ -182,11 +189,9 @@ class Netty4HttpClient implements Closeable {
 
         @Override
         protected void initChannel(SocketChannel ch) {
-            final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
-            ch.pipeline().addLast(new HttpResponseDecoder());
-            ch.pipeline().addLast(new HttpRequestEncoder());
+            ch.pipeline().addLast(new HttpClientCodec());
             ch.pipeline().addLast(new HttpContentDecompressor());
-            ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
+            ch.pipeline().addLast(new HttpObjectAggregator(ByteSizeUnit.MB.toIntBytes(100)));
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
@@ -199,9 +204,29 @@ class Netty4HttpClient implements Closeable {
                 }
 
                 @Override
-                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-                    super.exceptionCaught(ctx, cause);
-                    latch.countDown();
+                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                    if (cause instanceof PrematureChannelClosureException
+                        || cause instanceof SocketException
+                        || (cause instanceof IOException
+                            && cause.getMessage() != null
+                            && cause.getMessage().contains("An established connection was aborted by the software in your host machine"))) {
+                        // no more requests coming, so fast-forward the latch
+                        fastForward();
+                    } else {
+                        ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause));
+                    }
+                }
+
+                @Override
+                public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+                    fastForward();
+                    super.channelInactive(ctx);
+                }
+
+                private void fastForward() {
+                    while (latch.getCount() > 0) {
+                        latch.countDown();
+                    }
                 }
             });
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.parser;
@@ -33,7 +34,8 @@ public class ParamLiteralTests extends ESTestCase {
     }
 
     public void testMultipleParamLiteralsWithUnresolvedAliases() {
-        LogicalPlan logicalPlan = parse("SELECT ?, ? FROM test",
+        LogicalPlan logicalPlan = parse(
+            "SELECT ?, ? FROM test",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 200)
         );
@@ -44,7 +46,8 @@ public class ParamLiteralTests extends ESTestCase {
     }
 
     public void testMultipleParamLiteralsWithUnresolvedAliasesAndWhereClause() {
-        LogicalPlan logicalPlan = parse("SELECT ?, ?, (?) FROM test WHERE 1 < ?",
+        LogicalPlan logicalPlan = parse(
+            "SELECT ?, ?, (?) FROM test WHERE 1 < ?",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 200),
@@ -62,11 +65,12 @@ public class ParamLiteralTests extends ESTestCase {
         LessThan condition = (LessThan) filter.condition();
         assertThat(condition.left(), instanceOf(Literal.class));
         assertThat(condition.right(), instanceOf(Literal.class));
-        assertThat(((Literal)condition.right()).value(), equalTo(300));
+        assertThat(((Literal) condition.right()).value(), equalTo(300));
     }
 
     public void testParamLiteralsWithUnresolvedAliasesAndMixedTypes() {
-        LogicalPlan logicalPlan = parse("SELECT ?, ? FROM test",
+        LogicalPlan logicalPlan = parse(
+            "SELECT ?, ? FROM test",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("text", "100")
         );
@@ -77,15 +81,18 @@ public class ParamLiteralTests extends ESTestCase {
     }
 
     public void testParamLiteralsWithResolvedAndUnresolvedAliases() {
-        LogicalPlan logicalPlan = parse("SELECT ?, ? as x, ? FROM test",
+        LogicalPlan logicalPlan = parse(
+            "SELECT ?, ? as x, ? FROM test",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 200),
             new SqlTypedParamValue("integer", 300)
         );
         List<? extends NamedExpression> projections = ((Project) logicalPlan.children().get(0)).projections();
         assertThat(projections.get(0).toString(), startsWith("100 AS ?"));
-        assertThat(projections.get(1).toString(), startsWith("200 AS x#"));;
-        assertThat(projections.get(2).toString(), startsWith("300 AS ?"));;
+        assertThat(projections.get(1).toString(), startsWith("200 AS x#"));
+        ;
+        assertThat(projections.get(2).toString(), startsWith("300 AS ?"));
+        ;
     }
 
 }

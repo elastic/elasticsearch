@@ -1,31 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.Collections;
 
@@ -40,25 +39,23 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
+    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType();
+    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper(FIELD_TYPE);
 
-    public static final class IgnoredFieldType extends StringFieldType {
+    public static final LegacyIgnoredFieldType LEGACY_FIELD_TYPE = new LegacyIgnoredFieldType();
+    private static final IgnoredFieldMapper LEGACY_INSTANCE = new IgnoredFieldMapper(LEGACY_FIELD_TYPE);
 
-        public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
+    public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
 
-        private IgnoredFieldType() {
+    private static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD) ? INSTANCE : LEGACY_INSTANCE;
+    }
+
+    public static final class LegacyIgnoredFieldType extends StringFieldType {
+
+        private LegacyIgnoredFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
@@ -68,28 +65,75 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(NAME);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new StoredValueFetcher(context.lookup(), NAME);
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
             // This query is not performance sensitive, it only helps assess
             // quality of the data, so we may use a slow query. It shouldn't
             // be too slow in practice since the number of unique terms in this
             // field is bounded by the number of fields in the mappings.
             return new TermRangeQuery(name(), null, null, true, true);
         }
+    }
+
+    public static final class IgnoredFieldType extends StringFieldType {
+
+        private IgnoredFieldType() {
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(NAME);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        }
+
+        public Query existsQuery(SearchExecutionContext context) {
+            return new FieldExistsQuery(name());
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
     }
 
-    private IgnoredFieldMapper() {
-        super(IgnoredFieldType.INSTANCE);
+    private IgnoredFieldMapper(StringFieldType fieldType) {
+        super(fieldType);
     }
 
     @Override
-    public void postParse(ParseContext context) {
-        for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+    public void postParse(DocumentParserContext context) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            for (String ignoredField : context.getIgnoredFields()) {
+                context.doc().add(new SortedSetDocValuesField(NAME, new BytesRef(ignoredField)));
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.NO));
+            }
+        } else {
+            for (String ignoredField : context.getIgnoredFields()) {
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.YES));
+            }
         }
     }
 
@@ -97,5 +141,4 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
 
 import java.io.IOException;
@@ -68,7 +69,7 @@ public class HourlySchedule extends CronnableSchedule {
             if (i != 0) {
                 sb.append(",");
             }
-            if (!validMinute(minutes[i])) {
+            if (validMinute(minutes[i]) == false) {
                 throw illegalArgument("invalid hourly minute [{}]. minute must be between 0 and 59 incl.", minutes[i]);
             }
             sb.append(minutes[i]);
@@ -105,22 +106,34 @@ public class HourlySchedule extends CronnableSchedule {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE,
-                                    currentFieldName);
+                            throw new ElasticsearchParseException(
+                                "could not parse [{}] schedule. invalid value for [{}]",
+                                pe,
+                                TYPE,
+                                currentFieldName
+                            );
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 minutes.add(DayTimes.parseMinuteValue(parser, token));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE,
-                                        currentFieldName);
+                                throw new ElasticsearchParseException(
+                                    "could not parse [{}] schedule. invalid value for [{}]",
+                                    pe,
+                                    TYPE,
+                                    currentFieldName
+                                );
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]. " +
-                                "expected either string/value or an array of string/number values, but found [{}]", TYPE, currentFieldName,
-                                token);
+                        throw new ElasticsearchParseException(
+                            "could not parse [{}] schedule. invalid value for [{}]. "
+                                + "expected either string/value or an array of string/number values, but found [{}]",
+                            TYPE,
+                            currentFieldName,
+                            token
+                        );
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);
@@ -136,8 +149,7 @@ public class HourlySchedule extends CronnableSchedule {
 
         private Set<Integer> minutes = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder minutes(int... minutes) {
             for (int minute : minutes) {

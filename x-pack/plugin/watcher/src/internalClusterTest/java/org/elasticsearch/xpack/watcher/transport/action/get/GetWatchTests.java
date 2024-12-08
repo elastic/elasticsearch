@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
@@ -33,12 +34,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testGet() throws Exception {
-        PutWatchResponse putResponse = new PutWatchRequestBuilder(client(), "_name").setSource(watchBuilder()
-                .trigger(schedule(interval("5m")))
+        PutWatchResponse putResponse = new PutWatchRequestBuilder(client(), "_name").setSource(
+            watchBuilder().trigger(schedule(interval("5m")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
-                .get();
+                .addAction("_action1", loggingAction("{{ctx.watch_id}}"))
+        ).get();
 
         assertThat(putResponse, notNullValue());
         assertThat(putResponse.isCreated(), is(true));
@@ -61,12 +62,12 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         // if the watches index is an alias, remove the alias randomly, otherwise the index
         if (randomBoolean()) {
             try {
-                GetIndexResponse indexResponse = client().admin().indices().prepareGetIndex().setIndices(Watch.INDEX).get();
+                GetIndexResponse indexResponse = indicesAdmin().prepareGetIndex().setIndices(Watch.INDEX).get();
                 boolean isWatchIndexAlias = Watch.INDEX.equals(indexResponse.indices()[0]) == false;
                 if (isWatchIndexAlias) {
-                    assertAcked(client().admin().indices().prepareAliases().removeAlias(indexResponse.indices()[0], Watch.INDEX));
+                    assertAcked(indicesAdmin().prepareAliases().removeAlias(indexResponse.indices()[0], Watch.INDEX));
                 } else {
-                    assertAcked(client().admin().indices().prepareDelete(Watch.INDEX));
+                    assertAcked(indicesAdmin().prepareDelete(Watch.INDEX));
                 }
             } catch (IndexNotFoundException e) {}
         }

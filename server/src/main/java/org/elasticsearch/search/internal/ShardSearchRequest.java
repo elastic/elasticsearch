@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -28,28 +19,35 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -57,7 +55,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -72,52 +72,80 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
     private final String clusterAlias;
     private final ShardId shardId;
+    private final int shardRequestIndex;
     private final int numberOfShards;
+    private final long waitForCheckpoint;
+    private final TimeValue waitForCheckpointsTimeout;
     private final SearchType searchType;
     private final Scroll scroll;
     private final float indexBoost;
-    private final Boolean requestCache;
+    private Boolean requestCache;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
-    private final String[] indexRoutings;
-    private final String preference;
     private final OriginalIndices originalIndices;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
 
-    //these are the only mutable fields, as they are subject to rewriting
+    // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
-    public ShardSearchRequest(OriginalIndices originalIndices,
-                              SearchRequest searchRequest,
-                              ShardId shardId,
-                              int numberOfShards,
-                              AliasFilter aliasFilter,
-                              float indexBoost,
-                              long nowInMillis,
-                              @Nullable String clusterAlias,
-                              String[] indexRoutings) {
-        this(originalIndices, searchRequest, shardId, numberOfShards, aliasFilter,
-            indexBoost, nowInMillis, clusterAlias, indexRoutings, null, null);
+    private final TransportVersion channelVersion;
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private final boolean forceSyntheticSource;
+
+    public ShardSearchRequest(
+        OriginalIndices originalIndices,
+        SearchRequest searchRequest,
+        ShardId shardId,
+        int shardRequestIndex,
+        int numberOfShards,
+        AliasFilter aliasFilter,
+        float indexBoost,
+        long nowInMillis,
+        @Nullable String clusterAlias
+    ) {
+        this(
+            originalIndices,
+            searchRequest,
+            shardId,
+            shardRequestIndex,
+            numberOfShards,
+            aliasFilter,
+            indexBoost,
+            nowInMillis,
+            clusterAlias,
+            null,
+            null
+        );
     }
 
-    public ShardSearchRequest(OriginalIndices originalIndices,
-                              SearchRequest searchRequest,
-                              ShardId shardId,
-                              int numberOfShards,
-                              AliasFilter aliasFilter,
-                              float indexBoost,
-                              long nowInMillis,
-                              @Nullable String clusterAlias,
-                              String[] indexRoutings,
-                              ShardSearchContextId readerId,
-                              TimeValue keepAlive) {
-        this(originalIndices,
+    public ShardSearchRequest(
+        OriginalIndices originalIndices,
+        SearchRequest searchRequest,
+        ShardId shardId,
+        int shardRequestIndex,
+        int numberOfShards,
+        AliasFilter aliasFilter,
+        float indexBoost,
+        long nowInMillis,
+        @Nullable String clusterAlias,
+        ShardSearchContextId readerId,
+        TimeValue keepAlive
+    ) {
+        this(
+            originalIndices,
             shardId,
+            shardRequestIndex,
             numberOfShards,
             searchRequest.searchType(),
             searchRequest.source(),
@@ -125,117 +153,195 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             aliasFilter,
             indexBoost,
             searchRequest.allowPartialSearchResults(),
-            indexRoutings,
-            searchRequest.preference(),
             searchRequest.scroll(),
             nowInMillis,
             clusterAlias,
             readerId,
-            keepAlive);
+            keepAlive,
+            computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
+            searchRequest.getWaitForCheckpointsTimeout(),
+            searchRequest.isForceSyntheticSource()
+        );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
     }
 
-    public ShardSearchRequest(ShardId shardId,
-                              long nowInMillis,
-                              AliasFilter aliasFilter) {
-        this(OriginalIndices.NONE, shardId, -1, SearchType.QUERY_THEN_FETCH, null, null,
-            aliasFilter, 1.0f, false, Strings.EMPTY_ARRAY, null, null, nowInMillis, null, null, null);
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+
+    public static long computeWaitForCheckpoint(Map<String, long[]> indexToWaitForCheckpoints, ShardId shardId, int shardRequestIndex) {
+        final long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardId.getIndex().getName(), EMPTY_LONG_ARRAY);
+
+        long waitForCheckpoint;
+        if (waitForCheckpoints.length == 0) {
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        } else {
+            assert waitForCheckpoints.length > shardRequestIndex;
+            waitForCheckpoint = waitForCheckpoints[shardRequestIndex];
+        }
+        return waitForCheckpoint;
     }
 
-    private ShardSearchRequest(OriginalIndices originalIndices,
-                               ShardId shardId,
-                               int numberOfShards,
-                               SearchType searchType,
-                               SearchSourceBuilder source,
-                               Boolean requestCache,
-                               AliasFilter aliasFilter,
-                               float indexBoost,
-                               boolean allowPartialSearchResults,
-                               String[] indexRoutings,
-                               String preference,
-                               Scroll scroll,
-                               long nowInMillis,
-                               @Nullable String clusterAlias,
-                               ShardSearchContextId readerId,
-                               TimeValue keepAlive) {
+    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
+        this(shardId, nowInMillis, aliasFilter, null);
+    }
+
+    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter, String clusterAlias) {
+        this(
+            OriginalIndices.NONE,
+            shardId,
+            -1,
+            -1,
+            SearchType.QUERY_THEN_FETCH,
+            null,
+            null,
+            aliasFilter,
+            1.0f,
+            true,
+            null,
+            nowInMillis,
+            clusterAlias,
+            null,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SearchService.NO_TIMEOUT,
+            false
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    public ShardSearchRequest(
+        OriginalIndices originalIndices,
+        ShardId shardId,
+        int shardRequestIndex,
+        int numberOfShards,
+        SearchType searchType,
+        SearchSourceBuilder source,
+        Boolean requestCache,
+        AliasFilter aliasFilter,
+        float indexBoost,
+        boolean allowPartialSearchResults,
+        Scroll scroll,
+        long nowInMillis,
+        @Nullable String clusterAlias,
+        ShardSearchContextId readerId,
+        TimeValue keepAlive,
+        long waitForCheckpoint,
+        TimeValue waitForCheckpointsTimeout,
+        boolean forceSyntheticSource
+    ) {
         this.shardId = shardId;
+        this.shardRequestIndex = shardRequestIndex;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
-        this.source = source;
+        this.source(source);
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
         this.allowPartialSearchResults = allowPartialSearchResults;
-        this.indexRoutings = indexRoutings;
-        this.preference = preference;
         this.scroll = scroll;
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
-        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        assert keepAlive == null || readerId != null : "readerId: null keepAlive: " + keepAlive;
+        this.channelVersion = TransportVersion.current();
+        this.waitForCheckpoint = waitForCheckpoint;
+        this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
+        this.forceSyntheticSource = forceSyntheticSource;
     }
 
-    public ShardSearchRequest(StreamInput in) throws IOException {
-        super(in);
-        shardId = new ShardId(in);
-        searchType = SearchType.fromId(in.readByte());
-        numberOfShards = in.readVInt();
-        scroll = in.readOptionalWriteable(Scroll::new);
-        source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
-            }
-        }
-        aliasFilter = new AliasFilter(in);
-        indexBoost = in.readFloat();
-        nowInMillis = in.readVLong();
-        requestCache = in.readOptionalBoolean();
-        clusterAlias = in.readOptionalString();
-        allowPartialSearchResults = in.readBoolean();
-        indexRoutings = in.readStringArray();
-        preference = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
-            readerId = in.readOptionalWriteable(ShardSearchContextId::new);
-            keepAlive = in.readOptionalTimeValue();
-        } else {
-            canReturnNullResponseIfMatchNoDocs = false;
-            bottomSortValues = null;
-            readerId = null;
-            keepAlive = null;
-        }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
-        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-    }
-
+    @SuppressWarnings("this-escape")
     public ShardSearchRequest(ShardSearchRequest clone) {
         this.shardId = clone.shardId;
+        this.shardRequestIndex = clone.shardRequestIndex;
         this.searchType = clone.searchType;
         this.numberOfShards = clone.numberOfShards;
         this.scroll = clone.scroll;
-        this.source = clone.source;
+        this.source(clone.source);
         this.aliasFilter = clone.aliasFilter;
         this.indexBoost = clone.indexBoost;
         this.nowInMillis = clone.nowInMillis;
         this.requestCache = clone.requestCache;
         this.clusterAlias = clone.clusterAlias;
         this.allowPartialSearchResults = clone.allowPartialSearchResults;
-        this.indexRoutings = clone.indexRoutings;
-        this.preference = clone.preference;
         this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
         this.bottomSortValues = clone.bottomSortValues;
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.channelVersion = clone.channelVersion;
+        this.waitForCheckpoint = clone.waitForCheckpoint;
+        this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
+        this.forceSyntheticSource = clone.forceSyntheticSource;
+    }
+
+    public ShardSearchRequest(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        searchType = SearchType.fromId(in.readByte());
+        shardRequestIndex = in.readVInt();
+        numberOfShards = in.readVInt();
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
+            // to deserialize between the 8.8 and 8.500.020 version we need to translate
+            // the rank queries into sub searches if we are ranking; if there are no rank queries
+            // we deserialize the empty list and do nothing
+            List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
+            // if we are in the dfs phase in 8.8, we can have no rank queries
+            // and if we are in the query/fetch phase we can have either no rank queries
+            // for a standard query or hybrid search or 2+ rank queries, but we cannot have
+            // exactly 1 rank query ever so we check for this
+            assert rankQueryBuilders.size() != 1 : "[rank] requires at least [2] sub searches, but only found [1]";
+            // if we have 2+ rank queries we know we are ranking, so we set our
+            // sub searches from this; note this will override the boolean query deserialized from source
+            // because we use the same data structure for a single query and multiple queries
+            // but we will just re-create it as necessary
+            if (rankQueryBuilders.size() >= 2) {
+                assert source != null && source.rankBuilder() != null;
+                List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
+                for (QueryBuilder queryBuilder : rankQueryBuilders) {
+                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
+                }
+                source.subSearches(subSearchSourceBuilders);
+            }
+        }
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
+                );
+            }
+        }
+        aliasFilter = AliasFilter.readFrom(in);
+        indexBoost = in.readFloat();
+        nowInMillis = in.readVLong();
+        requestCache = in.readOptionalBoolean();
+        clusterAlias = in.readOptionalString();
+        allowPartialSearchResults = in.readBoolean();
+        canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+        readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+        keepAlive = in.readOptionalTimeValue();
+        assert keepAlive == null || readerId != null : "readerId: null keepAlive: " + keepAlive;
+        channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
+        waitForCheckpoint = in.readLong();
+        waitForCheckpointsTimeout = in.readTimeValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            /*
+             * Synthetic source is not supported before 8.3.0 so any request
+             * from a coordinating node of that version will not want to
+             * force it.
+             */
+            forceSyntheticSource = false;
+        }
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override
@@ -248,12 +354,26 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
         shardId.writeTo(out);
         out.writeByte(searchType.id());
-        if (!asKey) {
+        if (asKey == false) {
+            out.writeVInt(shardRequestIndex);
             out.writeVInt(numberOfShards);
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
+            // to serialize between the 8.8 and 8.500.020 version we need to translate
+            // the sub searches into rank queries if we are ranking, otherwise, we
+            // ignore this because linear combination will have multiple sub searches in
+            // 8.500.020+, but only use the combined boolean query in prior versions
+            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
+            if (source != null && source.rankBuilder() != null && source.subSearches().size() >= 2) {
+                for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
+                    rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
+                }
+            }
+            out.writeNamedWriteableCollection(rankQueryBuilders);
+        }
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -266,14 +386,20 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalString(clusterAlias);
         out.writeBoolean(allowPartialSearchResults);
         if (asKey == false) {
-            out.writeStringArray(indexRoutings);
-            out.writeOptionalString(preference);
-        }
-        if (asKey == false && out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+        }
+        TransportVersion.writeVersion(channelVersion, out);
+        out.writeLong(waitForCheckpoint);
+        out.writeTimeValue(waitForCheckpointsTimeout);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
         }
     }
 
@@ -310,7 +436,22 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     public void source(SearchSourceBuilder source) {
+        if (source != null && source.pointInTimeBuilder() != null) {
+            // Discard the actual point in time as data nodes don't use it to reduce the memory usage and the serialization cost
+            // of shard-level search requests. However, we need to assign as a dummy PIT instead of null as we verify PIT for
+            // slice requests on data nodes.
+            source = source.shallowCopy();
+            source.pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY));
+        }
         this.source = source;
+    }
+
+    /**
+     * Returns the shard request ordinal that is used by the main search request
+     * to reference this shard.
+     */
+    public int shardRequestIndex() {
+        return shardRequestIndex;
     }
 
     public int numberOfShards() {
@@ -333,20 +474,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return requestCache;
     }
 
+    public void requestCache(Boolean requestCache) {
+        this.requestCache = requestCache;
+    }
+
     public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
 
     public Scroll scroll() {
         return scroll;
-    }
-
-    public String[] indexRoutings() {
-        return indexRoutings;
-    }
-
-    public String preference() {
-        return preference;
     }
 
     /**
@@ -393,15 +530,25 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return keepAlive;
     }
 
+    public long waitForCheckpoint() {
+        return waitForCheckpoint;
+    }
+
+    public TimeValue getWaitForCheckpointsTimeout() {
+        return waitForCheckpointsTimeout;
+    }
+
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey() throws IOException {
+    public BytesReference cacheKey(CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
             this.innerWriteTo(out, true);
-            // copy it over since we don't want to share the thread-local bytes in #scratch
-            return out.copyBytes();
+            if (differentiator != null) {
+                differentiator.accept(this, out);
+            }
+            return new BytesArray(MessageDigests.digest(out.bytes(), MessageDigests.sha256()));
         } finally {
             out.reset();
         }
@@ -440,27 +587,24 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
-
-            QueryShardContext shardContext = ctx.convertToShardContext();
-
-            FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
-            if (shardContext != null
-                    && primarySort != null
-                    && primarySort.isBottomSortShardDisjoint(shardContext, request.getBottomSortValues())) {
-                assert newSource != null : "source should contain a primary sort field";
-                newSource = newSource.shallowCopy();
-                int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
-                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
+            SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
+            if (searchExecutionContext != null) {
+                final FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
+                if (primarySort != null && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
+                    assert newSource != null : "source should contain a primary sort field";
+                    newSource = newSource.shallowCopy();
+                    int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
+                    if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
                         && newSource.suggest() == null
                         && newSource.aggregations() == null) {
-                    newSource.query(new MatchNoneQueryBuilder());
-                } else {
-                    newSource.size(0);
+                        newSource.query(new MatchNoneQueryBuilder());
+                    } else {
+                        newSource.size(0);
+                    }
+                    request.source(newSource);
+                    request.setBottomSortValues(null);
                 }
-                request.source(newSource);
-                request.setBottomSortValues(null);
             }
-
             if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
                 return this;
             } else {
@@ -477,13 +621,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * The list of filtering aliases should be obtained by calling Metadata.filteringAliases.
      * Returns {@code null} if no filtering is required.</p>
      */
-    public static QueryBuilder parseAliasFilter(CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
-                                                IndexMetadata metadata, String... aliasNames) {
+    public static QueryBuilder parseAliasFilter(
+        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
+        IndexMetadata metadata,
+        String... aliasNames
+    ) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
         }
         Index index = metadata.getIndex();
-        ImmutableOpenMap<String, AliasMetadata> aliases = metadata.getAliases();
+        Map<String, AliasMetadata> aliases = metadata.getAliases();
         Function<AliasMetadata, QueryBuilder> parserFunction = (alias) -> {
             if (alias.filter() == null) {
                 return null;
@@ -508,8 +655,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 AliasMetadata alias = aliases.get(aliasName);
                 if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(index, aliasNames[0],
-                        "Unknown alias name was passed to alias Filter");
+                    throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
                 }
                 QueryBuilder parsedFilter = parserFunction.apply(alias);
                 if (parsedFilter != null) {
@@ -525,5 +671,24 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public final Map<String, Object> getRuntimeMappings() {
         return source == null ? emptyMap() : source.runtimeMappings();
+    }
+
+    /**
+     * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
+     * version is {@link TransportVersion#current()}; otherwise, it's the minimum transport version of the coordinating node and data node
+     * (and the proxy node in case the request is sent to the proxy node of the remote cluster before reaching the data node).
+     */
+    public TransportVersion getChannelVersion() {
+        return channelVersion;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
     }
 }

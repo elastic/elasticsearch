@@ -7,8 +7,13 @@ setup:
             number_of_shards: 2 #Two shards proves that we route properly
           mappings:
             properties:
-              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
-              id: { "type": "keyword" }
+              join_field:
+                type: join
+                relations:
+                  parent: child
+                  child: grand_child
+              id:
+                type: keyword
 
   - do:
       bulk:
@@ -29,7 +34,7 @@ setup:
           - '{ "join_field": { "name": "grand_child", "parent": "5" } }'
 
 ---
-unconfigured:
+unconfigured children:
   - do:
       index:
         index: test_unconfigured
@@ -49,6 +54,31 @@ unconfigured:
           aggs:
             to-answers:
               children:
+                type: answer
+  - match: { hits.total.value: 1 }
+  - match: { aggregations.to-answers.doc_count: 0 }
+
+---
+unconfigured parent:
+  - do:
+      index:
+        index: test_unconfigured
+        refresh: true
+        body:
+          join:
+            name: question
+          body: <p>I have Windows 2003 server and i bought a new Windows 2008 server...,
+          title: Whats the best way to file transfer my site from server to a newer one?,
+          tags: [windows-server-2003, windows-server-2008, file-transfer]
+
+  - do:
+      search:
+        index: test_unconfigured
+        body:
+          size: 0
+          aggs:
+            to-answers:
+              parent:
                 type: answer
   - match: { hits.total.value: 1 }
   - match: { aggregations.to-answers.doc_count: 0 }
@@ -173,3 +203,50 @@ parent terms terms:
   - match: { aggregations.parent.tag.buckets.0.subject.buckets.0.key: surprises }
   - match: { aggregations.parent.tag.buckets.1.key: jumble }
   - match: { aggregations.parent.tag.buckets.1.subject.buckets.0.key: critters }
+
+---
+term children:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            subject:
+              terms:
+                field: subject.keyword
+              aggs:
+                children:
+                  children:
+                    type: child
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.subject.buckets.0.key: critters }
+  - match: { aggregations.subject.buckets.0.doc_count: 1 }
+  - match: { aggregations.subject.buckets.0.children.doc_count: 1 }
+  - match: { aggregations.subject.buckets.1.key: surprises }
+  - match: { aggregations.subject.buckets.1.doc_count: 1 }
+  - match: { aggregations.subject.buckets.1.children.doc_count: 2 }
+
+---
+term parent:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            animal:
+              terms:
+                field: animal.keyword
+              aggs:
+                parent:
+                  parent:
+                    type: child
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.animal.buckets.0.key: dog }
+  - match: { aggregations.animal.buckets.0.doc_count: 2 }
+  - match: { aggregations.animal.buckets.0.parent.doc_count: 2 }
+  - match: { aggregations.animal.buckets.1.key: cat }
+  - match: { aggregations.animal.buckets.1.doc_count: 1 }
+  - match: { aggregations.animal.buckets.1.parent.doc_count: 1 }
+

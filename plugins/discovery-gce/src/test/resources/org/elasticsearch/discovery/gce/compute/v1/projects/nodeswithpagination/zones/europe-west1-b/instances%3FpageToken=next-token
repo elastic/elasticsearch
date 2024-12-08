@@ -1,0 +1,36 @@
+{
+  "id": "dummy",
+  "items":[
+    {
+      "description": "ES Node 2",
+      "id": "9309873766428965105",
+      "kind": "compute#instance",
+      "machineType": "n1-standard-1",
+      "name": "test2",
+      "networkInterfaces": [
+        {
+          "accessConfigs": [
+            {
+              "kind": "compute#accessConfig",
+              "name": "External NAT",
+              "natIP": "104.155.13.147",
+              "type": "ONE_TO_ONE_NAT"
+            }
+          ],
+          "name": "nic0",
+          "network": "default",
+          "networkIP": "10.240.79.60"
+        }
+      ],
+      "status": "RUNNING",
+      "tags": {
+        "fingerprint": "xA6QJb-rGtg=",
+        "items": [
+          "elasticsearch",
+          "dev"
+        ]
+      },
+      "zone": "europe-west1-b"
+    }
+  ]
+}

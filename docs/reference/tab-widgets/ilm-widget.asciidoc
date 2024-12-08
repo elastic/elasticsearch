@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="ingest">
+  <div role="tablist" aria-label="Index lifecycle policy configuration">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="fleet-tab"
+            id="fleet">
+      Fleet or Elastic Agent
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="custom-policy-tab"
+            id="custom"
+            tabindex="-1">
+      Custom application
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="fleet-tab"
+       aria-labelledby="fleet">
+++++
+
+include::ilm.asciidoc[tag=fleet]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="custom-policy-tab"
+       aria-labelledby="custom"
+       hidden="">
+++++
+
+include::ilm.asciidoc[tag=custom]
+
+++++
+  </div>
+</div>
+++++

@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
@@ -24,17 +14,16 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Register repository request.
@@ -50,7 +39,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private boolean verify = true;
 
-    private Settings settings = EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     public PutRepositoryRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,13 +49,15 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         verify = in.readBoolean();
     }
 
-    public PutRepositoryRequest() {
+    public PutRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
     }
 
     /**
      * Constructs a new put repository request with the provided name.
      */
-    public PutRepositoryRequest(String name) {
+    public PutRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        this(masterNodeTimeout, ackTimeout);
         this.name = name;
     }
 
@@ -204,7 +195,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
             if (name.equals("type")) {
                 type(entry.getValue().toString());
             } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
+                if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed settings section, should include an inner object");
                 }
                 @SuppressWarnings("unchecked")
@@ -220,7 +211,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         super.writeTo(out);
         out.writeString(name);
         out.writeString(type);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeBoolean(verify);
     }
 

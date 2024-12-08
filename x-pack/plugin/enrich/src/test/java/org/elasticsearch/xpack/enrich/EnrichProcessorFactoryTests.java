@@ -1,25 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,11 +43,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class EnrichProcessorFactoryTests extends ESTestCase {
 
     private ScriptService scriptService;
+    private EnrichCache enrichCache = new EnrichCache(0L);
 
     @Before
     public void initializeScriptService() {
@@ -43,8 +59,9 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues);
-        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
-            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
             factory.metadata = createMetadata("majestic", policy);
 
             Map<String, Object> config = new HashMap<>();
@@ -95,7 +112,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testPolicyDoesNotExist() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService, enrichCache);
         factory.metadata = Metadata.builder().build();
 
         Map<String, Object> config = new HashMap<>();
@@ -124,7 +141,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testPolicyNameMissing() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService, enrichCache);
 
         Map<String, Object> config = new HashMap<>();
         config.put("enrich_key", "host");
@@ -152,27 +169,31 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testUnsupportedPolicy() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy("unsupported", null, List.of("source_index"), "my_key", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
-        factory.metadata = createMetadata("majestic", policy);
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
+            factory.metadata = createMetadata("majestic", policy);
 
-        Map<String, Object> config = new HashMap<>();
-        config.put("policy_name", "majestic");
-        config.put("field", "host");
-        config.put("target_field", "entry");
-        boolean keyIgnoreMissing = randomBoolean();
-        if (keyIgnoreMissing || randomBoolean()) {
-            config.put("ignore_missing", keyIgnoreMissing);
+            Map<String, Object> config = new HashMap<>();
+            config.put("policy_name", "majestic");
+            config.put("field", "host");
+            config.put("target_field", "entry");
+            boolean keyIgnoreMissing = randomBoolean();
+            if (keyIgnoreMissing || randomBoolean()) {
+                config.put("ignore_missing", keyIgnoreMissing);
+            }
+
+            Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+            assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
         }
-
-        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
-        assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
     }
 
     public void testCompactEnrichValuesFormat() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
-        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
-            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
             factory.metadata = createMetadata("majestic", policy);
 
             Map<String, Object> config = new HashMap<>();
@@ -191,7 +212,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testNoTargetField() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService, enrichCache);
         factory.metadata = createMetadata("majestic", policy);
 
         Map<String, Object> config1 = new HashMap<>();
@@ -205,7 +226,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testIllegalMaxMatches() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService, enrichCache);
         factory.metadata = createMetadata("majestic", policy);
 
         Map<String, Object> config = new HashMap<>();
@@ -218,21 +239,98 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 128"));
     }
 
-    static Metadata createMetadata(String name, EnrichPolicy policy) throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+    public void testCaching() throws Exception {
+        int[] requestCounter = new int[1];
+        enrichCache = new EnrichCache(100L);
+        List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assert EnrichCoordinatorProxyAction.NAME.equals(action.name());
+                    requestCounter[0]++;
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
+                            InternalAggregations.EMPTY,
+                            new Suggest(Collections.emptyList()),
+                            false,
+                            false,
+                            new SearchProfileResults(Collections.emptyMap()),
+                            1,
+                            "",
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
+                    );
+                }
+            };
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
+            factory.accept(ClusterState.builder(new ClusterName("_name")).metadata(createMetadata("majestic", policy)).build());
+
+            Map<String, Object> config = new HashMap<>();
+            config.put("policy_name", "majestic");
+            config.put("field", "domain");
+            config.put("target_field", "entry");
+            IngestDocument ingestDocument = new IngestDocument(
+                "_index",
+                "_id",
+                1L,
+                "_routing",
+                VersionType.INTERNAL,
+                Map.of("domain", "elastic.co")
+            );
+            MatchProcessor processor = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
+
+            // A search is performed and that is cached:
+            IngestDocument[] result = new IngestDocument[1];
+            Exception[] failure = new Exception[1];
+            processor.execute(ingestDocument, (r, e) -> {
+                result[0] = r;
+                failure[0] = e;
+            });
+            assertThat(failure[0], nullValue());
+            assertThat(result[0], notNullValue());
+            assertThat(requestCounter[0], equalTo(1));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
+
+            // No search is performed, result is read from the cache:
+            result[0] = null;
+            failure[0] = null;
+            processor.execute(ingestDocument, (r, e) -> {
+                result[0] = r;
+                failure[0] = e;
+            });
+            assertThat(failure[0], nullValue());
+            assertThat(result[0], notNullValue());
+            assertThat(requestCounter[0], equalTo(1));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
+        }
+    }
+
+    static Metadata createMetadata(String name, EnrichPolicy policy) {
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
-        builder.settings(settings);
-        builder.putMapping(
-            "{\"_meta\": {\"enrich_match_field\": \""
-                + policy.getMatchField()
-                + "\", \"enrich_policy_type\": \""
-                + policy.getType()
-                + "\"}}"
-        );
+        builder.settings(indexSettings(IndexVersion.current(), 1, 0));
+        builder.putMapping(Strings.format("""
+            {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
+            """, policy.getMatchField(), policy.getType()));
         builder.putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName(name)).build());
         return Metadata.builder().put(builder).build();
     }

@@ -1,25 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -36,6 +28,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        return delegate.readString();
+    }
+
+    @Override
     public byte readByte() throws IOException {
         return delegate.readByte();
     }
@@ -43,6 +40,27 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         delegate.readBytes(b, offset, len);
+    }
+
+    @Override
+    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+        return delegate.readReleasableBytesReference();
+    }
+
+    @Override
+    public boolean supportReadAllToReleasableBytesReference() {
+        return delegate.supportReadAllToReleasableBytesReference();
+    }
+
+    @Override
+    public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+        assert supportReadAllToReleasableBytesReference() : "This InputStream doesn't support readAllToReleasableBytesReference";
+        return delegate.readAllToReleasableBytesReference();
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        return delegate.readSlicedBytesReference();
     }
 
     @Override
@@ -61,6 +79,16 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public int readVInt() throws IOException {
+        return delegate.readVInt();
+    }
+
+    @Override
+    public long readVLong() throws IOException {
+        return delegate.readVLong();
+    }
+
+    @Override
     public void reset() throws IOException {
         delegate.reset();
     }
@@ -68,6 +96,11 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public int read() throws IOException {
         return delegate.read();
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        return delegate.read(b, off, len);
     }
 
     @Override
@@ -81,13 +114,15 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    public Version getVersion() {
-        return delegate.getVersion();
+    public TransportVersion getTransportVersion() {
+        return delegate.getTransportVersion();
     }
 
     @Override
-    public void setVersion(Version version) {
-        delegate.setVersion(version);
+    public void setTransportVersion(TransportVersion version) {
+        delegate.setTransportVersion(version);
+        // also set the version on this stream directly, so that any uses of this.version are still correct
+        super.setTransportVersion(version);
     }
 
     @Override

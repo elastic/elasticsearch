@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -40,9 +41,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         StepKey nextKey = instance.getNextStepKey();
 
         if (randomBoolean()) {
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
         } else {
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
 
         return new WaitForFollowShardTasksStep(key, nextKey, instance.getClient());
@@ -55,7 +56,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionMet() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(2)
             .numberOfReplicas(0)
@@ -69,7 +70,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+        createRandomInstance().evaluateCondition(
+            Metadata.builder().put(indexMetadata, true).build(),
+            indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -81,7 +84,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 public void onFailure(Exception e) {
                     exceptionHolder[0] = e;
                 }
-            }, MASTER_TIMEOUT);
+            },
+            MASTER_TIMEOUT
+        );
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -90,7 +95,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionNotMetShardsNotInSync() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(2)
             .numberOfReplicas(0)
@@ -104,7 +109,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+        createRandomInstance().evaluateCondition(
+            Metadata.builder().put(indexMetadata, true).build(),
+            indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -116,7 +123,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 public void onFailure(Exception e) {
                     exceptionHolder[0] = e;
                 }
-            }, MASTER_TIMEOUT);
+            },
+            MASTER_TIMEOUT
+        );
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
@@ -130,7 +139,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionNotMetNotAFollowerIndex() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
@@ -138,7 +147,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+        createRandomInstance().evaluateCondition(
+            Metadata.builder().put(indexMetadata, true).build(),
+            indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -150,12 +161,14 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 public void onFailure(Exception e) {
                     exceptionHolder[0] = e;
                 }
-            }, MASTER_TIMEOUT);
+            },
+            MASTER_TIMEOUT
+        );
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
         assertThat(exceptionHolder[0], nullValue());
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     private static ShardFollowNodeTaskStatus createShardFollowTaskStatus(int shardId, long leaderGCP, long followerGCP) {
@@ -199,8 +212,8 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             assertThat(request.indices()[0], equalTo(expectedIndexName));
 
             @SuppressWarnings("unchecked")
-            ActionListener<FollowStatsAction.StatsResponses> listener =
-                (ActionListener<FollowStatsAction.StatsResponses>) invocationOnMock.getArguments()[2];
+            ActionListener<FollowStatsAction.StatsResponses> listener = (ActionListener<FollowStatsAction.StatsResponses>) invocationOnMock
+                .getArguments()[2];
             listener.onResponse(new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), statsResponses));
             return null;
         }).when(client).execute(Mockito.eq(FollowStatsAction.INSTANCE), Mockito.any(), Mockito.any());

@@ -109,56 +109,56 @@ but observed performance will depend on the sample data.
 
 ==== Script
 
-This metric aggregation supports scripting. In our example above, product
-reviews are on a scale of one to five. If we wanted to modify them to a scale
-of one to ten, we can using scripting.
-
-To provide an inline script:
+In the example above, product reviews are on a scale of one to five. If you
+want to modify them to a scale of one to ten, use a <<runtime,runtime field>>.
 
 [source,console]
----------------------------------------------------------
-GET reviews/_search
+----
+GET reviews/_search?filter_path=aggregations
 {
   "size": 0,
+  "runtime_mappings": {
+    "rating.out_of_ten": {
+      "type": "long",
+      "script": {
+        "source": "emit(doc['rating'].value * params.scaleFactor)",
+        "params": {
+          "scaleFactor": 2
+        }
+      }
+    }
+  },
   "aggs": {
+    "review_average": {
+      "avg": {
+        "field": "rating.out_of_ten"
+      }
+    },
     "review_variability": {
       "median_absolute_deviation": {
-        "script": {
-          "lang": "painless",
-          "source": "doc['rating'].value * params.scaleFactor",
-          "params": {
-            "scaleFactor": 2
-          }
-        }
+        "field": "rating.out_of_ten"
       }
     }
   }
 }
----------------------------------------------------------
+----
 // TEST[setup:reviews]
 
-To provide a stored script:
+Which will result in:
 
-[source,console]
+[source,console-result]
 ---------------------------------------------------------
-GET reviews/_search
 {
-  "size": 0,
-  "aggs": {
+  "aggregations": {
+    "review_average": {
+      "value": 6.0
+    },
     "review_variability": {
-      "median_absolute_deviation": {
-        "script": {
-          "id": "my_script",
-          "params": {
-            "field": "rating"
-          }
-        }
-      }
+      "value": 4.0
     }
   }
 }
 ---------------------------------------------------------
-// TEST[setup:reviews,stored_example_script]
 
 ==== Missing value
 

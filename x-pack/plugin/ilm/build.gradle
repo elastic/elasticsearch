@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -9,12 +9,17 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
-archivesBaseName = 'x-pack-ilm'
-
-dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('data-streams'), configuration: 'default')
+base {
+  archivesName = 'x-pack-ilm'
 }
 
-addQaCheckDependencies()
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('slm')) // used by LifecycleOperationSnapshotTests
+  testImplementation project(':modules:data-streams')
+}
+
+addQaCheckDependencies(project)
+

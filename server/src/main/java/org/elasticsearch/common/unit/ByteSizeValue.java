@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -24,10 +14,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -45,9 +36,20 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
 
     public static ByteSizeValue ofBytes(long size) {
-        return new ByteSizeValue(size);
+        if (size == 0) {
+            return ZERO;
+        }
+        if (size == 1) {
+            return ONE;
+        }
+        if (size == -1) {
+            return MINUS_ONE;
+        }
+        return new ByteSizeValue(size, ByteSizeUnit.BYTES);
     }
 
     public static ByteSizeValue ofKb(long size) {
@@ -73,9 +75,13 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final long size;
     private final ByteSizeUnit unit;
 
-    public ByteSizeValue(StreamInput in) throws IOException {
-        size = in.readZLong();
-        unit = ByteSizeUnit.readFrom(in);
+    public static ByteSizeValue readFrom(StreamInput in) throws IOException {
+        long size = in.readZLong();
+        ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
+        if (unit == ByteSizeUnit.BYTES) {
+            return ofBytes(size);
+        }
+        return new ByteSizeValue(size, unit);
     }
 
     @Override
@@ -84,17 +90,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         unit.writeTo(out);
     }
 
-    public ByteSizeValue(long bytes) {
-        this(bytes, ByteSizeUnit.BYTES);
-    }
-
     public ByteSizeValue(long size, ByteSizeUnit unit) {
         if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
             throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
             throw new IllegalArgumentException(
-                    "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix());
+                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
+            );
         }
         this.size = size;
         this.unit = unit;
@@ -207,10 +210,24 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName)
-            throws ElasticsearchParseException {
+        throws ElasticsearchParseException {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
+        }
+        switch (sValue) {
+            case "0":
+            case "0b":
+            case "0B":
+                return ZERO;
+            case "1b":
+            case "1B":
+                // "1" is deliberately omitted, the units are required for all values except "0" and "-1"
+                return ONE;
+            case "-1":
+            case "-1b":
+            case "-1B":
+                return MINUS_ONE;
         }
         String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
         if (lowerSValue.endsWith("k")) {
@@ -234,23 +251,40 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else if (lowerSValue.endsWith("pb")) {
             return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
-            return new ByteSizeValue(Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim()), ByteSizeUnit.BYTES);
-        } else if (lowerSValue.equals("-1")) {
-            // Allow this special value to be unit-less:
-            return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
-        } else if (lowerSValue.equals("0")) {
-            // Allow this special value to be unit-less:
-            return new ByteSizeValue(0, ByteSizeUnit.BYTES);
+            return parseBytes(lowerSValue, settingName, sValue);
         } else {
             // Missing units:
             throw new ElasticsearchParseException(
-                    "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName,
-                    sValue);
+                "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                settingName,
+                sValue
+            );
         }
     }
 
-    private static ByteSizeValue parse(final String initialInput, final String normalized, final String suffix, ByteSizeUnit unit,
-            final String settingName) {
+    private static ByteSizeValue parseBytes(String lowerSValue, String settingName, String initialInput) {
+        String s = lowerSValue.substring(0, lowerSValue.length() - 1).trim();
+        try {
+            return ByteSizeValue.ofBytes(Long.parseLong(s));
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}] as a size in bytes",
+                e,
+                settingName,
+                initialInput
+            );
+        }
+    }
+
+    private static ByteSizeValue parse(
+        final String initialInput,
+        final String normalized,
+        final String suffix,
+        ByteSizeUnit unit,
+        final String settingName
+    ) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             try {
@@ -258,18 +292,25 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             } catch (final NumberFormatException e) {
                 try {
                     final double doubleValue = Double.parseDouble(s);
-                    DeprecationLoggerHolder.deprecationLogger
-                        .deprecate("fractional_byte_values",
-                         "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                         initialInput, settingName);
-                    return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
+                    DeprecationLoggerHolder.deprecationLogger.warn(
+                        DeprecationCategory.PARSING,
+                        "fractional_byte_values",
+                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
+                        initialInput,
+                        settingName
+                    );
+                    return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName,
-                    initialInput);
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}] as a size in bytes",
+                e,
+                settingName,
+                initialInput
+            );
         }
     }
 
@@ -292,13 +333,51 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public int compareTo(ByteSizeValue other) {
-        long thisValue = size * unit.toBytes(1);
-        long otherValue = other.size * other.unit.toBytes(1);
-        return Long.compare(thisValue, otherValue);
+        return Long.compare(getBytes(), other.getBytes());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    /**
+     * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the addition of the arguments' bytes. Note that the
+     *         resulting {@link ByteSizeUnit} is bytes.
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
+     */
+    public static ByteSizeValue add(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        return ByteSizeValue.ofBytes(Math.addExact(x.getBytes(), y.getBytes()));
+    }
+
+    /**
+     * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the difference of the arguments' bytes. Note that the
+     *         resulting {@link ByteSizeUnit} is bytes.
+     * @throws IllegalArgumentException if any of the arguments or the result have -1 bytes
+     */
+    public static ByteSizeValue subtract(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        // No need to use Math.subtractExact here, since we know both arguments are >= 0.
+        ByteSizeValue res = ByteSizeValue.ofBytes(x.getBytes() - y.getBytes());
+        if (res.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("subtraction result has -1 bytes");
+        }
+        return res;
+    }
+
+    /**
+     * @return Returns the lesser of the two given {@link ByteSizeValue} arguments. In case of equality, the first argument is returned.
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
+     */
+    public static ByteSizeValue min(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        return x.compareTo(y) <= 0 ? x : y;
     }
 }

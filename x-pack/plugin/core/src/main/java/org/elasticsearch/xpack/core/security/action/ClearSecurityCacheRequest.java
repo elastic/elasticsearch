@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -13,19 +14,13 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCacheRequest> {
+public class ClearSecurityCacheRequest extends BaseNodesRequest {
 
     private String cacheName;
     private String[] keys;
 
     public ClearSecurityCacheRequest() {
         super((String[]) null);
-    }
-
-    public ClearSecurityCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        cacheName = in.readString();
-        keys = in.readOptionalStringArray();
     }
 
     public ClearSecurityCacheRequest cacheName(String cacheName) {
@@ -44,13 +39,6 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
 
     public String[] keys() {
         return keys;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(cacheName);
-        out.writeOptionalStringArray(keys);
     }
 
     public static class Node extends TransportRequest {

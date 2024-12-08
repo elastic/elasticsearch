@@ -147,8 +147,8 @@ specified.
 
 `articles_case`::
 (Optional, Boolean)
-If `true`, the filter treats any provided elisions as case sensitive.
-Defaults to `false`.
+If `true`, elision matching is case insensitive. If `false`, elision matching is
+case sensitive. Defaults to `false`.
 
 [[analysis-elision-tokenfilter-customize]]
 ==== Customize
@@ -157,24 +157,24 @@ To customize the `elision` filter, duplicate it to create the basis
 for a new custom token filter. You can modify the filter using its configurable
 parameters.
 
-For example, the following request creates a custom case-sensitive `elision`
+For example, the following request creates a custom case-insensitive `elision`
 filter that removes the `l'`, `m'`, `t'`, `qu'`, `n'`, `s'`,
 and `j'` elisions:
 
 [source,console]
 --------------------------------------------------
-PUT /elision_case_sensitive_example
+PUT /elision_case_insensitive_example
 {
   "settings": {
     "analysis": {
       "analyzer": {
         "default": {
           "tokenizer": "whitespace",
-          "filter": [ "elision_case_sensitive" ]
+          "filter": [ "elision_case_insensitive" ]
         }
       },
       "filter": {
-        "elision_case_sensitive": {
+        "elision_case_insensitive": {
           "type": "elision",
           "articles": [ "l", "m", "t", "qu", "n", "s", "j" ],
           "articles_case": true

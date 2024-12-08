@@ -1,33 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeResponse;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
@@ -41,12 +45,14 @@ import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 // search and multi-search hence the code repetition
 public class PITAwareQueryClient extends BasicQueryClient {
 
-    private String pitId;
+    private BytesReference pitId;
     private final TimeValue keepAlive;
+    private final QueryBuilder filter;
 
     public PITAwareQueryClient(EqlSession eqlSession) {
         super(eqlSession);
         this.keepAlive = eqlSession.configuration().requestTimeout();
+        this.filter = eqlSession.configuration().filter();
     }
 
     @Override
@@ -95,6 +101,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private void makeRequestPITCompatible(SearchRequest request) {
+        request.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
         SearchSourceBuilder source = request.source();
         // don't increase the keep alive
         source.pointInTimeBuilder(new PointInTimeBuilder(pitId));
@@ -102,46 +109,52 @@ public class PITAwareQueryClient extends BasicQueryClient {
         String[] indices = request.indices();
         if (CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
-            RuntimeUtils.addFilter(termsQuery(GetResult._INDEX, indices), source);
+            QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
+            RuntimeUtils.combineFilters(source, indexQuery);
         }
     }
 
     // listener handing the extraction of new PIT and closing in case of exceptions
-    private <Response> ActionListener<Response> pitListener(Function<Response, String> pitIdExtractor, ActionListener<Response> listener) {
+    private <Response> ActionListener<Response> pitListener(
+        Function<Response, BytesReference> pitIdExtractor,
+        ActionListener<Response> listener
+    ) {
         return wrap(r -> {
-                // get pid
-                pitId = pitIdExtractor.apply(r);
-                listener.onResponse(r);
-            },
+            // get pid
+            pitId = pitIdExtractor.apply(r);
+            listener.onResponse(r);
+        },
             // always close PIT in case of exceptions
             e -> {
                 listener.onFailure(e);
                 if (pitId != null && cfg.isCancelled() == false) {
                     // ignore any success/failure to avoid obfuscating the response
-                    close(wrap(b -> {}, ex -> {}));
+                    close(ActionListener.noop());
                 }
-            });
+            }
+        );
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices,
-            IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            keepAlive,
-            null,
-            null
-        );
-        client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
-                pitId = r.getSearchContextId();
-                runnable.run();
-            },
-            listener::onFailure));
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+            .keepAlive(keepAlive);
+        request.indexFilter(filter);
+        client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
+            pitId = r.getPointInTimeId();
+            runnable.run();
+        }));
     }
 
     @Override
     public void close(ActionListener<Boolean> listener) {
-        client.execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId),
-            map(listener, ClosePointInTimeResponse::isSucceeded));
-        pitId = null;
+        // the pitId could be null as a consequence of a failure on openPIT
+        if (pitId != null) {
+            client.execute(
+                TransportClosePointInTimeAction.TYPE,
+                new ClosePointInTimeRequest(pitId),
+                map(listener, ClosePointInTimeResponse::isSucceeded)
+            );
+            pitId = null;
+        }
     }
 }

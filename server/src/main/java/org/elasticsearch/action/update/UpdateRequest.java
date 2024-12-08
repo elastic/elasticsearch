@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,30 +18,30 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -59,11 +49,14 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+    implements
+        DocWriteRequest<UpdateRequest>,
+        WriteRequest<UpdateRequest>,
+        ToXContentObject {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
-    private static ObjectParser<UpdateRequest, Void> PARSER;
+    private static final ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField("scripted_upsert");
@@ -77,26 +70,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     static {
         PARSER = new ObjectParser<>(UpdateRequest.class.getSimpleName());
-        PARSER.declareField((request, script) -> request.script = script,
-            (parser, context) -> Script.parse(parser), SCRIPT_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(
+            (request, script) -> request.script = script,
+            (parser, context) -> Script.parse(parser),
+            SCRIPT_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_STRING
+        );
         PARSER.declareBoolean(UpdateRequest::scriptedUpsert, SCRIPTED_UPSERT_FIELD);
-        PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder),
-            (parser, context) -> {
-                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                builder.copyCurrentStructure(parser);
-                return builder;
-            }, UPSERT_FIELD);
-        PARSER.declareObject((request, builder) -> request.safeDoc().source(builder),
-            (parser, context) -> {
-                XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
-                docBuilder.copyCurrentStructure(parser);
-                return docBuilder;
-            }, DOC_FIELD);
+        PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder), (parser, context) -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            builder.copyCurrentStructure(parser);
+            return builder;
+        }, UPSERT_FIELD);
+        PARSER.declareObject((request, builder) -> request.safeDoc().source(builder), (parser, context) -> {
+            XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
+            docBuilder.copyCurrentStructure(parser);
+            return docBuilder;
+        }, DOC_FIELD);
         PARSER.declareBoolean(UpdateRequest::docAsUpsert, DOC_AS_UPSERT_FIELD);
         PARSER.declareBoolean(UpdateRequest::detectNoop, DETECT_NOOP_FIELD);
-        PARSER.declareField(UpdateRequest::fetchSource,
-            (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
-            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        PARSER.declareField(
+            UpdateRequest::fetchSource,
+            (parser, context) -> FetchSourceContext.fromXContent(parser),
+            SOURCE_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
         PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);
         PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);
     }
@@ -113,7 +111,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private int retryOnConflict = 0;
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
@@ -138,7 +135,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
@@ -152,7 +149,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (in.readBoolean()) {
             doc = new IndexRequest(shardId, in);
         }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest(shardId, in);
         }
@@ -161,11 +158,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            requireAlias = in.readBoolean();
-        } else {
-            requireAlias = false;
-        }
+        requireAlias = in.readBoolean();
     }
 
     public UpdateRequest(String index, String id) {
@@ -176,7 +169,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
+        if (upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
         if (Strings.isEmpty(id)) {
@@ -184,6 +177,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
 
         if (ifSeqNo != UNASSIGNED_SEQ_NO) {
             if (retryOnConflict > 0) {
@@ -194,8 +189,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
             }
             if (upsertRequest != null) {
-                validationException =
-                    addValidationError("upsert requests don't support `if_seq_no` and `if_primary_term`", validationException);
+                validationException = addValidationError(
+                    "upsert requests don't support `if_seq_no` and `if_primary_term`",
+                    validationException
+                );
             }
         }
 
@@ -268,161 +265,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public String scriptString() {
-        return this.script == null ? null : this.script.getIdOrCode();
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public ScriptType scriptType() {
-        return this.script == null ? null : this.script.getType();
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public Map<String, Object> scriptParams() {
-        return this.script == null ? null : this.script.getParams();
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script, ScriptType scriptType) {
-        updateOrCreateScript(script, scriptType, null, null);
-        return this;
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script) {
-        updateOrCreateScript(script, ScriptType.INLINE, null, null);
-        return this;
-    }
-
-    /**
-     * The language of the script to execute.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest scriptLang(String scriptLang) {
-        updateOrCreateScript(null, null, scriptLang, null);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #script()} instead
-     */
-    @Deprecated
-    public String scriptLang() {
-        return script == null ? null : script.getLang();
-    }
-
-    /**
-     * Add a script parameter.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest addScriptParam(String name, Object value) {
-        Script script = script();
-        if (script == null) {
-            HashMap<String, Object> scriptParams = new HashMap<>();
-            scriptParams.put(name, value);
-            updateOrCreateScript(null, null, null, scriptParams);
-        } else {
-            Map<String, Object> scriptParams = script.getParams();
-            if (scriptParams == null) {
-                scriptParams = new HashMap<>();
-                scriptParams.put(name, value);
-                updateOrCreateScript(null, null, null, scriptParams);
-            } else {
-                scriptParams.put(name, value);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Sets the script parameters to use with the script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest scriptParams(Map<String, Object> scriptParams) {
-        updateOrCreateScript(null, null, null, scriptParams);
-        return this;
-    }
-
-    private void updateOrCreateScript(String scriptContent, ScriptType type, String lang, Map<String, Object> params) {
-        Script script = script();
-        if (script == null) {
-            script = new Script(type == null ? ScriptType.INLINE : type, lang, scriptContent == null ? "" : scriptContent, params);
-        } else {
-            String newScriptContent = scriptContent == null ? script.getIdOrCode() : scriptContent;
-            ScriptType newScriptType = type == null ? script.getType() : type;
-            String newScriptLang = lang == null ? script.getLang() : lang;
-            Map<String, Object> newScriptParams = params == null ? script.getParams() : params;
-            script = new Script(newScriptType, newScriptLang, newScriptContent, newScriptParams);
-        }
-        script(script);
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
-        this.script = new Script(scriptType, Script.DEFAULT_SCRIPT_LANG, script, scriptParams);
-        return this;
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     *
-     * @param script
-     *            The script to execute
-     * @param scriptLang
-     *            The script language
-     * @param scriptType
-     *            The script type
-     * @param scriptParams
-     *            The script parameters
-     *
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
-            @Nullable Map<String, Object> scriptParams) {
-        this.script = new Script(scriptType, scriptLang, script, scriptParams);
-        return this;
-    }
-
-    /**
      * Indicate that _source should be returned with every hit, with an
      * "include" and/or "exclude" set which can include simple wildcard
      * elements.
@@ -436,9 +278,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[]{include};
-        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude};
-        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
+        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[] { include };
+        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude };
+        this.fetchSourceContext = FetchSourceContext.of(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -456,7 +298,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -465,7 +307,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(boolean fetchSource) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        this.fetchSourceContext = new FetchSourceContext(fetchSource, context.includes(), context.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(fetchSource, context.includes(), context.excludes());
         return this;
     }
 
@@ -527,7 +369,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -671,6 +513,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
+     * Sets the doc to use for updates when a script is not specified. The doc is provided in a bytes form.
+     */
+    public UpdateRequest doc(BytesReference source, XContentType contentType) {
+        safeDoc().source(source, contentType);
+        return this;
+    }
+
+    /**
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
      */
@@ -688,6 +538,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
         }
         return doc;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(BytesReference source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
     }
 
     /**
@@ -805,7 +663,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
-    public boolean scriptedUpsert(){
+    public boolean scriptedUpsert() {
         return this.scriptedUpsert;
     }
 
@@ -817,6 +675,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public boolean isRequireDataStream() {
+        // Always false because data streams cannot accept update operations
+        return false;
+    }
+
+    @Override
+    public void process(IndexRouting indexRouting) {
+        // Nothing to do
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        return indexRouting.updateShard(id, routing);
     }
 
     public UpdateRequest setRequireAlias(boolean requireAlias) {
@@ -838,7 +712,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private void doWrite(StreamOutput out, boolean thin) throws IOException {
         waitForActiveShards.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);
@@ -851,20 +725,18 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         out.writeVInt(retryOnConflict);
         refreshPolicy.writeTo(out);
-        if (doc == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            // make sure the basics are set
-            doc.index(index);
-            doc.id(id);
-            if (thin) {
-                doc.writeThin(out);
-            } else {
-                doc.writeTo(out);
-            }
-        }
+        writeIndexRequest(out, thin, doc);
         out.writeOptionalWriteable(fetchSourceContext);
+        writeIndexRequest(out, thin, upsertRequest);
+        out.writeBoolean(docAsUpsert);
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
+        out.writeBoolean(detectNoop);
+        out.writeBoolean(scriptedUpsert);
+        out.writeBoolean(requireAlias);
+    }
+
+    private void writeIndexRequest(StreamOutput out, boolean thin, IndexRequest upsertRequest) throws IOException {
         if (upsertRequest == null) {
             out.writeBoolean(false);
         } else {
@@ -878,14 +750,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 upsertRequest.writeTo(out);
             }
         }
-        out.writeBoolean(docAsUpsert);
-        out.writeZLong(ifSeqNo);
-        out.writeVLong(ifPrimaryTerm);
-        out.writeBoolean(detectNoop);
-        out.writeBoolean(scriptedUpsert);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(requireAlias);
-        }
     }
 
     @Override
@@ -896,8 +760,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (doc != null) {
             XContentType xContentType = doc.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, doc.source(), xContentType)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    doc.source(),
+                    xContentType
+                )
+            ) {
                 builder.field("doc");
                 builder.copyCurrentStructure(parser);
             }
@@ -913,8 +783,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (upsertRequest != null) {
             XContentType xContentType = upsertRequest.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, upsertRequest.source(), xContentType)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    upsertRequest.source(),
+                    xContentType
+                )
+            ) {
                 builder.field("upsert");
                 builder.copyCurrentStructure(parser);
             }
@@ -934,9 +810,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public String toString() {
-        StringBuilder res = new StringBuilder()
-            .append("update {[").append(index)
-            .append("][").append(id).append("]");
+        StringBuilder res = new StringBuilder().append("update {[").append(index).append("][").append(id).append("]");
         res.append(", doc_as_upsert[").append(docAsUpsert).append("]");
         if (doc != null) {
             res.append(", doc[").append(doc).append("]");

@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AutodetectControlMsgWriter;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
+import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
+import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
-import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.junit.Assert;
 import org.junit.Before;
@@ -40,7 +41,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -78,9 +79,17 @@ public class NativeAutodetectProcessTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testProcessStartTime() throws Exception {
-        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class),
-                processPipes, NUMBER_FIELDS, null,
-                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY), mock(Consumer.class))) {
+        try (
+            NativeAutodetectProcess process = new NativeAutodetectProcess(
+                "foo",
+                mock(NativeController.class),
+                processPipes,
+                NUMBER_FIELDS,
+                null,
+                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY),
+                mock(Consumer.class)
+            )
+        ) {
             process.start(executorService, mock(IndexingStateProcessor.class));
 
             ZonedDateTime startTime = process.getProcessStartTime();
@@ -95,10 +104,18 @@ public class NativeAutodetectProcessTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWriteRecord() throws IOException {
-        String[] record = {"r1", "r2", "r3", "r4", "r5"};
-        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class),
-                processPipes, NUMBER_FIELDS, Collections.emptyList(),
-                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY), mock(Consumer.class))) {
+        String[] record = { "r1", "r2", "r3", "r4", "r5" };
+        try (
+            NativeAutodetectProcess process = new NativeAutodetectProcess(
+                "foo",
+                mock(NativeController.class),
+                processPipes,
+                NUMBER_FIELDS,
+                Collections.emptyList(),
+                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY),
+                mock(Consumer.class)
+            )
+        ) {
             process.start(executorService, mock(IndexingStateProcessor.class));
 
             process.writeRecord(record);
@@ -126,9 +143,17 @@ public class NativeAutodetectProcessTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFlush() throws IOException {
-        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class),
-                processPipes, NUMBER_FIELDS, Collections.emptyList(),
-                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY), mock(Consumer.class))) {
+        try (
+            NativeAutodetectProcess process = new NativeAutodetectProcess(
+                "foo",
+                mock(NativeController.class),
+                processPipes,
+                NUMBER_FIELDS,
+                Collections.emptyList(),
+                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY),
+                mock(Consumer.class)
+            )
+        ) {
             process.start(executorService, mock(IndexingStateProcessor.class));
 
             FlushJobParams params = FlushJobParams.builder().build();
@@ -155,9 +180,17 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testConsumeAndCloseOutputStream() throws IOException {
 
-        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class),
-            processPipes, NUMBER_FIELDS, Collections.emptyList(),
-            new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY), mock(Consumer.class))) {
+        try (
+            NativeAutodetectProcess process = new NativeAutodetectProcess(
+                "foo",
+                mock(NativeController.class),
+                processPipes,
+                NUMBER_FIELDS,
+                Collections.emptyList(),
+                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY),
+                mock(Consumer.class)
+            )
+        ) {
 
             process.start(executorService);
             process.consumeAndCloseOutputStream();
@@ -167,9 +200,17 @@ public class NativeAutodetectProcessTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {
-        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class),
-                processPipes, NUMBER_FIELDS, Collections.emptyList(),
-                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY), mock(Consumer.class))) {
+        try (
+            NativeAutodetectProcess process = new NativeAutodetectProcess(
+                "foo",
+                mock(NativeController.class),
+                processPipes,
+                NUMBER_FIELDS,
+                Collections.emptyList(),
+                new ProcessResultsParser<>(AutodetectResult.PARSER, NamedXContentRegistry.EMPTY),
+                mock(Consumer.class)
+            )
+        ) {
             process.start(executorService, mock(IndexingStateProcessor.class));
 
             writeFunction.accept(process);

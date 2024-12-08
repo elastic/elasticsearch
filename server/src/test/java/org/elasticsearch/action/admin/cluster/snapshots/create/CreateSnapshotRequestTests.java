@@ -1,48 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent.MapParams;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent.MapParams;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.snapshots.SnapshotInfoTests.randomUserMetadata;
+import static org.elasticsearch.snapshots.SnapshotInfoTestUtils.randomUserMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -53,7 +39,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         String repo = randomAlphaOfLength(5);
         String snap = randomAlphaOfLength(10);
 
-        CreateSnapshotRequest original = new CreateSnapshotRequest(repo, snap);
+        CreateSnapshotRequest original = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repo, snap);
 
         if (randomBoolean()) {
             List<String> indices = new ArrayList<>();
@@ -64,6 +50,17 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             }
 
             original.indices(indices);
+        }
+
+        if (randomBoolean()) {
+            List<String> featureStates = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                featureStates.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            original.featureStates(featureStates);
         }
 
         if (randomBoolean()) {
@@ -79,12 +76,21 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
-            Collection<Option> options = randomSubsetOf(Arrays.asList(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
-
-            original.indicesOptions(new IndicesOptions(
-                    options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)));
+            boolean defaultResolveAliasForThisRequest = original.indicesOptions().ignoreAliases() == false;
+            original.indicesOptions(
+                IndicesOptions.builder()
+                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
+                    .wildcardOptions(
+                        new IndicesOptions.WildcardOptions(
+                            randomBoolean(),
+                            randomBoolean(),
+                            randomBoolean(),
+                            defaultResolveAliasForThisRequest,
+                            randomBoolean()
+                        )
+                    )
+                    .build()
+            );
         }
 
         if (randomBoolean()) {
@@ -92,19 +98,27 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            original.masterNodeTimeout("60s");
+            original.masterNodeTimeout(TimeValue.timeValueMinutes(1));
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent().createParser(
-                NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
-        CreateSnapshotRequest processed = new CreateSnapshotRequest((String)map.get("repository"), (String)map.get("snapshot"));
-        processed.waitForCompletion(original.waitForCompletion());
-        processed.masterNodeTimeout(original.masterNodeTimeout());
-        processed.source(map);
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            Map<String, Object> map = parser.mapOrdered();
+            CreateSnapshotRequest processed = new CreateSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
+                (String) map.get("repository"),
+                (String) map.get("snapshot")
+            );
+            processed.waitForCompletion(original.waitForCompletion());
+            processed.masterNodeTimeout(original.masterNodeTimeout());
+            processed.uuid(original.uuid());
+            processed.source(map);
 
-        assertEquals(original, processed);
+            assertEquals(original, processed);
+        }
     }
 
     public void testSizeCheck() {
@@ -154,8 +168,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
     }
 
     private CreateSnapshotRequest createSnapshotRequestWithMetadata(Map<String, Object> metadata) {
-        return new CreateSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .indices(randomAlphaOfLength(5))
-            .userMetadata(metadata);
+        return new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(5)).indices(
+            randomAlphaOfLength(5)
+        ).userMetadata(metadata);
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
@@ -27,7 +28,7 @@ import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,11 +54,10 @@ public class ExecutableSlackActionTests extends ESTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(new Payload.Simple())
-                .time(wid.watchId(), now)
-                .buildMock();
+        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId()).wid(wid)
+            .payload(new Payload.Simple())
+            .time(wid.watchId(), now)
+            .buildMock();
 
         ExecutableSlackAction executable = new ExecutableSlackAction(action, logger, service, new MockTextTemplateEngine());
         executable.execute("foo", ctx, new Payload.Simple());

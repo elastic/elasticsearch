@@ -1,10 +1,14 @@
 {
   "indices.get_index_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-template.html",
       "description":"Returns an index template."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -20,8 +24,8 @@
           ],
           "parts":{
             "name":{
-              "type":"list",
-              "description":"The comma separated names of the index templates"
+              "type":"string",
+              "description":"A pattern that returned template names must match"
             }
           }
         }
@@ -39,6 +43,10 @@
       "local":{
         "type":"boolean",
         "description":"Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "include_defaults":{
+        "type":"boolean",
+        "description":"Return all relevant default configurations for the index template (default: false)"
       }
     }
   }

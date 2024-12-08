@@ -1,16 +1,30 @@
-apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.internal-cluster-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'constant-keyword'
   description 'Module for the constant-keyword field type, which is a specialization of keyword for the case when all documents have the same value.'
   classname 'org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-constant-keyword'
+base {
+  archivesName = 'x-pack-constant-keyword'
+}
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'))
 }
 
+if (buildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}

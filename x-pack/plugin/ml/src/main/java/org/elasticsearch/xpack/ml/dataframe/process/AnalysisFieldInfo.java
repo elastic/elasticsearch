@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.process;
@@ -24,9 +25,7 @@ public class AnalysisFieldInfo implements DataFrameAnalysis.FieldInfo {
 
     @Override
     public Set<String> getTypes(String field) {
-        Optional<ExtractedField> extractedField = extractedFields.getAllFields().stream()
-            .filter(f -> f.getName().equals(field))
-            .findAny();
+        Optional<ExtractedField> extractedField = extractedFields.getAllFields().stream().filter(f -> f.getName().equals(field)).findAny();
         return extractedField.isPresent() ? extractedField.get().getTypes() : null;
     }
 

@@ -1,32 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.scheduler.Cron;
+import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -40,10 +43,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  * snapshot should be triggered, what the snapshot should be named, what repository it should go
  * to, and the configuration for the snapshot itself.
  */
-public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
-    implements Writeable, Diffable<SnapshotLifecyclePolicy>, ToXContentObject {
-
-    public static final String POLICY_ID_METADATA_FIELD = "policy";
+public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
     private final String id;
     private final String name;
@@ -51,6 +51,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private final String repository;
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
+    private final boolean isCronSchedule;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
@@ -60,16 +61,18 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_lifecycle", true,
-            (a, id) -> {
-                String name = (String) a[0];
-                String schedule = (String) a[1];
-                String repo = (String) a[2];
-                Map<String, Object> config = (Map<String, Object>) a[3];
-                SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-                return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
-            });
+    private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_lifecycle",
+        true,
+        (a, id) -> {
+            String name = (String) a[0];
+            String schedule = (String) a[1];
+            String repo = (String) a[2];
+            Map<String, Object> config = (Map<String, Object>) a[3];
+            SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
+            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -79,15 +82,21 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
     }
 
-    public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, @Nullable final Map<String, Object> configuration,
-                                   @Nullable final SnapshotRetentionConfiguration retentionPolicy) {
+    public SnapshotLifecyclePolicy(
+        final String id,
+        final String name,
+        final String schedule,
+        final String repository,
+        @Nullable final Map<String, Object> configuration,
+        @Nullable final SnapshotRetentionConfiguration retentionPolicy
+    ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
         this.schedule = Objects.requireNonNull(schedule, "policy schedule is required");
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
+        this.isCronSchedule = isCronSchedule(schedule);
     }
 
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
@@ -95,12 +104,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         this.name = in.readString();
         this.schedule = in.readString();
         this.repository = in.readString();
-        this.configuration = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        } else {
-            this.retentionPolicy = SnapshotRetentionConfiguration.EMPTY;
-        }
+        this.configuration = in.readGenericMap();
+        this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
+        this.isCronSchedule = isCronSchedule(schedule);
     }
 
     public String getId() {
@@ -129,9 +135,43 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return this.retentionPolicy;
     }
 
-    public long calculateNextExecution() {
-        final Cron schedule = new Cron(this.schedule);
-        return schedule.getNextValidTimeAfter(System.currentTimeMillis());
+    boolean isCronSchedule() {
+        return this.isCronSchedule;
+    }
+
+    /**
+     * @return whether `schedule` is a cron expression
+     */
+    static boolean isCronSchedule(String schedule) {
+        try {
+            new Cron(schedule);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * @return whether `schedule` is an interval time unit expression
+     */
+    public static boolean isIntervalSchedule(String schedule) {
+        try {
+            TimeValue.parseTimeValue(schedule, "schedule");
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public long calculateNextExecution(long modifiedDate, Clock clock) {
+        if (isCronSchedule()) {
+            final Cron scheduleEvaluator = new Cron(this.schedule);
+            return scheduleEvaluator.getNextValidTimeAfter(clock.millis());
+        } else {
+            final TimeValue interval = TimeValue.parseTimeValue(this.schedule, SCHEDULE.getPreferredName());
+            final TimeValueSchedule timeValueSchedule = new TimeValueSchedule(interval);
+            return timeValueSchedule.nextScheduledTimeAfter(modifiedDate, clock.millis());
+        }
     }
 
     /**
@@ -139,18 +179,31 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      * <p>
      * In ordinary cases, this can be treated as the interval between executions of the schedule (for schedules like 'twice an hour' or
      * 'every five minutes').
-     *
+     * @param clock a clock to provide current time
      * @return a {@link TimeValue} representing the difference between the next two valid times after now, or {@link TimeValue#MINUS_ONE}
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
-    public TimeValue calculateNextInterval() {
-        final Cron schedule = new Cron(this.schedule);
-        long next1 = schedule.getNextValidTimeAfter(System.currentTimeMillis());
-        long next2 = schedule.getNextValidTimeAfter(next1);
+    public TimeValue calculateNextInterval(Clock clock) {
+        if (isCronSchedule() == false) {
+            return TimeValue.parseTimeValue(schedule, SCHEDULE.getPreferredName());
+        }
+
+        final Cron scheduleEvaluator = new Cron(this.schedule);
+        long next1 = scheduleEvaluator.getNextValidTimeAfter(clock.millis());
+        long next2 = scheduleEvaluator.getNextValidTimeAfter(next1);
         if (next1 > 0 && next2 > 0) {
             return TimeValue.timeValueMillis(next2 - next1);
         } else {
             return TimeValue.MINUS_ONE;
+        }
+    }
+
+    public SchedulerEngine.Job buildSchedulerJob(String jobId, long modifiedDate) {
+        if (isCronSchedule()) {
+            return new SchedulerEngine.Job(jobId, new CronSchedule(schedule));
+        } else {
+            TimeValue timeValue = TimeValue.parseTimeValue(schedule, "schedule");
+            return new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), modifiedDate);
         }
     }
 
@@ -159,57 +212,80 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
 
         // ID validation
         if (Strings.validFileName(id) == false) {
-            err.addValidationError("invalid policy id [" + id + "]: must not contain the following characters " +
-                Strings.INVALID_FILENAME_CHARS);
+            err.addValidationError(
+                "invalid policy id [" + id + "]: must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
+            );
         }
         if (id.charAt(0) == '_') {
             err.addValidationError("invalid policy id [" + id + "]: must not start with '_'");
         }
         int byteCount = id.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            err.addValidationError("invalid policy id [" + id + "]: name is too long, (" + byteCount + " > " +
-                MAX_INDEX_NAME_BYTES + " bytes)");
+            err.addValidationError(
+                "invalid policy id [" + id + "]: name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + " bytes)"
+            );
         }
 
         // Snapshot name validation
         // We generate a snapshot name here to make sure it validates after applying date math
         final String snapshotName = generateSnapshotName(this.name);
         ActionRequestValidationException nameValidationErrors = validateGeneratedSnapshotName(name, snapshotName);
-        if(nameValidationErrors != null) {
+        if (nameValidationErrors != null) {
             err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
         // Schedule validation
+        // n.b. there's more validation beyond this in SnapshotLifecycleService#validateMinimumInterval
         if (Strings.hasText(schedule) == false) {
             err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
             try {
-                new Cron(schedule);
-            } catch (IllegalArgumentException e) {
-                err.addValidationError("invalid schedule: " +
-                    ExceptionsHelper.unwrapCause(e).getMessage());
+                var intervalTimeValue = TimeValue.parseTimeValue(schedule, SCHEDULE.getPreferredName());
+                if (intervalTimeValue.millis() == 0) {
+                    err.addValidationError("invalid schedule [" + schedule + "]: time unit must be at least 1 millisecond");
+                }
+            } catch (IllegalArgumentException e1) {
+                if (isCronSchedule(schedule) == false) {
+                    err.addValidationError("invalid schedule [" + schedule + "]: must be a valid cron expression or time unit");
+                }
             }
         }
 
         if (configuration != null && configuration.containsKey(METADATA_FIELD_NAME)) {
             if (configuration.get(METADATA_FIELD_NAME) instanceof Map == false) {
-                err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + " [" + configuration.get(METADATA_FIELD_NAME) +
-                    "]: must be an object if present");
+                err.addValidationError(
+                    "invalid configuration."
+                        + METADATA_FIELD_NAME
+                        + " ["
+                        + configuration.get(METADATA_FIELD_NAME)
+                        + "]: must be an object if present"
+                );
             } else {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
-                if (metadata.containsKey(POLICY_ID_METADATA_FIELD)) {
-                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name [" + POLICY_ID_METADATA_FIELD +
-                        "] is reserved and will be added automatically");
+                if (metadata.containsKey(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
+                    err.addValidationError(
+                        "invalid configuration."
+                            + METADATA_FIELD_NAME
+                            + ": field name ["
+                            + SnapshotsService.POLICY_ID_METADATA_FIELD
+                            + "] is reserved and will be added automatically"
+                    );
                 } else {
                     Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);
                     int serializedSizeOriginal = CreateSnapshotRequest.metadataSize(metadata);
                     int serializedSizeWithMetadata = CreateSnapshotRequest.metadataSize(metadataWithPolicyField);
                     int policyNameAddedBytes = serializedSizeWithMetadata - serializedSizeOriginal;
                     if (serializedSizeWithMetadata > CreateSnapshotRequest.MAXIMUM_METADATA_BYTES) {
-                        err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": must be smaller than [" +
-                            (CreateSnapshotRequest.MAXIMUM_METADATA_BYTES - policyNameAddedBytes) +
-                            "] bytes, but is [" + serializedSizeOriginal + "] bytes");
+                        err.addValidationError(
+                            "invalid configuration."
+                                + METADATA_FIELD_NAME
+                                + ": must be smaller than ["
+                                + (CreateSnapshotRequest.MAXIMUM_METADATA_BYTES - policyNameAddedBytes)
+                                + "] bytes, but is ["
+                                + serializedSizeOriginal
+                                + "] bytes"
+                        );
                     }
                 }
             }
@@ -231,7 +307,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         } else {
             newMetadata = new HashMap<>(metadata);
         }
-        newMetadata.put(POLICY_ID_METADATA_FIELD, this.id);
+        newMetadata.put(SnapshotsService.POLICY_ID_METADATA_FIELD, this.id);
         return newMetadata;
     }
 
@@ -239,8 +315,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      * Generate a new create snapshot request from this policy. The name of the snapshot is
      * generated at this time based on any date math expressions in the "name" field.
      */
-    public CreateSnapshotRequest toRequest() {
-        CreateSnapshotRequest req = new CreateSnapshotRequest(repository, generateSnapshotName(this.name));
+    public CreateSnapshotRequest toRequest(TimeValue masterNodeTimeout) {
+        CreateSnapshotRequest req = new CreateSnapshotRequest(masterNodeTimeout, repository, generateSnapshotName(this.name));
         Map<String, Object> mergedConfiguration = configuration == null ? new HashMap<>() : new HashMap<>(configuration);
         @SuppressWarnings("unchecked")
         Map<String, Object> metadata = (Map<String, Object>) mergedConfiguration.get("metadata");
@@ -261,10 +337,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.name);
         out.writeString(this.schedule);
         out.writeString(this.repository);
-        out.writeMap(this.configuration);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalWriteable(this.retentionPolicy);
-        }
+        out.writeGenericMap(this.configuration);
+        out.writeOptionalWriteable(this.retentionPolicy);
     }
 
     @Override
@@ -298,12 +372,12 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             return false;
         }
         SnapshotLifecyclePolicy other = (SnapshotLifecyclePolicy) obj;
-        return Objects.equals(id, other.id) &&
-            Objects.equals(name, other.name) &&
-            Objects.equals(schedule, other.schedule) &&
-            Objects.equals(repository, other.repository) &&
-            Objects.equals(configuration, other.configuration) &&
-            Objects.equals(retentionPolicy, other.retentionPolicy);
+        return Objects.equals(id, other.id)
+            && Objects.equals(name, other.name)
+            && Objects.equals(schedule, other.schedule)
+            && Objects.equals(repository, other.repository)
+            && Objects.equals(configuration, other.configuration)
+            && Objects.equals(retentionPolicy, other.retentionPolicy);
     }
 
     @Override

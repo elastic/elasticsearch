@@ -1,27 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
 
-    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
-
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+    private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
 
@@ -69,20 +78,77 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
-                                                           IndexNameExpressionResolver resolver,
-                                                           final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
             state,
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
-            finalListener);
+            masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
+            finalListener
+        );
+    }
+
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        final ActionListener<Boolean> stateIndexAndAliasCreated = finalListener.delegateFailureAndWrap((delegate, success) -> {
+            final ClusterHealthRequest request = new ClusterHealthRequest(
+                masterNodeTimeout,
+                AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+            ).waitForYellowStatus();
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportClusterHealthAction.TYPE,
+                request,
+                delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
+            );
+        });
+
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(
+            client,
+            state,
+            resolver,
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+            AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+            masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
+            stateIndexAndAliasCreated
+        );
+    }
+
+    public static String wrappedResultsMapping() {
+        return String.format(Locale.ROOT, """
+            {
+            "_doc" : %s
+            }""", resultsMapping());
     }
 
     public static String resultsMapping() {
-        return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            RESOURCE_PATH + "results_index_mappings.json",
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            RESULTS_MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
+        );
     }
 }

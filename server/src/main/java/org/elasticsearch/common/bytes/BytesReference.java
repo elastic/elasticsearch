@@ -1,20 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -25,15 +15,14 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
 
 /**
  * A reference to bytes.
@@ -77,7 +66,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
             while ((r = byteRefIterator.next()) != null) {
                 buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
             }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
+            return buffers.toArray(ByteBuffer[]::new);
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences
@@ -137,6 +126,21 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     int getInt(int index);
 
     /**
+     * Returns the integer read from the 4 bytes (LE) starting at the given index.
+     */
+    int getIntLE(int index);
+
+    /**
+     * Returns the long read from the 8 bytes (LE) starting at the given index.
+     */
+    long getLongLE(int index);
+
+    /**
+     * Returns the double read from the 8 bytes (LE) starting at the given index.
+     */
+    double getDoubleLE(int index);
+
+    /**
      * Finds the index of the first occurrence of the given marker between within the given bounds.
      * @param marker marker byte to search
      * @param from lower bound for the index to check (inclusive)
@@ -181,8 +185,31 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
 
     /**
      * Returns a BytesRefIterator for this BytesReference. This method allows
-     * access to the internal pages of this reference without copying them. Use with care!
+     * access to the internal pages of this reference without copying them.
+     * It must return direct references to the pages, not copies. Use with care!
+     *
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();
+
+    /**
+     * @return {@code true} if this instance is backed by a byte array
+     */
+    default boolean hasArray() {
+        return false;
+    }
+
+    /**
+     * @return backing byte array for this instance
+     */
+    default byte[] array() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @return offset of the first byte of this instance in the backing byte array
+     */
+    default int arrayOffset() {
+        throw new UnsupportedOperationException();
+    }
 }

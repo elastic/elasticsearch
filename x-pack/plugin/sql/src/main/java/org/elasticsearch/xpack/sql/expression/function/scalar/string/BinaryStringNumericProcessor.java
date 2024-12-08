@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.sql.util.Check;
 import java.io.IOException;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.checkResultLength;
+
 /**
  * Processor class covering string manipulating functions that have the first parameter as string,
  * second parameter as numeric and a string result.
@@ -22,31 +25,27 @@ import java.util.function.BiFunction;
 public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<String, Number, String, BinaryStringNumericOperation> {
 
     public enum BinaryStringNumericOperation implements BiFunction<String, Number, String> {
-        LEFT((s,c) -> {
+        LEFT((s, c) -> {
             int i = c.intValue();
             if (i < 0) {
                 return "";
             }
             return i > s.length() ? s : s.substring(0, i);
         }),
-        RIGHT((s,c) -> {
+        RIGHT((s, c) -> {
             int i = c.intValue();
             if (i < 0) {
                 return "";
             }
             return i > s.length() ? s : s.substring(s.length() - i);
         }),
-        REPEAT((s,c) -> {
+        REPEAT((s, c) -> {
             int i = c.intValue();
             if (i <= 0) {
                 return null;
             }
-
-            StringBuilder sb = new StringBuilder(s.length() * i);
-            for (int j = 0; j < i; j++) {
-                sb.append(s);
-            }
-            return sb.toString();
+            checkResultLength(s.length() * c.longValue()); // mul is safe: c's checked by doProcess() to be within Integer's range
+            return s.repeat(i);
         });
 
         BinaryStringNumericOperation(BiFunction<String, Number, String> op) {
@@ -81,7 +80,7 @@ public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<
 
     @Override
     protected Object doProcess(Object left, Object right) {
-        if (!(left instanceof String || left instanceof Character)) {
+        if ((left instanceof String || left instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", left);
         }
         // count can be negative, the case is handled by the code, but it must still be int-convertible

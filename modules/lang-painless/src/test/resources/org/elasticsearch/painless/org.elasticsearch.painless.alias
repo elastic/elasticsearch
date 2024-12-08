@@ -1,0 +1,13 @@
+class org.elasticsearch.painless.AliasTestClass$AliasedTestInnerClass @alias[class="AliasedTestInnerClass"] {
+  int plus(int, int)
+}
+
+class org.elasticsearch.painless.AliasTestClass$UnaliasedTestInnerClass {
+  int minus(int, int)
+}
+
+class org.elasticsearch.painless.AliasTestClass {
+  AliasedTestInnerClass getInnerAliased()
+  AliasTestClass.UnaliasedTestInnerClass getInnerUnaliased()
+}
+

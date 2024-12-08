@@ -1,0 +1,34 @@
+{
+  "ml.open_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
+      "description":"Opens one or more anomaly detection jobs."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_open",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to open"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description": "Query parameters can be specified in the body",
+      "required":false
+    }
+  }
+}

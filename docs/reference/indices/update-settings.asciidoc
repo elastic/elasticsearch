@@ -26,39 +26,51 @@ PUT /my-index-000001/_settings
 
 `PUT /<target>/_settings`
 
+[[update-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
 
 [[update-index-settings-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[update-index-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
 (Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`reopen`::
+(Optional, Boolean) If `true`, then any static settings that would ordinarily only
+be updated on closed indices will be updated by automatically closing and reopening
+the affected indices. If `false`, attempts to update static settings on open indices
+will fail. Defaults to `false`.
+
+NOTE: Changing index settings on an automatically closed index using the `reopen`
+parameter will result in the index becoming unavailable momentarily while the index
+is in the process of reopening.
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[update-index-settings-api-request-body]]
@@ -150,7 +162,7 @@ and reopen the index.
 You cannot close the write index of a data stream.
 
 To update the analyzer for a data stream's write index and future backing
-indices, update the analyzer in the <<create-a-data-stream-template,index
+indices, update the analyzer in the <<create-index-template,index
 template used by the stream>>. Then <<manually-roll-over-a-data-stream,roll over
 the data stream>> to apply the new analyzer to the stream’s write index and
 future backing indices. This affects searches and any new data added to the

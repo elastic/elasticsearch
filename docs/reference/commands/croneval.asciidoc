@@ -1,9 +1,7 @@
-[role="xpack"]
-[testenv="gold+"]
 [[elasticsearch-croneval]]
 == elasticsearch-croneval
 
-Validates and evaluates a <<cron-expressions,cron expression>>. 
+Validates and evaluates a <<api-cron-expressions,cron expression>>. 
 
 [discrete]
 === Synopsis

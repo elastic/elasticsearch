@@ -1,26 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> {
@@ -28,16 +36,16 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     public static final String NAME = "cluster:admin/ilm/get";
 
     protected GetLifecycleAction() {
-        super(NAME, GetLifecycleAction.Response::new);
+        super(NAME);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
-        private List<LifecyclePolicyResponseItem> policies;
+        private final List<LifecyclePolicyResponseItem> policies;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.policies = in.readList(LifecyclePolicyResponseItem::new);
+            this.policies = in.readCollectionAsList(LifecyclePolicyResponseItem::new);
         }
 
         public Response(List<LifecyclePolicyResponseItem> policies) {
@@ -49,22 +57,8 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            for (LifecyclePolicyResponseItem item : policies) {
-                builder.startObject(item.getLifecyclePolicy().getName());
-                builder.field("version", item.getVersion());
-                builder.field("modified_date", item.getModifiedDate());
-                builder.field("policy", item.getLifecyclePolicy());
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override
@@ -89,12 +83,29 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             return Strings.toString(this, true, true);
         }
 
+        @Override
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject()),
+                Iterators.map(policies.iterator(), policy -> (b, p) -> {
+                    b.startObject(policy.getLifecyclePolicy().getName());
+                    b.field("version", policy.getVersion());
+                    b.field("modified_date", policy.getModifiedDate());
+                    b.field("policy", policy.getLifecyclePolicy());
+                    b.field("in_use_by", policy.getUsage());
+                    b.endObject();
+                    return b;
+                }),
+                Iterators.single((b, p) -> b.endObject())
+            );
+        }
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-        private String[] policyNames;
+        private final String[] policyNames;
 
-        public Request(String... policyNames) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... policyNames) {
+            super(masterNodeTimeout, ackTimeout);
             if (policyNames == null) {
                 throw new IllegalArgumentException("ids cannot be null");
             }
@@ -106,17 +117,13 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             policyNames = in.readStringArray();
         }
 
-        public Request() {
-            policyNames = Strings.EMPTY_ARRAY;
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "get-lifecycle-task", parentTaskId, headers);
         }
 
         public String[] getPolicyNames() {
             return policyNames;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -148,17 +155,20 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         private final LifecyclePolicy lifecyclePolicy;
         private final long version;
         private final String modifiedDate;
+        private final ItemUsage usage;
 
-        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String modifiedDate) {
+        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String modifiedDate, ItemUsage usage) {
             this.lifecyclePolicy = lifecyclePolicy;
             this.version = version;
             this.modifiedDate = modifiedDate;
+            this.usage = usage;
         }
 
         LifecyclePolicyResponseItem(StreamInput in) throws IOException {
             this.lifecyclePolicy = new LifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readString();
+            this.usage = new ItemUsage(in);
         }
 
         @Override
@@ -166,6 +176,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             lifecyclePolicy.writeTo(out);
             out.writeVLong(version);
             out.writeString(modifiedDate);
+            this.usage.writeTo(out);
         }
 
         public LifecyclePolicy getLifecyclePolicy() {
@@ -180,9 +191,13 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             return modifiedDate;
         }
 
+        public ItemUsage getUsage() {
+            return usage;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(lifecyclePolicy, version, modifiedDate);
+            return Objects.hash(lifecyclePolicy, version, modifiedDate, usage);
         }
 
         @Override
@@ -194,11 +209,11 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                 return false;
             }
             LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
-            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(modifiedDate, other.modifiedDate);
+            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy)
+                && Objects.equals(version, other.version)
+                && Objects.equals(modifiedDate, other.modifiedDate)
+                && Objects.equals(usage, other.usage);
         }
-
     }
 
 }

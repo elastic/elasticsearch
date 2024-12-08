@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -34,9 +24,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class InternalMappedSignificantTerms<
-            A extends InternalMappedSignificantTerms<A, B>,
-            B extends InternalSignificantTerms.Bucket<B>>
-        extends InternalSignificantTerms<A, B> {
+    A extends InternalMappedSignificantTerms<A, B>,
+    B extends InternalSignificantTerms.Bucket<B>> extends InternalSignificantTerms<A, B> {
 
     protected final DocValueFormat format;
     protected final long subsetSize;
@@ -45,9 +34,17 @@ public abstract class InternalMappedSignificantTerms<
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount,
-            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
-            SignificanceHeuristic significanceHeuristic, List<B> buckets) {
+    protected InternalMappedSignificantTerms(
+        String name,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        long subsetSize,
+        long supersetSize,
+        SignificanceHeuristic significanceHeuristic,
+        List<B> buckets
+    ) {
         super(name, requiredSize, minDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
@@ -62,7 +59,7 @@ public abstract class InternalMappedSignificantTerms<
         subsetSize = in.readVLong();
         supersetSize = in.readVLong();
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
-        buckets = in.readList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format));
     }
 
     @Override
@@ -71,12 +68,13 @@ public abstract class InternalMappedSignificantTerms<
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
         out.writeNamedWriteable(significanceHeuristic);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Iterator<SignificantTerms.Bucket> iterator() {
-        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).collect(Collectors.toList()).iterator();
+        return (Iterator) buckets.iterator();
     }
 
     @Override
@@ -93,17 +91,17 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected long getSubsetSize() {
+    public long getSubsetSize() {
         return subsetSize;
     }
 
     @Override
-    protected long getSupersetSize() {
+    public long getSupersetSize() {
         return supersetSize;
     }
 
     @Override
-    protected SignificanceHeuristic getSignificanceHeuristic() {
+    public SignificanceHeuristic getSignificanceHeuristic() {
         return significanceHeuristic;
     }
 
@@ -115,11 +113,11 @@ public abstract class InternalMappedSignificantTerms<
 
         InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
         return Objects.equals(format, that.format)
-                && subsetSize == that.subsetSize
-                && supersetSize == that.supersetSize
-                && Objects.equals(significanceHeuristic, that.significanceHeuristic)
-                && Objects.equals(buckets, that.buckets)
-                && Objects.equals(bucketMap, that.bucketMap);
+            && subsetSize == that.subsetSize
+            && supersetSize == that.supersetSize
+            && Objects.equals(significanceHeuristic, that.significanceHeuristic)
+            && Objects.equals(buckets, that.buckets)
+            && Objects.equals(bucketMap, that.bucketMap);
     }
 
     @Override
@@ -132,11 +130,11 @@ public abstract class InternalMappedSignificantTerms<
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), subsetSize);
         builder.field(BG_COUNT, supersetSize);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
-            //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
+        for (Bucket<?> bucket : buckets) {
+            // There is a condition (presumably when only one shard has a bucket?) where reduce is not called
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
-                bucket.toXContent(builder, params);
+                bucket.bucketToXContent(builder, params);
             }
         }
         builder.endArray();

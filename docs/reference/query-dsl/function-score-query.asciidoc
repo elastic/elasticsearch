@@ -368,7 +368,7 @@ decay function is specified as
 --------------------------------------------------
 // NOTCONSOLE
 <1> The `DECAY_FUNCTION` should be one of `linear`, `exp`, or `gauss`.
-<2> The specified field must be a numeric, date, or geo-point field.
+<2> The specified field must be a numeric, date, or geopoint field.
 
 In the above example, the field is a <<geo-point,`geo_point`>> and origin can
 be provided in geo format. `scale` and `offset` must be given with a unit in
@@ -536,7 +536,7 @@ In this case your *origin* for the location field is the town center
 and the *scale* is ~2km.
 
 If your budget is low, you would probably prefer something cheap above
-something expensive.  For the price field, the *origin* would be 0 Euros
+something expensive. For the price field, the *origin* would be 0 Euros
 and the *scale* depends on how much you are willing to pay, for example 20 Euros.
 
 In this example, the fields might be called "price" for the price of the
@@ -656,7 +656,7 @@ image::https://f.cloud.github.com/assets/4320215/768165/19d8b1aa-e899-11e2-91bc-
 
 ==== Supported fields for decay functions
 
-Only numeric, date, and geo-point fields are supported.
+Only numeric, date, and geopoint fields are supported.
 
 ==== What if a field is missing?
 

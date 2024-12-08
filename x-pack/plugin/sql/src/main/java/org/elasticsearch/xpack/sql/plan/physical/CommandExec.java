@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
@@ -15,8 +16,6 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.action.ActionListener.wrap;
 
 public class CommandExec extends LeafExec {
 
@@ -38,7 +37,7 @@ public class CommandExec extends LeafExec {
 
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
-        command.execute(session, wrap(listener::onResponse, listener::onFailure));
+        command.execute(session, listener.delegateFailureAndWrap((l, r) -> l.onResponse(r)));
     }
 
     @Override

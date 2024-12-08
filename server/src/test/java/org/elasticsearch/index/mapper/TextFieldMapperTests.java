@@ -1,35 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.StopFilter;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -37,46 +25,67 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -141,20 +150,16 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertEquals(20, ft.fielddataMaxFrequency(), 0);
             assertEquals(100, ft.fielddataMinSegmentSize());
         });
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"),
-            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> {
-                b.field("analyzer", "default");
-                b.field("search_analyzer", "keyword");
-            },
-            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+            b.field("analyzer", "default");
+            b.field("search_analyzer", "keyword");
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
         checker.registerUpdateCheck(b -> {
-                b.field("analyzer", "default");
-                b.field("search_analyzer", "keyword");
-                b.field("search_quote_analyzer", "keyword");
-            },
-            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
-
+            b.field("analyzer", "default");
+            b.field("search_analyzer", "keyword");
+            b.field("search_quote_analyzer", "keyword");
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
@@ -168,26 +173,20 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
         // norms can be set from true to false, but not vice versa
-        checker.registerConflictCheck("norms",
-            fieldMapping(b -> {
-                b.field("type", "text");
-                b.field("norms", false);
-            }),
-            fieldMapping(b -> {
-                b.field("type", "text");
-                b.field("norms", true);
-            }));
-        checker.registerUpdateCheck(
-            b -> {
-                b.field("type", "text");
-                b.field("norms", true);
-            },
-            b -> {
-                b.field("type", "text");
-                b.field("norms", false);
-            },
-            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
-        );
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("norms", false);
+        }), fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("norms", true);
+        }));
+        checker.registerUpdateCheck(b -> {
+            b.field("type", "text");
+            b.field("norms", true);
+        }, b -> {
+            b.field("type", "text");
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
     }
 
@@ -221,10 +220,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                 } }
             )
         );
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
-            Map.of()
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
         );
     }
 
@@ -238,10 +236,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -251,6 +249,64 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+    }
+
+    public void testStoreParameterDefaults() throws IOException {
+        var timeSeriesIndexMode = randomBoolean();
+        var isStored = randomBoolean();
+        var hasKeywordFieldForSyntheticSource = randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        if (timeSeriesIndexMode) {
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "text");
+            if (isStored) {
+                b.field("store", isStored);
+            }
+            if (hasKeywordFieldForSyntheticSource) {
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+
+            if (timeSeriesIndexMode) {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+                b.startObject("dimension");
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+                b.endObject();
+            }
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", "1234");
+            if (timeSeriesIndexMode) {
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
+                b.field("dimension", "dimension1");
+            }
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {
+            assertTrue(fieldType.stored());
+        } else {
+            assertFalse(fieldType.stored());
+        }
     }
 
     public void testBWCSerialization() throws IOException {
@@ -264,32 +320,32 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        assertEquals(
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
-            Strings.toString(mapperService.documentMapper()));
+        assertEquals("""
+            {"_doc":{"properties":{"field":{"type":"text","fields":{"subfield":{"type":"long"}},\
+            "fielddata":true}}}}""", Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
     public void testDisableIndex() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("index", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
     }
 
     public void testDisableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("norms", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().omitNorms());
     }
 
     public void testIndexOptions() throws IOException {
@@ -306,10 +362,13 @@ public class TextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject().endObject();
 
         DocumentMapper mapper = createDocumentMapper(mapping);
-        String serialized = Strings.toString(mapper);
-        assertThat(serialized, containsString("\"offsets\":{\"type\":\"text\",\"index_options\":\"offsets\"}"));
-        assertThat(serialized, containsString("\"freqs\":{\"type\":\"text\",\"index_options\":\"freqs\"}"));
-        assertThat(serialized, containsString("\"docs\":{\"type\":\"text\",\"index_options\":\"docs\"}"));
+        String serialized = Strings.toString(mapper.mapping());
+        assertThat(serialized, containsString("""
+            "offsets":{"type":"text","index_options":"offsets"}"""));
+        assertThat(serialized, containsString("""
+            "freqs":{"type":"text","index_options":"freqs"}"""));
+        assertThat(serialized, containsString("""
+            "docs":{"type":"text","index_options":"docs"}"""));
 
         ParsedDocument doc = mapper.parse(source(b -> {
             for (String option : supportedOptions.keySet()) {
@@ -320,9 +379,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
             String field = entry.getKey();
             IndexOptions options = entry.getValue();
-            IndexableField[] fields = doc.rootDoc().getFields(field);
-            assertEquals(1, fields.length);
-            assertEquals(options, fields[0].fieldType().indexOptions());
+            List<IndexableField> fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.size());
+            assertEquals(options, fields.get(0).fieldType().indexOptions());
         }
     }
 
@@ -330,10 +389,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -344,17 +403,40 @@ public class TextFieldMapperTests extends MapperTestCase {
         });
     }
 
+    public void testDefaultPositionIncrementGapOnSubfields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index_phrases", true);
+            b.startObject("index_prefixes").endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "aargle bargle", "foo bar")));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            TermsEnum phraseTerms = getOnlyLeafReader(reader).terms("field._index_phrase").iterator();
+            assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
+            PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, phrasePostings.nextDoc());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 1, phrasePostings.nextPosition());
+
+            TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
+            assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
+            PostingsEnum prefixPostings = prefixTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, prefixPostings.nextDoc());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 2, prefixPostings.nextPosition());
+        });
+    }
+
     public void testPositionIncrementGap() throws IOException {
         final int positionIncrementGap = randomIntBetween(1, 1000);
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "text").field("position_increment_gap", positionIncrementGap))
         );
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[]{"a", "b"})));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -362,6 +444,30 @@ public class TextFieldMapperTests extends MapperTestCase {
             PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, postings.nextDoc());
             assertEquals(positionIncrementGap + 1, postings.nextPosition());
+        });
+    }
+
+    public void testPositionIncrementGapOnSubfields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("position_increment_gap", 10);
+            b.field("index_phrases", true);
+            b.startObject("index_prefixes").endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "aargle bargle", "foo bar")));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            TermsEnum phraseTerms = getOnlyLeafReader(reader).terms("field._index_phrase").iterator();
+            assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
+            PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, phrasePostings.nextDoc());
+            assertEquals(11, phrasePostings.nextPosition());
+
+            TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
+            assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
+            PostingsEnum prefixPostings = prefixTerms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, prefixPostings.nextDoc());
+            assertEquals(12, prefixPostings.nextPosition());
         });
     }
 
@@ -381,10 +487,8 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        createDocumentMapper(fieldMapping(this::minimalMapping)).toXContent(
-            builder,
-            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
-        );
+        createDocumentMapper(fieldMapping(this::minimalMapping)).mapping()
+            .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
         builder.endObject();
         String mappingString = Strings.toString(builder);
         assertTrue(mappingString.contains("analyzer"));
@@ -412,31 +516,32 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testTermVectors() throws IOException {
-        XContentBuilder mapping = mapping(b ->
-                b.startObject("field1")
-                    .field("type", "text")
-                    .field("term_vector", "no")
+        XContentBuilder mapping = mapping(
+            b -> b.startObject("field1")
+                .field("type", "text")
+                .field("term_vector", "no")
                 .endObject()
                 .startObject("field2")
-                    .field("type", "text")
-                    .field("term_vector", "yes")
+                .field("type", "text")
+                .field("term_vector", "yes")
                 .endObject()
                 .startObject("field3")
-                    .field("type", "text")
-                    .field("term_vector", "with_offsets")
+                .field("type", "text")
+                .field("term_vector", "with_offsets")
                 .endObject()
                 .startObject("field4")
-                    .field("type", "text")
-                    .field("term_vector", "with_positions")
+                .field("type", "text")
+                .field("term_vector", "with_positions")
                 .endObject()
                 .startObject("field5")
-                    .field("type", "text")
-                    .field("term_vector", "with_positions_offsets")
+                .field("type", "text")
+                .field("term_vector", "with_positions_offsets")
                 .endObject()
                 .startObject("field6")
-                    .field("type", "text")
-                    .field("term_vector", "with_positions_offsets_payloads")
-                .endObject());
+                .field("type", "text")
+                .field("term_vector", "with_positions_offsets_payloads")
+                .endObject()
+        );
 
         DocumentMapper defaultMapper = createDocumentMapper(mapping);
 
@@ -491,19 +596,23 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
+        assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> {
-                throw new UnsupportedOperationException();
-            })
+            () -> disabledMapper.fieldType("field")
+                .fielddataBuilder(new FieldDataContext("index", null, null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
-        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Fielddata is disabled on [field] in [index]. "
+                    + "Text fields are not optimised for operations that require per-document field data"
+            )
+        );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test", () -> {
-            throw new UnsupportedOperationException();
-        }); // no exception this time
-
+        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
+        assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))
@@ -640,15 +749,20 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testNestedIndexPrefixes() throws IOException {
         {
-            MapperService mapperService = createMapperService(mapping(b -> b.startObject("object")
-                                .field("type", "object")
-                                .startObject("properties")
-                                    .startObject("field")
-                                        .field("type", "text")
-                                        .startObject("index_prefixes").endObject()
-                                    .endObject()
-                                .endObject()
-                            .endObject()));
+            MapperService mapperService = createMapperService(
+                mapping(
+                    b -> b.startObject("object")
+                        .field("type", "object")
+                        .startObject("properties")
+                        .startObject("field")
+                        .field("type", "text")
+                        .startObject("index_prefixes")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
             MappedFieldType textField = mapperService.fieldType("object.field");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
@@ -661,15 +775,20 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MapperService mapperService = createMapperService(mapping(b -> b.startObject("body")
-                                    .field("type", "text")
-                                    .startObject("fields")
-                                        .startObject("with_prefix")
-                                            .field("type", "text")
-                                            .startObject("index_prefixes").endObject()
-                                        .endObject()
-                                    .endObject()
-                                .endObject()));
+            MapperService mapperService = createMapperService(
+                mapping(
+                    b -> b.startObject("body")
+                        .field("type", "text")
+                        .startObject("fields")
+                        .startObject("with_prefix")
+                        .field("type", "text")
+                        .startObject("index_prefixes")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
             MappedFieldType textField = mapperService.fieldType("body.with_prefix");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
@@ -689,66 +808,79 @@ public class TextFieldMapperTests extends MapperTestCase {
             // "standard" will be replaced with MockSynonymAnalyzer
             b.startObject("synfield").field("type", "text").field("analyzer", "standard").field("index_phrases", true).endObject();
         }));
-        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
 
-        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
+        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(searchExecutionContext);
         assertThat(q, is(new PhraseQuery("field._index_phrase", "two words")));
 
-        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
+        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(searchExecutionContext);
         assertThat(q2, is(new PhraseQuery("field._index_phrase", "three words", "words here")));
 
-        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(searchExecutionContext);
         assertThat(q3, is(new PhraseQuery(1, "field", "two", "words")));
 
-        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
+        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(searchExecutionContext);
         assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
 
-        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
-        assertThat(q5,
-            is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
+        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
+        assertThat(q5, is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        MatchQuery matchQuery = new MatchQuery(queryShardContext);
-        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE, "synfield", "motor dogs");
-        assertThat(q6, is(new MultiPhraseQuery.Builder()
-            .add(new Term[]{
-                new Term("synfield._index_phrase", "motor dogs"),
-                new Term("synfield._index_phrase", "motor dog")})
-            .build()));
+        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+        matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+        Query q6 = matchQueryParser.parse(MatchQueryParser.Type.PHRASE, "synfield", "motor dogs");
+        assertThat(
+            q6,
+            is(
+                new MultiPhraseQuery.Builder().add(
+                    new Term[] { new Term("synfield._index_phrase", "motor dogs"), new Term("synfield._index_phrase", "motor dog") }
+                ).build()
+            )
+        );
 
         // https://github.com/elastic/elasticsearch/issues/43976
-        CannedTokenStream cts = new CannedTokenStream(
-            new Token("foo", 1, 0, 2, 2),
-            new Token("bar", 0, 0, 2),
-            new Token("baz", 1, 0, 2)
-        );
+        CannedTokenStream cts = new CannedTokenStream(new Token("foo", 1, 0, 2, 2), new Token("bar", 0, 0, 2), new Token("baz", 1, 0, 2));
         Analyzer synonymAnalyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 return new TokenStreamComponents(reader -> {}, cts);
             }
         };
-        matchQuery.setAnalyzer(synonymAnalyzer);
-        Query q7 = matchQuery.parse(MatchQuery.Type.BOOLEAN, "synfield", "foo");
-        assertThat(q7, is(new BooleanQuery.Builder().add(new BooleanQuery.Builder()
-            .add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
-            .add(new PhraseQuery.Builder()
-                .add(new Term("synfield._index_phrase", "bar baz"))
-                .build(), BooleanClause.Occur.SHOULD)
-            .build(), BooleanClause.Occur.SHOULD).build()));
+        matchQueryParser.setAnalyzer(synonymAnalyzer);
+        Query q7 = matchQueryParser.parse(MatchQueryParser.Type.BOOLEAN, "synfield", "foo");
+        assertThat(
+            q7,
+            is(
+                new BooleanQuery.Builder().add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
+                        .add(
+                            new PhraseQuery.Builder().add(new Term("synfield._index_phrase", "bar baz")).build(),
+                            BooleanClause.Occur.SHOULD
+                        )
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                ).build()
+            )
+        );
 
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
+            .parse(source(b -> b.array("field", "Some English text that is going to be very useful", "bad", "Prio 1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field._index_phrase");
+        assertEquals(3, fields.size());
 
-        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(), null)) {
+        try (TokenStream ts = fields.get(0).tokenStream(mapperService.indexAnalyzer(fields.get(0).name(), f -> null), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
             assertEquals("Some English", termAtt.toString());
         }
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            IndexSearcher searcher = newSearcher(ir);
+            MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
+            TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
+            assertEquals(1, td.totalHits.value());
+        });
 
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -783,12 +915,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        QueryShardContext qsc = createQueryShardContext(ms);
-        QueryStringQueryParser parser = new QueryStringQueryParser(qsc, "f");
+        SearchExecutionContext context = createSearchExecutionContext(ms);
+        QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-            .build()), q);
+        assertEquals(new ConstantScoreQuery(new FieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {
@@ -818,29 +948,38 @@ public class TextFieldMapperTests extends MapperTestCase {
                 )
             );
 
-            ParsedDocument doc
-                = ms.documentMapper().parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
-            IndexableField[] fields = doc.rootDoc().getFields("field._index_prefix");
-            assertEquals(1, fields.length);
+            ParsedDocument doc = ms.documentMapper()
+                .parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
+            List<IndexableField> fields = doc.rootDoc().getFields("field._index_prefix");
+            assertEquals(1, fields.size());
             withLuceneIndex(ms, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check we can index
 
-            assertAnalyzesTo(ms.indexAnalyzer(), "field._index_prefix", "tweedledum",
-                new String[]{ "tw", "twe", "twee", "tweed", "tweedl" });
+            assertAnalyzesTo(
+                ms.indexAnalyzer("field._index_prefix", f -> null),
+                "field._index_prefix",
+                "tweedledum",
+                new String[] { "tw", "twe", "twee", "tweed", "tweedl" }
+            );
         }
 
         {
             MapperService ms = createMapperService(
                 fieldMapping(b -> b.field("type", "text").field("analyzer", "standard").startObject("index_prefixes").endObject())
             );
-            assertAnalyzesTo(ms.indexAnalyzer(), "field._index_prefix", "tweedledum",
-                new String[]{ "tw", "twe", "twee", "tweed" });
+            assertAnalyzesTo(
+                ms.indexAnalyzer("field._index_prefix", f -> null),
+                "field._index_prefix",
+                "tweedledum",
+                new String[] { "tw", "twe", "twee", "tweed" }
+            );
         }
 
         {
-            MapperService ms = createMapperService(
-                fieldMapping(b -> b.field("type", "text").nullField("index_prefixes"))
+            MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").nullField("index_prefixes")));
+            expectThrows(
+                Exception.class,
+                () -> ms.indexAnalyzer("field._index_prefixes", f -> null).tokenStream("field._index_prefixes", "test")
             );
-            expectThrows(Exception.class, () -> ms.indexAnalyzer().tokenStream("field._index_prefixes", "test"));
         }
 
         {
@@ -907,33 +1046,27 @@ public class TextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("synfield", "some text which we will index")));
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check indexing
 
-        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
-            Query expected = new SpanNearQuery.Builder("field", true)
-                .addClause(new SpanTermQuery(new Term("field", "two")))
-                .addClause(new FieldMaskingSpanQuery(
-                    new SpanTermQuery(new Term("field._index_prefix", "words")), "field")
-                )
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(searchExecutionContext);
+            Query expected = new SpanNearQuery.Builder("field", true).addClause(new SpanTermQuery(new Term("field", "two")))
+                .addClause(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("field._index_prefix", "words")), "field"))
                 .build();
             assertThat(q, equalTo(expected));
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
-            Query expected = new SpanNearQuery.Builder("field", true)
-                .addClause(new SpanTermQuery(new Term("field", "three")))
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(searchExecutionContext);
+            Query expected = new SpanNearQuery.Builder("field", true).addClause(new SpanTermQuery(new Term("field", "three")))
                 .addClause(new SpanTermQuery(new Term("field", "words")))
-                .addClause(new FieldMaskingSpanQuery(
-                    new SpanTermQuery(new Term("field._index_prefix", "here")), "field")
-                )
+                .addClause(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("field._index_prefix", "here")), "field"))
                 .build();
             assertThat(q, equalTo(expected));
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
             mpq.setSlop(1);
             mpq.add(new Term("field", "two"));
@@ -942,7 +1075,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(searchExecutionContext);
             assertThat(
                 q,
                 is(new SynonymQuery.Builder("field._index_prefix").addTerm(new Term("field._index_prefix", "singleton")).build())
@@ -951,31 +1084,23 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         {
 
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
-            Query expected = new SpanNearQuery.Builder("field", true)
-                .addClause(new SpanTermQuery(new Term("field", "sparkle")))
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
+            Query expected = new SpanNearQuery.Builder("field", true).addClause(new SpanTermQuery(new Term("field", "sparkle")))
                 .addGap(1)
-                .addClause(new FieldMaskingSpanQuery(
-                    new SpanTermQuery(new Term("field._index_prefix", "stopword")), "field")
-                )
+                .addClause(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("field._index_prefix", "stopword")), "field"))
                 .build();
             assertThat(q, equalTo(expected));
         }
 
         {
-            MatchQuery matchQuery = new MatchQuery(queryShardContext);
-            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
-            Query expected = new SpanNearQuery.Builder("synfield", true)
-                .addClause(new SpanTermQuery(new Term("synfield", "motor")))
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "motor dogs");
+            Query expected = new SpanNearQuery.Builder("synfield", true).addClause(new SpanTermQuery(new Term("synfield", "motor")))
                 .addClause(
                     new SpanOrQuery(
-                        new FieldMaskingSpanQuery(
-                            new SpanTermQuery(new Term("synfield._index_prefix", "dogs")), "synfield"
-                        ),
-                        new FieldMaskingSpanQuery(
-                            new SpanTermQuery(new Term("synfield._index_prefix", "dog")), "synfield"
-                        )
+                        new FieldMaskingSpanQuery(new SpanTermQuery(new Term("synfield._index_prefix", "dogs")), "synfield"),
+                        new FieldMaskingSpanQuery(new SpanTermQuery(new Term("synfield._index_prefix", "dog")), "synfield")
                     )
                 )
                 .build();
@@ -983,10 +1108,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQuery matchQuery = new MatchQuery(queryShardContext);
-            matchQuery.setPhraseSlop(1);
-            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "two dogs");
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            matchQueryParser.setPhraseSlop(1);
+            matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "two dogs");
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("synfield");
             mpq.setSlop(1);
             mpq.add(new Term("synfield", "two"));
@@ -995,7 +1120,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "motor d").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "motor d").toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
             mpq.add(new Term("field", "motor"));
             mpq.add(new Term("field", "d"));
@@ -1032,5 +1157,204 @@ public class TextFieldMapperTests extends MapperTestCase {
         merge(mapperService, newField);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have a way to assert things here", true);
+        return null;
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true);
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
+        TextFieldFamilySyntheticSourceTestSetup.validateRoundTripReader(syntheticSource, reader, roundTripReader);
+    }
+
+    public void testUnknownAnalyzerOnLegacyIndex() throws IOException {
+        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "text").field("analyzer", "does_not_exist"));
+
+        expectThrows(MapperParsingException.class, () -> createMapperService(startingMapping));
+
+        MapperService mapperService = createMapperService(IndexVersion.fromId(5000099), startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        merge(mapperService, startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        // check that analyzer can be swapped out on legacy index
+        XContentBuilder differentAnalyzer = fieldMapping(b -> b.field("type", "text").field("analyzer", "keyword"));
+        merge(mapperService, differentAnalyzer);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+    }
+
+    public void testIgnoreFieldDataOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("fielddata", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        MapperService finalMapperService = mapperService;
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+        );
+    }
+
+    public void testIgnoreEagerGlobalOrdinalsOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("eager_global_ordinals", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("store", true)));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").field("doc_values", false).field("store", true).endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testEmpty() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        var d0 = source(b -> b.field("field", new String[0]));
+        var d1 = source(b -> b.field("field", ""));
+        var d2 = source(b -> b.field("field", "hello"));
+        var d3 = source(b -> b.nullField("field"));
+        withLuceneIndex(mapperService, iw -> {
+            for (SourceToParse src : List.of(d0, d1, d2, d3)) {
+                iw.addDocument(mapperService.documentMapper().parse(src).rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            MappedFieldType ft = mapperService.fieldType("field");
+            SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
+            SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+            IndexFieldData<?> sfd = ft.fielddataBuilder(
+                new FieldDataContext("", null, () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+            ).build(null, null);
+            LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+            TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
+            SortedBinaryDocValues dv = scriptDV.getInput();
+            assertFalse(dv.advanceExact(0));
+            assertTrue(dv.advanceExact(1));
+            assertTrue(dv.advanceExact(2));
+            assertFalse(dv.advanceExact(3));
+        });
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
+    }
+
+    public void testBlockLoaderFromParentColumnReader() throws IOException {
+        testBlockLoaderFromParent(true, randomBoolean());
+    }
+
+    public void testBlockLoaderParentFromRowStrideReader() throws IOException {
+        testBlockLoaderFromParent(false, randomBoolean());
+    }
+
+    private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
+        boolean storeParent = randomBoolean();
+        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(null, storeParent, null, false);
+        SyntheticSourceExample example = kwdSupport.example(5);
+        CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
+            b.startObject("field");
+            {
+                example.mapping().accept(b);
+                b.startObject("fields").startObject("sub");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        };
+        XContentBuilder mapping = mapping(buildFields);
+        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
+        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
+        var sourceLoader = mapper.mappingLookup().newSourceLoader(SourceFieldMetrics.NOOP);
+        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 }

@@ -1,30 +1,31 @@
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'searchable-snapshots'
   description 'A plugin for the searchable snapshots functionality'
   classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'blob-cache']
 }
-archivesBaseName = 'x-pack-searchable-snapshots'
+base {
+  archivesName = 'x-pack-searchable-snapshots'
+}
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('blob-cache'))
+  compileOnly project(path: ':libs:native')
+  testImplementation(testArtifact(project(xpackModule('blob-cache'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(project(path: xpackModule('shutdown')))
+  internalClusterTestImplementation(project(path: xpackModule('snapshot-based-recoveries')))
+  internalClusterTestImplementation(project(path: ':modules:reindex'))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
+tasks.named("internalClusterTest").configure {
+  // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.
+  systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256k'
 }

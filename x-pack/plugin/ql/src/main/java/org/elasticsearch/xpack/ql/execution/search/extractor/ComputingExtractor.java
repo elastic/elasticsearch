@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
@@ -68,7 +69,7 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
     public Object extract(Object input) {
         return processor.process(input);
     }
-    
+
     @Override
     public Object extract(Bucket bucket) {
         return processor.process(bucket);
@@ -90,8 +91,7 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
             return false;
         }
         ComputingExtractor other = (ComputingExtractor) obj;
-        return Objects.equals(processor, other.processor)
-                && Objects.equals(hitName, other.hitName);
+        return Objects.equals(processor, other.processor) && Objects.equals(hitName, other.hitName);
     }
 
     @Override

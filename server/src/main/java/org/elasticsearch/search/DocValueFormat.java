@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,8 +20,11 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -44,6 +38,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -87,11 +82,32 @@ public interface DocValueFormat extends NamedWriteable {
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    default BytesRef parseBytesRef(String value) {
+    default BytesRef parseBytesRef(Object value) {
         throw new UnsupportedOperationException();
     }
 
-    DocValueFormat RAW = new DocValueFormat() {
+    /**
+     * Formats a value of a sort field in a search response. This is used by {@link SearchSortValues}
+     * to avoid sending the internal representation of a value of a sort field in a search response.
+     * The default implementation formats {@link BytesRef} but leave other types as-is.
+     */
+    default Object formatSortValue(Object value) {
+        if (value instanceof BytesRef) {
+            return format((BytesRef) value);
+        }
+        return value;
+    }
+
+    DocValueFormat RAW = RawDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter for "Raw" values, generally taken to mean keywords and other strings.
+     */
+    class RawDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new RawDocValueFormat();
+
+        private RawDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -99,8 +115,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Long format(long value) {
@@ -114,7 +129,11 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(BytesRef value) {
-            return value.utf8ToString();
+            try {
+                return value.utf8ToString();
+            } catch (Exception | AssertionError e) {
+                throw new IllegalArgumentException("Failed trying to format bytes as UTF8.  Possibly caused by a mapping mismatch", e);
+            }
         }
 
         @Override
@@ -140,8 +159,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(value);
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(value.toString());
         }
 
         @Override
@@ -150,7 +169,41 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat BINARY = new DocValueFormat() {
+    DocValueFormat DENSE_VECTOR = DenseVectorDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter, for dense vector values, no need to actually format anything
+     */
+    class DenseVectorDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new DenseVectorDocValueFormat();
+
+        private DenseVectorDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "dense_vector";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "dense_vector";
+        }
+    };
+
+    DocValueFormat BINARY = BinaryDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter, for representing bytes as base64 strings
+     */
+    class BinaryDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new BinaryDocValueFormat();
+
+        private BinaryDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -158,29 +211,32 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(BytesRef value) {
-            return Base64.getEncoder()
-                    .withoutPadding()
-                    .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
+            return Base64.getEncoder().encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(Base64.getDecoder().decode(value));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(Base64.getDecoder().decode(value.toString()));
         }
     };
 
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
-            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS);
+        if (format instanceof DateTime dateTime) {
+            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS, dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
         }
+    }
+
+    static DocValueFormat enableFormatSortValues(DocValueFormat format) {
+        if (format instanceof DateTime dateTime) {
+            return new DateTime(dateTime.formatter, dateTime.timeZone, dateTime.resolution, true);
+        }
+        throw new IllegalArgumentException("require a date_time formatter; got [" + format.getWriteableName() + "]");
     }
 
     final class DateTime implements DocValueFormat {
@@ -191,27 +247,38 @@ public interface DocValueFormat extends NamedWriteable {
         final ZoneId timeZone;
         private final DateMathParser parser;
         final DateFieldMapper.Resolution resolution;
+        final boolean formatSortValues;
 
         public DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution) {
-            this.formatter = formatter;
-            this.timeZone = Objects.requireNonNull(timeZone);
-            this.parser = formatter.toDateMathParser();
-            this.resolution = resolution;
+            this(formatter, timeZone, resolution, false);
         }
 
-        public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatter.forPattern(in.readString());
-            this.parser = formatter.toDateMathParser();
+        private DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution, boolean formatSortValues) {
+            this.timeZone = Objects.requireNonNull(timeZone);
+            this.formatter = formatter.withZone(timeZone);
+            this.parser = this.formatter.toDateMathParser();
+            this.resolution = resolution;
+            this.formatSortValues = formatSortValues;
+        }
+
+        private DateTime(StreamInput in) throws IOException {
+            String formatterPattern = in.readString();
+            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
+                ? LocaleUtils.parse(in.readString())
+                : DateFieldMapper.DEFAULT_LOCALE;
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
+            this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone).withLocale(locale);
+            this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
                 /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence we can ignore this flag.
                 */
                 in.readBoolean();
             }
+            this.formatSortValues = in.readBoolean();
         }
 
         @Override
@@ -219,18 +286,30 @@ public interface DocValueFormat extends NamedWriteable {
             return NAME;
         }
 
+        public static DateTime readFrom(StreamInput in) throws IOException {
+            final DateTime dateTime = new DateTime(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(dateTime);
+            }
+            return dateTime;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                out.writeString(formatter.locale().toString());
+            }
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
-            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
                 /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence this flag is always false.
                 */
                 out.writeBoolean(false);
             }
+            out.writeBoolean(formatSortValues);
         }
 
         public DateMathParser getDateMathParser() {
@@ -248,6 +327,16 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
+        public Object formatSortValue(Object value) {
+            if (formatSortValues) {
+                if (value instanceof Long) {
+                    return format((Long) value);
+                }
+            }
+            return value;
+        }
+
+        @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
             return resolution.convert(parser.parse(value, now, roundUp, timeZone));
         }
@@ -261,9 +350,38 @@ public interface DocValueFormat extends NamedWriteable {
         public String toString() {
             return "DocValueFormat.DateTime(" + formatter + ", " + timeZone + ", " + resolution + ")";
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            DateTime that = (DateTime) o;
+            return formatter.equals(that.formatter)
+                && timeZone.equals(that.timeZone)
+                && resolution == that.resolution
+                && formatSortValues == that.formatSortValues;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(formatter, timeZone, resolution, formatSortValues);
+        }
     }
 
-    DocValueFormat GEOHASH = new DocValueFormat() {
+    DocValueFormat GEOHASH = GeoHashDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter for geo hash values
+     */
+    class GeoHashDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new GeoHashDocValueFormat();
+
+        private GeoHashDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -271,8 +389,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(long value) {
@@ -285,7 +402,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat GEOTILE = new DocValueFormat() {
+    DocValueFormat GEOTILE = GeoTileDocValueFormat.INSTANCE;
+
+    class GeoTileDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new GeoTileDocValueFormat();
+
+        private GeoTileDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -293,8 +416,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(long value) {
@@ -305,9 +427,23 @@ public interface DocValueFormat extends NamedWriteable {
         public String format(double value) {
             return format((long) value);
         }
+
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            return GeoTileUtils.longEncode(value);
+        }
     };
 
-    DocValueFormat BOOLEAN = new DocValueFormat() {
+    DocValueFormat BOOLEAN = BooleanDocValueFormat.INSTANCE;
+
+    /**
+     * Stateless, Singleton formatter for boolean values.  Parses the strings "true" and "false" as inputs.
+     */
+    class BooleanDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new BooleanDocValueFormat();
+
+        private BooleanDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -315,8 +451,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Boolean format(long value) {
@@ -331,10 +466,10 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
             switch (value) {
-            case "false":
-                return 0;
-            case "true":
-                return 1;
+                case "false":
+                    return 0;
+                case "true":
+                    return 1;
             }
             throw new IllegalArgumentException("Cannot parse boolean [" + value + "], expected either [true] or [false]");
         }
@@ -345,7 +480,16 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat IP = new DocValueFormat() {
+    IpDocValueFormat IP = IpDocValueFormat.INSTANCE;
+
+    /**
+     * Stateless, singleton formatter for IP address data
+     */
+    class IpDocValueFormat implements DocValueFormat {
+
+        public static final IpDocValueFormat INSTANCE = new IpDocValueFormat();
+
+        private IpDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -353,19 +497,25 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(BytesRef value) {
-            byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-            InetAddress inet = InetAddressPoint.decode(bytes);
-            return NetworkAddress.format(inet);
+            try {
+                byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+                InetAddress inet = InetAddressPoint.decode(bytes);
+                return NetworkAddress.format(inet);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Failed trying to format bytes as IP address.  Possibly caused by a mapping mismatch",
+                    e
+                );
+            }
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value.toString())));
         }
 
         @Override
@@ -387,13 +537,21 @@ public interface DocValueFormat extends NamedWriteable {
             this.format = new DecimalFormat(pattern, SYMBOLS);
         }
 
-        public Decimal(StreamInput in) throws IOException {
+        private Decimal(StreamInput in) throws IOException {
             this(in.readString());
         }
 
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public static Decimal readFrom(StreamInput in) throws IOException {
+            final Decimal decimal = new Decimal(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(decimal);
+            }
+            return decimal;
         }
 
         @Override
@@ -433,7 +591,7 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 n = format.parse(value);
             } catch (ParseException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Cannot parse the value [" + value + "] using the pattern [" + pattern + "]", e);
             }
             if (format.isParseIntegerOnly()) {
                 return n.longValue();
@@ -454,7 +612,7 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 n = format.parse(value);
             } catch (ParseException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Cannot parse the value [" + value + "] using the pattern [" + pattern + "]", e);
             }
             return n.doubleValue();
         }
@@ -475,13 +633,24 @@ public interface DocValueFormat extends NamedWriteable {
         public int hashCode() {
             return Objects.hash(pattern);
         }
+
+        @Override
+        public String toString() {
+            return pattern;
+        }
     };
+
+    DocValueFormat UNSIGNED_LONG_SHIFTED = UnsignedLongShiftedDocValueFormat.INSTANCE;
 
     /**
      * DocValues format for unsigned 64 bit long values,
      * that are stored as shifted signed 64 bit long values.
      */
-    DocValueFormat UNSIGNED_LONG_SHIFTED = new DocValueFormat() {
+    class UnsignedLongShiftedDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new UnsignedLongShiftedDocValueFormat();
+
+        private UnsignedLongShiftedDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -489,8 +658,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String toString() {
@@ -523,6 +691,14 @@ public interface DocValueFormat extends NamedWriteable {
             }
         }
 
+        @Override
+        public Object formatSortValue(Object value) {
+            if (value instanceof Long) {
+                return format((Long) value);
+            }
+            return value;
+        }
+
         /**
          * Double docValues of the unsigned_long field type are already in the formatted representation,
          * so we don't need to do anything here
@@ -535,6 +711,97 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return Double.parseDouble(value);
+        }
+    };
+
+    DocValueFormat TIME_SERIES_ID = new TimeSeriesIdDocValueFormat();
+
+    /**
+     * DocValues format for time series id.
+     */
+    class TimeSeriesIdDocValueFormat implements DocValueFormat {
+        private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
+
+        private TimeSeriesIdDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "tsid";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "tsid";
+        }
+
+        /**
+         * @param value The TSID as a {@link BytesRef}
+         * @return the Base 64 encoded TSID
+         */
+        @Override
+        public Object format(BytesRef value) {
+            try {
+                // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
+                // tsid hashing) we just decode the map and return it.
+                return RoutingPathFields.decodeAsMap(value);
+            } catch (Exception e) {
+                // NOTE: otherwise the _tsid field is just a hash and we can't decode it
+                return TimeSeriesIdFieldMapper.encodeTsid(value);
+            }
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            if (value instanceof BytesRef valueAsBytesRef) {
+                return valueAsBytesRef;
+            }
+            if (value instanceof String valueAsString) {
+                return new BytesRef(BASE64_DECODER.decode(valueAsString));
+            }
+            return parseBytesRefMap(value);
+        }
+
+        /**
+         * After introducing tsid hashing this tsid parsing logic is deprecated.
+         * Tsid hashing does not allow us to parse the tsid extracting dimension fields key/values pairs.
+         * @param value The Map encoding tsid dimension fields key/value pairs.
+         *
+         * @return a {@link BytesRef} representing a map of key/value pairs
+         */
+        private BytesRef parseBytesRefMap(Object value) {
+            if (value instanceof Map<?, ?> == false) {
+                throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
+            }
+
+            Map<?, ?> m = (Map<?, ?>) value;
+            RoutingPathFields routingPathFields = new RoutingPathFields(null);
+            for (Map.Entry<?, ?> entry : m.entrySet()) {
+                String f = entry.getKey().toString();
+                Object v = entry.getValue();
+
+                if (v instanceof String s) {
+                    routingPathFields.addString(f, s);
+                } else if (v instanceof Long l) {
+                    routingPathFields.addLong(f, l);
+                } else if (v instanceof Integer i) {
+                    routingPathFields.addLong(f, i.longValue());
+                } else if (v instanceof BigInteger ul) {
+                    long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
+                    routingPathFields.addUnsignedLong(f, ll);
+                } else {
+                    throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
+                }
+            }
+
+            try {
+                // NOTE: we can decode the tsid only if it is not hashed (represented as a map)
+                return TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef();
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
         }
     };
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
@@ -13,6 +14,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
+/**
+ * Query that inverts the set of matched documents.
+ */
 public class NotQuery extends Query {
     private final Query child;
 
@@ -69,5 +73,10 @@ public class NotQuery extends Query {
     @Override
     protected String innerToString() {
         return child.toString();
+    }
+
+    @Override
+    public Query negate(Source source) {
+        return child;
     }
 }

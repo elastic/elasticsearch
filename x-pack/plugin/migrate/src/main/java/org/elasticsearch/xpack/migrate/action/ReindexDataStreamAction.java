@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,6 +25,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
 
     public static final ReindexDataStreamAction INSTANCE = new ReindexDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/reindex";
+    public static final String REINDEX_DATA_STREAM_ORIGIN = "reindex_data_stream";
 
     public ReindexDataStreamAction() {
         super(NAME);
@@ -70,7 +73,8 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
 
     }
 
-    public static class ReindexDataStreamRequest extends ActionRequest {
+    public static class ReindexDataStreamRequest extends ActionRequest implements IndicesRequest {
+
         private final String sourceDataStream;
 
         public ReindexDataStreamRequest(String sourceDataStream) {
@@ -112,6 +116,16 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         public boolean equals(Object other) {
             return other instanceof ReindexDataStreamRequest
                 && sourceDataStream.equals(((ReindexDataStreamRequest) other).sourceDataStream);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { sourceDataStream };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
     }
 }

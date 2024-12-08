@@ -1264,7 +1264,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertEquals(1, nestedProperties.size());
             assertTrue(nestedProperties.containsKey("inner1"));
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition, Collections.emptySet());
             CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
             Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
@@ -1308,7 +1308,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertEquals(1, inner2.size());
             assertEquals("keyword", inner2.get("type"));
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition, Collections.emptySet());
             CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
             Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
@@ -1336,7 +1336,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             Map<String, Object> objectProperties = (Map<String, Object>) objectMapping.get("properties");
             assertEquals(0, objectProperties.size());
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition, Collections.emptySet());
             CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
             Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
@@ -1367,7 +1367,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertEquals(1, nestedProperties.size());
             assertTrue(nestedProperties.containsKey("inner2"));
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition, Collections.emptySet());
             CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
             Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);

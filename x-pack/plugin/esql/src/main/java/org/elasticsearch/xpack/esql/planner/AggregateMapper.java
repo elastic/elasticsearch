@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -91,7 +92,7 @@ final class AggregateMapper {
     private record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
 
     /** Map of AggDef types to intermediate named expressions. */
-    private static final Map<AggDef, List<IntermediateStateDesc>> mapper = AGG_FUNCTIONS.stream()
+    private static final Map<AggDef, List<IntermediateStateDesc>> MAPPER = AGG_FUNCTIONS.stream()
         .flatMap(AggregateMapper::typeAndNames)
         .flatMap(AggregateMapper::groupingAndNonGrouping)
         .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));
@@ -103,50 +104,57 @@ final class AggregateMapper {
         cache = new HashMap<>();
     }
 
-    public List<NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
+    public List<NamedExpression> mapNonGrouping(List<? extends NamedExpression> aggregates) {
         return doMapping(aggregates, false);
     }
 
-    public List<NamedExpression> mapNonGrouping(Expression aggregate) {
+    public List<NamedExpression> mapNonGrouping(NamedExpression aggregate) {
         return map(aggregate, false).toList();
     }
 
-    public List<NamedExpression> mapGrouping(List<? extends Expression> aggregates) {
+    public List<NamedExpression> mapGrouping(List<? extends NamedExpression> aggregates) {
         return doMapping(aggregates, true);
     }
 
-    private List<NamedExpression> doMapping(List<? extends Expression> aggregates, boolean grouping) {
+    private List<NamedExpression> doMapping(List<? extends NamedExpression> aggregates, boolean grouping) {
         AttributeMap<NamedExpression> attrToExpressions = new AttributeMap<>();
-        aggregates.stream().flatMap(agg -> map(agg, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
+        aggregates.stream().flatMap(ne -> map(ne, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
         return attrToExpressions.values().stream().toList();
     }
 
-    public List<NamedExpression> mapGrouping(Expression aggregate) {
+    public List<NamedExpression> mapGrouping(NamedExpression aggregate) {
         return map(aggregate, true).toList();
     }
 
-    private Stream<NamedExpression> map(Expression aggregate, boolean grouping) {
-        return cache.computeIfAbsent(Alias.unwrap(aggregate), aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
+    private Stream<NamedExpression> map(NamedExpression ne, boolean grouping) {
+        return cache.computeIfAbsent(Alias.unwrap(ne), aggKey -> computeEntryForAgg(ne.name(), aggKey, grouping)).stream();
     }
 
-    private static List<NamedExpression> computeEntryForAgg(Expression aggregate, boolean grouping) {
-        var aggDef = aggDefOrNull(aggregate, grouping);
-        if (aggDef != null) {
-            var is = getNonNull(aggDef);
-            var exp = isToNE(is).toList();
-            return exp;
+    private static List<NamedExpression> computeEntryForAgg(String aggAlias, Expression aggregate, boolean grouping) {
+        if (aggregate instanceof AggregateFunction aggregateFunction) {
+            return entryForAgg(aggAlias, aggregateFunction, grouping);
         }
         if (aggregate instanceof FieldAttribute || aggregate instanceof MetadataAttribute || aggregate instanceof ReferenceAttribute) {
-            // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
+            // This condition is a little pedantic, but do we expect other expressions here? if so, then add them
             return List.of();
-        } else {
-            throw new EsqlIllegalArgumentException("unknown agg: " + aggregate.getClass() + ": " + aggregate);
         }
+        throw new EsqlIllegalArgumentException("unknown agg: " + aggregate.getClass() + ": " + aggregate);
+    }
+
+    private static List<NamedExpression> entryForAgg(String aggAlias, AggregateFunction aggregateFunction, boolean grouping) {
+        var aggDef = new AggDef(
+            aggregateFunction.getClass(),
+            dataTypeToString(aggregateFunction.field().dataType(), aggregateFunction.getClass()),
+            aggregateFunction instanceof SpatialCentroid ? "SourceValues" : "",
+            grouping
+        );
+        var is = getNonNull(aggDef);
+        return isToNE(is, aggAlias).toList();
     }
 
     /** Gets the agg from the mapper - wrapper around map::get for more informative failure.*/
     private static List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
-        var l = mapper.get(aggDef);
+        var l = MAPPER.get(aggDef);
         if (l == null) {
             throw new EsqlIllegalArgumentException("Cannot find intermediate state for: " + aggDef);
         }
@@ -199,18 +207,6 @@ final class AggregateMapper {
         }
     }
 
-    private static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
-        if (aggregate instanceof AggregateFunction aggregateFunction) {
-            return new AggDef(
-                aggregateFunction.getClass(),
-                dataTypeToString(aggregateFunction.field().dataType(), aggregateFunction.getClass()),
-                aggregate instanceof SpatialCentroid ? "SourceValues" : "",
-                grouping
-            );
-        }
-        return null;
-    }
-
     /** Retrieves the intermediate state description for a given class, type, and grouping. */
     private static List<IntermediateStateDesc> lookupIntermediateState(AggDef aggDef) {
         try {
@@ -257,7 +253,7 @@ final class AggregateMapper {
     }
 
     /** Maps intermediate state description to named expressions.  */
-    private static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
+    private static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs, String aggAlias) {
         return intermediateStateDescs.stream().map(is -> {
             final DataType dataType;
             if (Strings.isEmpty(is.dataType())) {
@@ -265,7 +261,7 @@ final class AggregateMapper {
             } else {
                 dataType = DataType.fromEs(is.dataType());
             }
-            return new ReferenceAttribute(Source.EMPTY, is.name(), dataType);
+            return new ReferenceAttribute(Source.EMPTY, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
         });
     }
 

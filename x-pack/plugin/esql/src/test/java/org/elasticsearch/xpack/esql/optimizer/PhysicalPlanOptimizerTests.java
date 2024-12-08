@@ -2543,7 +2543,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = asRemoteExchange(aggregate.child());
         var localSourceExec = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
+        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "$$m$min", "$$m$seen"));
     }
 
     /**
@@ -2579,9 +2579,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("count", "seen"));
+        assertThat(Expressions.names(exchange.output()), contains("$$c$count", "$$c$seen"));
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("count", "seen"));
+        assertThat(Expressions.names(source.output()), contains("$$c$count", "$$c$seen"));
     }
 
     /**
@@ -2613,7 +2613,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         // The partial aggregation's output is determined via AbstractPhysicalOperationProviders.intermediateAttributes()
-        assertThat(Expressions.names(aggPartial.output()), contains("count", "seen"));
+        assertThat(Expressions.names(aggPartial.output()), contains("$$c$count", "$$c$seen"));
         limit = as(aggPartial.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2651,9 +2651,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.output(), hasSize(2));
         var exchange = as(aggFinal.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(exchange.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(source.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
     }
 
     /**

@@ -2360,10 +2360,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         return repositoryMetaVersion.onOrAfter(UUIDS_IN_REPO_DATA_VERSION);
     }
 
-    public static boolean includeFileInfoWriterUUID(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
-    }
-
     /** Deletes snapshot from repository
      *
      * @param deleteEntry       delete entry in cluster state

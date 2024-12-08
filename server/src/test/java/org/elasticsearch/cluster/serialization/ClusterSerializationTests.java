@@ -88,7 +88,6 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     public void testClusterStateSerializationWithTimestampRangesWithOlderTransportVersion() throws Exception {
         TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(
-            TransportVersions.V_7_0_0,
             TransportVersions.V_8_0_0,
             TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_15_0)
         );

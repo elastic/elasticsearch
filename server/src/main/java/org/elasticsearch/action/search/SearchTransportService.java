@@ -40,13 +40,16 @@ import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.NodeSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchResponseAsRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -91,6 +94,8 @@ public class SearchTransportService {
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+    public static final String BATCH_QUERY_ACTION_NAME = "indices:data/read/search[query][n]";
+    public static final String QUERY_RESPONSE_ACTION_NAME = "indices:data/read/search[response]";
 
     public static final String RANK_FEATURE_SHARD_ACTION_NAME = "indices:data/read/search[phase/rank/feature]";
 
@@ -215,6 +220,21 @@ public class SearchTransportService {
             request,
             task,
             new ConnectionCountingHandler<>(handler, reader, connection)
+        );
+    }
+
+    public void sendExecuteQuery(
+        Transport.Connection connection,
+        final NodeSearchRequest requests,
+        SearchTask task,
+        final ActionListener<TransportResponse.Empty> listener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            BATCH_QUERY_ACTION_NAME,
+            requests,
+            task,
+            new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -503,6 +523,39 @@ public class SearchTransportService {
             QUERY_ACTION_NAME,
             true,
             (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new
+        );
+
+        transportService.registerRequestHandler(
+            BATCH_QUERY_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            NodeSearchRequest::new,
+            (request, channel, task) -> {
+                new ChannelActionListener<>(channel).onResponse(TransportResponse.Empty.INSTANCE);
+                searchService.executeQueryPhase(request, task, transportService, (parentNode, shardSearchResponseAsRequest) -> {
+
+                    transportService.sendChildRequest(
+                        parentNode,
+                        QUERY_RESPONSE_ACTION_NAME,
+                        shardSearchResponseAsRequest,
+                        task,
+                        TransportRequestOptions.EMPTY,
+                        TransportResponseHandler.empty(EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop())
+                    );
+                });
+            }
+        );
+
+        transportService.registerRequestHandler(
+            QUERY_RESPONSE_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ShardSearchResponseAsRequest::new,
+            (request, channel, task) -> {
+                Task parentTask = transportService.getTaskManager().getTask(task.getParentTaskId().getId());
+                Task originalTask = transportService.getTaskManager().getTask(parentTask.getParentTaskId().getId());
+                if (originalTask instanceof SearchTask searchTask) {
+                    searchTask.getResponseAsRequestConsumer().accept(request);
+                }
+            }
         );
 
         transportService.registerRequestHandler(

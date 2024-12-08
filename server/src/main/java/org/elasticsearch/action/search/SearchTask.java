@@ -9,10 +9,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.search.internal.ShardSearchResponseAsRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -23,6 +25,7 @@ public class SearchTask extends CancellableTask {
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
     private Supplier<SearchResponseMerger> searchResponseMergerSupplier;  // used for CCS minimize_roundtrips=true
+    private volatile Consumer<ShardSearchResponseAsRequest> responseAsRequestConsumer;
 
     public SearchTask(
         long id,
@@ -76,5 +79,13 @@ public class SearchTask extends CancellableTask {
      */
     public boolean isAsync() {
         return false;
+    }
+
+    public Consumer<ShardSearchResponseAsRequest> getResponseAsRequestConsumer() {
+        return responseAsRequestConsumer;
+    }
+
+    public void setResponseAsRequestConsumer(Consumer<ShardSearchResponseAsRequest> responseAsRequestConsumer) {
+        this.responseAsRequestConsumer = responseAsRequestConsumer;
     }
 }

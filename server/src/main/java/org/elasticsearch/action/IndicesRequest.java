@@ -42,6 +42,10 @@ public interface IndicesRequest {
         return false;
     }
 
+    default boolean shouldBatchRequestsPerDataNode() {
+        return false;
+    }
+
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.

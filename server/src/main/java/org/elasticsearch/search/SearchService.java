@@ -18,14 +18,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -100,10 +101,12 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
+import org.elasticsearch.search.internal.NodeSearchRequest;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchResponseAsRequest;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
@@ -123,13 +126,16 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
@@ -146,9 +152,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
+import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
@@ -565,6 +574,45 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // return an empty response (not null response) in case canMatch is false?
             ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
         }));
+    }
+
+    public void executeQueryPhase(
+        NodeSearchRequest requests,
+        Task parentTask,
+        TransportService transportService,
+        BiConsumer<DiscoveryNode, ShardSearchResponseAsRequest> resultConsumer
+    ) {
+        DiscoveryNode parentNode = clusterService.state().nodes().get(parentTask.getParentTaskId().getNodeId());
+        Transport.Connection connection = transportService.getLocalNodeConnection();
+        for (ShardSearchRequest request : requests.getShardRequests()) {
+
+            ActionListenerResponseHandler<SearchPhaseResult> responseHandler = new ActionListenerResponseHandler<>(
+                new ActionListener<SearchPhaseResult>() {
+                    @Override
+                    public void onResponse(SearchPhaseResult searchPhaseResult) {
+                        assert searchPhaseResult instanceof QuerySearchResult;
+                        resultConsumer.accept(
+                            parentNode,
+                            new ShardSearchResponseAsRequest(
+                                (QuerySearchResult) searchPhaseResult,
+                                searchPhaseResult.getSearchShardTarget().getShardId()
+                            )
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        resultConsumer.accept(parentNode, new ShardSearchResponseAsRequest(e, request.shardId()));
+                    }
+                },
+                in -> {
+                    // only used locally no need a reader
+                    throw new AssertionError();
+                },
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, parentTask, responseHandler);
+        }
     }
 
     private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
@@ -1637,7 +1685,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
-        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        assert request.searchType() == QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         Releasable releasable = null;
         try {
             IndexService indexService;

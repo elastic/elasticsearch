@@ -102,6 +102,13 @@ public interface RoutingChangesObserver {
         }
 
         @Override
+        public void relocationFailureInfoUpdated(ShardRouting relocatedShard, RelocationFailureInfo relocationFailureInfo) {
+            for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
+                routingChangesObserver.relocationFailureInfoUpdated(relocatedShard, relocationFailureInfo);
+            }
+        }
+
+        @Override
         public void shardFailed(ShardRouting activeShard, UnassignedInfo unassignedInfo) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
                 routingChangesObserver.shardFailed(activeShard, unassignedInfo);

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.hamcrest.Matchers;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -55,6 +56,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -307,6 +309,41 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                     );
             }
         }
+    }
+
+    public void testForecasWithTsdbDataStreamDoesNotFail() {
+        Instant from = Instant.now();
+        Instant to = from.plusMillis(60 * 60 * 1000);
+        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStream("test", List.of(new Tuple<>(from, to)));
+        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
+        stateBuilder.routingTable(
+            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+        );
+        IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
+        long lastCreated = 1000;
+        applyCreatedDates(
+            originalState,
+            stateBuilder,
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            lastCreated,
+            1
+        );
+        ClusterState state = stateBuilder.build();
+
+        state = randomAllocate(state);
+        ClusterInfo info = randomClusterInfo(state);
+        ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
+            state,
+            null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            null,
+            info,
+            null,
+            Sets.newHashSet(state.nodes()),
+            Set.of()
+        );
+        ReactiveStorageDeciderService.AllocationState forecast = allocationState.forecast(100, lastCreated + 101);
+        assertThat(forecast, notNullValue());
     }
 
     private long totalSize(List<Index> indices, RoutingTable routingTable, ClusterInfo info) {

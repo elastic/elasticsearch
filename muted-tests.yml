@@ -272,6 +272,28 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
   issue: https://github.com/elastic/elasticsearch/issues/118196
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured
+  issue: https://github.com/elastic/elasticsearch/issues/118202
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
+  issue: https://github.com/elastic/elasticsearch/issues/118208
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test51AutoConfigurationWithPasswordProtectedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/118212
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testUnifiedCompletionInference
+  issue: https://github.com/elastic/elasticsearch/issues/118210
+- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/118215
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/118217
+- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
+  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
+  issue: https://github.com/elastic/elasticsearch/issues/118220
+- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/118224
 
 # Examples:
 #

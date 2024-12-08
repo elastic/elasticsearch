@@ -44,6 +44,7 @@ public final class SearchCapabilities {
     private static final String MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM = "multi_dense_vector_script_max_sim_with_bugfix";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+    private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -55,6 +56,7 @@ public final class SearchCapabilities {
         capabilities.add(TRANSFORM_RANK_RRF_TO_RETRIEVER);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
         capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
+        capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
             capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);

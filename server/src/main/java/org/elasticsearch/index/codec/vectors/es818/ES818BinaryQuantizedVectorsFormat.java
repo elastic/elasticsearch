@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es816;
+package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -34,15 +34,15 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
+public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
-    public static final String NAME = "ES816BinaryQuantizedVectorsFormat";
+    public static final String NAME = "ES818BinaryQuantizedVectorsFormat";
 
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
-    static final String META_CODEC_NAME = "ES816BinaryQuantizedVectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "ES816BinaryQuantizedVectorsFormatData";
+    static final String META_CODEC_NAME = "ES818BinaryQuantizedVectorsFormatMeta";
+    static final String VECTOR_DATA_CODEC_NAME = "ES818BinaryQuantizedVectorsFormatData";
     static final String META_EXTENSION = "vemb";
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
@@ -51,23 +51,23 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    private static final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(
+    private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
     /** Creates a new instance with the default number of vectors per cluster. */
-    public ES816BinaryQuantizedVectorsFormat() {
+    public ES818BinaryQuantizedVectorsFormat() {
         super(NAME);
     }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        throw new UnsupportedOperationException();
+        return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES816BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
     }
 
     @Override
@@ -77,6 +77,6 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public String toString() {
-        return "ES816BinaryQuantizedVectorsFormat(name=" + NAME + ", flatVectorScorer=" + scorer + ")";
+        return "ES818BinaryQuantizedVectorsFormat(name=" + NAME + ", flatVectorScorer=" + scorer + ")";
     }
 }

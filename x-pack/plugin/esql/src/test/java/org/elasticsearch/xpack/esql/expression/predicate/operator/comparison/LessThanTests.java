@@ -136,6 +136,34 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
         );
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Instant) l).isBefore((Instant) r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Instant) l).isBefore((Instant) r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
                 (lhsType, rhsType) -> "LessThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",

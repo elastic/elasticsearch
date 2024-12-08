@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
+import org.elasticsearch.xpack.security.authc.saml.SingleSamlSpConfiguration;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -112,9 +114,12 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             .put("path.home", createTempDir())
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SP_URL)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SP_URL)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_ENTITY_ID), SP_URL)
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_ACS), SP_URL)
+            .put(
+                getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()),
+                "uid"
+            )
             .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
@@ -240,7 +245,13 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));
+        samlRealm = SamlRealm.create(
+            realmConfig,
+            mock(SSLService.class),
+            mock(ResourceWatcherService.class),
+            mock(UserRoleMapper.class),
+            SingleSamlSpConfiguration.create(realmConfig)
+        );
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
     }
 
@@ -260,7 +271,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             nameId
         );
         final User user = new User("punisher", new String[] { "superuser" }, null, null, userMetadata, true);
-        final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
+        final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SingleSpSamlRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null),
             session

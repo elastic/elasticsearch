@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -241,6 +242,10 @@ public class RealmSettings {
                 realmSettings.keySet().stream().map(k -> prefix + k).collect(Collectors.joining(","))
             );
         }
+    }
+
+    public static <T> String getFullSettingKey(String realmName, Function<String, Setting.AffixSetting<T>> setting) {
+        return setting.apply(SingleSpSamlRealmSettings.TYPE).getConcreteSettingForNamespace(realmName).getKey();
     }
 
     public static String getFullSettingKey(String realmName, Setting.AffixSetting<?> setting) {

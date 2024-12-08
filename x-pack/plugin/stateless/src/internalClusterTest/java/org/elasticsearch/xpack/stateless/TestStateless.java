@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -59,6 +60,7 @@ public class TestStateless extends Stateless {
         Settings settings,
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
+        IndicesService indicesService,
         Client client,
         StatelessCommitCleaner commitCleaner,
         StatelessSharedBlobCacheService cacheService,
@@ -69,6 +71,7 @@ public class TestStateless extends Stateless {
             settings,
             objectStoreService,
             clusterService,
+            indicesService,
             client,
             commitCleaner,
             cacheService,

@@ -92,6 +92,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -151,6 +152,7 @@ public class FakeStatelessNode implements Closeable {
     public final TransportService transportService;
     public final RepositoriesService repoService;
     public final ObjectStoreService objectStoreService;
+    public final IndicesService indicesService;
     public final StatelessCommitService commitService;
     public final NodeEnvironment nodeEnvironment;
     public final ThreadPool threadPool;
@@ -281,6 +283,7 @@ public class FakeStatelessNode implements Closeable {
             objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService);
             objectStoreService.start();
             localCloseables.add(objectStoreService);
+            indicesService = mock(IndicesService.class);
             electionStrategy = new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool);
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
@@ -480,6 +483,7 @@ public class FakeStatelessNode implements Closeable {
             nodeSettings,
             clusterService,
             objectStoreService,
+            indicesService,
             () -> clusterService.localNode().getEphemeralId(),
             this::getShardRoutingTable,
             clusterService.threadPool(),

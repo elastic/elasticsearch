@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -43,8 +42,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SearchLoadSamplerTests extends ESTestCase {
     record PublishedMetric(int sampleNum, boolean hasLoad, MetricQuality quality) {}
@@ -135,9 +132,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
 
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
-
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(maxSamplesBetweenMetricPublications - 1);
@@ -164,7 +158,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             metricQualitySupplier,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -186,9 +180,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
     public void testSearchLoadIsPublishedWithFixedFrequencyIfItDoesNotChange() {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
-
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
 
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
@@ -214,7 +205,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -236,9 +227,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
     public void testMetricsArePublishedAlwaysWhenSensitivityIsZero() {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
-
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
 
         var minSensitivityRatio = 0;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
@@ -267,7 +255,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
 
         ) {
             @Override
@@ -289,9 +277,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
     public void testMetricsArePublishedWhenChangeIsAboveSensitivity() {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
-
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
 
         // TODO: maybe randomize numProcessors
         var minSensitivityRatio = 0.1;
@@ -338,7 +323,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -360,9 +345,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
     public void testMetricsArePublishedWhenChangeIsAboveSensitivityInIncrementsBelowSensitivity() {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
-
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
 
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
@@ -389,7 +371,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -420,9 +402,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
     public void testMetricsAreNotPublishedWhenChangeIsBelowSensitivity() {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
-
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
 
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
@@ -468,7 +447,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -489,9 +468,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
 
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
-
         var indexLoad = randomSearchLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
@@ -505,7 +481,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             8,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -539,9 +515,6 @@ public class SearchLoadSamplerTests extends ESTestCase {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
 
-        ClusterService clusterService = mock();
-        when(clusterService.threadPool()).thenReturn(threadPool);
-
         var minSensitivityRatio = 0;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(10);
@@ -571,7 +544,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            clusterService
+            threadPool
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {

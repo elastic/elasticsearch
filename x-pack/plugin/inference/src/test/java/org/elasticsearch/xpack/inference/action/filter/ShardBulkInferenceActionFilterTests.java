@@ -16,10 +16,17 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceService;
@@ -53,6 +60,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
@@ -178,7 +186,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
                 IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertThat(XContentMapValues.extractValue("field1.text", actualRequest.sourceAsMap()), equalTo("I am a success"));
+                assertThat(
+                    XContentMapValues.extractValue(
+                        INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? "field1" : "field1.text",
+                        actualRequest.sourceAsMap()
+                    ),
+                    equalTo("I am a success")
+                );
 
                 // item 2 is a failure
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
@@ -320,8 +334,28 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
-        ShardBulkInferenceActionFilter filter = new ShardBulkInferenceActionFilter(inferenceServiceRegistry, modelRegistry, batchSize);
+
+        ShardBulkInferenceActionFilter filter = new ShardBulkInferenceActionFilter(
+            createClusterService(),
+            inferenceServiceRegistry,
+            modelRegistry,
+            batchSize
+        );
         return filter;
+    }
+
+    private static ClusterService createClusterService() {
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.getCreationVersion()).thenReturn(IndexVersion.current());
+
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.index(any(String.class))).thenReturn(indexMetadata);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        return clusterService;
     }
 
     private static BulkItemRequest[] randomBulkItemRequest(
@@ -331,13 +365,15 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
         XContentType requestContentType = randomFrom(XContentType.values());
+
+        Map<String, Object> inferenceMetadataFields = new HashMap<>();
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
             Object inputObject = randomSemanticTextInput();
             String inputText = inputObject.toString();
             docMap.put(field, inputObject);
-            expectedDocMap.put(field, inputText);
+            expectedDocMap.put(field, INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? inputObject : inputText);
             if (model == null) {
                 // ignore results, the doc should fail with a resource not found exception
                 continue;
@@ -361,7 +397,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 model.putResult(inputText, toChunkedResult(semanticTextField));
             }
 
-            expectedDocMap.put(field, semanticTextField);
+            if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+                inferenceMetadataFields.put(field, semanticTextField);
+            } else {
+                expectedDocMap.put(field, semanticTextField);
+            }
+        }
+        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            expectedDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
         }
 
         int requestId = randomIntBetween(0, Integer.MAX_VALUE);

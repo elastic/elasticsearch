@@ -29,10 +29,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -71,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,6 +82,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -631,7 +635,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             IllegalArgumentException.class,
             () -> documentMapper.parse(
-                source(
+                semanticTextInferenceSource(
                     b -> b.startObject("field")
                         .startObject(INFERENCE_FIELD)
                         .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
@@ -650,7 +654,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             IllegalArgumentException.class,
             () -> documentMapper.parse(
-                source(b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject())
+                semanticTextInferenceSource(
+                    b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject()
+                )
             )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [model_settings, chunks]"));
@@ -662,7 +668,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             IllegalArgumentException.class,
             () -> documentMapper.parse(
-                source(
+                semanticTextInferenceSource(
                     b -> b.startObject("field")
                         .startObject(INFERENCE_FIELD)
                         .field(INFERENCE_ID_FIELD, "my_id")
@@ -745,8 +751,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        builder.field(semanticTextField.fieldName());
-        builder.value(semanticTextField);
+        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            builder.field(InferenceMetadataFieldsMapper.NAME, Map.of(semanticTextField.fieldName(), semanticTextField));
+        } else {
+            builder.field(semanticTextField.fieldName());
+            builder.value(semanticTextField);
+        }
         builder.endObject();
 
         SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
@@ -1081,9 +1091,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private static void addSemanticTextInferenceResults(XContentBuilder sourceBuilder, List<SemanticTextField> semanticTextInferenceResults)
         throws IOException {
-        for (var field : semanticTextInferenceResults) {
-            sourceBuilder.field(field.fieldName());
-            sourceBuilder.value(field);
+        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            // Use a linked hash map to maintain insertion-order iteration over the inference fields
+            Map<String, Object> inferenceMetadataFields = new LinkedHashMap<>();
+            for (var field : semanticTextInferenceResults) {
+                List<String> originalValues = field.originalValues();
+                if (originalValues.isEmpty() == false) {
+                    sourceBuilder.field(field.fieldName());
+                    sourceBuilder.value(originalValues.size() == 1 ? originalValues.get(0) : originalValues);
+                }
+
+                inferenceMetadataFields.put(field.fieldName(), field);
+            }
+            sourceBuilder.field(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
+        } else {
+            for (var field : semanticTextInferenceResults) {
+                sourceBuilder.field(field.fieldName());
+                sourceBuilder.value(field);
+            }
         }
     }
 
@@ -1142,6 +1167,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }
         }
         assertThat(count, equalTo(expectedCount));
+    }
+
+    private static SourceToParse semanticTextInferenceSource(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        return source(b -> {
+            if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+                b.startObject(InferenceMetadataFieldsMapper.NAME);
+            }
+            build.accept(b);
+            if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+                b.endObject();
+            }
+        });
     }
 
     private Map<String, Object> toSourceMap(String source) throws IOException {

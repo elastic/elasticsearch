@@ -26,6 +26,12 @@ public record AnalyzerContext(
         IndexResolution indexResolution,
         EnrichResolution enrichResolution
     ) {
-        this(configuration, functionRegistry, indexResolution, IndexResolution.invalid("<none>"), enrichResolution);
+        this(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            IndexResolution.invalid("AnalyzerContext constructed without any lookup join resolution"),
+            enrichResolution
+        );
     }
 }

@@ -22,10 +22,13 @@ import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -123,6 +126,16 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
         delegate.execute(decorateRunnable(command));
     }
 
+    @Override
+    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
+        return new UninterruptibleFuture<>(super.newTaskFor(runnable, value));
+    }
+
+    @Override
+    protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+        return new UninterruptibleFuture<>(super.newTaskFor(callable));
+    }
+
     protected Runnable decorateRunnable(Runnable command) {
         return command;
     }
@@ -172,5 +185,46 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
         public V get(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException();
         }
+    }
+
+    @SuppressForbidden(reason = "It wraps a Future to avoid interrupting threads")
+    private static final class UninterruptibleFuture<V> implements RunnableFuture<V> {
+        private final RunnableFuture<V> delegate;
+
+        UninterruptibleFuture(RunnableFuture<V> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void run() {
+            delegate.run();
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            // Ensure that the thread is never interrupted
+            return delegate.cancel(false);
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return delegate.isCancelled();
+        }
+
+        @Override
+        public boolean isDone() {
+            return delegate.isDone();
+        }
+
+        @Override
+        public V get() throws InterruptedException, ExecutionException {
+            return delegate.get();
+        }
+
+        @Override
+        public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+            return delegate.get(timeout, unit);
+        }
+
     }
 }

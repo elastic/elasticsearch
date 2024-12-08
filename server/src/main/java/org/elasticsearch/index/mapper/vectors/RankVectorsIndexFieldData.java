@@ -22,14 +22,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public class MultiVectorIndexFieldData implements IndexFieldData<MultiVectorDVLeafFieldData> {
+public class RankVectorsIndexFieldData implements IndexFieldData<RankVectorsDVLeafFieldData> {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     private final int dims;
     private final IndexVersion indexVersion;
     private final DenseVectorFieldMapper.ElementType elementType;
 
-    public MultiVectorIndexFieldData(
+    public RankVectorsIndexFieldData(
         String fieldName,
         int dims,
         ValuesSourceType valuesSourceType,
@@ -54,19 +54,19 @@ public class MultiVectorIndexFieldData implements IndexFieldData<MultiVectorDVLe
     }
 
     @Override
-    public MultiVectorDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiVectorDVLeafFieldData(context.reader(), fieldName, elementType, dims);
+    public RankVectorsDVLeafFieldData load(LeafReaderContext context) {
+        return new RankVectorsDVLeafFieldData(context.reader(), fieldName, elementType, dims);
     }
 
     @Override
-    public MultiVectorDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public RankVectorsDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 
     @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
         throw new IllegalArgumentException(
-            "Field [" + fieldName + "] of type [" + MultiDenseVectorFieldMapper.CONTENT_TYPE + "] doesn't support sort"
+            "Field [" + fieldName + "] of type [" + RankVectorsFieldMapper.CONTENT_TYPE + "] doesn't support sort"
         );
     }
 
@@ -108,7 +108,7 @@ public class MultiVectorIndexFieldData implements IndexFieldData<MultiVectorDVLe
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new MultiVectorIndexFieldData(name, dims, valuesSourceType, indexVersion, elementType);
+            return new RankVectorsIndexFieldData(name, dims, valuesSourceType, indexVersion, elementType);
         }
     }
 }

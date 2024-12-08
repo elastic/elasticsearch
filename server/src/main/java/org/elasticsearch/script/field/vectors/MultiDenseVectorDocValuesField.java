@@ -52,6 +52,6 @@ public abstract class MultiDenseVectorDocValuesField extends AbstractScriptField
     // DenseVector fields are single valued, so Iterable does not make sense.
     @Override
     public Iterator<MultiDenseVector> iterator() {
-        throw new UnsupportedOperationException("Cannot iterate over single valued multi_dense_vector field, use get() instead");
+        throw new UnsupportedOperationException("Cannot iterate over single valued rank_vectors field, use get() instead");
     }
 }

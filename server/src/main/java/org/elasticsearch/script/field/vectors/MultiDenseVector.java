@@ -46,7 +46,7 @@ public interface MultiDenseVector {
     }
 
     MultiDenseVector EMPTY = new MultiDenseVector() {
-        public static final String MISSING_VECTOR_FIELD_MESSAGE = "Multi Dense vector value missing for a field,"
+        public static final String MISSING_VECTOR_FIELD_MESSAGE = "vector value missing for a field,"
             + " use isEmpty() to check for a missing vector value";
 
         @Override

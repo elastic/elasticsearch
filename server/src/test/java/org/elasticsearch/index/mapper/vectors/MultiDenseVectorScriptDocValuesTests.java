@@ -31,7 +31,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     public void testFloatGetVectorValueAndGetMagnitude() throws IOException {
@@ -115,7 +115,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
             UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
-            assertEquals("Cannot iterate over single valued multi_dense_vector field, use get() instead", e.getMessage());
+            assertEquals("Cannot iterate over single valued rank_vectors field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
         MultiDenseVector dv = field.get();
@@ -142,7 +142,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
             UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
-            assertEquals("Cannot iterate over single valued multi_dense_vector field, use get() instead", e.getMessage());
+            assertEquals("Cannot iterate over single valued rank_vectors field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
         MultiDenseVector dv = field.get();

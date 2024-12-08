@@ -51,17 +51,17 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
+public class RankVectorsFieldMapperTests extends MapperTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     private final ElementType elementType;
     private final int dims;
 
-    public MultiDenseVectorFieldMapperTests() {
+    public RankVectorsFieldMapperTests() {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
     }
@@ -77,7 +77,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
-        b.field("type", "multi_dense_vector").field("dims", dims);
+        b.field("type", "rank_vectors").field("dims", dims);
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
@@ -95,23 +95,23 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck(
             "dims",
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims)),
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims + 8))
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims)),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims + 8))
         );
         checker.registerConflictCheck(
             "element_type",
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims).field("element_type", "byte")),
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims).field("element_type", "float"))
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "byte")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float"))
         );
         checker.registerConflictCheck(
             "element_type",
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims).field("element_type", "float")),
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims * 8).field("element_type", "bit"))
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
         );
         checker.registerConflictCheck(
             "element_type",
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims).field("element_type", "byte")),
-            fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", dims * 8).field("element_type", "bit"))
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "byte")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
         );
     }
 
@@ -127,7 +127,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
-        assertThat(fieldType, instanceOf(MultiDenseVectorFieldMapper.MultiDenseVectorFieldType.class));
+        assertThat(fieldType, instanceOf(RankVectorsFieldMapper.RankVectorsFieldType.class));
         assertFalse(fieldType.isIndexed());
         assertFalse(fieldType.isSearchable());
     }
@@ -147,7 +147,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
     public void testDims() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "multi_dense_vector");
+                b.field("type", "rank_vectors");
                 b.field("dims", 0);
             })));
             assertThat(
@@ -158,7 +158,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
         // test max limit for non-indexed vectors
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "multi_dense_vector");
+                b.field("type", "rank_vectors");
                 b.field("dims", 5000);
             })));
             assertThat(
@@ -171,14 +171,14 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
     public void testMergeDims() throws IOException {
         XContentBuilder mapping = mapping(b -> {
             b.startObject("field");
-            b.field("type", "multi_dense_vector");
+            b.field("type", "rank_vectors");
             b.endObject();
         });
         MapperService mapperService = createMapperService(mapping);
 
         mapping = mapping(b -> {
             b.startObject("field");
-            b.field("type", "multi_dense_vector").field("dims", dims);
+            b.field("type", "rank_vectors").field("dims", dims);
             b.endObject();
         });
         merge(mapperService, mapping);
@@ -190,14 +190,14 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
     public void testLargeDimsBit() throws IOException {
         createMapperService(fieldMapping(b -> {
-            b.field("type", "multi_dense_vector");
+            b.field("type", "rank_vectors");
             b.field("dims", 1024 * Byte.SIZE);
             b.field("element_type", ElementType.BIT.toString());
         }));
     }
 
     public void testNonIndexedVector() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", 3)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3)));
 
         float[][] validVectors = { { -12.1f, 100.7f, -4 }, { 42f, .05f, -1f } };
         double[] dotProduct = new double[2];
@@ -234,7 +234,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
                 .asFloatBuffer();
             fb.get(decodedValues[i]);
         }
-        List<IndexableField> magFields = doc1.rootDoc().getFields("field" + MultiDenseVectorFieldMapper.VECTOR_MAGNITUDES_SUFFIX);
+        List<IndexableField> magFields = doc1.rootDoc().getFields("field" + RankVectorsFieldMapper.VECTOR_MAGNITUDES_SUFFIX);
         assertEquals(1, magFields.size());
         assertThat(magFields.get(0), instanceOf(BinaryDocValuesField.class));
         BytesRef magBR = magFields.get(0).binaryValue();
@@ -249,7 +249,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testPoorlyIndexedVector() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", 3)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3)));
 
         float[][] validVectors = { { -12.1f, 100.7f, -4 }, { 42f, .05f, -1f } };
         double[] dotProduct = new double[2];
@@ -279,27 +279,23 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", 3).field("element_type", "foo"))
-            )
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3).field("element_type", "foo")))
         );
         assertThat(e.getMessage(), containsString("invalid element_type [foo]; available types are "));
         e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", 3).startObject("foo").endObject())
-            )
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3).startObject("foo").endObject()))
         );
         assertThat(
             e.getMessage(),
-            containsString("Failed to parse mapping: unknown parameter [foo] on mapper [field] of type [multi_dense_vector]")
+            containsString("Failed to parse mapping: unknown parameter [foo] on mapper [field] of type [rank_vectors]")
         );
     }
 
     public void testDocumentsWithIncorrectDims() throws Exception {
         int dims = 3;
         XContentBuilder fieldMapping = fieldMapping(b -> {
-            b.field("type", "multi_dense_vector");
+            b.field("type", "rank_vectors");
             b.field("dims", dims);
         });
 
@@ -382,8 +378,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
             Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
-            MultiDenseVectorFieldMapper.MultiDenseVectorFieldType denseVectorFieldType =
-                (MultiDenseVectorFieldMapper.MultiDenseVectorFieldType) ft;
+            RankVectorsFieldMapper.RankVectorsFieldType denseVectorFieldType = (RankVectorsFieldMapper.RankVectorsFieldType) ft;
             switch (denseVectorFieldType.getElementType()) {
                 case BYTE -> assumeFalse("byte element type testing not currently added", false);
                 case FLOAT -> {
@@ -408,12 +403,12 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "multi_dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
+        b.field("type", "rank_vectors").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
     }
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        MultiDenseVectorFieldMapper.MultiDenseVectorFieldType vectorFieldType = (MultiDenseVectorFieldMapper.MultiDenseVectorFieldType) ft;
+        RankVectorsFieldMapper.RankVectorsFieldType vectorFieldType = (RankVectorsFieldMapper.RankVectorsFieldType) ft;
         int numVectors = randomIntBetween(1, 16);
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> {
@@ -451,7 +446,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("Field [vectors] of type [multi_dense_vector] can't be used in multifields"));
+        assertThat(e.getMessage(), containsString("Field [vectors] of type [rank_vectors] can't be used in multifields"));
     }
 
     @Override
@@ -486,7 +481,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
         }
 
         private void mapping(XContentBuilder b) throws IOException {
-            b.field("type", "multi_dense_vector");
+            b.field("type", "rank_vectors");
             if (elementType == ElementType.BYTE || elementType == ElementType.BIT || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }

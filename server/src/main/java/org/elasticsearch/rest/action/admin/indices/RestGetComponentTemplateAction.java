@@ -10,12 +10,14 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -47,18 +49,23 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
-        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
+        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(
+            getMasterNodeTimeout(request),
+            request.param("name")
+        );
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        getRequest.local(request.paramAsBoolean("local", getRequest.local()));
-        getRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        TransportLocalClusterStateAction.consumeDeprecatedLocalParameter(request);
 
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel -> client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel, r -> {
-            final boolean templateExists = r.getComponentTemplates().isEmpty() == false;
-            return (templateExists || implicitAll) ? OK : NOT_FOUND;
-        }));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetComponentTemplateAction.INSTANCE,
+            getRequest,
+            new RestToXContentListener<>(channel, r -> {
+                final boolean templateExists = r.getComponentTemplates().isEmpty() == false;
+                return (templateExists || implicitAll) ? OK : NOT_FOUND;
+            })
+        );
     }
 
     @Override

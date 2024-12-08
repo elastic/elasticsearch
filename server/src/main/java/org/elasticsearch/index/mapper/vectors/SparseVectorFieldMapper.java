@@ -20,7 +20,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -58,8 +57,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "sparse_vector";
 
-    static final String ERROR_MESSAGE_7X = "[sparse_vector] field type in old 7.x indices is allowed to "
-        + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
     static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported on indices created on versions 8.0 to 8.10.";
     static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.V_8_0_0;
 
@@ -94,12 +91,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        if (c.indexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
-            deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
-        } else if (c.indexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
+        if (c.indexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
             throw new IllegalArgumentException(ERROR_MESSAGE_8X);
         }
-
         return new Builder(n);
     }, notInMultiFields(CONTENT_TYPE));
 
@@ -135,7 +129,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             if (context.getIndexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
-                deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
                 return new MatchNoDocsQuery();
             } else if (context.getIndexSettings().getIndexVersionCreated().before(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
                 // No support for exists queries prior to this version on 8.x
@@ -186,11 +179,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-
-        // No support for indexing / searching 7.x sparse_vector field types
-        if (context.indexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
-            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
-        } else if (context.indexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
+        if (context.indexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_8X);
         }
 

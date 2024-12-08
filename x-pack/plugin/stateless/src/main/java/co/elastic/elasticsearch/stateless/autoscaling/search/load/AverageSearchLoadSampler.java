@@ -46,7 +46,8 @@ public class AverageSearchLoadSampler {
     public static final Setting<Boolean> USE_VCPU_REQUEST = Setting.boolSetting(
         "serverless.autoscaling.search.use_vcpu_request",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
     );
 
     public static final Setting<Double> SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
@@ -82,7 +83,8 @@ public class AverageSearchLoadSampler {
 
     private final ThreadPool threadPool;
     private final Map<String, AverageLoad> averageThreadLoadPerExecutor = new HashMap<>();
-    private final double numProcessors;
+
+    private volatile double numProcessors;
 
     public static AverageSearchLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         assert MONITORED_EXECUTORS.keySet()
@@ -92,19 +94,24 @@ public class AverageSearchLoadSampler {
 
         Map<String, Double> threadPoolsAndEWMAAlpha = new HashMap<>(MONITORED_EXECUTORS.size(), 1.0f);
         MONITORED_EXECUTORS.forEach((name, setting) -> threadPoolsAndEWMAAlpha.put(name, clusterSettings.get(setting)));
-        var numProcessors = AverageSearchLoadSampler.USE_VCPU_REQUEST.get(settings)
-            ? ServerlessSharedSettings.VCPU_REQUEST.get(settings)
-            : EsExecutors.nodeProcessors(settings).count();
         var sampler = new AverageSearchLoadSampler(
             threadPool,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings),
             threadPoolsAndEWMAAlpha,
-            numProcessors
+            getNumProcessors(AverageSearchLoadSampler.USE_VCPU_REQUEST.get(settings), settings)
         );
         MONITORED_EXECUTORS.forEach(
             (name, setting) -> clusterSettings.addSettingsUpdateConsumer(setting, value -> sampler.updateEWMAAlpha(name, value))
         );
+        clusterSettings.addSettingsUpdateConsumer(AverageSearchLoadSampler.USE_VCPU_REQUEST, value -> {
+            var newNumProcessors = getNumProcessors(value, settings);
+            sampler.setNumProcessors(newNumProcessors);
+        });
         return sampler;
+    }
+
+    public static double getNumProcessors(boolean useVCPURequest, Settings settings) {
+        return useVCPURequest ? ServerlessSharedSettings.VCPU_REQUEST.get(settings) : EsExecutors.nodeProcessors(settings).count();
     }
 
     AverageSearchLoadSampler(
@@ -150,10 +157,10 @@ public class AverageSearchLoadSampler {
     }
 
     /**
-     * Returns the number of processors used for normalizing the search load.
+     * Sets the number of processors used for normalizing the search load.
      */
-    public double getNumProcessors() {
-        return numProcessors;
+    public void setNumProcessors(double numProcessors) {
+        this.numProcessors = numProcessors;
     }
 
     private void updateEWMAAlpha(String executorName, double alpha) {

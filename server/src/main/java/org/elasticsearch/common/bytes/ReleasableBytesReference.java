@@ -16,6 +16,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -49,6 +50,13 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public static ReleasableBytesReference wrap(BytesReference reference) {
         assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, ALWAYS_REFERENCED);
+    }
+
+    public ReleasableBytesReference releaseEventually() {
+        if (refCounted instanceof EventualReleaseRefCounted) {
+            return this;
+        }
+        return new ReleasableBytesReference(delegate, new EventualReleaseRefCounted(refCounted));
     }
 
     @Override
@@ -257,6 +265,34 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         @Override
         protected void closeInternal() {
             Releasables.closeExpectNoException(releasable);
+        }
+    }
+
+    private static class EventualReleaseRefCounted implements RefCounted {
+
+        @SuppressWarnings("unused")
+        private final Releasable refCounted;
+
+        EventualReleaseRefCounted(RefCounted refCounted) {
+            this.refCounted = LeakTracker.releaseEventually(refCounted::decRef);
+        }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
         }
     }
 }

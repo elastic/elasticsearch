@@ -23,6 +23,10 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         return new ByteRefHttpBody(ReleasableBytesReference.wrap(bytesRef));
     }
 
+    static Full fromReleasableBytesReference(ReleasableBytesReference relBytes) {
+        return new ByteRefHttpBody(relBytes);
+    }
+
     static Full empty() {
         return new ByteRefHttpBody(ReleasableBytesReference.empty());
     }
@@ -56,9 +60,6 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
      */
     non-sealed interface Full extends HttpBody {
         ReleasableBytesReference bytes();
-
-        @Override
-        default void close() {}
     }
 
     /**
@@ -107,11 +108,16 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
 
     @FunctionalInterface
     interface ChunkHandler extends Releasable {
-        void onNext(ReleasableBytesReference chunk, boolean isLast);
+        void onNext(ReleasableBytesReference chunk, boolean isLast) throws Exception;
 
         @Override
         default void close() {}
     }
 
-    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {}
+    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {
+        @Override
+        public void close() {
+            bytes.close();
+        }
+    }
 }

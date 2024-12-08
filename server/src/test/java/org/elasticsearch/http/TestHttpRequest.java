@@ -48,6 +48,11 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
+    public int contentLength() {
+        return 0;
+    }
+
+    @Override
     public HttpBody body() {
         return HttpBody.empty();
     }

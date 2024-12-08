@@ -284,6 +284,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testUnifiedCompletionInference
   issue: https://github.com/elastic/elasticsearch/issues/118210
+- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/118215
 
 # Examples:
 #

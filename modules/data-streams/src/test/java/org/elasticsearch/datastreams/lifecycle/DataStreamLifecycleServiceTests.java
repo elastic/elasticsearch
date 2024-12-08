@@ -187,7 +187,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 client,
                 clusterService,
                 errorStore,
-                new FeatureService(List.of(new DataStreamFeatures()))
+                new FeatureService(Settings.EMPTY, List.of(new DataStreamFeatures()))
             ),
             globalRetentionSettings
         );
@@ -1468,7 +1468,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 getTransportRequestsRecordingClient(),
                 clusterService,
                 errorStore,
-                new FeatureService(List.of(new DataStreamFeatures()))
+                new FeatureService(Settings.EMPTY, List.of(new DataStreamFeatures()))
             ),
             globalRetentionSettings
         );

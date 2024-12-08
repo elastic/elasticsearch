@@ -118,7 +118,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             null,
             new NoneCircuitBreakerService(),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(settings, List.of())
         );
     }
 

@@ -9,11 +9,14 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -79,17 +82,40 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         return nodeFeatures;
     }
 
-    /**
-     * The features in all nodes in the cluster.
-     * <p>
-     * NOTE: This should not be used directly.
-     * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
-     */
-    public Set<String> allNodeFeatures() {
+    private Set<String> allNodeFeatures() {
         if (allNodeFeatures == null) {
             allNodeFeatures = Set.copyOf(calculateAllNodeFeatures(nodeFeatures.values()));
         }
         return allNodeFeatures;
+    }
+
+    /**
+     * Returns {@code true} if {@code node} can have assumed features.
+     * <p>
+     * This is true if it is of the next major version, or it is running on serverless.<br/>
+     * The next major version can be assumed because the next major version can only ever
+     * talk to the highest minor of the previous major, so any features added before that
+     * will always exist on the cluster.<br/>
+     * It can be assumed for serverless because we never go backwards on serverless,
+     * so once a feature is in the serverless environment it will always be there.
+     */
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node, Settings settings) {
+        return DiscoveryNode.isStateless(settings) || node.getVersion().major == Version.CURRENT.major + 1;
+    }
+
+    /**
+     * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
+     * <p>
+     * This is true if it is of the next major version, or it is running on serverless.<br/>
+     * The next major version can be assumed because the next major version can only ever
+     * talk to the highest minor of the previous major, so any features added before that point
+     * will always exist on the cluster.<br/>
+     * It can be assumed for serverless because we never go backwards on serverless,
+     * so once a feature is in the serverless environment it will always be there.
+     */
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNodes nodes, Settings settings) {
+        int nextMajor = Version.CURRENT.major + 1;
+        return DiscoveryNode.isStateless(settings) || nodes.getAllNodes().stream().anyMatch(n -> n.getVersion().major == nextMajor);
     }
 
     /**
@@ -98,9 +124,32 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
-    @SuppressForbidden(reason = "directly reading cluster features")
-    public boolean clusterHasFeature(NodeFeature feature) {
-        return allNodeFeatures().contains(feature.id());
+    public boolean clusterHasFeature(DiscoveryNodes nodes, NodeFeature feature, Settings settings) {
+        assert nodes.getNodes().keySet().equals(nodeFeatures.keySet())
+            : "Cluster features nodes " + nodeFeatures.keySet() + " is different to discovery nodes " + nodes.getNodes().keySet();
+
+        // basic case
+        boolean allNodesHaveFeature = allNodeFeatures().contains(feature.id());
+        if (allNodesHaveFeature) {
+            return true;
+        }
+
+        // if the feature is assumed, check the major versions more closely
+        // it's actually ok if the feature is assumed, and all nodes missing the feature can assume it
+        // TODO: do we need some kind of transient cache of this calculation?
+        if (feature.assumedInNextMajor()) {
+            for (var nf : nodeFeatures.entrySet()) {
+                if (nf.getValue().contains(feature.id()) == false
+                    && featuresCanBeAssumedForNode(nodes.getNodes().get(nf.getKey()), settings) == false) {
+                    return false;
+                }
+            }
+
+            // all nodes missing the feature are the next major - so that's alright then
+            return true;
+        }
+
+        return false;
     }
 
     /**

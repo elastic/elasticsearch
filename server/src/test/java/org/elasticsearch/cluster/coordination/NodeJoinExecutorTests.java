@@ -162,7 +162,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testPreventJoinClusterWithMissingFeatures() throws Exception {
         AllocationService allocationService = createAllocationService();
         RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
                 return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
@@ -201,7 +201,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testCanJoinClusterWithMissingIncompleteFeatures() throws Exception {
         AllocationService allocationService = createAllocationService();
         RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
                 return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
@@ -921,8 +921,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), rejoinNode.getId(), Set.of()))
             .build();
 
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(false));
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(false));
+        assertThat(
+            clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f1"), Settings.EMPTY),
+            is(false)
+        );
+        assertThat(
+            clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f2"), Settings.EMPTY),
+            is(false)
+        );
 
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
@@ -939,8 +945,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
             )
         );
 
-        assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(true));
-        assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(true));
+        assertThat(
+            resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f1"), Settings.EMPTY),
+            is(true)
+        );
+        assertThat(
+            resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f2"), Settings.EMPTY),
+            is(true)
+        );
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {
@@ -972,7 +984,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     private static FeatureService createFeatureService() {
-        return new FeatureService(List.of());
+        return new FeatureService(Settings.EMPTY, List.of());
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

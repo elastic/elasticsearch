@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<RerankTaskSettings> {
+public class CustomElandRerankTaskSettingsTests extends AbstractWireSerializingTestCase<CustomElandRerankTaskSettings> {
 
     public void testIsEmpty() {
         var randomSettings = createRandom();
@@ -35,9 +35,9 @@ public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<Rer
         var newSettings = createRandom();
         Map<String, Object> newSettingsMap = new HashMap<>();
         if (newSettings.returnDocuments() != null) {
-            newSettingsMap.put(RerankTaskSettings.RETURN_DOCUMENTS, newSettings.returnDocuments());
+            newSettingsMap.put(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, newSettings.returnDocuments());
         }
-        RerankTaskSettings updatedSettings = (RerankTaskSettings) initialSettings.updatedTaskSettings(
+        CustomElandRerankTaskSettings updatedSettings = (CustomElandRerankTaskSettings) initialSettings.updatedTaskSettings(
             Collections.unmodifiableMap(newSettingsMap)
         );
         if (newSettings.returnDocuments() == null) {
@@ -48,37 +48,37 @@ public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<Rer
     }
 
     public void testDefaultsFromMap_MapIsNull_ReturnsDefaultSettings() {
-        var rerankTaskSettings = RerankTaskSettings.defaultsFromMap(null);
+        var customElandRerankTaskSettings = CustomElandRerankTaskSettings.defaultsFromMap(null);
 
-        assertThat(rerankTaskSettings, sameInstance(RerankTaskSettings.DEFAULT_SETTINGS));
+        assertThat(customElandRerankTaskSettings, sameInstance(CustomElandRerankTaskSettings.DEFAULT_SETTINGS));
     }
 
     public void testDefaultsFromMap_MapIsEmpty_ReturnsDefaultSettings() {
-        var rerankTaskSettings = RerankTaskSettings.defaultsFromMap(new HashMap<>());
+        var customElandRerankTaskSettings = CustomElandRerankTaskSettings.defaultsFromMap(new HashMap<>());
 
-        assertThat(rerankTaskSettings, sameInstance(RerankTaskSettings.DEFAULT_SETTINGS));
+        assertThat(customElandRerankTaskSettings, sameInstance(CustomElandRerankTaskSettings.DEFAULT_SETTINGS));
     }
 
     public void testDefaultsFromMap_ExtractedReturnDocumentsNull_SetsReturnDocumentToTrue() {
-        var rerankTaskSettings = RerankTaskSettings.defaultsFromMap(new HashMap<>());
+        var customElandRerankTaskSettings = CustomElandRerankTaskSettings.defaultsFromMap(new HashMap<>());
 
-        assertThat(rerankTaskSettings.returnDocuments(), is(Boolean.TRUE));
+        assertThat(customElandRerankTaskSettings.returnDocuments(), is(Boolean.TRUE));
     }
 
     public void testFromMap_MapIsNull_ReturnsDefaultSettings() {
-        var rerankTaskSettings = RerankTaskSettings.fromMap(null);
+        var customElandRerankTaskSettings = CustomElandRerankTaskSettings.fromMap(null);
 
-        assertThat(rerankTaskSettings, sameInstance(RerankTaskSettings.DEFAULT_SETTINGS));
+        assertThat(customElandRerankTaskSettings, sameInstance(CustomElandRerankTaskSettings.DEFAULT_SETTINGS));
     }
 
     public void testFromMap_MapIsEmpty_ReturnsDefaultSettings() {
-        var rerankTaskSettings = RerankTaskSettings.fromMap(new HashMap<>());
+        var customElandRerankTaskSettings = CustomElandRerankTaskSettings.fromMap(new HashMap<>());
 
-        assertThat(rerankTaskSettings, sameInstance(RerankTaskSettings.DEFAULT_SETTINGS));
+        assertThat(customElandRerankTaskSettings, sameInstance(CustomElandRerankTaskSettings.DEFAULT_SETTINGS));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new RerankTaskSettings(Boolean.TRUE);
+        var serviceSettings = new CustomElandRerankTaskSettings(Boolean.TRUE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -89,30 +89,30 @@ public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<Rer
     }
 
     public void testOf_PrefersNonNullRequestTaskSettings() {
-        var originalSettings = new RerankTaskSettings(Boolean.FALSE);
-        var requestTaskSettings = new RerankTaskSettings(Boolean.TRUE);
+        var originalSettings = new CustomElandRerankTaskSettings(Boolean.FALSE);
+        var requestTaskSettings = new CustomElandRerankTaskSettings(Boolean.TRUE);
 
-        var taskSettings = RerankTaskSettings.of(originalSettings, requestTaskSettings);
+        var taskSettings = CustomElandRerankTaskSettings.of(originalSettings, requestTaskSettings);
 
         assertThat(taskSettings, sameInstance(requestTaskSettings));
     }
 
-    private static RerankTaskSettings createRandom() {
-        return new RerankTaskSettings(randomOptionalBoolean());
+    private static CustomElandRerankTaskSettings createRandom() {
+        return new CustomElandRerankTaskSettings(randomOptionalBoolean());
     }
 
     @Override
-    protected Writeable.Reader<RerankTaskSettings> instanceReader() {
-        return RerankTaskSettings::new;
+    protected Writeable.Reader<CustomElandRerankTaskSettings> instanceReader() {
+        return CustomElandRerankTaskSettings::new;
     }
 
     @Override
-    protected RerankTaskSettings createTestInstance() {
+    protected CustomElandRerankTaskSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected RerankTaskSettings mutateInstance(RerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, RerankTaskSettingsTests::createRandom);
+    protected CustomElandRerankTaskSettings mutateInstance(CustomElandRerankTaskSettings instance) throws IOException {
+        return randomValueOtherThan(instance, CustomElandRerankTaskSettingsTests::createRandom);
     }
 }

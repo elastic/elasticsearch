@@ -20,7 +20,7 @@ public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Polish
     private final PolishAnalyzer analyzer;
 
     public PolishAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
 
         analyzer = new PolishAnalyzer(PolishAnalyzer.getDefaultStopSet());
     }

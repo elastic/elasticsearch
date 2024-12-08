@@ -18,7 +18,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 public class HiraganaUppercaseFilterFactory extends AbstractTokenFilterFactory {
 
     public HiraganaUppercaseFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

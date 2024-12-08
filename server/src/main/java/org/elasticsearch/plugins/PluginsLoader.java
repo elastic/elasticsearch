@@ -125,13 +125,27 @@ public class PluginsLoader {
     private final Set<PluginBundle> allBundles;
 
     /**
-     * Constructs a new PluginsLoader
+     * Constructs a new PluginsLoader. With this factory method, the set of qualified exports/opens to Java modular modules/plugins will
+     * include all qualified exports from the server module. This is the desired behaviour in production use.
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
     public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
-        return createPluginsLoader(modulesDirectory, pluginsDirectory, true);
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
+        addServerExportsService(qualifiedExports);
+        return createPluginsLoader(modulesDirectory, pluginsDirectory, qualifiedExports);
+    }
+
+    /**
+     * Constructs a new PluginsLoader. With this factory method, the set of qualified exports/opens to Java modular modules/plugins will
+     * not include qualified exports from the server module. This is the desired behaviour in test use, as tests are running non-modular.
+     *
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     */
+    public static PluginsLoader createPluginsLoaderWithoutServerExports(Path modulesDirectory, Path pluginsDirectory) {
+        return createPluginsLoader(modulesDirectory, pluginsDirectory, Map.copyOf(ModuleQualifiedExportsService.getBootServices()));
     }
 
     /**
@@ -139,16 +153,13 @@ public class PluginsLoader {
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-     * @param withServerExports {@code true} to add server module exports
+     * @param qualifiedExports The set of qualified exports/opens to use when constructing Java modular modules/plugins
      */
-    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory, boolean withServerExports) {
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
-        if (withServerExports) {
-            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-            addServerExportsService(qualifiedExports);
-        } else {
-            qualifiedExports = Collections.emptyMap();
-        }
+    static PluginsLoader createPluginsLoader(
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+    ) {
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 

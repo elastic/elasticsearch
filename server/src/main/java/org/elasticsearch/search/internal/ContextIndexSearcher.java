@@ -56,6 +56,9 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -134,7 +137,67 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        super(
+            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
+            executor == null ? null : new Executor() {
+
+                private final LinkedTransferQueue<Runnable> queue = new LinkedTransferQueue<>();
+
+                private final AtomicInteger workers = new AtomicInteger(0);
+
+                @Override
+                public void execute(Runnable command) {
+                    queue.add(command);
+                    if (workers.compareAndSet(0, 1)) {
+                        boolean success = false;
+                        try {
+                            executor.execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Runnable task = queue.poll();
+                                    if (task == null) {
+                                        return;
+                                    } else if (queue.isEmpty() == false) {
+                                        tryStartWorker();
+                                    }
+                                    while (true) {
+                                        do {
+                                            task.run();
+                                        } while ((task = queue.poll()) != null);
+                                        if (workers.decrementAndGet() == 0 && (task = queue.poll()) != null) {
+                                            workers.incrementAndGet();
+                                            continue;
+                                        }
+                                        return;
+                                    }
+
+                                }
+
+                                private void tryStartWorker() {
+                                    boolean innerSuccess = false;
+                                    workers.incrementAndGet();
+                                    try {
+                                        executor.execute(this);
+                                        innerSuccess = true;
+                                    } catch (Exception e) {
+                                        assert e instanceof RejectedExecutionException : e;
+                                    } finally {
+                                        if (innerSuccess == false) {
+                                            workers.decrementAndGet();
+                                        }
+                                    }
+                                }
+                            });
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                workers.decrementAndGet();
+                            }
+                        }
+                    }
+                }
+            }
+        );
         this.hasExecutor = executor != null;
         setSimilarity(similarity);
         setQueryCache(queryCache);

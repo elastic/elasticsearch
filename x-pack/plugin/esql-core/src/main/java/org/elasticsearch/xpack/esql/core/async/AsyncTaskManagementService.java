@@ -208,7 +208,7 @@ public class AsyncTaskManagementService<
         ActionListener<Response> listener
     ) {
         AtomicReference<ActionListener<Response>> exclusiveListener = new AtomicReference<>(listener);
-        // This is will performed in case of timeout
+        // This will be performed in case of timeout
         Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(() -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
             if (acquiredListener != null) {

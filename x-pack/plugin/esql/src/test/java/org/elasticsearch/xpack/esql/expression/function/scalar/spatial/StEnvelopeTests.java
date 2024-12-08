@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -74,7 +75,9 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = geo ? SpatialEnvelopeVisitor.visitGeo(geometry, true) : SpatialEnvelopeVisitor.visitCartesian(geometry);
+        var envelope = geo
+            ? SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP)
+            : SpatialEnvelopeVisitor.visitCartesian(geometry);
         if (envelope.isPresent()) {
             return UNSPECIFIED.asWkb(envelope.get());
         }

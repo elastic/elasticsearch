@@ -13,6 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
@@ -36,6 +38,26 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
 
         var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(taskSettings);
         return new OpenAiChatCompletionModel(model, OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
+    public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new OpenAiChatCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            originalModelServiceSettings.uri(),
+            originalModelServiceSettings.organizationId(),
+            originalModelServiceSettings.maxInputTokens(),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        return new OpenAiChatCompletionModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            model.getTaskSettings(),
+            model.getSecretSettings()
+        );
     }
 
     public OpenAiChatCompletionModel(

@@ -151,6 +151,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_LABEL_KEYWORD_ARRAY = "label_keyword_array";
     public static final String FIELD_LABEL_DOUBLE_ARRAY = "label_double_array";
     public static final String FIELD_LABEL_AGG_METRIC = "label_agg_metric";
+    public static final String FIELD_LABEL_FLATTENED = "label_flattened";
+
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
@@ -257,6 +259,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
             .field("default_metric", "value_count")
             .endObject();
+        mapping.startObject(FIELD_LABEL_FLATTENED).field("type", "flattened").endObject();
 
         mapping.endObject().endObject().endObject();
         assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
@@ -311,6 +314,31 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field("min", randomDoubleBetween(-2000, -1001, true))
                 .field("max", randomDoubleBetween(-1000, 1000, true))
                 .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .endObject();
+        };
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex, true);
+        downsample(sourceIndex, downsampleIndex, config);
+        assertDownsampleIndex(sourceIndex, downsampleIndex, config);
+    }
+
+    public void testDownsampleIndexWithFlattenedLabel() throws Exception {
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, "dim1") // not important for this test
+                .startObject(FIELD_LABEL_FLATTENED)
+                .field(FIELD_LABEL_KEYWORD, randomAlphaOfLength(5))
+                .endObject()
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
                 .field("value_count", randomIntBetween(100, 1000))
                 .endObject()
                 .endObject();

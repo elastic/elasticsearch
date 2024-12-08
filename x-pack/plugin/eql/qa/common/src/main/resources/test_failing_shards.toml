@@ -1,0 +1,78 @@
+# this query doesn't touch the "broken" field, so it should not fail
+[[queries]]
+name = "eventQueryNoShardFailures"
+query = 'process where serial_event_id == 1'
+allow_partial_search_results = true
+expected_event_ids  = [1]
+expect_shard_failures = false
+
+
+[[queries]]
+name = "eventQueryShardFailures"
+query = 'process where serial_event_id == 1 or broken == 1'
+allow_partial_search_results = true
+expected_event_ids  = [1]
+expect_shard_failures = true
+
+
+# this query doesn't touch the "broken" field, so it should not fail
+[[queries]]
+name = "sequenceQueryNoShardFailures"
+query = '''
+sequence
+  [process where serial_event_id == 1]
+  [process where serial_event_id == 2]
+'''
+expected_event_ids  = [1, 2]
+expect_shard_failures = false
+
+
+# this query doesn't touch the "broken" field, so it should not fail
+[[queries]]
+name = "sequenceQueryNoShardFailuresAllowFalse"
+query = '''
+sequence
+  [process where serial_event_id == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = false
+expected_event_ids  = [1, 2]
+expect_shard_failures = false
+
+
+# this query doesn't touch the "broken" field, so it should not fail
+[[queries]]
+name = "sequenceQueryNoShardFailuresAllowTrue"
+query = '''
+sequence
+  [process where serial_event_id == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+expected_event_ids  = [1, 2]
+expect_shard_failures = false
+
+
+[[queries]]
+name = "sequenceQueryMissingShards"
+query = '''
+sequence
+  [process where serial_event_id == 1 or broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+expected_event_ids  = []
+expect_shard_failures = true
+
+
+[[queries]]
+name = "sequenceQueryMissingShardsPartialResults"
+query = '''
+sequence
+  [process where serial_event_id == 1 or broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+allow_partial_sequence_results = true
+expected_event_ids  = [1, 2]
+expect_shard_failures = true

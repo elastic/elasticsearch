@@ -14,11 +14,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 public class DataStreamWithSecurityIT extends ESRestTestCase {
@@ -39,6 +41,32 @@ public class DataStreamWithSecurityIT extends ESRestTestCase {
         .user("limited_user", PASSWORD, "only_get", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        Request putLimitedUser = new Request("POST", "/_security/user/limited_user");
+        putLimitedUser.setJsonEntity(Strings.format("""
+            {
+               "password" : "%s",
+               "roles" : [ "only_get" ]
+            }
+            """, PASSWORD));
+        assertOK(adminClient().performRequest(putLimitedUser));
+
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/my-ds-template");
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": ["my-ds*"],
+              "data_stream": {}
+            }
+            """);
+        assertOK(adminClient().performRequest(putComposableIndexTemplateRequest));
+        assertOK(adminClient().performRequest(new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME)));
+        Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-01-01\", \"message\": \"foo\" }");
+        assertOK(adminClient().performRequest(createDocRequest));
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -64,27 +92,23 @@ public class DataStreamWithSecurityIT extends ESRestTestCase {
     }
 
     public void testGetDataStreamWithoutPermission() throws Exception {
-        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/my-ds-template");
-        putComposableIndexTemplateRequest.setJsonEntity("""
-            {
-              "index_patterns": ["my-ds*"],
-              "data_stream": {}
-            }
-            """);
-        assertOK(adminClient().performRequest(putComposableIndexTemplateRequest));
-        assertOK(adminClient().performRequest(new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME)));
-        Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-01-01\", \"message\": \"foo\" }");
-        assertOK(adminClient().performRequest(createDocRequest));
-
         // Both the verbose and non-verbose versions should work with the "simple" user
         try (var simpleUserClient = buildClient(simpleUserRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
-            Request getDs = new Request("GET", "/_data_stream");
+            Request getDs = new Request("GET", "/_data_stream/*?expand_wildcards=all");
             assertOK(simpleUserClient.performRequest(getDs));
 
-            Request getDsVerbose = new Request("GET", "/_data_stream?verbose=true");
+            Request getDsVerbose = new Request("GET", "/_data_stream/*?expand_wildcards=all&verbose=true");
             assertOK(simpleUserClient.performRequest(getDsVerbose));
         }
+    }
+
+    public void testGetDataStreamWithSuperuser() throws Exception {
+        // Both the verbose and non-verbose versions should work with the "superuser" user
+        Request getDs = new Request("GET", "/_data_stream/*?expand_wildcards=all");
+        assertOK(client().performRequest(getDs));
+
+        Request getDsVerbose = new Request("GET", "/_data_stream/*?expand_wildcards=all&verbose=true");
+        assertOK(client().performRequest(getDsVerbose));
     }
 
 }

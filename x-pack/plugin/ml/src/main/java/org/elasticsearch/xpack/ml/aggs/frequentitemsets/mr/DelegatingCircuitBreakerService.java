@@ -91,6 +91,11 @@ final class DelegatingCircuitBreakerService extends CircuitBreakerService {
         }
 
         @Override
+        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+            throw new UnsupportedOperationException("checkRealMemoryUsage is not supported by DelegatingCircuitBreaker");
+        }
+
+        @Override
         public void addWithoutBreaking(long bytes) {
             if (wrappedBreaker != null) {
                 doAddToBreakerOverwrite(bytes);

@@ -18,6 +18,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
@@ -148,9 +149,8 @@ public abstract class AggregatorBase extends Aggregator {
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
     protected long addRequestCircuitBreakerBytes(long bytes) {
-        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
-        // bytes, it will trigger the parent circuit breaker.
-        if (bytes >= 0) {
+        // Only use the potential to circuit break if bytes are being incremented.
+        if (bytes > 0) {
             context.breaker().addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
             context.breaker().addWithoutBreaking(bytes);
@@ -347,12 +347,12 @@ public abstract class AggregatorBase extends Aggregator {
 
     /**
      * This method calls the circuit breaker from time to time in order to give it a chance to check available
-     * memory in the parent breaker (Which should be a real memory breaker) and break the execution if we are running out.
-     * To achieve that, we are passing 0 as the estimated bytes every 1024 calls
+     * memory in the real memory breaker every 1024 calls and break the execution if we are running out.
      */
+    @SuppressForbidden(reason = "Lack of memory accounting when building InternalAggregations")
     protected final void checkRealMemoryCB(String label) {
         if ((++callCount & 0x3FF) == 0) {
-            breaker.addEstimateBytesAndMaybeBreak(0, label);
+            breaker.checkRealMemoryUsage(label);
         }
     }
 

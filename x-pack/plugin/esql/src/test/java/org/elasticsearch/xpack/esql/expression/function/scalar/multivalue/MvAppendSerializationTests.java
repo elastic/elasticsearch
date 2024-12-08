@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class MvAppendSerializationTests extends AbstractExpressionSerializationTests<MvAppend> {
     @Override
@@ -19,7 +20,8 @@ public class MvAppendSerializationTests extends AbstractExpressionSerializationT
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
-        return new MvAppend(source, field1, field2);
+        Expression field3 = randomChild();
+        return new MvAppend(source, field1, Arrays.asList(field2, field3));
     }
 
     @Override
@@ -27,12 +29,14 @@ public class MvAppendSerializationTests extends AbstractExpressionSerializationT
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
+        Expression field3 = randomChild();
         if (randomBoolean()) {
             field1 = randomValueOtherThan(field1, AbstractExpressionSerializationTests::randomChild);
         } else {
             field2 = randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild);
+            field3 = randomValueOtherThan(field3, AbstractExpressionSerializationTests::randomChild);
         }
-        return new MvAppend(source, field1, field2);
+        return new MvAppend(source, field1, Arrays.asList(field2, field3));
     }
 
     @Override

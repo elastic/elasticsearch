@@ -32,7 +32,9 @@ describe activity that goes beyond IOCs.
 
 With the exception of sample queries, EQL searches require that the searched
 data stream or index  contains a _timestamp_ field. By default, EQL uses the
-`@timestamp` field from the {ecs-ref}[Elastic Common Schema (ECS)]. 
+`@timestamp` field from the {ecs-ref}[Elastic Common Schema (ECS)].
+In addition, the `@timestamp` field must have milliseconds granularity, hence
+be mapped as `epoch_millis` or similar.
 
 EQL searches also require an _event category_ field, unless you use the
 <<eql-syntax-match-any-event-category,`any` keyword>> to search for  documents

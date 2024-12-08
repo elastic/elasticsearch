@@ -79,6 +79,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -167,6 +168,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
+            IndicesService indicesService,
             Client client,
             StatelessCommitCleaner commitCleaner,
             StatelessSharedBlobCacheService cacheService,
@@ -177,6 +179,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 settings,
                 objectStoreService,
                 clusterService,
+                indicesService,
                 client,
                 commitCleaner,
                 cacheService,
@@ -292,6 +295,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
+            IndicesService indicesService,
             Client client,
             StatelessCommitCleaner commitCleaner,
             StatelessSharedBlobCacheService cacheService,
@@ -302,6 +306,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 settings,
                 objectStoreService,
                 clusterService,
+                indicesService,
                 client,
                 commitCleaner,
                 cacheService,

@@ -34,8 +34,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,7 +49,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
     private final ThreadPool threadPool;
     private final SharedBlobCacheWarmingService cacheWarmingService;
     private final ObjectStoreService objectStoreService;
-    private final BooleanSupplier shouldRetrySupplier;
+    private final Predicate<Exception> shouldRetryPredicate;
     private final Function<Long, Boolean> pauseUploadSupplier;
     private final TriConsumer<ActionListener<Void>, ActionListener<BatchedCompoundCommit>, Long> uploadWhenReady;
     private final VirtualBatchedCompoundCommit virtualBcc;
@@ -63,7 +63,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
         ThreadPool threadPool,
         SharedBlobCacheWarmingService cacheWarmingService,
         ObjectStoreService objectStoreService,
-        BooleanSupplier shouldRetrySupplier,
+        Predicate<Exception> shouldRetryPredicate,
         Function<Long, Boolean> pauseUploadSupplier,
         TriConsumer<ActionListener<Void>, ActionListener<BatchedCompoundCommit>, Long> uploadWhenReady,
         VirtualBatchedCompoundCommit virtualBcc,
@@ -84,7 +84,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
         this.threadPool = threadPool;
         this.cacheWarmingService = cacheWarmingService;
         this.objectStoreService = objectStoreService;
-        this.shouldRetrySupplier = shouldRetrySupplier;
+        this.shouldRetryPredicate = shouldRetryPredicate;
         this.pauseUploadSupplier = pauseUploadSupplier;
         this.uploadWhenReady = uploadWhenReady;
         this.virtualBcc = virtualBcc;
@@ -192,6 +192,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
 
     @Override
     public boolean shouldRetry(Exception e) {
-        return shouldRetrySupplier.getAsBoolean();
+        return shouldRetryPredicate.test(e);
     }
 }

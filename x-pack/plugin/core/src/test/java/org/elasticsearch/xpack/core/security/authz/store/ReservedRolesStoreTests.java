@@ -276,8 +276,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("data_frame_transforms_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("data_frame_transforms_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("transform_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("transform_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
@@ -3348,183 +3346,97 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor[] roleDescriptors = {
-            ReservedRolesStore.roleDescriptor("data_frame_transforms_admin"),
-            ReservedRolesStore.roleDescriptor("transform_admin") };
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("transform_admin");
 
-        for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            assertNotNull(roleDescriptor);
-            assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-            if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
-                assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
-            } else {
-                assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
-            }
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+        assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
 
-            final String allowedApplicationActionPattern = "example/custom/action/*";
-            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-            List<ApplicationPrivilegeDescriptor> lookup = roleDescriptor.getName().equals("data_frame_transforms_admin")
-                ? List.of(
-                    new ApplicationPrivilegeDescriptor(
-                        kibanaApplicationWithRandomIndex,
-                        "reserved_ml_user",
-                        Set.of(allowedApplicationActionPattern),
-                        Map.of()
-                    )
-                )
-                : List.of();
-            Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
-            assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        List<ApplicationPrivilegeDescriptor> lookup = List.of();
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
+        assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
-            assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-            assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
-            assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
-            assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED);
-            assertNoAccessAllowed(role, "foo");
-            assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME); // internal use only
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED);
+        assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME); // internal use only
 
-            assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
-            assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-            assertThat(
-                role.application()
-                    .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
-                is(false)
-            );
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            is(false)
+        );
 
-            if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
-                assertThat(
-                    role.application()
-                        .grants(
-                            ApplicationPrivilegeTests.createPrivilege(
-                                kibanaApplicationWithRandomIndex,
-                                "app-reserved_ml",
-                                allowedApplicationActionPattern
-                            ),
-                            "*"
-                        ),
-                    is(true)
-                );
-            }
-
-            final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-            assertThat(
-                role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
-                is(false)
-            );
-            if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
-                assertThat(
-                    role.application()
-                        .grants(
-                            ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern),
-                            "*"
-                        ),
-                    is(false)
-                );
-            }
-        }
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+            is(false)
+        );
     }
 
     public void testTransformUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor[] roleDescriptors = {
-            ReservedRolesStore.roleDescriptor("data_frame_transforms_user"),
-            ReservedRolesStore.roleDescriptor("transform_user") };
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("transform_user");
 
-        for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            assertNotNull(roleDescriptor);
-            assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-            if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
-                assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
-            } else {
-                assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
-            }
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+        assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
 
-            final String allowedApplicationActionPattern = "example/custom/action/*";
-            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-            List<ApplicationPrivilegeDescriptor> lookup = roleDescriptor.getName().equals("data_frame_transforms_user")
-                ? List.of(
-                    new ApplicationPrivilegeDescriptor(
-                        kibanaApplicationWithRandomIndex,
-                        "reserved_ml_user",
-                        Set.of(allowedApplicationActionPattern),
-                        Map.of()
-                    )
-                )
-                : List.of();
-            Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
-            assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
-            assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
-            assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        List<ApplicationPrivilegeDescriptor> lookup = List.of();
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
+        assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
-            assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-            assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
-            assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
-            assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED);
-            assertNoAccessAllowed(role, "foo");
-            assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED);
+        assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
-            assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
-            assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-            assertThat(
-                role.application()
-                    .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
-                is(false)
-            );
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            is(false)
+        );
 
-            if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
-                assertThat(
-                    role.application()
-                        .grants(
-                            ApplicationPrivilegeTests.createPrivilege(
-                                kibanaApplicationWithRandomIndex,
-                                "app-reserved_ml",
-                                allowedApplicationActionPattern
-                            ),
-                            "*"
-                        ),
-                    is(true)
-                );
-            }
-
-            final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-            assertThat(
-                role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
-                is(false)
-            );
-            if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
-                assertThat(
-                    role.application()
-                        .grants(
-                            ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern),
-                            "*"
-                        ),
-                    is(false)
-                );
-            }
-        }
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+            is(false)
+        );
     }
 
     public void testWatcherAdminRole() {

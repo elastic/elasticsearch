@@ -61,8 +61,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     public static final FieldPermissions DEFAULT = new FieldPermissions();
 
-    // pkg-private for testing
-    static final Set<String> METADATA_FIELDS_ALLOWLIST = Set.of(
+    // public for testing
+    public static final Set<String> METADATA_FIELDS_ALLOWLIST = Set.of(
         // built-in
         IgnoredFieldMapper.NAME,
         IdFieldMapper.NAME,

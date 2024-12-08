@@ -43,7 +43,7 @@ public class ReindexDataStreamResponseTests extends AbstractWireSerializingTestC
             builder.humanReadable(true);
             response.toXContent(builder, EMPTY_PARAMS);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), equalTo(Map.of("task", response.getTaskId())));
+                assertThat(parser.map(), equalTo(Map.of("acknowledged", true)));
             }
         }
     }

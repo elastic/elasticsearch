@@ -1,0 +1,6 @@
+pr: 97616
+summary: Max headrooms should not apply if a watermark is set
+area: Allocation
+type: bug
+issues:
+ - 93468

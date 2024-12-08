@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.QueryBuilderRewriter;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
@@ -59,6 +60,7 @@ public class PlanExecutor {
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
+        QueryBuilderRewriter queryBuilderRewriter,
         ActionListener<Result> listener
     ) {
         final PlanningMetrics planningMetrics = new PlanningMetrics();
@@ -73,7 +75,8 @@ public class PlanExecutor {
             mapper,
             verifier,
             planningMetrics,
-            indicesExpressionGrouper
+            indicesExpressionGrouper,
+            queryBuilderRewriter
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

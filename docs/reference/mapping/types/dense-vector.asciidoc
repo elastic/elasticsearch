@@ -232,8 +232,8 @@ it will be set to the length of the first vector added to the field.
 
 `index`::
 (Optional, Boolean)
-If `true`, you can search this field using the <<knn-search-api, kNN search
-API>>. Defaults to `true`.
+If `true`, you can search this field using the <<query-dsl-knn-query, knn query>>
+or <<search-api-knn, knn in _search>> . Defaults to `true`.
 
 [[dense-vector-similarity]]
 `similarity`::

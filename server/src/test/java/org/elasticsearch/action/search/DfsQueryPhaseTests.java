@@ -344,8 +344,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
             .knnSearch(
                 List.of(
-                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null),
-                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, null)
+                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null, null),
+                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, null, null)
                 )
             )
             .rankBuilder(new TestRankBuilder(100));

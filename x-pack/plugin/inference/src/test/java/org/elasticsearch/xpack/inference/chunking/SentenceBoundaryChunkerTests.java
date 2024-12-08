@@ -27,6 +27,41 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SentenceBoundaryChunkerTests extends ESTestCase {
 
+    public void testEmptyString() {
+        var chunks = new SentenceBoundaryChunker().chunk("", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is(""));
+    }
+
+    public void testBlankString() {
+        var chunks = new SentenceBoundaryChunker().chunk("   ", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is("   "));
+    }
+
+    public void testSingleChar() {
+        var chunks = new SentenceBoundaryChunker().chunk("   b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("   b"));
+
+        chunks = new SentenceBoundaryChunker().chunk("b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("b"));
+
+        chunks = new SentenceBoundaryChunker().chunk(". ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(". "));
+
+        chunks = new SentenceBoundaryChunker().chunk(" , ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" , "));
+
+        chunks = new SentenceBoundaryChunker().chunk(" ,", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" ,"));
+    }
+
+    public void testSingleCharRepeated() {
+        var input = "a".repeat(32_000);
+        var chunks = new SentenceBoundaryChunker().chunk(input, 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(input));
+    }
+
     public void testChunkSplitLargeChunkSizes() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();

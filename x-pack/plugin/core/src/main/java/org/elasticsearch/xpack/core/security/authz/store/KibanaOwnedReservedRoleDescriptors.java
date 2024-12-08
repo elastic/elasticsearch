@@ -190,6 +190,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-agent-policies-metadata*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-policies-leader*")
                     .privileges("all")
                     .allowRestrictedIndices(true)

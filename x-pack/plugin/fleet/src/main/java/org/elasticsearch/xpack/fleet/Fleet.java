@@ -84,6 +84,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 1;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 1;
+    private static final int FLEET_POLICIES_METADATA_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
@@ -110,6 +111,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetEnrollmentApiKeysSystemIndexDescriptor(),
             fleetSecretsSystemIndexDescriptor(),
             fleetPoliciesSystemIndexDescriptor(),
+            fleetPoliciesMetadataSystemIndexDescriptor(),
             fleetPoliciesLeaderSystemIndexDescriptor(),
             fleetServersSystemIndexDescriptors(),
             fleetArtifactsSystemIndexDescriptors()
@@ -214,6 +216,23 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setIndexPattern(".fleet-policies-[0-9]+*")
             .setAliasName(".fleet-policies")
             .setDescription("Fleet Policies")
+            .build();
+    }
+
+    private static SystemIndexDescriptor fleetPoliciesMetadataSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(loadTemplateSource("/fleet-agent-policies-metadata.json", FLEET_POLICIES_METADATA_MAPPINGS_VERSION), XContentType.JSON);
+
+        return SystemIndexDescriptor.builder()
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setOrigin(FLEET_ORIGIN)
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setPrimaryIndex(".fleet-agent-policies-metadata-" + CURRENT_INDEX_VERSION)
+            .setIndexPattern(".fleet-agent-policies-metadata-[0-9]+*")
+            .setAliasName(".fleet-agent-policies-metadata")
+            .setDescription("Fleet Policies metadata for agent enrichment")
             .build();
     }
 

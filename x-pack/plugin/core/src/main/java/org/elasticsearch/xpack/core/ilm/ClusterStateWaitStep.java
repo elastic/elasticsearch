@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Checks whether a condition has been met based on the cluster state.
- *
+ * <p>
  * If checking a condition not based on the cluster state, or which may take time to evaluate, use {@link AsyncWaitStep}.
  */
 public abstract class ClusterStateWaitStep extends Step {

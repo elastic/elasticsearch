@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * If the action response is complete, the {@link ClusterStateWaitUntilThresholdStep}'s nextStepKey will be the nextStepKey of the
  * wrapped action. When the threshold level is surpassed, if the underlying step's condition was not met, the nextStepKey will be changed to
  * the provided {@link #nextKeyOnThresholdBreach} and this step will stop waiting.
- *
+ * <p>
  * Failures encountered whilst executing the wrapped action will be propagated directly.
  */
 public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {

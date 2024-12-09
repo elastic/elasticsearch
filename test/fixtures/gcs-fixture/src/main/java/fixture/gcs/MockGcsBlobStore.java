@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +25,7 @@ public class MockGcsBlobStore {
     record BlobVersion(String path, long generation, BytesReference contents, String uploadId) {}
 
     BlobVersion getBlob(String path, Long ifGenerationMatch) {
-        BlobVersion blob = blobs.get(path);
+        final BlobVersion blob = blobs.get(path);
         if (blob == null) {
             throw new BlobNotFoundException(path);
         } else {
@@ -97,7 +96,7 @@ public class MockGcsBlobStore {
     }
 
     Map<String, BlobVersion> listBlobs() {
-        return new HashMap<>(blobs);
+        return Map.copyOf(blobs);
     }
 
     static class BlobNotFoundException extends GcsRestException {

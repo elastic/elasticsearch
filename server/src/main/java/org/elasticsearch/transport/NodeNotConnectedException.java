@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -33,10 +32,5 @@ public class NodeNotConnectedException extends ConnectTransportException {
     @Override
     public Throwable fillInStackTrace() {
         return this; // this exception doesn't imply a bug, no need for a stack trace
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_GATEWAY;
     }
 }

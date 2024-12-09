@@ -506,28 +506,6 @@ public class RestResponseTests extends ESTestCase {
         );
     }
 
-    public void testNodeDisconnectErrorsShouldReturn502() throws IOException {
-        final RestRequest request = new FakeRestRequest();
-        final RestChannel channel = new DetailedExceptionRestChannel(request);
-        final RestResponse response = new RestResponse(
-            channel,
-            new SearchPhaseExecutionException(
-                "unused test phase name",
-                "unused test message 1",
-                new NodeDisconnectedException(
-                    null,
-                    "unused test message 2",
-                    "unused test action",
-                    new NodeNotConnectedException(null, "connection already closed")
-                ),
-                ShardSearchFailure.EMPTY_ARRAY
-            )
-        );
-
-        assertThat(response.status().getStatus(), is(502));
-        assertThat(response.content().utf8ToString(), containsString("connection already closed"));
-    }
-
     public void testRetriableCodesShouldTakePrecedence() throws IOException {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);

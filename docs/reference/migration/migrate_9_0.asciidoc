@@ -245,7 +245,7 @@ Users should remove usages of the `force_source` parameter from their search req
 ====
 
 [discrete]
-[[breaking_90_transforms-changes]]
+[[breaking_90_transforms_changes]]
 ==== {transforms-cap} changes
 
 [[updating_deprecated_transform_roles]]

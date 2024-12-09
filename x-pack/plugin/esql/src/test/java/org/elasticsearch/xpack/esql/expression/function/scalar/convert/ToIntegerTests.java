@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -48,7 +49,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
             evaluatorName.apply("Long"),
             dateCases(0, Integer.MAX_VALUE),
             DataType.INTEGER,
-            l -> ((Long) l).intValue(),
+            l -> Long.valueOf(((Instant) l).toEpochMilli()).intValue(),
             List.of()
         );
         // datetimes that fall outside Integer's range
@@ -60,7 +61,9 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
             l -> null,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
+                    + ((Instant) l).toEpochMilli()
+                    + "] out of [integer] range"
             )
         );
         // random strings that don't look like an Integer

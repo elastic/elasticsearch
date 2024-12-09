@@ -36,6 +36,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -89,7 +90,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         nodeLevelReduction = randomBoolean();
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));
@@ -338,7 +339,15 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
          */
         assertThat(
             cancelException.getMessage(),
-            in(List.of("test cancel", "task cancelled", "request cancelled test cancel", "parent task was cancelled [test cancel]"))
+            in(
+                List.of(
+                    "test cancel",
+                    "task cancelled",
+                    "request cancelled test cancel",
+                    "parent task was cancelled [test cancel]",
+                    "cancelled on failure"
+                )
+            )
         );
         assertBusy(
             () -> assertThat(
@@ -392,12 +401,13 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 .get();
             ensureYellowAndNoInitializingShards("test");
             request.query("FROM test | LIMIT 10");
-            request.pragmas(randomPragmas());
+            QueryPragmas pragmas = randomPragmas();
+            request.pragmas(pragmas);
             PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
             client.execute(EsqlQueryAction.INSTANCE, request, future);
             ExchangeService exchangeService = internalCluster().getInstance(ExchangeService.class, dataNode);
-            boolean waitedForPages;
-            final String sessionId;
+            final boolean waitedForPages;
+            final String exchangeId;
             try {
                 List<TaskInfo> foundTasks = new ArrayList<>();
                 assertBusy(() -> {
@@ -411,24 +421,35 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     assertThat(tasks, hasSize(1));
                     foundTasks.addAll(tasks);
                 });
-                sessionId = foundTasks.get(0).taskId().toString();
+                final String sessionId = foundTasks.get(0).taskId().toString();
                 assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
-                ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(sessionId);
+                List<String> sinkKeys = exchangeService.sinkKeys()
+                    .stream()
+                    .filter(
+                        s -> s.startsWith(sessionId)
+                            // exclude the node-level reduction sink
+                            && s.endsWith("[n]") == false
+                    )
+                    .toList();
+                assertThat(sinkKeys.toString(), sinkKeys.size(), equalTo(1));
+                exchangeId = sinkKeys.get(0);
+                ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(exchangeId);
                 waitedForPages = randomBoolean();
                 if (waitedForPages) {
-                    // do not fail exchange requests until we have some pages
+                    // do not fail exchange requests until we have some pages.
                     assertBusy(() -> assertThat(exchangeSink.bufferSize(), greaterThan(0)));
                 }
             } finally {
                 allowedFetching.countDown();
             }
             Exception failure = expectThrows(Exception.class, () -> future.actionGet().close());
+            EsqlTestUtils.assertEsqlFailure(failure);
             assertThat(failure.getMessage(), containsString("failed to fetch pages"));
             // If we proceed without waiting for pages, we might cancel the main request before starting the data-node request.
             // As a result, the exchange sinks on data-nodes won't be removed until the inactive_timeout elapses, which is
             // longer than the assertBusy timeout.
             if (waitedForPages == false) {
-                exchangeService.finishSinkHandler(sessionId, failure);
+                exchangeService.finishSinkHandler(exchangeId, failure);
             }
         } finally {
             transportService.clearAllRules();
@@ -437,6 +458,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     public void testTaskContentsForTopNQuery() throws Exception {
         READ_DESCRIPTION = ("\\_LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 1000, "
+            + "scoreMode = TOP_DOCS, "
             + "sorts = [{\"pause_me\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"long\"}}]]\n"
             + "\\_ValuesSourceReaderOperator[fields = [pause_me]]\n"
             + "\\_ProjectOperator[projection = [1]]\n"
@@ -471,7 +493,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     public void testTaskContentsForLimitQuery() throws Exception {
         String limit = Integer.toString(randomIntBetween(pageSize() + 1, 2 * numberOfDocs()));
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit()]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_ProjectOperator[projection = [1]]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit);
@@ -500,7 +522,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     public void testTaskContentsForGroupingStatsQuery() throws Exception {
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [foo]]
             \\_OrdinalsGroupingOperator(aggs = max of longs)
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));

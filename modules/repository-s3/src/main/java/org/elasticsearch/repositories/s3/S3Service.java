@@ -57,6 +57,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
@@ -360,6 +361,8 @@ class S3Service implements Closeable {
         private String roleSessionName;
         private String customStsEndpoint;
 
+        private volatile boolean shutdown = false;
+
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
             SystemEnvironment systemEnvironment,
@@ -425,7 +428,7 @@ class S3Service implements Closeable {
                 public void onFileChanged(Path file) {
                     if (file.equals(webIdentityTokenFileSymlink)) {
                         LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                        credentialsProvider.refresh();
+                        refresh();
                     }
                 }
             });
@@ -473,19 +476,33 @@ class S3Service implements Closeable {
         @Override
         public AWSCredentials getCredentials() {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return withRetryableCredentialsProvider(AWSCredentialsProvider::getCredentials);
+        }
+
+        @Override
+        public void refresh() {
+            withRetryableCredentialsProvider(awsCredentialsProvider -> {
+                if (awsCredentialsProvider != null) {
+                    awsCredentialsProvider.refresh();
+                }
+                return null;
+            });
+        }
+
+        private <T> T withRetryableCredentialsProvider(Function<AWSCredentialsProvider, T> function) {
             var localCredentialsProvider = credentialsProvider;
             try {
-                return localCredentialsProvider.getCredentials();
+                return function.apply(credentialsProvider);
             } catch (Exception e) {
                 var cause = ExceptionsHelper.unwrap(e, IllegalStateException.class);
                 // Work around a bug in the AWS SDK https://github.com/aws/aws-sdk-java/issues/2337 where the underlying Apache HTTP client
                 // silently shuts down on recoverable JDK errors like an OOM error. The only way to recover seems to be to create
                 // a new credentials provider and retry.
-                if (cause != null && cause.getMessage().startsWith("Connection pool shut down")) {
+                if (cause != null && cause.getMessage().startsWith("Connection pool shut down") && shutdown == false) {
                     synchronized (this) {
                         if (localCredentialsProvider == credentialsProvider) {
                             try {
-                                shutdown();
+                                IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
                             } catch (IOException ex) {
                                 LOGGER.warn("Unable to shutdown web identity credential provider", ex);
                             }
@@ -493,16 +510,9 @@ class S3Service implements Closeable {
                         }
                     }
                     // Retry with a freshy created credentials provider
-                    return credentialsProvider.getCredentials();
+                    return function.apply(credentialsProvider);
                 }
                 throw e;
-            }
-        }
-
-        @Override
-        public void refresh() {
-            if (credentialsProvider != null) {
-                credentialsProvider.refresh();
             }
         }
 
@@ -510,6 +520,11 @@ class S3Service implements Closeable {
             if (credentialsProvider != null) {
                 IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
             }
+            shutdown = true;
+        }
+
+        void closeStsClient() throws IOException {
+            stsClient.shutdown();
         }
     }
 

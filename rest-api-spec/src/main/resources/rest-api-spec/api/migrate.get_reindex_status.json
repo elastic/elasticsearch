@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_migration/reindex_status/{index}",
+          "path":"/_migration/reindex/{index}/_status",
           "methods":[
             "GET"
           ],

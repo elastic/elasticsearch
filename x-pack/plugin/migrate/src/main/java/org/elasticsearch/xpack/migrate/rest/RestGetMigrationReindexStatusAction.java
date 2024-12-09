@@ -27,7 +27,7 @@ public class RestGetMigrationReindexStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_migration/reindex_status/{index}"));
+        return List.of(new Route(GET, "/_migration/reindex/{index}/_status"));
     }
 
     @Override

@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -251,6 +253,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction spatial) {
             return canPushSpatialFunctionToSource(spatial, lucenePushdownPredicates);
+        } else if (exp instanceof Term term) {
+            return term.field() instanceof FieldAttribute && DataType.isString(term.field().dataType());
         } else if (exp instanceof FullTextFunction) {
             return true;
         }

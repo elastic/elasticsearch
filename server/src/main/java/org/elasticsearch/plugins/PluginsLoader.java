@@ -50,7 +50,6 @@ import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifie
  * to have all the plugin information they need prior to starting.
  */
 public class PluginsLoader {
-
     /**
      * Contains information about the {@link ClassLoader} required to load a plugin
      */
@@ -64,18 +63,26 @@ public class PluginsLoader {
          * @return The {@link ClassLoader} used to instantiate the main class for the plugin
          */
         ClassLoader pluginClassLoader();
+
+        /**
+         * @return The {@link ModuleLayer} for the plugin modules
+         */
+        ModuleLayer pluginModuleLayer();
     }
 
     /**
      * Contains information about the {@link ClassLoader}s and {@link ModuleLayer} required for loading a plugin
-     * @param pluginBundle Information about the bundle of jars used in this plugin
+     *
+     * @param pluginBundle      Information about the bundle of jars used in this plugin
      * @param pluginClassLoader The {@link ClassLoader} used to instantiate the main class for the plugin
-     * @param spiClassLoader The exported {@link ClassLoader} visible to other Java modules
-     * @param spiModuleLayer The exported {@link ModuleLayer} visible to other Java modules
+     * @param pluginModuleLayer The {@link ModuleLayer} containing the Java modules of the plugin
+     * @param spiClassLoader    The exported {@link ClassLoader} visible to other Java modules
+     * @param spiModuleLayer    The exported {@link ModuleLayer} visible to other Java modules
      */
     private record LoadedPluginLayer(
         PluginBundle pluginBundle,
         ClassLoader pluginClassLoader,
+        ModuleLayer pluginModuleLayer,
         ClassLoader spiClassLoader,
         ModuleLayer spiModuleLayer
     ) implements PluginLayer {
@@ -103,6 +110,10 @@ public class PluginsLoader {
         public static LayerAndLoader ofLoader(ClassLoader loader) {
             return new LayerAndLoader(ModuleLayer.boot(), loader);
         }
+
+        public static LayerAndLoader ofUberModuleLoader(UberModuleClassLoader loader) {
+            return new LayerAndLoader(loader.getLayer(), loader);
+        }
     }
 
     private static final Logger logger = LogManager.getLogger(PluginsLoader.class);
@@ -111,6 +122,7 @@ public class PluginsLoader {
     private final List<PluginDescriptor> moduleDescriptors;
     private final List<PluginDescriptor> pluginDescriptors;
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
+    private final Set<PluginBundle> allBundles;
 
     /**
      * Constructs a new PluginsLoader
@@ -185,17 +197,19 @@ public class PluginsLoader {
             }
         }
 
-        return new PluginsLoader(moduleDescriptors, pluginDescriptors, loadedPluginLayers);
+        return new PluginsLoader(moduleDescriptors, pluginDescriptors, loadedPluginLayers, Set.copyOf(seenBundles));
     }
 
     PluginsLoader(
         List<PluginDescriptor> moduleDescriptors,
         List<PluginDescriptor> pluginDescriptors,
-        Map<String, LoadedPluginLayer> loadedPluginLayers
+        Map<String, LoadedPluginLayer> loadedPluginLayers,
+        Set<PluginBundle> allBundles
     ) {
         this.moduleDescriptors = moduleDescriptors;
         this.pluginDescriptors = pluginDescriptors;
         this.loadedPluginLayers = loadedPluginLayers;
+        this.allBundles = allBundles;
     }
 
     public List<PluginDescriptor> moduleDescriptors() {
@@ -208,6 +222,10 @@ public class PluginsLoader {
 
     public Stream<PluginLayer> pluginLayers() {
         return loadedPluginLayers.values().stream().map(Function.identity());
+    }
+
+    public Set<PluginBundle> allBundles() {
+        return allBundles;
     }
 
     private static void loadPluginLayer(
@@ -239,7 +257,7 @@ public class PluginsLoader {
         }
 
         final ClassLoader pluginParentLoader = spiLayerAndLoader == null ? parentLoader : spiLayerAndLoader.loader();
-        final LayerAndLoader pluginLayerAndLoader = createPlugin(
+        final LayerAndLoader pluginLayerAndLoader = createPluginLayerAndLoader(
             bundle,
             pluginParentLoader,
             extendedPlugins,
@@ -253,7 +271,16 @@ public class PluginsLoader {
             spiLayerAndLoader = pluginLayerAndLoader;
         }
 
-        loaded.put(name, new LoadedPluginLayer(bundle, pluginClassLoader, spiLayerAndLoader.loader, spiLayerAndLoader.layer));
+        loaded.put(
+            name,
+            new LoadedPluginLayer(
+                bundle,
+                pluginClassLoader,
+                pluginLayerAndLoader.layer(),
+                spiLayerAndLoader.loader,
+                spiLayerAndLoader.layer
+            )
+        );
     }
 
     static LayerAndLoader createSPI(
@@ -277,7 +304,7 @@ public class PluginsLoader {
         }
     }
 
-    static LayerAndLoader createPlugin(
+    private static LayerAndLoader createPluginLayerAndLoader(
         PluginBundle bundle,
         ClassLoader pluginParentLoader,
         List<LoadedPluginLayer> extendedPlugins,
@@ -294,7 +321,7 @@ public class PluginsLoader {
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
         } else if (plugin.isStable()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
-            return LayerAndLoader.ofLoader(
+            return LayerAndLoader.ofUberModuleLoader(
                 UberModuleClassLoader.getInstance(
                     pluginParentLoader,
                     ModuleLayer.boot(),

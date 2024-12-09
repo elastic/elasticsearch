@@ -122,6 +122,34 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
         }, DataType.BOOLEAN, TestCaseSupplier.dateNanosCases(), TestCaseSupplier.dateNanosCases(), List.of(), false));
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanOrEqualNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> (((Instant) l).isBefore((Instant) r) || l.equals(r)),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanOrEqualMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> (((Instant) l).isBefore((Instant) r) || l.equals(r)),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) <= 0,
                 (lhsType, rhsType) -> "LessThanOrEqualKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",

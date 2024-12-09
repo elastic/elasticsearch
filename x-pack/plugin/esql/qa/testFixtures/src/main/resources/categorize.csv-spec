@@ -387,7 +387,7 @@ COUNT():long | SUM(event_duration):long | category:keyword
 ;
 
 on null row
-required_capability: categorize_v3
+required_capability: categorize_v5
 
 ROW message = null, str = ["a", "b", "c"]
 | STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message)

@@ -257,9 +257,9 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     public void testInvalidRescoreVectorBuilder() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 0, 100, new RescoreVectorBuilder(1.0F), null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 10, 100, new RescoreVectorBuilder(0.0F), null)
         );
-        assertThat(e.getMessage(), containsString("[oversample] must be > 1.0"));
+        assertThat(e.getMessage(), containsString("[num_candidates_factor] must be > 0.0"));
     }
 
     public void testRewrite() throws Exception {

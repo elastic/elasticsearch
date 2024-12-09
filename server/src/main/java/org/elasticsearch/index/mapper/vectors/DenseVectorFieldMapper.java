@@ -2134,7 +2134,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     name(),
                     queryVector,
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
-                    k,
                     knnQuery
                 );
             }

@@ -16,8 +16,6 @@ import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -32,7 +30,6 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
     private final String fieldName;
     private final float[] floatTarget;
     private final VectorSimilarityFunction vectorSimilarityFunction;
-    private final Integer k;
     private final Query innerQuery;
 
     private QueryProfilerProvider vectorProfiling;
@@ -41,13 +38,11 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         String fieldName,
         float[] floatTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
-        Integer k,
         Query innerQuery
     ) {
         this.fieldName = fieldName;
         this.floatTarget = floatTarget;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
-        this.k = k;
         this.innerQuery = innerQuery;
     }
 
@@ -58,32 +53,11 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         // to calculate top k and return directly the query to understand how many comparisons were done
         vectorProfiling = (QueryProfilerProvider) valueSource;
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
-        Query query = searcher.rewrite(functionScoreQuery);
-
-        if (k == null) {
-            // No need to calculate top k - let the request size limit the results.
-            return query;
-        }
-
-        // Retrieve top k documents from the rescored query
-        TopDocs topDocs = searcher.search(query, k);
-        ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-        int[] docIds = new int[scoreDocs.length];
-        float[] scores = new float[scoreDocs.length];
-        for (int i = 0; i < scoreDocs.length; i++) {
-            docIds[i] = scoreDocs[i].doc;
-            scores[i] = scoreDocs[i].score;
-        }
-
-        return new KnnScoreDocQuery(docIds, scores, searcher.getIndexReader());
+        return searcher.rewrite(functionScoreQuery);
     }
 
     public Query innerQuery() {
         return innerQuery;
-    }
-
-    public Integer k() {
-        return k;
     }
 
     @Override
@@ -111,24 +85,27 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         return Objects.equals(fieldName, that.fieldName)
             && Objects.deepEquals(floatTarget, that.floatTarget)
             && vectorSimilarityFunction == that.vectorSimilarityFunction
-            && Objects.equals(k, that.k)
             && Objects.equals(innerQuery, that.innerQuery);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
+        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), vectorSimilarityFunction, innerQuery);
     }
 
     @Override
     public String toString(String field) {
-        final StringBuilder sb = new StringBuilder("KnnRescoreVectorQuery{");
-        sb.append("fieldName='").append(fieldName).append('\'');
-        sb.append(", floatTarget=").append(floatTarget[0]).append("...");
-        sb.append(", vectorSimilarityFunction=").append(vectorSimilarityFunction);
-        sb.append(", k=").append(k);
-        sb.append(", vectorQuery=").append(innerQuery);
-        sb.append('}');
-        return sb.toString();
+        return "KnnRescoreVectorQuery{"
+            + "fieldName='"
+            + fieldName
+            + '\''
+            + ", floatTarget="
+            + floatTarget[0]
+            + "..."
+            + ", vectorSimilarityFunction="
+            + vectorSimilarityFunction
+            + ", vectorQuery="
+            + innerQuery
+            + '}';
     }
 }

@@ -1,0 +1,6 @@
+pr: 117762
+summary: "Parse the contents of dynamic objects for [subobjects:false]"
+area: Mapping
+type: bug
+issues:
+ - 117544

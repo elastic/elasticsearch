@@ -371,12 +371,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
             @Override
             public void onFailure(Exception exception) {
-                System.out.println("An error occurred " + exception.getMessage());
                 latch.countDown();
             }
         });
         assertTrue(latch.await(30, TimeUnit.SECONDS));
-        System.out.println("num events " + responseConsumer.events().size());
         return responseConsumer.events();
     }
 

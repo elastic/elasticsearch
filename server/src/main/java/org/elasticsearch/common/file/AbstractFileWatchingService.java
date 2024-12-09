@@ -307,7 +307,9 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    @SuppressForbidden(reason="The watcher thread is not from an ES pool; it's blocking on WatchService and is expecting to be interrupted")
+    @SuppressForbidden(
+        reason = "The watcher thread is not from an ES pool; it's blocking on WatchService and is expecting to be interrupted"
+    )
     private void interruptAndCancel(Future<Void> watcherTask) {
         assert watcherTask == this.watcherTask;
         watcherTask.cancel(true);

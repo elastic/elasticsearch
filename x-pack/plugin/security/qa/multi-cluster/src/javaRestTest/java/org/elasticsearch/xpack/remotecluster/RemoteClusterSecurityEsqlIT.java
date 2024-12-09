@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -34,6 +36,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -342,6 +346,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         configureRemoteCluster();
         populateData();
 
+        Map<String, Object> esqlCcsLicenseFeatureUsage = fetchEsqlCcsFeatureUsageFromNode(client());
+        assertThat(esqlCcsLicenseFeatureUsage.isEmpty(), is(true));
+
         // query remote cluster only
         Request request = esqlRequest("""
             FROM my_remote_cluster:employees
@@ -385,6 +392,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | LIMIT 2
             | KEEP emp_id, department"""));
         assertRemoteOnlyAgainst2IndexResults(response);
+
+        // check that the esql-ccs license feature is now present and that the last_used field has been updated
+        esqlCcsLicenseFeatureUsage = fetchEsqlCcsFeatureUsageFromNode(client());
+        assertThat(esqlCcsLicenseFeatureUsage.size(), equalTo(5));
+        Object lastUsed = esqlCcsLicenseFeatureUsage.get("last_used");
+        assertNotNull("lastUsed should not be null", lastUsed);
     }
 
     @SuppressWarnings("unchecked")
@@ -1659,5 +1672,20 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             // currently failed shards is always zero - change this once we start allowing partial data for individual shard failures
             assertThat((int) shards.get("failed"), is(0));
         }
+    }
+
+    private static Map<String, Object> fetchEsqlCcsFeatureUsageFromNode(RestClient client) throws IOException {
+        final Set<String> result = new HashSet<>();
+        Request request = new Request(HttpGet.METHOD_NAME, "_license/feature_usage");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        Response response = client.performRequest(request);
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        List<Map<String, Object>> features = path.evaluate("features");
+        for (var feature : features) {
+            if ("esql-ccs".equals(feature.get("name"))) {
+                return feature;
+            }
+        }
+        return Collections.emptyMap();
     }
 }

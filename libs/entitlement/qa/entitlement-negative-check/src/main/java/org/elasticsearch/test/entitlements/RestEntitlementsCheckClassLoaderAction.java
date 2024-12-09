@@ -25,11 +25,13 @@ public class RestEntitlementsCheckClassLoaderAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckClassLoaderAction.class);
 
+    private static final String CHECK_CREATE_URL_CLASSLOADER = "/_entitlement/negative/_check_create_url_classloader";
+
     RestEntitlementsCheckClassLoaderAction() {}
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_entitlement/_check_create_url_classloader"));
+        return List.of(new Route(GET, CHECK_CREATE_URL_CLASSLOADER));
     }
 
     @Override
@@ -40,7 +42,7 @@ public class RestEntitlementsCheckClassLoaderAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         logger.info("RestEntitlementsCheckClassLoaderAction rest handler [{}]", request.path());
-        if (request.path().equals("/_entitlement/_check_create_url_classloader")) {
+        if (request.path().equals(CHECK_CREATE_URL_CLASSLOADER)) {
             return channel -> {
                 logger.info("Calling new URLClassLoader");
                 try (var classLoader = new URLClassLoader("test", new URL[0], this.getClass().getClassLoader())) {

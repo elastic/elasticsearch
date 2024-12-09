@@ -27,7 +27,7 @@ public class RestEntitlementsCheckSystemExitAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_entitlement/_check_system_exit"));
+        return List.of(new Route(GET, "/_entitlement/negative/_check_system_exit"));
     }
 
     @Override

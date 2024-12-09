@@ -22,7 +22,7 @@ public class EntitlementsIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("entitlement-qa")
+        .plugin("entitlement-negative-check")
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .build();
@@ -35,14 +35,14 @@ public class EntitlementsIT extends ESRestTestCase {
     public void testCheckSystemExit() {
         var exception = expectThrows(
             IOException.class,
-            () -> { client().performRequest(new Request("GET", "/_entitlement/_check_system_exit")); }
+            () -> { client().performRequest(new Request("GET", "/_entitlement/negative/_check_system_exit")); }
         );
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 
     public void testCheckCreateURLClassLoader() {
         var exception = expectThrows(IOException.class, () -> {
-            client().performRequest(new Request("GET", "/_entitlement/_check_create_url_classloader"));
+            client().performRequest(new Request("GET", "/_entitlement/negative/_check_create_url_classloader"));
         });
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }

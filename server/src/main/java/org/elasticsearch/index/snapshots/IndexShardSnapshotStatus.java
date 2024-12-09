@@ -98,7 +98,7 @@ public class IndexShardSnapshotStatus {
     private long processedSize;
     private String failure;
     private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
-    private String debugStatusString;
+    private volatile String statusDescription;
 
     private IndexShardSnapshotStatus(
         final Stage stage,
@@ -112,7 +112,7 @@ public class IndexShardSnapshotStatus {
         final long processedSize,
         final String failure,
         final ShardGeneration generation,
-        final String debugStatusString
+        final String statusDescription
     ) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.generation = new AtomicReference<>(generation);
@@ -126,7 +126,7 @@ public class IndexShardSnapshotStatus {
         this.processedSize = processedSize;
         this.incrementalSize = incrementalSize;
         this.failure = failure;
-        this.debugStatusString = debugStatusString;
+        this.statusDescription = statusDescription;
     }
 
     public synchronized Copy moveToStarted(
@@ -278,8 +278,10 @@ public class IndexShardSnapshotStatus {
     /**
      * Updates the string explanation for what the snapshot is actively doing right now.
      */
-    public synchronized void updateDebugStatusString(String statusString) {
-        this.debugStatusString = statusString;
+    public void updateStatusDescription(String statusString) {
+        assert statusString != null;
+        assert statusString.isEmpty() == false;
+        this.statusDescription = statusString;
     }
 
     /**
@@ -300,7 +302,7 @@ public class IndexShardSnapshotStatus {
             totalSize,
             processedSize,
             failure,
-            debugStatusString
+            statusDescription
         );
     }
 
@@ -313,7 +315,7 @@ public class IndexShardSnapshotStatus {
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null, "instantiated as failed").asCopy();
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null, "initialized as failed").asCopy();
     }
 
     public static IndexShardSnapshotStatus.Copy newDone(
@@ -338,7 +340,7 @@ public class IndexShardSnapshotStatus {
             incrementalSize,
             null,
             generation,
-            "instantiated as done"
+            "initialized as done"
         ).asCopy();
     }
 
@@ -357,7 +359,7 @@ public class IndexShardSnapshotStatus {
         private final long processedSize;
         private final long incrementalSize;
         private final String failure;
-        private final String debugStatusString;
+        private final String statusDescription;
 
         public Copy(
             final Stage stage,
@@ -370,7 +372,7 @@ public class IndexShardSnapshotStatus {
             final long totalSize,
             final long processedSize,
             final String failure,
-            final String debugStatusString
+            final String statusDescription
         ) {
             this.stage = stage;
             this.startTime = startTime;
@@ -382,7 +384,7 @@ public class IndexShardSnapshotStatus {
             this.processedSize = processedSize;
             this.incrementalSize = incrementalSize;
             this.failure = failure;
-            this.debugStatusString = debugStatusString;
+            this.statusDescription = statusDescription;
         }
 
         public Stage getStage() {
@@ -425,8 +427,8 @@ public class IndexShardSnapshotStatus {
             return failure;
         }
 
-        public String getDebugStatusString() {
-            return debugStatusString;
+        public String getStatusDescription() {
+            return statusDescription;
         }
 
         @Override
@@ -452,8 +454,8 @@ public class IndexShardSnapshotStatus {
                 + processedSize
                 + ", failure='"
                 + failure
-                + "', debugStatusString='"
-                + debugStatusString
+                + "', statusDescription='"
+                + statusDescription
                 + '\''
                 + ')';
         }
@@ -482,8 +484,8 @@ public class IndexShardSnapshotStatus {
             + processedSize
             + ", failure='"
             + failure
-            + "', debugStatusString='"
-            + debugStatusString
+            + "', statusDescription='"
+            + statusDescription
             + '\''
             + ')';
     }

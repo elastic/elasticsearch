@@ -530,7 +530,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
                 // Expect the shard snapshot to stall in data file upload, since we've blocked the data node file upload to the blob store.
-                "debugStatusString='enqueued file snapshot tasks: threads running concurrent file uploads'"
+                "statusDescription='enqueued file snapshot tasks: threads running concurrent file uploads'"
             )
         );
 
@@ -597,7 +597,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 "SnapshotShutdownProgressTracker index shard snapshot messages",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "debugStatusString='finished: master notification attempt complete'"
+                "statusDescription='finished: master notification attempt complete'"
             )
         );
 

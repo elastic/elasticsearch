@@ -383,7 +383,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     + snapshotStatus.generation()
                     + "] for snapshot with old-format compatibility";
             shardSnapshotTasks.add(newShardSnapshotTask(shardId, snapshot, indexId, snapshotStatus, entry.version(), entry.startTime()));
-            snapshotStatus.updateDebugStatusString("shard snapshot scheduled to start");
+            snapshotStatus.updateStatusDescription("shard snapshot scheduled to start");
         }
 
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> shardSnapshotTasks.forEach(Runnable::run));
@@ -417,7 +417,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     "paused",
                     masterShardSnapshotStatus.generation(),
                     () -> {
-                        indexShardSnapshotStatus.updateDebugStatusString("finished: master notification attempt complete");
+                        indexShardSnapshotStatus.updateStatusDescription("finished: master notification attempt complete");
                         return null;
                     }
                 );
@@ -437,7 +437,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final long entryStartTime
     ) {
         Supplier<Void> postMasterNotificationAction = () -> {
-            snapshotStatus.updateDebugStatusString("finished: master notification attempt complete");
+            snapshotStatus.updateStatusDescription("finished: master notification attempt complete");
             return null;
         };
 
@@ -445,7 +445,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         ActionListener<ShardSnapshotResult> snapshotResultListener = new ActionListener<>() {
             @Override
             public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                snapshotStatus.updateDebugStatusString("snapshot succeeded: proceeding to notify master of success");
+                snapshotStatus.updateStatusDescription("snapshot succeeded: proceeding to notify master of success");
                 final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
                 assert newGeneration != null;
                 assert newGeneration.equals(snapshotStatus.generation());
@@ -466,7 +466,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
             @Override
             public void onFailure(Exception e) {
-                snapshotStatus.updateDebugStatusString("failed with exception '" + e + ": proceeding to notify master of failure");
+                snapshotStatus.updateStatusDescription("failed with exception '" + e + ": proceeding to notify master of failure");
                 final String failure;
                 final Stage nextStage;
                 if (e instanceof AbortedSnapshotException) {
@@ -541,7 +541,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         ActionListener<ShardSnapshotResult> resultListener
     ) {
         ActionListener.run(resultListener, listener -> {
-            snapshotStatus.updateDebugStatusString("has started");
+            snapshotStatus.updateStatusDescription("has started");
             snapshotStatus.ensureNotAborted();
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
@@ -561,9 +561,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             SnapshotIndexCommit snapshotIndexCommit = null;
             try {
-                snapshotStatus.updateDebugStatusString("acquiring commit reference from IndexShard: triggers a shard flush");
+                snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
                 snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
-                snapshotStatus.updateDebugStatusString("commit reference acquired, proceeding with snapshot");
+                snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
                 final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
                 snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
                 snapshotStatus.ensureNotAborted();

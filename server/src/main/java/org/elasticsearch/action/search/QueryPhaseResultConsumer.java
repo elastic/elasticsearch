@@ -76,7 +76,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final Consumer<Exception> onPartialMergeFailure;
 
     private final int batchReduceSize;
-    private final List<QuerySearchResult> buffer = new ArrayList<>();
+    final List<QuerySearchResult> buffer = new ArrayList<>();
     private final List<SearchShard> emptyResults = new ArrayList<>();
     // the memory that is accounted in the circuit breaker for this consumer
     private volatile long circuitBreakerBytes;
@@ -163,11 +163,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     public void reduce(Object[] results, TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (this) {
-            batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
+            //batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
             for (Object result : results) {
                 if (result instanceof QuerySearchResult querySearchResult) {
                     this.results.set(querySearchResult.getShardIndex(), querySearchResult);
                     querySearchResult.incRef();
+                    buffer.add(querySearchResult);
                 }
             }
         }

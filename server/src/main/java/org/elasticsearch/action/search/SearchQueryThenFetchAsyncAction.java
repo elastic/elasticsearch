@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -978,6 +978,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
                 final AtomicInteger shardIndex = new AtomicInteger();
                 request.searchRequest.finalReduce = false;
+                request.searchRequest.setBatchedReduceSize(Integer.MAX_VALUE);
                 final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                     request.searchRequest,
                     executor,
@@ -994,7 +995,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 final Runnable onDone = () -> {
                     if (countDown.countDown()) {
                         try {
-                            var mergeResult = queryPhaseResultConsumer.reduce();
                             final Object[] results = new Object[request.shards.size()];
                             for (int i = 0; i < results.length; i++) {
                                 var e = failures.get(i);
@@ -1004,12 +1004,14 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                     results[i] = queryPhaseResultConsumer.results.get(i);
                                 }
                             }
+                            // TODO: facepalm
+                            queryPhaseResultConsumer.buffer.clear();
                             new ChannelActionListener<>(channel).onResponse(
                                 new NodeQueryResponse(
                                     new QueryPhaseResultConsumer.MergeResult(
                                         request.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
-                                        new TopDocs(mergeResult.totalHits(), mergeResult.sortedTopDocs().scoreDocs()),
-                                        mergeResult.aggregations(),
+                                        Lucene.EMPTY_TOP_DOCS,
+                                        null,
                                         0L
                                     ),
                                     results,

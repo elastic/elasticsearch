@@ -172,9 +172,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             if (extendedVersions.isEmpty()) {
                 ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
             } else {
-                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream())
-                    .sorted()
-                    .toList();
+                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
             }
 
             ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));

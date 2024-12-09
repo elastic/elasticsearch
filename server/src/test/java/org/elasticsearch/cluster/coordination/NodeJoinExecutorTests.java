@@ -1145,14 +1145,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), rejoinNode.getId(), Set.of()))
             .build();
 
-        assertThat(
-            clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f1")),
-            is(false)
-        );
-        assertThat(
-            clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f2")),
-            is(false)
-        );
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f1")), is(false));
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f2")), is(false));
 
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
@@ -1169,14 +1163,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             )
         );
 
-        assertThat(
-            resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f1")),
-            is(true)
-        );
-        assertThat(
-            resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f2")),
-            is(true)
-        );
+        assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f1")), is(true));
+        assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f2")), is(true));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

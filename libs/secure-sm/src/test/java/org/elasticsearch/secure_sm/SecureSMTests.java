@@ -9,36 +9,43 @@
 
 package org.elasticsearch.secure_sm;
 
+import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
+
 import org.elasticsearch.jdk.RuntimeVersionFeature;
-import org.junit.Assert;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /** Simple tests for SecureSM */
-public class SecureSMTests {
+@TestMethodProviders({ JUnit3MethodProvider.class })
+@RunWith(RandomizedRunner.class)
+public class SecureSMTests extends org.junit.Assert {
 
     @BeforeClass
-    public static void initializeSM() {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
-            throw new AssumptionViolatedException("SecurityManager has been permanently removed in JDK 24");
-        }
+    public static void initialize() {
+        RandomizedTest.assumeFalse(
+            "SecurityManager has been permanently removed in JDK 24",
+            RuntimeVersionFeature.isSecurityManagerAvailable() == false
+        );
         // install a mock security policy:
         // AllPermission to source code
         // ThreadPermission not granted anywhere else
-        final ProtectionDomain sourceCode = SecureSM.class.getProtectionDomain();
+        final var sourceCode = Set.of(SecureSM.class.getProtectionDomain(), RandomizedRunner.class.getProtectionDomain());
         Policy.setPolicy(new Policy() {
             @Override
             public boolean implies(ProtectionDomain domain, Permission permission) {
-                if (domain == sourceCode) {
+                if (sourceCode.contains(domain)) {
                     return true;
                 } else if (permission instanceof ThreadPermission) {
                     return false;
@@ -49,26 +56,23 @@ public class SecureSMTests {
         System.setSecurityManager(SecureSM.createTestSecureSM());
     }
 
-    @Test
     @SuppressForbidden(reason = "testing that System#exit is blocked")
     public void testTryToExit() {
         try {
             System.exit(1);
-            Assert.fail("did not hit expected exception");
+            fail("did not hit expected exception");
         } catch (SecurityException expected) {}
     }
 
-    @Test
     public void testClassCanExit() {
-        Assert.assertTrue(SecureSM.classCanExit("org.apache.maven.surefire.booter.CommandReader", SecureSM.TEST_RUNNER_PACKAGES));
-        Assert.assertTrue(SecureSM.classCanExit("com.carrotsearch.ant.tasks.junit4.slave.JvmExit", SecureSM.TEST_RUNNER_PACKAGES));
-        Assert.assertTrue(SecureSM.classCanExit("org.eclipse.jdt.internal.junit.runner.RemoteTestRunner", SecureSM.TEST_RUNNER_PACKAGES));
-        Assert.assertTrue(SecureSM.classCanExit("com.intellij.rt.execution.junit.JUnitStarter", SecureSM.TEST_RUNNER_PACKAGES));
-        Assert.assertTrue(SecureSM.classCanExit("org.elasticsearch.Foo", new String[] { "org.elasticsearch.Foo" }));
-        Assert.assertFalse(SecureSM.classCanExit("org.elasticsearch.Foo", new String[] { "org.elasticsearch.Bar" }));
+        assertTrue(SecureSM.classCanExit("org.apache.maven.surefire.booter.CommandReader", SecureSM.TEST_RUNNER_PACKAGES));
+        assertTrue(SecureSM.classCanExit("com.carrotsearch.ant.tasks.junit4.slave.JvmExit", SecureSM.TEST_RUNNER_PACKAGES));
+        assertTrue(SecureSM.classCanExit("org.eclipse.jdt.internal.junit.runner.RemoteTestRunner", SecureSM.TEST_RUNNER_PACKAGES));
+        assertTrue(SecureSM.classCanExit("com.intellij.rt.execution.junit.JUnitStarter", SecureSM.TEST_RUNNER_PACKAGES));
+        assertTrue(SecureSM.classCanExit("org.elasticsearch.Foo", new String[] { "org.elasticsearch.Foo" }));
+        assertFalse(SecureSM.classCanExit("org.elasticsearch.Foo", new String[] { "org.elasticsearch.Bar" }));
     }
 
-    @Test
     public void testCreateThread() throws Exception {
         Thread t = new Thread();
         t.start();
@@ -76,7 +80,6 @@ public class SecureSMTests {
         // no exception
     }
 
-    @Test
     public void testCreateThreadGroup() throws Exception {
         Thread t = new Thread(new ThreadGroup("childgroup"), "child");
         t.start();
@@ -84,7 +87,6 @@ public class SecureSMTests {
         // no exception
     }
 
-    @Test
     public void testModifyChild() throws Exception {
         final AtomicBoolean interrupted = new AtomicBoolean(false);
         Thread t = new Thread(new ThreadGroup("childgroup"), "child") {
@@ -101,10 +103,9 @@ public class SecureSMTests {
         t.interrupt();
         t.join();
         // no exception
-        Assert.assertTrue(interrupted.get());
+        assertTrue(interrupted.get());
     }
 
-    @Test
     public void testNoModifySibling() throws Exception {
         final AtomicBoolean interrupted1 = new AtomicBoolean(false);
         final AtomicBoolean interrupted2 = new AtomicBoolean(false);
@@ -130,7 +131,7 @@ public class SecureSMTests {
                     interrupted2.set(true);
                     try {
                         t1.interrupt(); // try to bogusly interrupt our sibling
-                        Assert.fail("did not hit expected exception");
+                        fail("did not hit expected exception");
                     } catch (SecurityException expected2) {}
                 }
             }
@@ -139,15 +140,14 @@ public class SecureSMTests {
         t2.interrupt();
         t2.join();
         // sibling attempted to but was not able to muck with its other sibling
-        Assert.assertTrue(interrupted2.get());
-        Assert.assertFalse(interrupted1.get());
+        assertTrue(interrupted2.get());
+        assertFalse(interrupted1.get());
         // but we are the parent and can terminate
         t1.interrupt();
         t1.join();
-        Assert.assertTrue(interrupted1.get());
+        assertTrue(interrupted1.get());
     }
 
-    @Test
     public void testParallelStreamThreadGroup() throws Exception {
         List<Integer> list = new ArrayList<>();
         for (int i = 0; i < 100; ++i) {

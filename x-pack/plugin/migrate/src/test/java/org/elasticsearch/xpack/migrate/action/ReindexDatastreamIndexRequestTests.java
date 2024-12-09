@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction.Request;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction.Request;
 
 public class ReindexDatastreamIndexRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override

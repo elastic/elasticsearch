@@ -411,3 +411,6 @@ tests:
 - class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
   method: testHealthNode {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/118157
+- class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
+  method: testHealthNode {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/118158

@@ -163,7 +163,7 @@ public class QueryRewriteContext {
     /**
      * Returns a new {@link QueryRewriteContext} instance that is stripped of any
      * configured interceptors, guaranteeing that downstream rewrites don't try to
-     * re-intercept the query. 
+     * re-intercept the query.
      */
     public QueryRewriteContext getInterceptedQueryRewriteContext() {
 

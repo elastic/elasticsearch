@@ -39,7 +39,6 @@ import java.util.Map;
 public class CategorizePackedValuesBlockHash extends BlockHash {
 
     private final AggregatorMode aggregatorMode;
-    private final List<GroupSpec> specs;
     private final CategorizeBlockHash categorizeBlockHash;
     private final PackedValuesBlockHash packedValuesBlockHash;
 
@@ -52,14 +51,20 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     ) {
         super(blockFactory);
         this.aggregatorMode = aggregatorMode;
-        this.specs = specs;
-        categorizeBlockHash = new CategorizeBlockHash(blockFactory, specs.get(0).channel(), aggregatorMode, analysisRegistry);
 
-        List<GroupSpec> newSpecs = new ArrayList<>(specs);
-        newSpecs.set(0, new GroupSpec(-1, ElementType.INT));
-        packedValuesBlockHash = new PackedValuesBlockHash(newSpecs, blockFactory, emitBatchSize);
+        List<GroupSpec> packedValuesBlockHashSpecs = new ArrayList<>(specs);
+        packedValuesBlockHashSpecs.set(0, new GroupSpec(-1, ElementType.INT));
 
-        // TODO: close stuff upon failure
+        boolean success = false;
+        try {
+            categorizeBlockHash = new CategorizeBlockHash(blockFactory, specs.get(0).channel(), aggregatorMode, analysisRegistry);
+            packedValuesBlockHash = new PackedValuesBlockHash(packedValuesBlockHashSpecs, blockFactory, emitBatchSize);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override

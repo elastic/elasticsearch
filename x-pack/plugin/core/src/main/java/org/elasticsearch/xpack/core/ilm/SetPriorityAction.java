@@ -31,7 +31,6 @@ public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
     public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         a -> new SetPriorityAction((Integer) a[0])

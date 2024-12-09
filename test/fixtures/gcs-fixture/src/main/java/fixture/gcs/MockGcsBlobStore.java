@@ -87,10 +87,6 @@ public class MockGcsBlobStore {
         return updatedBlob;
     }
 
-    boolean blobExists(String path) {
-        return blobs.containsKey(path);
-    }
-
     void deleteBlob(String path) {
         blobs.remove(path);
     }

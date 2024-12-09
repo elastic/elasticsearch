@@ -77,7 +77,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                     getKey().name(),
                     getKey().action(),
                     idxMeta.getIndex().getName(),
-                    Strings.toString(stepResult.getInfomationContext()),
+                    Strings.toString(stepResult.getInformationContext()),
                     nextKeyOnThresholdBreach
                 );
                 logger.debug(message);

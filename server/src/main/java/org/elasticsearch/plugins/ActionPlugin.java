@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -83,6 +84,24 @@ public interface ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        return Collections.emptyList();
+    }
+
+    /**
+    * Rest handlers added by this plugin with ThreadContext.
+    */
+    default Collection<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        ThreadContext context
     ) {
         return Collections.emptyList();
     }

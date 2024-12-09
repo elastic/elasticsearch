@@ -11,6 +11,8 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -33,7 +35,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
+        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false, new ThreadContext(Settings.EMPTY));
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));

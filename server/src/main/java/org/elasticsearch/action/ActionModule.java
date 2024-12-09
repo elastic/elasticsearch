@@ -934,12 +934,21 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkAction(settings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature));
+        registerHandler.accept(
+            new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, threadPool.getThreadContext())
+        );
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
+        registerHandler.accept(
+            new RestMultiSearchAction(
+                settings,
+                restController.getSearchUsageHolder(),
+                clusterSupportsFeature,
+                threadPool.getThreadContext()
+            )
+        );
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -1017,7 +1026,8 @@ public class ActionModule extends AbstractModule {
                 settingsFilter,
                 indexNameExpressionResolver,
                 nodesInCluster,
-                clusterSupportsFeature
+                clusterSupportsFeature,
+                threadPool.getThreadContext()
             )) {
                 registerHandler.accept(handler);
             }

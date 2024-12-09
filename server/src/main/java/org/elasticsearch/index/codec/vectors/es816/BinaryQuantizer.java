@@ -227,7 +227,7 @@ public class BinaryQuantizer {
         // q¯ is an approximation of q′ (scalar quantized approximation)
         // FIXME: vectors need to be padded but that's expensive; update transponseBin to deal
         byteQuery = BQVectorUtils.pad(byteQuery, discretizedDimensions);
-        BQSpaceUtils.transposeBin(byteQuery, discretizedDimensions, queryDestination);
+        BQSpaceUtils.transposeHalfByte(byteQuery, queryDestination);
         QueryFactors factors = new QueryFactors(quantResult.quantizedSum, distToC, lower, width, normVmC, vDotC);
         final float[] indexCorrections;
         if (similarityFunction == EUCLIDEAN) {
@@ -370,7 +370,7 @@ public class BinaryQuantizer {
         // q¯ is an approximation of q′ (scalar quantized approximation)
         // FIXME: vectors need to be padded but that's expensive; update transponseBin to deal
         byteQuery = BQVectorUtils.pad(byteQuery, discretizedDimensions);
-        BQSpaceUtils.transposeBin(byteQuery, discretizedDimensions, destination);
+        BQSpaceUtils.transposeHalfByte(byteQuery, destination);
 
         QueryFactors factors;
         if (similarityFunction != EUCLIDEAN) {

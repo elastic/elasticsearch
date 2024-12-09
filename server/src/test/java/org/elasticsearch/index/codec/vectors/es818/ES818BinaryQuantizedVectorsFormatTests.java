@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene100.Lucene100Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,7 +30,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
@@ -60,7 +59,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
 
     @Override
     protected Codec getCodec() {
-        return new Lucene100Codec() {
+        return new Lucene912Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new ES818BinaryQuantizedVectorsFormat();
@@ -92,8 +91,8 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     float[] queryVector = randomVector(dims);
                     Query q = new KnnFloatVectorQuery(fieldName, queryVector, k);
                     TopDocs collectedDocs = searcher.search(q, k);
-                    assertEquals(k, collectedDocs.totalHits.value());
-                    assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation());
+                    assertEquals(k, collectedDocs.totalHits.value);
+                    assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation);
                 }
             }
         }
@@ -161,18 +160,16 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     if (similarityFunction == VectorSimilarityFunction.COSINE) {
                         vectorValues = new ES818BinaryQuantizedVectorsWriter.NormalizedFloatVectorValues(vectorValues);
                     }
-                    KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
-
-                    while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
+                    while (vectorValues.nextDoc() != NO_MORE_DOCS) {
                         OptimizedScalarQuantizer.QuantizationResult corrections = quantizer.scalarQuantize(
-                            vectorValues.vectorValue(docIndexIterator.index()),
+                            vectorValues.vectorValue(),
                             quantizedVector,
                             (byte) 1,
                             centroid
                         );
                         BQVectorUtils.packAsBinary(quantizedVector, expectedVector);
-                        assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
-                        assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
+                        assertArrayEquals(expectedVector, qvectorValues.vectorValue());
+                        assertEquals(corrections, qvectorValues.getCorrectiveTerms());
                     }
                 }
             }

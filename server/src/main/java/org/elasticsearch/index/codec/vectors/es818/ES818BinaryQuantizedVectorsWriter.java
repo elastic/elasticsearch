@@ -30,7 +30,6 @@ import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
@@ -44,6 +43,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.elasticsearch.core.SuppressForbidden;
@@ -365,11 +365,10 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         byte[][] quantizationScratch = new byte[2][floatVectorValues.dimension()];
         byte[] toIndex = new byte[discretizedDimension / 8];
         byte[] toQuery = new byte[(discretizedDimension / 8) * BQSpaceUtils.B_QUERY];
-        KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
-        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+        for (int docV = floatVectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = floatVectorValues.nextDoc()) {
             // write index vector
             OptimizedScalarQuantizer.QuantizationResult[] r = binaryQuantizer.multiScalarQuantize(
-                floatVectorValues.vectorValue(iterator.index()),
+                floatVectorValues.vectorValue(),
                 quantizationScratch,
                 new byte[] { 1, 4 },
                 centroid
@@ -399,12 +398,11 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     static DocsWithFieldSet writeBinarizedVectorData(IndexOutput output, BinarizedByteVectorValues binarizedByteVectorValues)
         throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        KnnVectorValues.DocIndexIterator iterator = binarizedByteVectorValues.iterator();
-        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+        for (int docV = binarizedByteVectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = binarizedByteVectorValues.nextDoc()) {
             // write vector
-            byte[] binaryValue = binarizedByteVectorValues.vectorValue(iterator.index());
+            byte[] binaryValue = binarizedByteVectorValues.vectorValue();
             output.writeBytes(binaryValue, binaryValue.length);
-            OptimizedScalarQuantizer.QuantizationResult corrections = binarizedByteVectorValues.getCorrectiveTerms(iterator.index());
+            OptimizedScalarQuantizer.QuantizationResult corrections = binarizedByteVectorValues.getCorrectiveTerms();
             output.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
             output.writeInt(Float.floatToIntBits(corrections.upperInterval()));
             output.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
@@ -601,10 +599,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             if (vectorValues == null) {
                 continue;
             }
-            KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-            for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            for (int doc = vectorValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = vectorValues.nextDoc()) {
                 ++count;
-                float[] vector = vectorValues.vectorValue(iterator.index());
+                float[] vector = vectorValues.vectorValue();
                 // TODO Panama sum
                 for (int j = 0; j < vector.length; j++) {
                     centroid[j] += vector[j];
@@ -792,8 +789,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         private final float[] centroid;
         private final FloatVectorValues values;
         private final OptimizedScalarQuantizer quantizer;
-
-        private int lastOrd = -1;
+        private int lastDoc;
 
         BinarizedFloatVectorValues(FloatVectorValues delegate, OptimizedScalarQuantizer quantizer, float[] centroid) {
             this.values = delegate;
@@ -801,24 +797,16 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             this.binarized = new byte[BQVectorUtils.discretize(delegate.dimension(), 64) / 8];
             this.initQuantized = new byte[delegate.dimension()];
             this.centroid = centroid;
+            lastDoc = -1;
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int ord) {
-            if (ord != lastOrd) {
-                throw new IllegalStateException(
-                    "attempt to retrieve corrective terms for different ord " + ord + " than the quantization was done for: " + lastOrd
-                );
-            }
+        public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms() {
             return corrections;
         }
 
         @Override
-        public byte[] vectorValue(int ord) throws IOException {
-            if (ord != lastOrd) {
-                binarize(ord);
-                lastOrd = ord;
-            }
+        public byte[] vectorValue() throws IOException {
             return binarized;
         }
 
@@ -843,37 +831,52 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
+        public int docID() {
+            return values.docID();
+        }
+
+        @Override
         public VectorScorer scorer(float[] target) throws IOException {
             throw new UnsupportedOperationException();
         }
 
-        @Override
-        public BinarizedByteVectorValues copy() throws IOException {
-            return new BinarizedFloatVectorValues(values.copy(), quantizer, centroid);
-        }
-
-        private void binarize(int ord) throws IOException {
-            corrections = quantizer.scalarQuantize(values.vectorValue(ord), initQuantized, (byte) 1, centroid);
+        private void binarize() throws IOException {
+            if (lastDoc == docID()) return;
+            corrections = quantizer.scalarQuantize(values.vectorValue(), initQuantized, (byte) 1, centroid);
             BQVectorUtils.packAsBinary(initQuantized, binarized);
         }
 
         @Override
-        public DocIndexIterator iterator() {
-            return values.iterator();
+        public int nextDoc() throws IOException {
+            int doc = values.nextDoc();
+            if (doc != NO_MORE_DOCS) {
+                binarize();
+            }
+            lastDoc = doc;
+            return doc;
         }
 
         @Override
-        public int ordToDoc(int ord) {
-            return values.ordToDoc(ord);
+        public int advance(int target) throws IOException {
+            int doc = values.advance(target);
+            if (doc != NO_MORE_DOCS) {
+                binarize();
+            }
+            lastDoc = doc;
+            return doc;
         }
     }
 
     static class BinarizedCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
         private final RandomVectorScorerSupplier supplier;
-        private final KnnVectorValues vectorValues;
+        private final RandomAccessVectorValues vectorValues;
         private final Closeable onClose;
 
-        BinarizedCloseableRandomVectorScorerSupplier(RandomVectorScorerSupplier supplier, KnnVectorValues vectorValues, Closeable onClose) {
+        BinarizedCloseableRandomVectorScorerSupplier(
+            RandomVectorScorerSupplier supplier,
+            RandomAccessVectorValues vectorValues,
+            Closeable onClose
+        ) {
             this.supplier = supplier;
             this.onClose = onClose;
             this.vectorValues = vectorValues;
@@ -903,6 +906,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     static final class NormalizedFloatVectorValues extends FloatVectorValues {
         private final FloatVectorValues values;
         private final float[] normalizedVector;
+        int curDoc = -1;
 
         NormalizedFloatVectorValues(FloatVectorValues values) {
             this.values = values;
@@ -920,25 +924,38 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public int ordToDoc(int ord) {
-            return values.ordToDoc(ord);
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            System.arraycopy(values.vectorValue(ord), 0, normalizedVector, 0, normalizedVector.length);
-            VectorUtil.l2normalize(normalizedVector);
+        public float[] vectorValue() {
             return normalizedVector;
         }
 
         @Override
-        public DocIndexIterator iterator() {
-            return values.iterator();
+        public VectorScorer scorer(float[] query) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
-        public NormalizedFloatVectorValues copy() throws IOException {
-            return new NormalizedFloatVectorValues(values.copy());
+        public int docID() {
+            return values.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            curDoc = values.nextDoc();
+            if (curDoc != NO_MORE_DOCS) {
+                System.arraycopy(values.vectorValue(), 0, normalizedVector, 0, normalizedVector.length);
+                VectorUtil.l2normalize(normalizedVector);
+            }
+            return curDoc;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            curDoc = values.advance(target);
+            if (curDoc != NO_MORE_DOCS) {
+                System.arraycopy(values.vectorValue(), 0, normalizedVector, 0, normalizedVector.length);
+                VectorUtil.l2normalize(normalizedVector);
+            }
+            return curDoc;
         }
     }
 }

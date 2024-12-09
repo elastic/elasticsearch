@@ -36,7 +36,6 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -80,7 +79,7 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.META_EXTENSION
         );
         boolean success = false;
-        try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
+        try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName, state.context)) {
             Throwable priorE = null;
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
@@ -104,7 +103,7 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 // Quantized vectors are accessed randomly from their node ID stored in the HNSW
                 // graph.
-                state.context.withReadAdvice(ReadAdvice.RANDOM)
+                state.context.withRandomAccess()
             );
             success = true;
         } finally {
@@ -358,9 +357,9 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     /** Binarized vector values holding row and quantized vector values */
     protected static final class BinarizedVectorValues extends FloatVectorValues {
         private final FloatVectorValues rawVectorValues;
-        private final BinarizedByteVectorValues quantizedVectorValues;
+        private final OffHeapBinarizedVectorValues quantizedVectorValues;
 
-        BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
+        BinarizedVectorValues(FloatVectorValues rawVectorValues, OffHeapBinarizedVectorValues quantizedVectorValues) {
             this.rawVectorValues = rawVectorValues;
             this.quantizedVectorValues = quantizedVectorValues;
         }
@@ -376,28 +375,33 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         }
 
         @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return rawVectorValues.vectorValue(ord);
+        public float[] vectorValue() throws IOException {
+            return rawVectorValues.vectorValue();
+        }
+
+        BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
+            return quantizedVectorValues;
         }
 
         @Override
-        public BinarizedVectorValues copy() throws IOException {
-            return new BinarizedVectorValues(rawVectorValues.copy(), quantizedVectorValues.copy());
+        public int docID() {
+            return rawVectorValues.docID();
         }
 
         @Override
-        public Bits getAcceptOrds(Bits acceptDocs) {
-            return rawVectorValues.getAcceptOrds(acceptDocs);
+        public int nextDoc() throws IOException {
+            int rawDocId = rawVectorValues.nextDoc();
+            int quantizedDocId = quantizedVectorValues.nextDoc();
+            assert rawDocId == quantizedDocId;
+            return quantizedDocId;
         }
 
         @Override
-        public int ordToDoc(int ord) {
-            return rawVectorValues.ordToDoc(ord);
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return rawVectorValues.iterator();
+        public int advance(int target) throws IOException {
+            int rawDocId = rawVectorValues.advance(target);
+            int quantizedDocId = quantizedVectorValues.advance(target);
+            assert rawDocId == quantizedDocId;
+            return quantizedDocId;
         }
 
         @Override
@@ -405,8 +409,5 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             return quantizedVectorValues.scorer(query);
         }
 
-        BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
-            return quantizedVectorValues;
-        }
     }
 }

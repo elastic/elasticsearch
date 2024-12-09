@@ -20,10 +20,10 @@
 package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
@@ -47,9 +47,9 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
     @Override
     public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
-        KnnVectorValues vectorValues
+        RandomAccessVectorValues vectorValues
     ) throws IOException {
-        if (vectorValues instanceof BinarizedByteVectorValues) {
+        if (vectorValues instanceof RandomAccessBinarizedByteVectorValues) {
             throw new UnsupportedOperationException(
                 "getRandomVectorScorerSupplier(VectorSimilarityFunction,RandomAccessVectorValues) not implemented for binarized format"
             );
@@ -60,10 +60,10 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
     @Override
     public RandomVectorScorer getRandomVectorScorer(
         VectorSimilarityFunction similarityFunction,
-        KnnVectorValues vectorValues,
+        RandomAccessVectorValues vectorValues,
         float[] target
     ) throws IOException {
-        if (vectorValues instanceof BinarizedByteVectorValues binarizedVectors) {
+        if (vectorValues instanceof RandomAccessBinarizedByteVectorValues binarizedVectors) {
             BinaryQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
             // FIXME: precompute this once?
@@ -84,7 +84,7 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
     @Override
     public RandomVectorScorer getRandomVectorScorer(
         VectorSimilarityFunction similarityFunction,
-        KnnVectorValues vectorValues,
+        RandomAccessVectorValues vectorValues,
         byte[] target
     ) throws IOException {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
@@ -93,7 +93,7 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
     RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
-        BinarizedByteVectorValues targetVectors
+        RandomAccessBinarizedByteVectorValues targetVectors
     ) {
         return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
     }
@@ -106,12 +106,12 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer supplier over binarized vector values */
     static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
         private final ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final BinarizedByteVectorValues targetVectors;
+        private final RandomAccessBinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         BinarizedRandomVectorScorerSupplier(
             ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            BinarizedByteVectorValues targetVectors,
+            RandomAccessBinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             this.queryVectors = queryVectors;
@@ -151,7 +151,7 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer over binarized vector values */
     static class BinarizedRandomVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final BinaryQueryVector queryVector;
-        private final BinarizedByteVectorValues targetVectors;
+        private final RandomAccessBinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         private final float sqrtDimensions;
@@ -159,7 +159,7 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
 
         BinarizedRandomVectorScorer(
             BinaryQueryVector queryVectors,
-            BinarizedByteVectorValues targetVectors,
+            RandomAccessBinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             super(targetVectors);

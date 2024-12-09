@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /** Binarized vector values loaded from off-heap */
-abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
+abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues implements RandomAccessBinarizedByteVectorValues {
 
     final int dimension;
     final int size;
@@ -115,6 +115,16 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
     }
 
     @Override
+    public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms() {
+        return new OptimizedScalarQuantizer.QuantizationResult(
+            correctiveValues[0],
+            correctiveValues[1],
+            correctiveValues[2],
+            quantizedComponentSum
+        );
+    }
+
+    @Override
     public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int targetOrd) throws IOException {
         if (lastOrd == targetOrd) {
             return new OptimizedScalarQuantizer.QuantizationResult(
@@ -143,6 +153,11 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
     @Override
     public float[] getCentroid() {
         return centroid;
+    }
+
+    @Override
+    public IndexInput getSlice() {
+        return slice;
     }
 
     @Override
@@ -197,6 +212,8 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
 
     /** Dense off-heap binarized vector values */
     static class DenseOffHeapVectorValues extends OffHeapBinarizedVectorValues {
+        private int doc = -1;
+
         DenseOffHeapVectorValues(
             int dimension,
             int size,
@@ -208,6 +225,30 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
             IndexInput slice
         ) {
             super(dimension, size, centroid, centroidDp, binaryQuantizer, similarityFunction, vectorsScorer, slice);
+        }
+
+        @Override
+        public byte[] vectorValue() throws IOException {
+            return vectorValue(doc);
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return advance(doc + 1);
+        }
+
+        @Override
+        public int advance(int target) {
+            assert docID() < target;
+            if (target >= size) {
+                return doc = NO_MORE_DOCS;
+            }
+            return doc = target;
         }
 
         @Override
@@ -232,24 +273,18 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
         @Override
         public VectorScorer scorer(float[] target) throws IOException {
             DenseOffHeapVectorValues copy = copy();
-            DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer scorer = vectorsScorer.getRandomVectorScorer(similarityFunction, copy, target);
             return new VectorScorer() {
                 @Override
                 public float score() throws IOException {
-                    return scorer.score(iterator.index());
+                    return scorer.score(copy.doc);
                 }
 
                 @Override
                 public DocIdSetIterator iterator() {
-                    return iterator;
+                    return copy;
                 }
             };
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return createDenseIterator();
         }
     }
 
@@ -278,6 +313,27 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
             this.dataIn = dataIn;
             this.ordToDoc = configuration.getDirectMonotonicReader(dataIn);
             this.disi = configuration.getIndexedDISI(dataIn);
+        }
+
+        @Override
+        public byte[] vectorValue() throws IOException {
+            return vectorValue(disi.index());
+        }
+
+        @Override
+        public int docID() {
+            return disi.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return disi.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            assert docID() < target;
+            return disi.advance(target);
         }
 
         @Override
@@ -320,37 +376,48 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
         }
 
         @Override
-        public DocIndexIterator iterator() {
-            return IndexedDISI.asDocIndexIterator(disi);
-        }
-
-        @Override
         public VectorScorer scorer(float[] target) throws IOException {
             SparseOffHeapVectorValues copy = copy();
-            DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer scorer = vectorsScorer.getRandomVectorScorer(similarityFunction, copy, target);
             return new VectorScorer() {
                 @Override
                 public float score() throws IOException {
-                    return scorer.score(iterator.index());
+                    return scorer.score(copy.disi.index());
                 }
 
                 @Override
                 public DocIdSetIterator iterator() {
-                    return iterator;
+                    return copy;
                 }
             };
         }
     }
 
     private static class EmptyOffHeapVectorValues extends OffHeapBinarizedVectorValues {
+        private int doc = -1;
+
         EmptyOffHeapVectorValues(int dimension, VectorSimilarityFunction similarityFunction, FlatVectorsScorer vectorsScorer) {
             super(dimension, 0, null, Float.NaN, null, similarityFunction, vectorsScorer, null);
         }
 
         @Override
-        public DocIndexIterator iterator() {
-            return createDenseIterator();
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return advance(doc + 1);
+        }
+
+        @Override
+        public int advance(int target) {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public byte[] vectorValue() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

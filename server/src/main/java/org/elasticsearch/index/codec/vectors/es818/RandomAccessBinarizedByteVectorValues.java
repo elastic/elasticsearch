@@ -19,9 +19,8 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.IOException;
@@ -29,41 +28,27 @@ import java.io.IOException;
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-abstract class BinarizedByteVectorValues extends DocIdSetIterator {
-
-    public abstract OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms();
-
-    public abstract byte[] vectorValue() throws IOException;
-
-    public abstract int dimension();
-
-    public abstract int size();
-
-    @Override
-    public final long cost() {
-        return size();
-    }
+public interface RandomAccessBinarizedByteVectorValues extends RandomAccessVectorValues.Bytes {
+    OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int vectorOrd) throws IOException;
 
     /**
      * @return the quantizer used to quantize the vectors
      */
-    public abstract OptimizedScalarQuantizer getQuantizer();
+    OptimizedScalarQuantizer getQuantizer();
 
-    public abstract float[] getCentroid() throws IOException;
-
-    int discretizedDimensions() {
+    default int discretizedDimensions() {
         return BQVectorUtils.discretize(dimension(), 64);
     }
 
     /**
-     * Return a {@link VectorScorer} for the given query vector.
-     *
-     * @param query the query vector
-     * @return a {@link VectorScorer} instance or null
+     * @return coarse grained centroids for the vectors
      */
-    public abstract VectorScorer scorer(float[] query) throws IOException;
+    float[] getCentroid() throws IOException;
 
-    float getCentroidDP() throws IOException {
+    @Override
+    RandomAccessBinarizedByteVectorValues copy() throws IOException;
+
+    default float getCentroidDP() throws IOException {
         // this only gets executed on-merge
         float[] centroid = getCentroid();
         return VectorUtil.dotProduct(centroid, centroid);

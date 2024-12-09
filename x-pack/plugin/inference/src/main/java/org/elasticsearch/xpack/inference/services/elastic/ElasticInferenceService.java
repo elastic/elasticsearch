@@ -37,9 +37,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EISUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.OpenAiUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -107,7 +107,7 @@ public class ElasticInferenceService extends SenderService {
         );
 
         // TODO add the request manager that takes a trace context
-        var requestCreator = OpenAiUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var requestCreator = EISUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
         var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
 
         action.execute(inputs, timeout, listener);

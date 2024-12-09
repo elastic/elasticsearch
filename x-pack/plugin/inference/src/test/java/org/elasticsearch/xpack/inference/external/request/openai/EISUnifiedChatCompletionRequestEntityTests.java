@@ -29,7 +29,9 @@ import java.util.Random;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 import static org.hamcrest.Matchers.equalTo;
 
-public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
+public class EISUnifiedChatCompletionRequestEntityTests extends ESTestCase {
+
+    // TODO these tests were copied from the OpenAI tests and need to cleaned up and improved to be correct for EIS
 
     // 1. Basic Serialization
     // Test with minimal required fields to ensure basic serialization works.
@@ -50,7 +52,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -126,7 +128,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent
@@ -232,7 +234,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent
@@ -293,7 +295,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent
@@ -389,7 +391,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent
@@ -530,7 +532,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent
@@ -606,7 +608,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent
@@ -677,7 +679,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedChatInput unifiedChatInputTrue = new UnifiedChatInput(unifiedRequest, true);
         OpenAiUnifiedChatCompletionRequestEntity entityTrue = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInputTrue,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         XContentBuilder builderTrue = JsonXContent.contentBuilder();
@@ -706,7 +708,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedChatInput unifiedChatInputFalse = new UnifiedChatInput(unifiedRequest, false);
         OpenAiUnifiedChatCompletionRequestEntity entityFalse = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInputFalse,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         XContentBuilder builderFalse = JsonXContent.contentBuilder();
@@ -762,7 +764,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Attempt to serialize to XContent and expect an exception
@@ -840,7 +842,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("EIS Model", null)
         );
 
         // Serialize to XContent and verify

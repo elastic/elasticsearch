@@ -24,7 +24,7 @@ import java.util.function.Supplier;
  * This {@link Step} waits until the {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_END_TIME} passes for time series indices.
  * For regular indices this step doesn't wait at all and the condition is evaluated to true immediately.
  * <p>
- * Note that this step doens't execute an async/transport action and is able to evaluate its condition based on the local information
+ * Note that this step doesn't execute an async/transport action and is able to evaluate its condition based on the local information
  * available however, we want this step to be executed periodically using the `AsyncWaitStep` infrastructure.
  * The condition will be evaluated every {@link LifecycleSettings#LIFECYCLE_POLL_INTERVAL}.
  */

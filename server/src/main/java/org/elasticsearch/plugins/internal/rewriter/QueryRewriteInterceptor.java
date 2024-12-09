@@ -17,7 +17,17 @@ import java.util.Map;
 /**
  * Enables modules and plugins to intercept and rewrite queries during the query rewrite phase on the coordinator node.
  */
-public interface QueryRewriteInterceptor extends InternalQueryRewriter {
+public interface QueryRewriteInterceptor {
+
+    /**
+     * Returns a rewritten query if modifications are required; otherwise,
+     * returns the same provided {@link QueryBuilder} instance unchanged.
+     *
+     * @param context the {@link QueryRewriteContext} providing the context for the rewrite operation
+     * @param queryBuilder the original {@link QueryBuilder} to potentially rewrite
+     * @return the rewritten {@link QueryBuilder}, or the original instance if no rewrite was needed
+     */
+    QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
 
     /**
      * Implementing classes should override this with the name of the query that is being

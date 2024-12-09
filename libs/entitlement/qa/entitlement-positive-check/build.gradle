@@ -7,12 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
-// Necessary to use tests in Serverless
-apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.base-internal-es-plugin'
 
-dependencies {
-  clusterPlugins project(':libs:entitlement:qa:entitlement-negative-check')
-  clusterPlugins project(':libs:entitlement:qa:entitlement-positive-check')
-  clusterPlugins project(':libs:entitlement:qa:entitlement-nonmodular')
+esplugin {
+  name 'entitlement-positive-check'
+  description 'A test module that invokes entitlement checks that are supposed to be granted'
+  classname 'org.elasticsearch.test.entitlements.EntitlementPositiveCheckPlugin'
 }
+
+tasks.named("javadoc").configure {
+  enabled = false
+}
+

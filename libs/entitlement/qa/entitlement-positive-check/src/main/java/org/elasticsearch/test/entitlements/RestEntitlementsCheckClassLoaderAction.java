@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -25,7 +27,7 @@ public class RestEntitlementsCheckClassLoaderAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckClassLoaderAction.class);
 
-    private static final String CHECK_CREATE_URL_CLASSLOADER = "/_entitlement/negative/_check_create_url_classloader";
+    private static final String CHECK_CREATE_URL_CLASSLOADER = "/_entitlement/positive/_check_create_url_classloader";
 
     RestEntitlementsCheckClassLoaderAction() {}
 
@@ -36,7 +38,7 @@ public class RestEntitlementsCheckClassLoaderAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "check_negative_classloader_action";
+        return "check_positive_classloader_action";
     }
 
     @Override
@@ -48,6 +50,7 @@ public class RestEntitlementsCheckClassLoaderAction extends BaseRestHandler {
                 try (var classLoader = new URLClassLoader("test", new URL[0], this.getClass().getClassLoader())) {
                     logger.info("Created URLClassLoader [{}]", classLoader.getName());
                 }
+                channel.sendResponse(new RestResponse(RestStatus.OK, "Succesfully created URLClassLoader"));
             };
         }
 

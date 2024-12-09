@@ -243,11 +243,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
                 final String blobName = params.get("test_blob_name");
-                if (mockGcsBlobStore.blobExists(blobName) == false) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                    return;
-                }
-                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(blobName, null);
+                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
+                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(blobName, ifGenerationMatch);
                 final String range = exchange.getRequestHeaders().getFirst("Content-Range");
                 final Integer limit = getContentRangeLimit(range);
 

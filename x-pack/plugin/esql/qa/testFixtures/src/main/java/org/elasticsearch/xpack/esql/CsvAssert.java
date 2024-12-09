@@ -331,7 +331,7 @@ public final class CsvAssert {
             }
             expected.describeMismatch(actualList, description);
             String prefix = "row " + f.row + " column " + f.column + ":";
-            return prefix + description.toString();//.replace("\n", "\n" + prefix);
+            return prefix + description.toString().replace("\n", "\n" + prefix);
         }).collect(Collectors.joining(System.lineSeparator()));
     }
 

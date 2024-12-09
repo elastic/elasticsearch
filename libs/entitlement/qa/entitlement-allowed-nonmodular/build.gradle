@@ -13,16 +13,16 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'entitlement-allowed'
-  description 'A test module that invokes entitlement checks that are supposed to be granted'
-  classname 'org.elasticsearch.test.entitlements.EntitlementAllowedPlugin'
+  name 'entitlement-allowed-nonmodular'
+  description 'A non-modular test module that invokes entitlement checks that are supposed to be granted'
+  classname 'org.elasticsearch.test.entitlements.nonmodular.EntitlementAllowedNonModularPlugin'
 }
 
 dependencies {
-  clusterPlugins project(':libs:entitlement:qa:entitlement-allowed')
+  implementation project(':libs:entitlement:qa:entitlement-allowed')
+  clusterPlugins project(':libs:entitlement:qa:entitlement-allowed-nonmodular')
 }
 
 tasks.named("javadoc").configure {
   enabled = false
 }
-

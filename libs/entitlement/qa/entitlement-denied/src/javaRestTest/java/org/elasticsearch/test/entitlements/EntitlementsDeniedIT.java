@@ -10,7 +10,6 @@
 package org.elasticsearch.test.entitlements;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
@@ -18,15 +17,12 @@ import org.junit.ClassRule;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
-public class EntitlementsIT extends ESRestTestCase {
+public class EntitlementsDeniedIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("entitlement-allowed")
         .plugin("entitlement-denied")
-        .plugin("entitlement-nonmodular")
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .build();
@@ -43,29 +39,10 @@ public class EntitlementsIT extends ESRestTestCase {
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 
-    public void testCheckSystemExitNonModularPluginThrows() {
-        var exception = expectThrows(IOException.class, () -> {
-            client().performRequest(new Request("GET", "/_entitlement/nonmodular/_check_system_exit"));
-        });
-        assertThat(
-            exception.getMessage(),
-            containsString(
-                "Missing entitlement: caller "
-                    + "[class org.elasticsearch.test.entitlements.RestEntitlementsCheckSystemExitAction], module [null], "
-                    + "type [ExitVMEntitlement]"
-            )
-        );
-    }
-
     public void testCheckCreateURLClassLoaderWithoutPolicyThrows() {
         var exception = expectThrows(IOException.class, () -> {
             client().performRequest(new Request("GET", "/_entitlement/negative/_check_create_url_classloader"));
         });
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
-    }
-
-    public void testCheckCreateURLClassLoaderWithPolicyPass() throws IOException {
-        Response result = client().performRequest(new Request("GET", "/_entitlement/positive/_check_create_url_classloader"));
-        assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
     }
 }

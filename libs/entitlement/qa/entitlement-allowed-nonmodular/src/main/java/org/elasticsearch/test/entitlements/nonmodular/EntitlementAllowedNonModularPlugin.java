@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.test.entitlements;
+package org.elasticsearch.test.entitlements.nonmodular;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -17,16 +17,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.test.entitlements.EntitlementAllowedPlugin;
+import org.elasticsearch.test.entitlements.RestEntitlementsCheckClassLoaderAction;
 
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EntitlementCheckNonModularPlugin extends Plugin implements ActionPlugin {
+public class EntitlementAllowedNonModularPlugin extends EntitlementAllowedPlugin {
 
     @Override
     @SuppressForbidden(reason = "Specifically testing System.exit")
@@ -41,6 +41,6 @@ public class EntitlementCheckNonModularPlugin extends Plugin implements ActionPl
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckSystemExitAction());
+        return List.of(new RestEntitlementsCheckClassLoaderAction());
     }
 }

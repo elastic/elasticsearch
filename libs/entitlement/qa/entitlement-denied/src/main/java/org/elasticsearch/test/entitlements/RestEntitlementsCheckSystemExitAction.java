@@ -23,7 +23,7 @@ public class RestEntitlementsCheckSystemExitAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckSystemExitAction.class);
 
-    RestEntitlementsCheckSystemExitAction() {}
+    public RestEntitlementsCheckSystemExitAction() {}
 
     @Override
     public List<Route> routes() {

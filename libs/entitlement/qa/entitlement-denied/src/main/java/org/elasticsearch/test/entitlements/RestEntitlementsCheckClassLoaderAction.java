@@ -27,7 +27,7 @@ public class RestEntitlementsCheckClassLoaderAction extends BaseRestHandler {
 
     private static final String CHECK_CREATE_URL_CLASSLOADER = "/_entitlement/negative/_check_create_url_classloader";
 
-    RestEntitlementsCheckClassLoaderAction() {}
+    public RestEntitlementsCheckClassLoaderAction() {}
 
     @Override
     public List<Route> routes() {

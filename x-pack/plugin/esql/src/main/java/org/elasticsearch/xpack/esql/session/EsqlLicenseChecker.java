@@ -15,13 +15,23 @@ import org.elasticsearch.rest.RestStatus;
 
 public class EsqlLicenseChecker {
 
-    public static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(null, "ES|QL", License.OperationMode.ENTERPRISE);
+    public static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(
+        null,
+        "esql-ccs",
+        License.OperationMode.ENTERPRISE
+    );
 
+    /**
+     * Only call this method once you know the user is doing a cross-cluster query, as it will update
+     * the license_usage timestamp for the esql-ccs feature if the license is Enterprise (or Trial).
+     * @param licenseState
+     * @return true if the user has a license that allows ESQL CCS.
+     */
     public static boolean isCcsAllowed(XPackLicenseState licenseState) {
         if (licenseState == null) {
             return false;
         }
-        return CCS_FEATURE.checkWithoutTracking(licenseState);
+        return CCS_FEATURE.check(licenseState);
     }
 
     public static ElasticsearchStatusException invalidLicenseForCcsException(XPackLicenseState licenseState) {

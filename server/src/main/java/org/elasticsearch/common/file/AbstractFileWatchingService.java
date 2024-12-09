@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 
 import java.io.IOException;
@@ -55,7 +56,6 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     private static final Logger logger = LogManager.getLogger(AbstractFileWatchingService.class);
     private static final int REGISTER_RETRY_COUNT = 5;
-    private static final int WATCHER_THREAD_RESTART_DELAY = 30; // TODO: setting?
     private final Path watchedFileDir;
     private final Path watchedFile;
     private final List<FileChangedListener> eventListeners;
@@ -278,7 +278,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
             try (var ws = watchService) {
-                watcherTask.cancel(true);
+                interruptAndCancel(watcherTask);
                 try {
                     watcherTask.get();
                 } catch (CancellationException expected) {
@@ -305,6 +305,12 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } else {
             logger.trace("file watch service already stopped");
         }
+    }
+
+    @SuppressForbidden(reason="The watcher thread is not a normal ES thread; it's one we manage using a normal ExecutorService")
+    private void interruptAndCancel(Future<Void> watcherTask) {
+        assert watcherTask == this.watcherTask;
+        watcherTask.cancel(true);
     }
 
     // package private for testing

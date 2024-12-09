@@ -222,7 +222,7 @@ public class SecurityTests extends ESTestCase {
             client,
             threadPool,
             clusterService,
-            new FeatureService(settings, List.of(new SecurityFeatures())),
+            new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),
             mock(ScriptService.class),
             xContentRegistry(),

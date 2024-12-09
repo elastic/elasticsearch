@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +49,7 @@ public class FeatureServiceTests extends ESTestCase {
         };
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new FeatureService(Settings.EMPTY, List.of(fs1, fs2))).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs1, fs2))).getMessage(),
             containsString("Duplicate feature")
         );
     }
@@ -63,7 +62,7 @@ public class FeatureServiceTests extends ESTestCase {
             new TestFeatureSpecification(Set.of())
         );
 
-        FeatureService service = new FeatureService(Settings.EMPTY, specs);
+        FeatureService service = new FeatureService(specs);
         assertThat(service.getNodeFeatures().keySet(), containsInAnyOrder("f1", "f2", "f3", "f4", "f5"));
     }
 
@@ -87,7 +86,7 @@ public class FeatureServiceTests extends ESTestCase {
             )
             .build();
 
-        FeatureService service = new FeatureService(Settings.EMPTY, specs);
+        FeatureService service = new FeatureService(specs);
         assertTrue(service.clusterHasFeature(state, new NodeFeature("f1")));
         assertTrue(service.clusterHasFeature(state, new NodeFeature("f2")));
         assertFalse(service.clusterHasFeature(state, new NodeFeature("nf1")));
@@ -118,7 +117,7 @@ public class FeatureServiceTests extends ESTestCase {
             .nodeFeatures(Map.of("node1", Set.of("f1", "af1"), "node2", Set.of("f1", "f2", "af1"), "node3", Set.of("f1", "f2")))
             .build();
 
-        FeatureService service = new FeatureService(Settings.EMPTY, specs);
+        FeatureService service = new FeatureService(specs);
         assertTrue(service.clusterHasFeature(state, new NodeFeature("f1")));
         assertFalse(service.clusterHasFeature(state, new NodeFeature("f2")));
         assertTrue(service.clusterHasFeature(state, new NodeFeature("af1", true)));

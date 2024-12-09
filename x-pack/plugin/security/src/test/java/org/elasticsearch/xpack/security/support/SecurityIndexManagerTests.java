@@ -121,7 +121,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             }
         };
 
-        final FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new SecurityFeatures()));
+        final FeatureService featureService = new FeatureService(List.of(new SecurityFeatures()));
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         final SystemIndexDescriptor descriptor = new SecuritySystemIndices(clusterService.getSettings()).getSystemIndexDescriptors()

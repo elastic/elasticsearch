@@ -365,7 +365,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             Set<String> assumedFeatures = featureService.getNodeFeatures()
                 .values()
                 .stream()
-                .filter(NodeFeature::assumedInNextMajor)
+                .filter(NodeFeature::assumedAfterNextCompatibilityBoundary)
                 .map(NodeFeature::id)
                 .collect(Collectors.toSet());
 
@@ -514,7 +514,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             for (Iterator<String> it = missingFeatures.iterator(); it.hasNext();) {
                 String feature = it.next();
                 NodeFeature nf = featureService.getNodeFeatures().get(feature);
-                if (nf.assumedInNextMajor()) {
+                if (nf.assumedAfterNextCompatibilityBoundary()) {
                     // its ok for this feature to be missing from this node
                     it.remove();
                     // and it should be assumed to still be in the cluster

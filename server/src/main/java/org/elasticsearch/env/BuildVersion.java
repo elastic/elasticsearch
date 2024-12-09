@@ -38,6 +38,11 @@ import java.util.ServiceLoader;
 public abstract class BuildVersion implements ToXContentFragment, Writeable {
 
     /**
+     * Checks if this version can have features removed that are assumed in the currently running Elasticsearch.
+     */
+    public abstract boolean canRemoveAssumedFeatures();
+
+    /**
      * Check whether this version is on or after a minimum threshold.
      *
      * <p>In some cases, the only thing we need to know about a version is whether

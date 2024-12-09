@@ -2243,7 +2243,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .client(client)
-                    .featureService(new FeatureService(settings, List.of()))
+                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();
@@ -2689,7 +2689,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
                     CompatibilityVersionsUtils.staticCurrent(),
-                    new FeatureService(clusterService.getSettings(), List.of())
+                    new FeatureService(List.of())
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

@@ -38,7 +38,7 @@ public class LicenseScheduleTests extends ESTestCase {
             mock(ClusterService.class),
             mock(Clock.class),
             mock(XPackLicenseState.class),
-            new FeatureService(Settings.EMPTY, List.of())
+            new FeatureService(List.of())
         );
         schedule = service.nextLicenseCheck(license);
     }

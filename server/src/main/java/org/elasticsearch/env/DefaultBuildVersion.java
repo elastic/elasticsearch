@@ -48,6 +48,11 @@ final class DefaultBuildVersion extends BuildVersion {
     }
 
     @Override
+    public boolean canRemoveAssumedFeatures() {
+        return version.major == Version.CURRENT.major + 1;
+    }
+
+    @Override
     public boolean onOrAfterMinimumCompatible() {
         return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(version);
     }

@@ -92,7 +92,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mockDefaultClusterService(),
             mock(Clock.class),
             mock(XPackLicenseState.class),
-            new FeatureService(Settings.EMPTY, List.of())
+            new FeatureService(List.of())
         );
         final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
@@ -188,7 +188,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             clusterService,
             clock,
             mock(XPackLicenseState.class),
-            new FeatureService(settings, List.of())
+            new FeatureService(List.of())
         );
         verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
@@ -281,7 +281,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             clusterService,
             clock,
             licenseState,
-            new FeatureService(settings, List.of())
+            new FeatureService(List.of())
         );
 
         final PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);

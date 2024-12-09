@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -36,15 +35,13 @@ public class FeatureService {
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
 
     private final Map<String, NodeFeature> nodeFeatures;
-    private final Settings settings;
 
     /**
      * Creates a new {@code FeatureService}, reporting all the features declared in {@code specs}
      * as the local node's supported feature set
      */
-    public FeatureService(Settings settings, List<? extends FeatureSpecification> specs) {
+    public FeatureService(List<? extends FeatureSpecification> specs) {
         this.nodeFeatures = FeatureData.createFromSpecifications(specs).getNodeFeatures();
-        this.settings = settings;
 
         logger.info("Registered local node features {}", nodeFeatures.keySet().stream().sorted().toList());
     }
@@ -61,14 +58,14 @@ public class FeatureService {
      * Returns {@code true} if {@code node} can have assumed features.
      */
     public boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
-        return ClusterFeatures.featuresCanBeAssumedForNode(node, settings);
+        return ClusterFeatures.featuresCanBeAssumedForNode(node);
     }
 
     /**
     * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
     */
     public boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
-        return ClusterFeatures.featuresCanBeAssumedForNode(nodes, settings);
+        return ClusterFeatures.featuresCanBeAssumedForNodes(nodes);
     }
 
     /**
@@ -76,6 +73,6 @@ public class FeatureService {
      */
     @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-        return state.clusterFeatures().clusterHasFeature(state.nodes(), feature, settings);
+        return state.clusterFeatures().clusterHasFeature(state.nodes(), feature);
     }
 }

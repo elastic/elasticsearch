@@ -785,7 +785,7 @@ class NodeConstruction {
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
 
-        FeatureService featureService = new FeatureService(settings, pluginsService.loadServiceProviders(FeatureSpecification.class));
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));

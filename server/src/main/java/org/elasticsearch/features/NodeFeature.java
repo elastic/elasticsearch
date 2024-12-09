@@ -15,12 +15,11 @@ import java.util.Objects;
  * A feature published by a node.
  *
  * @param id        The feature id. Must be unique in the node.
- * @param assumedInNextMajor
- *              {@code true} if this feature is removed in the next major version,
- *              and so should be assumed to be true for all nodes of the next major version,
- *              or on stateless clusters.
+ * @param assumedAfterNextCompatibilityBoundary
+ *              {@code true} if this feature is removed at the next compatibility boundary (ie next major version),
+ *              and so should be assumed to be true for all nodes after that boundary.
  */
-public record NodeFeature(String id, boolean assumedInNextMajor) {
+public record NodeFeature(String id, boolean assumedAfterNextCompatibilityBoundary) {
 
     public NodeFeature {
         Objects.requireNonNull(id);

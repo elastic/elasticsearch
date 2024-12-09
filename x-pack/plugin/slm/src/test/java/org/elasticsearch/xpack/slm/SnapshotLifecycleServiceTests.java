@@ -526,7 +526,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public void testValidateIntervalScheduleSupport() {
-        var featureService = new FeatureService(Settings.EMPTY, List.of(new SnapshotLifecycleFeatures()));
+        var featureService = new FeatureService(List.of(new SnapshotLifecycleFeatures()));
         {
             ClusterState state = ClusterState.builder(new ClusterName("cluster"))
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("a")).add(DiscoveryNodeUtils.create("b")))

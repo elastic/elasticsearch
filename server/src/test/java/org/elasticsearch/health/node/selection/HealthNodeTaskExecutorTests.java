@@ -78,7 +78,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         localNodeId = clusterService.localNode().getId();
         persistentTasksService = mock(PersistentTasksService.class);
         settings = Settings.builder().build();
-        featureService = new FeatureService(settings, List.of(new HealthFeatures()));
+        featureService = new FeatureService(List.of(new HealthFeatures()));
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 

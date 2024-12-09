@@ -9,12 +9,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.features.NodeFeature;
@@ -99,8 +97,8 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * It can be assumed for serverless because we never go backwards on serverless,
      * so once a feature is in the serverless environment it will always be there.
      */
-    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node, Settings settings) {
-        return DiscoveryNode.isStateless(settings) || node.getVersion().major == Version.CURRENT.major + 1;
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+        return node.getBuildVersion().canRemoveAssumedFeatures();
     }
 
     /**
@@ -113,9 +111,8 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * It can be assumed for serverless because we never go backwards on serverless,
      * so once a feature is in the serverless environment it will always be there.
      */
-    public static boolean featuresCanBeAssumedForNode(DiscoveryNodes nodes, Settings settings) {
-        int nextMajor = Version.CURRENT.major + 1;
-        return DiscoveryNode.isStateless(settings) || nodes.getAllNodes().stream().anyMatch(n -> n.getVersion().major == nextMajor);
+    public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+        return nodes.getAllNodes().stream().anyMatch(n -> n.getBuildVersion().canRemoveAssumedFeatures());
     }
 
     /**
@@ -124,7 +121,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
-    public boolean clusterHasFeature(DiscoveryNodes nodes, NodeFeature feature, Settings settings) {
+    public boolean clusterHasFeature(DiscoveryNodes nodes, NodeFeature feature) {
         assert nodes.getNodes().keySet().equals(nodeFeatures.keySet())
             : "Cluster features nodes " + nodeFeatures.keySet() + " is different to discovery nodes " + nodes.getNodes().keySet();
 
@@ -134,13 +131,13 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
             return true;
         }
 
-        // if the feature is assumed, check the major versions more closely
+        // if the feature is assumed, check the versions more closely
         // it's actually ok if the feature is assumed, and all nodes missing the feature can assume it
         // TODO: do we need some kind of transient cache of this calculation?
-        if (feature.assumedInNextMajor()) {
+        if (feature.assumedAfterNextCompatibilityBoundary()) {
             for (var nf : nodeFeatures.entrySet()) {
                 if (nf.getValue().contains(feature.id()) == false
-                    && featuresCanBeAssumedForNode(nodes.getNodes().get(nf.getKey()), settings) == false) {
+                    && featuresCanBeAssumedForNode(nodes.getNodes().get(nf.getKey())) == false) {
                     return false;
                 }
             }

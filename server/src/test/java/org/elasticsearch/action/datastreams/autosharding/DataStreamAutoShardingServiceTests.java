@@ -81,7 +81,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         service = new DataStreamAutoShardingService(
             Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build(),
             clusterService,
-            new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
+            new FeatureService(List.of(new FeatureSpecification() {
                 @Override
                 public Set<NodeFeature> getFeatures() {
                     return Set.of(DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE);
@@ -129,7 +129,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStreamAutoShardingService disabledAutoshardingService = new DataStreamAutoShardingService(
                 Settings.EMPTY,
                 clusterService,
-                new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
+                new FeatureService(List.of(new FeatureSpecification() {
                     @Override
                     public Set<NodeFeature> getFeatures() {
                         return Set.of(DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE);
@@ -150,7 +150,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStreamAutoShardingService noFeatureService = new DataStreamAutoShardingService(
                 settings,
                 clusterService,
-                new FeatureService(settings, List.of()),
+                new FeatureService(List.of()),
                 () -> now
             );
 
@@ -170,7 +170,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStreamAutoShardingService noFeatureService = new DataStreamAutoShardingService(
                 settings,
                 clusterService,
-                new FeatureService(settings, List.of()),
+                new FeatureService(List.of()),
                 () -> now
             );
 

@@ -569,11 +569,12 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                     int failedShards = 0;
                                     for (int i = 0; i < response.results.length; i++) {
                                         var s = request.shards.get(i);
+                                        int shardIdx = s.shardIndex;
                                         if (response.results[i] instanceof Exception e) {
-                                            onShardFailure(s.shardIndex, new SearchShardTarget(nodeId, s.shardId(), null), e);
+                                            onShardFailure(shardIdx, new SearchShardTarget(nodeId, s.shardId(), null), e);
                                             failedShards++;
                                         } else if (response.results[i] instanceof QuerySearchResult q) {
-                                            q.setShardIndex(s.shardIndex);
+                                            q.setShardIndex(shardIdx);
                                             q.setSearchShardTarget(new SearchShardTarget(nodeId, s.shardId(), null));
                                             totalOps.addAndGet(shardIterators[s.shardIndex].remaining());
                                         }
@@ -1035,8 +1036,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                     }
                 };
                 for (int i = 0; i < workers; i++) {
-                    ShardToQuery shardToQuery;
-                    if ((shardToQuery = shards.poll()) != null) {
+                    ShardToQuery shardToQuery = shards.poll();
+                    if (shardToQuery != null) {
                         executor.execute(
                             () -> executeOne(
                                 searchService,

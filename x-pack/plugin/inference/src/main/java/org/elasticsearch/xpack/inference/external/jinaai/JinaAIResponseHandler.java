@@ -89,7 +89,7 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
         int statusCode = result.response().getStatusLine().getStatusCode();
 
         if (statusCode == 400) {
-            var errorEntity = CohereErrorResponseEntity.fromResponse(result);
+            var errorEntity = JinaAIErrorResponseEntity.fromResponse(result);
             return errorEntity != null && errorEntity.getErrorMessage().contains(TEXTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER);
         }
 

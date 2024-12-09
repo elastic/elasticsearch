@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "jinaai_embeddings_task_settings";
-    public static final JinaAIEmbeddingsTaskSettings EMPTY_SETTINGS = new JinaAIEmbeddingsTaskSettings(null, null);
+    public static final JinaAIEmbeddingsTaskSettings EMPTY_SETTINGS = new JinaAIEmbeddingsTaskSettings((InputType)null);
     static final String INPUT_TYPE = "input_type";
     static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -113,7 +113,6 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     public JinaAIEmbeddingsTaskSettings(@Nullable InputType inputType) {
         validateInputType(inputType);
         this.inputType = inputType;
-        this.truncation = truncation;
     }
 
     private static void validateInputType(InputType inputType) {
@@ -126,7 +125,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public boolean isEmpty() {
-        return inputType == null && truncation == null;
+        return inputType == null;
     }
 
     @Override
@@ -136,9 +135,6 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
             builder.field(INPUT_TYPE, inputType);
         }
 
-        if (truncation != null) {
-            builder.field(TRUNCATE, truncation);
-        }
         builder.endObject();
         return builder;
     }
@@ -160,7 +156,6 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(inputType);
-        out.writeOptionalEnum(truncation);
     }
 
     @Override
@@ -173,7 +168,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public int hashCode() {
-        return Objects.hash(inputType, truncation);
+        return Objects.hash(inputType);
     }
 
     public static String invalidInputTypeMessage(InputType inputType) {

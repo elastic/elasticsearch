@@ -39,8 +39,8 @@ public enum JinaAIEmbeddingType {
     private static final Map<DenseVectorFieldMapper.ElementType, JinaAIEmbeddingType> ELEMENT_TYPE_TO_JINAAI_EMBEDDING = Map.of(
         DenseVectorFieldMapper.ElementType.FLOAT,
         FLOAT,
-        DenseVectorFieldMapper.ElementType.INT8,
-        BYTE
+        DenseVectorFieldMapper.ElementType.BYTE,
+        INT8
     );
     static final EnumSet<DenseVectorFieldMapper.ElementType> SUPPORTED_ELEMENT_TYPES = EnumSet.copyOf(
         ELEMENT_TYPE_TO_JINAAI_EMBEDDING.keySet()
@@ -104,12 +104,8 @@ public enum JinaAIEmbeddingType {
      * @param version the version that dictates the translation
      * @return the embedding type that is known to the version passed in
      */
-    public static JinaAIEmbeddingType translateToVersion(CohereEmbeddingType embeddingType, TransportVersion version) {
+    public static JinaAIEmbeddingType translateToVersion(JinaAIEmbeddingType embeddingType, TransportVersion version) {
         //TODO(JoanFM): Review this
-        if (version.before(TransportVersions.V_8_14_0) && embeddingType == BYTE) {
-            return FLOAT;
-        }
-
         return embeddingType;
     }
 }

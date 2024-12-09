@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestEntity.INPUT_TYPE_FIELD;
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields.TRUNCATE;
 
 public class JinaAIEmbeddingsModel extends JinaAIModel {
     public static JinaAIEmbeddingsModel of(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
@@ -45,7 +44,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -55,7 +53,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             service,
             JinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
-            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -130,23 +127,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
                         .setType(SettingsConfigurationFieldType.STRING)
                         .setOptions(
                             Stream.of("classification", "clustering", "ingest", "search")
-                                .map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build())
-                                .toList()
-                        )
-                        .setValue("")
-                        .build()
-                );
-                configurationMap.put(
-                    TRUNCATE,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
-                        .setLabel("Truncate")
-                        .setOrder(2)
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setTooltip("Specifies how the API handles inputs longer than the maximum token length.")
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .setOptions(
-                            Stream.of("NONE", "START", "END")
                                 .map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build())
                                 .toList()
                         )

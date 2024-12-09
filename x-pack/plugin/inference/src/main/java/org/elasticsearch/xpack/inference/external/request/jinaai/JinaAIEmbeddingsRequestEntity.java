@@ -58,10 +58,6 @@ public record JinaAIEmbeddingsRequestEntity(
             builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
         }
 
-        if (taskSettings.getTruncation() != null) {
-            builder.field(JinaAIServiceFields.TRUNCATE, taskSettings.getTruncation());
-        }
-
         builder.endObject();
         return builder;
     }

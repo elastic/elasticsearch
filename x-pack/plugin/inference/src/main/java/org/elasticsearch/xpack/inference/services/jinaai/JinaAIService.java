@@ -92,19 +92,11 @@ public class JinaAIService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
             JinaAIModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
-                chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
@@ -125,7 +117,6 @@ public class JinaAIService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
@@ -134,7 +125,6 @@ public class JinaAIService extends SenderService {
             taskType,
             serviceSettings,
             taskSettings,
-            chunkingSettings,
             secretSettings,
             failureMessage,
             ConfigurationParseContext.PERSISTENT
@@ -146,7 +136,6 @@ public class JinaAIService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context
@@ -158,7 +147,6 @@ public class JinaAIService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
-                chunkingSettings,
                 secretSettings,
                 context
             );
@@ -178,17 +166,11 @@ public class JinaAIService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
-            chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -199,17 +181,11 @@ public class JinaAIService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
-            chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );

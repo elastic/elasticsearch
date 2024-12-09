@@ -81,6 +81,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             merged,
             merged.toCompressedXContent(),
             IndexVersion.current(),
+            null,
             MapperMetrics.NOOP,
             "myIndex"
         );

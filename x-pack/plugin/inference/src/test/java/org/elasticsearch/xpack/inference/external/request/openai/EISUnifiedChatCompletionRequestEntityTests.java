@@ -22,11 +22,12 @@ import java.util.ArrayList;
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 
-public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
+public class EISUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String ROLE = "user";
     private static final String USER = "a_user";
 
+    // TODO remove if EIS doesn't use the model and user fields
     public void testModelUserFieldsSerialization() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
@@ -68,4 +69,5 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
             """;
         assertJsonEquals(jsonString, expectedJson);
     }
+
 }

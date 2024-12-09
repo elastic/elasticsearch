@@ -908,9 +908,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /** Ensures the result counts are as expected, and logs the results if different */
     public void assertResultsAndLogOnFailure(long expectedResults, SearchResponse searchResponse) {
         final TotalHits totalHits = searchResponse.getHits().getTotalHits();
-        if (totalHits.value != expectedResults || totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+        if (totalHits.value() != expectedResults || totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
             StringBuilder sb = new StringBuilder("search result contains [");
-            String value = Long.toString(totalHits.value) + (totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO ? "+" : "");
+            String value = Long.toString(totalHits.value()) + (totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                ? "+"
+                : "");
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {

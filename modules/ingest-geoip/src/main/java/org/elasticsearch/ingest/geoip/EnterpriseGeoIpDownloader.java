@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -39,6 +38,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -57,6 +58,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.IPINFO_SETTINGS_PREFIX;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_SETTINGS_PREFIX;
 
 /**
@@ -72,12 +74,23 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     // a sha256 checksum followed by two spaces followed by an (ignored) file name
     private static final Pattern SHA256_CHECKSUM_PATTERN = Pattern.compile("(\\w{64})\\s\\s(.*)");
 
+    // an md5 checksum
+    private static final Pattern MD5_CHECKSUM_PATTERN = Pattern.compile("(\\w{32})");
+
     // for overriding in tests
     static String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
         MAXMIND_SETTINGS_PREFIX + "endpoint.default", //
         "https://download.maxmind.com/geoip/databases"
     );
     // n.b. a future enhancement might be to allow for a MAXMIND_ENDPOINT_SETTING, but
+    // at the moment this is an unsupported system property for use in tests (only)
+
+    // for overriding in tests
+    static String DEFAULT_IPINFO_ENDPOINT = System.getProperty(
+        IPINFO_SETTINGS_PREFIX + "endpoint.default", //
+        "https://ipinfo.io/data"
+    );
+    // n.b. a future enhancement might be to allow for an IPINFO_ENDPOINT_SETTING, but
     // at the moment this is an unsupported system property for use in tests (only)
 
     static final String DATABASES_INDEX = ".geoip_databases";
@@ -444,16 +457,15 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         }
     }
 
-    @Nullable
     private ProviderDownload downloaderFor(DatabaseConfiguration database) {
-        if (database.provider() instanceof DatabaseConfiguration.Maxmind) {
-            return new MaxmindDownload(database.name(), (DatabaseConfiguration.Maxmind) database.provider());
-        } else if (database.provider() instanceof DatabaseConfiguration.Ipinfo) {
-            // as a temporary implementation detail, null here means 'not actually supported *just yet*'
-            return null;
+        if (database.provider() instanceof DatabaseConfiguration.Maxmind maxmind) {
+            return new MaxmindDownload(database.name(), maxmind);
+        } else if (database.provider() instanceof DatabaseConfiguration.Ipinfo ipinfo) {
+            return new IpinfoDownload(database.name(), ipinfo);
         } else {
-            assert false : "Attempted to use database downloader with unsupported provider type [" + database.provider().getClass() + "]";
-            return null;
+            throw new IllegalArgumentException(
+                Strings.format("Unexpected provider [%s] for configuration [%s]", database.provider().getClass(), database.id())
+            );
         }
     }
 
@@ -488,7 +500,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public boolean validCredentials() {
-            return auth.get() != null;
+            return auth != null && auth.get() != null;
         }
 
         @Override
@@ -529,7 +541,101 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public void close() throws IOException {
-            auth.close();
+            if (auth != null) auth.close();
+        }
+    }
+
+    class IpinfoDownload implements ProviderDownload {
+
+        final String name;
+        final DatabaseConfiguration.Ipinfo ipinfo;
+        HttpClient.PasswordAuthenticationHolder auth;
+
+        IpinfoDownload(String name, DatabaseConfiguration.Ipinfo ipinfo) {
+            this.name = name;
+            this.ipinfo = ipinfo;
+            this.auth = buildCredentials();
+        }
+
+        @Override
+        public HttpClient.PasswordAuthenticationHolder buildCredentials() {
+            final char[] tokenChars = tokenProvider.apply("ipinfo");
+
+            // if the token is missing or empty, return null as 'no auth'
+            if (tokenChars == null || tokenChars.length == 0) {
+                return null;
+            }
+
+            // ipinfo uses the token as the username component of basic auth, see https://ipinfo.io/developers#authentication
+            return new HttpClient.PasswordAuthenticationHolder(new String(tokenChars), new char[] {});
+        }
+
+        @Override
+        public boolean validCredentials() {
+            return auth != null && auth.get() != null;
+        }
+
+        private static final Set<String> FREE_DATABASES = Set.of("asn", "country", "country_asn");
+
+        @Override
+        public String url(String suffix) {
+            // note: the 'free' databases are in the sub-path 'free/' in terms of the download endpoint
+            final String internalName;
+            if (FREE_DATABASES.contains(name)) {
+                internalName = "free/" + name;
+            } else {
+                internalName = name;
+            }
+
+            // reminder, we're passing the ipinfo token as the username part of http basic auth,
+            // see https://ipinfo.io/developers#authentication
+
+            String endpointPattern = DEFAULT_IPINFO_ENDPOINT;
+            if (endpointPattern.contains("%")) {
+                throw new IllegalArgumentException("Invalid endpoint [" + endpointPattern + "]");
+            }
+            if (endpointPattern.endsWith("/") == false) {
+                endpointPattern += "/";
+            }
+            endpointPattern += "%s.%s";
+
+            // at this point the pattern looks like this (in the default case):
+            // https://ipinfo.io/data/%s.%s
+            // also see https://ipinfo.io/developers/database-download,
+            // and https://ipinfo.io/developers/database-filename-reference for more
+
+            return Strings.format(endpointPattern, internalName, suffix);
+        }
+
+        @Override
+        public Checksum checksum() throws IOException {
+            final String checksumJsonUrl = this.url("mmdb/checksums"); // a minor abuse of the idea of a 'suffix', :shrug:
+            byte[] data = httpClient.getBytes(auth.get(), checksumJsonUrl); // this throws if the auth is bad
+            Map<String, Object> checksums;
+            try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
+                checksums = parser.map();
+            }
+            @SuppressWarnings("unchecked")
+            String md5 = ((Map<String, String>) checksums.get("checksums")).get("md5");
+            logger.trace("checksum was [{}]", md5);
+
+            var matcher = MD5_CHECKSUM_PATTERN.matcher(md5);
+            boolean match = matcher.matches();
+            if (match == false) {
+                throw new RuntimeException("Unexpected md5 response from [" + checksumJsonUrl + "]");
+            }
+            return Checksum.md5(md5);
+        }
+
+        @Override
+        public CheckedSupplier<InputStream, IOException> download() {
+            final String mmdbUrl = this.url("mmdb");
+            return () -> httpClient.get(auth.get(), mmdbUrl);
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (auth != null) auth.close();
         }
     }
 

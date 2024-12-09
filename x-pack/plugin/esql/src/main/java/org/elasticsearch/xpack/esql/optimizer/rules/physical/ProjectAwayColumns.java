@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -45,7 +44,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
 
         // This will require updating should we choose to have non-unary execution plans in the future.
-        return plan.transformDown(UnaryExec.class, currentPlanNode -> {
+        return plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }

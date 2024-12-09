@@ -943,7 +943,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                // PRTODO: This needs to target failure stores and backing indices for the given index
+                updateMergePolicySettingsRequest.indicesOptions(
+                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
+                        .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
+                        .build()
+                );
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()
@@ -1402,7 +1406,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
-            // PRTODO: We need to target the rollover to the failure store somehow here
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
+            );
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;

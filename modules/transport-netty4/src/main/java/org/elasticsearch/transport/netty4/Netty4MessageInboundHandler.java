@@ -14,10 +14,8 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.network.ThreadWatchdog;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.Transports;
@@ -52,9 +50,8 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
 
         final ByteBuf buffer = (ByteBuf) msg;
         Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
-        final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
         activityTracker.startActivity();
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, new ByteBufRefCounted(buffer))) {
+        try (ReleasableBytesReference reference = Netty4Utils.toReleasableBytesReference(buffer)) {
             pipeline.handleBytes(channel, reference);
         } finally {
             activityTracker.stopActivity();
@@ -81,35 +78,4 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         super.channelInactive(ctx);
     }
 
-    private record ByteBufRefCounted(ByteBuf buffer) implements RefCounted {
-
-        @Override
-        public void incRef() {
-            buffer.retain();
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            if (hasReferences() == false) {
-                return false;
-            }
-            try {
-                buffer.retain();
-            } catch (RuntimeException e) {
-                assert hasReferences() == false;
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public boolean decRef() {
-            return buffer.release();
-        }
-
-        @Override
-        public boolean hasReferences() {
-            return buffer.refCnt() > 0;
-        }
-    }
 }

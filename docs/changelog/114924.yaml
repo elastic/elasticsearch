@@ -1,0 +1,5 @@
+pr: 114924
+summary: Reducing error-level stack trace logging for normal events in `GeoIpDownloader`
+area: Ingest Node
+type: bug
+issues: []

@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -239,7 +240,7 @@ public final class ConfigurationUtils {
             processorType,
             processorTag,
             propertyName,
-            "property isn't a boolean, but of type [" + value.getClass().getName() + "]"
+            Strings.format("property isn't a boolean, but of type [%s]", value.getClass().getName())
         );
     }
 

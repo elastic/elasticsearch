@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -127,8 +128,9 @@ public class FreqTermsEnumTests extends ESTestCase {
         // now go over each doc, build the relevant references and filter
         reader = DirectoryReader.open(iw);
         List<BytesRef> filterTerms = new ArrayList<>();
+        StoredFields storedFields = reader.storedFields();
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
-            Document doc = reader.document(docId);
+            Document doc = storedFields.document(docId);
             addFreqs(doc, referenceAll);
             if (deletedIds.contains(doc.getField("id").stringValue()) == false) {
                 addFreqs(doc, referenceNotDeleted);

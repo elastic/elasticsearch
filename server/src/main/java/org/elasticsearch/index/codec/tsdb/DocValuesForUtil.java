@@ -21,10 +21,12 @@ public class DocValuesForUtil {
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
-    private static final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+    private final int blockSize;
     private final byte[] encoded = new byte[1024];
 
-    public DocValuesForUtil() {}
+    public DocValuesForUtil(int numericBlockSize) {
+        this.blockSize = numericBlockSize;
+    }
 
     public static int roundBits(int bitsPerValue) {
         if (bitsPerValue > 24 && bitsPerValue <= 32) {
@@ -67,7 +69,7 @@ public class DocValuesForUtil {
         out.writeBytes(this.encoded, bytesPerValue * in.length);
     }
 
-    public static void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
+    public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
             ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
@@ -81,7 +83,7 @@ public class DocValuesForUtil {
         }
     }
 
-    private static void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
+    private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
         long mask = (1L << bitsPerValue) - 1;

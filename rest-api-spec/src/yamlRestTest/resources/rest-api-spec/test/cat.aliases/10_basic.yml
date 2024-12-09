@@ -484,16 +484,3 @@
                 test_alias \s+ test_index\n
                 my_alias \s+ test_index\n
             $/
-
----
-"Deprecated local parameter":
-  - requires:
-      cluster_features: ["gte_v8.12.0"]
-      test_runner_features: ["warnings"]
-      reason: verifying deprecation warnings from 8.12.0 onwards
-
-  - do:
-      cat.aliases:
-        local: true
-      warnings:
-        - "the [?local=true] query parameter to cat-aliases requests has no effect and will be removed in a future version"

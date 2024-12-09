@@ -94,7 +94,13 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private transient boolean includeDefaults = false;
 
     public GetIndexRequest() {
-        super(IndicesOptions.strictExpandOpen());
+        super(
+            DataStream.isFailureStoreFeatureFlagEnabled()
+                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
+                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
+                    .build()
+                : IndicesOptions.strictExpandOpen()
+        );
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {

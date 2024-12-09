@@ -11,7 +11,6 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -46,9 +45,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_msearch/template"),
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
-            new Route(POST, "/{index}/_msearch/template"),
-            Route.builder(GET, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_msearch/template")
         );
     }
 
@@ -67,10 +64,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
-        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
-            restRequest.param("type");
-        }
-
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));

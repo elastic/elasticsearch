@@ -20,6 +20,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -61,7 +62,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, vl, width, normVmC, vDotC)
         );
 
-        RandomAccessBinarizedByteVectorValues targetVectors = new RandomAccessBinarizedByteVectorValues() {
+        BinarizedByteVectorValues targetVectors = new BinarizedByteVectorValues() {
             @Override
             public float getCentroidDistance(int vectorOrd) throws IOException {
                 return random().nextFloat(0f, 1000f);
@@ -99,7 +100,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             }
 
             @Override
-            public RandomAccessBinarizedByteVectorValues copy() throws IOException {
+            public BinarizedByteVectorValues copy() throws IOException {
                 return null;
             }
 
@@ -113,6 +114,16 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             @Override
             public int size() {
                 return 1;
+            }
+
+            @Override
+            public VectorScorer scorer(float[] query) throws IOException {
+                return null;
+            }
+
+            @Override
+            public float[] getCorrectiveTerms(int vectorOrd) throws IOException {
+                return new float[0];
             }
 
             @Override
@@ -209,7 +220,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, vl, width, 0f, 0f)
         );
 
-        RandomAccessBinarizedByteVectorValues targetVectors = new RandomAccessBinarizedByteVectorValues() {
+        BinarizedByteVectorValues targetVectors = new BinarizedByteVectorValues() {
             @Override
             public float getCentroidDistance(int vectorOrd) {
                 return 355.78073f;
@@ -375,7 +386,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             }
 
             @Override
-            public RandomAccessBinarizedByteVectorValues copy() {
+            public BinarizedByteVectorValues copy() {
                 return null;
             }
 
@@ -387,6 +398,16 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             @Override
             public int size() {
                 return 1;
+            }
+
+            @Override
+            public VectorScorer scorer(float[] query) throws IOException {
+                return null;
+            }
+
+            @Override
+            public float[] getCorrectiveTerms(int vectorOrd) throws IOException {
+                return new float[0];
             }
 
             @Override
@@ -806,7 +827,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, vl, width, normVmC, vDotC)
         );
 
-        RandomAccessBinarizedByteVectorValues targetVectors = new RandomAccessBinarizedByteVectorValues() {
+        BinarizedByteVectorValues targetVectors = new BinarizedByteVectorValues() {
             @Override
             public float getCentroidDistance(int vectorOrd) {
                 return 0f;
@@ -1617,7 +1638,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             }
 
             @Override
-            public RandomAccessBinarizedByteVectorValues copy() {
+            public BinarizedByteVectorValues copy() {
                 return null;
             }
 
@@ -1725,6 +1746,16 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             @Override
             public int size() {
                 return 1;
+            }
+
+            @Override
+            public VectorScorer scorer(float[] query) throws IOException {
+                return null;
+            }
+
+            @Override
+            public float[] getCorrectiveTerms(int vectorOrd) throws IOException {
+                return new float[0];
             }
 
             @Override

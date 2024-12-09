@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
@@ -29,7 +28,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        Set<NodeFeature> features = Set.of(
+        return Set.of(
             BWC_WORKAROUND_9_0,
             IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
             PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
@@ -53,21 +52,26 @@ public class MapperFeatures implements FeatureSpecification {
             IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
             TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
-            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
+            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT,
+            DenseVectorFieldMapper.BBQ_FORMAT
         );
-        // BBQ is currently behind a feature flag for testing
-        if (DenseVectorFieldMapper.BBQ_FEATURE_FLAG.isEnabled()) {
-            return Sets.union(features, Set.of(DenseVectorFieldMapper.BBQ_FORMAT));
-        }
-        return features;
     }
+
+    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
+        "mapper.constant_keyword.synthetic_source_write_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
-            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION
+            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+            SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
+            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
+            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX
         );
     }
 }

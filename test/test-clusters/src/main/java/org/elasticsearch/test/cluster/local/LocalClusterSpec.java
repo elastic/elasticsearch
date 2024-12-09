@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -155,7 +156,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public String getName() {
-            return name == null ? cluster.getName() + "-" + cluster.getNodes().indexOf(this) : name;
+            return name;
         }
 
         public Version getVersion() {
@@ -345,7 +346,7 @@ public class LocalClusterSpec implements ClusterSpec {
 
             newCluster.setNodes(nodeSpecs);
 
-            return nodeSpecs.stream().filter(n -> n.getName().equals(this.getName())).findFirst().get();
+            return nodeSpecs.stream().filter(n -> Objects.equals(n.getName(), this.getName())).findFirst().get();
         }
     }
 }

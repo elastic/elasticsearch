@@ -21,8 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 import static org.elasticsearch.common.geo.GeoUtils.quantizeLat;
 
 /**
@@ -113,15 +111,13 @@ public final class GeoTileUtils {
      * Calculates the x-coordinate in the tile grid for the specified longitude given
      * the number of tile columns for a pre-determined zoom-level.
      *
-     * @param longitude the longitude to use when determining the tile x-coordinate
+     * @param longitude the longitude to use when determining the tile x-coordinate. Longitude is in degrees
+     *                  and must be between -180 and 180 degrees.
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
     public static int getXTile(double longitude, int tiles) {
-        // normalizeLon treats this as 180, which is not friendly for tile mapping
-        if (longitude == -180) {
-            return 0;
-        }
-        final double xTile = (normalizeLon(longitude) + 180.0) / 360.0 * tiles;
+        assert longitude >= -180 && longitude <= 180 : "Longitude must be between -180 and 180 degrees";
+        final double xTile = (longitude + 180.0) / 360.0 * tiles;
         // Edge values may generate invalid values, and need to be clipped.
         return Math.max(0, Math.min(tiles - 1, (int) Math.floor(xTile)));
     }
@@ -130,11 +126,13 @@ public final class GeoTileUtils {
      * Calculates the y-coordinate in the tile grid for the specified longitude given
      * the number of tile rows for pre-determined zoom-level.
      *
-     * @param latitude  the latitude to use when determining the tile y-coordinate
+     * @param latitude  the latitude to use when determining the tile y-coordinate. Latitude is in degrees
+     *                  and must be between -90 and 90 degrees.
      * @param tiles     the number of tiles per column for a pre-determined zoom-level
      */
     public static int getYTile(double latitude, int tiles) {
-        final double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
+        assert latitude >= -90 && latitude <= 90 : "Latitude must be between -90 and 90 degrees";
+        final double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(latitude));
         final double yTile = (0.5 - (ESSloppyMath.log((1.0 + latSin) / (1.0 - latSin)) / PI_TIMES_4)) * tiles;
         // Edge values may generate invalid values, and need to be clipped.
         // For example, polar regions (above/below lat 85.05112878) get normalized.

@@ -141,7 +141,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected final InternalAggregation[] buildAggregations(
         LongKeyedBucketOrds bucketOrds,
         LongToIntFunction roundingIndexFor,
-        long[] owningBucketOrds
+        LongArray owningBucketOrds
     ) throws IOException {
         return buildAggregationsForVariableBuckets(
             owningBucketOrds,
@@ -324,7 +324,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             return buildAggregations(bucketOrds, l -> roundingIdx, owningBucketOrds);
         }
 
@@ -594,7 +594,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             /*
              * Rebucket before building the aggregation to build as small as result
              * as possible.

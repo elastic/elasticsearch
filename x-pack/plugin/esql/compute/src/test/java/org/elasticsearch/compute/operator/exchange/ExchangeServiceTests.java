@@ -22,8 +22,8 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -441,7 +441,7 @@ public class ExchangeServiceTests extends ESTestCase {
             PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
             sourceHandler.addCompletionListener(sourceCompletionFuture);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            Transport.Connection connection = node0.getConnection(node1.getLocalDiscoNode());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,
@@ -457,7 +457,7 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private MockTransportService newTransportService() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
-        namedWriteables.addAll(Block.getNamedWriteables());
+        namedWriteables.addAll(BlockWritables.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,

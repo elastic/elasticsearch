@@ -29,7 +29,7 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
     }
 
     public static CleanupRepositoryRequest readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_REQUEST_TIMEOUTS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             return new CleanupRepositoryRequest(in);
         } else {
             return new CleanupRepositoryRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
@@ -48,7 +48,7 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_REQUEST_TIMEOUTS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             super.writeTo(out);
         }
         out.writeString(repository);

@@ -12,7 +12,6 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
@@ -25,12 +24,11 @@ public final class MinScoreScorer extends Scorer {
     private float curScore;
     private final float boost;
 
-    public MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
-        this(weight, scorer, minScore, 1f);
+    public MinScoreScorer(Scorer scorer, float minScore) {
+        this(scorer, minScore, 1f);
     }
 
-    public MinScoreScorer(Weight weight, Scorer scorer, float minScore, float boost) {
-        super(weight);
+    public MinScoreScorer(Scorer scorer, float minScore, float boost) {
         this.in = scorer;
         this.minScore = minScore;
         this.boost = boost;

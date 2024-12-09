@@ -231,12 +231,7 @@ public class ResolveIndexTests extends ESTestCase {
             .metadata(buildMetadata(new Object[][] {}, indices))
             .build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
-        Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(
-            clusterState,
-            IndicesOptions.LENIENT_EXPAND_OPEN,
-            true,
-            requestedIndex
-        );
+        Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, true, requestedIndex);
         assertThat(resolvedIndices.size(), is(1));
         assertThat(
             resolvedIndices,
@@ -540,7 +535,6 @@ public class ResolveIndexTests extends ESTestCase {
                                 }
                                 """, SystemIndexDescriptor.VERSION_META_KEY))
                             .setPrimaryIndex(".test-net-new-system-1")
-                            .setVersionMetaKey("version")
                             .setOrigin("system")
                             .build()
                     )

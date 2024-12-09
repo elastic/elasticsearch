@@ -245,7 +245,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         rolloverRequest.dryRun(true);
         rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
         if (targetFailureStore) {
-            // PRTODO: Target operation to failure store
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
+            );
         }
         return rolloverRequest;
     }

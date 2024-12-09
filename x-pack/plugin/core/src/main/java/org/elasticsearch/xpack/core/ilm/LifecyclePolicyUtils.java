@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -48,16 +49,29 @@ public class LifecyclePolicyUtils {
             source = replaceVariables(source, variables);
             validate(source);
 
-            try (
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source)
-            ) {
-                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-                policy.validate();
-                return policy;
-            }
+            return parsePolicy(source, name, xContentRegistry, XContentType.JSON);
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to load policy [" + name + "] from [" + resource + "]", e);
+        }
+    }
+
+    /**
+     * Parses lifecycle policy based on the provided content type without doing any variable substitution.
+     * It is caller's responsibility to do any variable substitution if required.
+     */
+    public static LifecyclePolicy parsePolicy(
+        String rawPolicy,
+        String name,
+        NamedXContentRegistry xContentRegistry,
+        XContentType contentType
+    ) throws IOException {
+        try (
+            XContentParser parser = contentType.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), rawPolicy)
+        ) {
+            LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+            policy.validate();
+            return policy;
         }
     }
 

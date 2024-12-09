@@ -1,0 +1,6 @@
+pr: 114819
+summary: Don't use a `BytesStreamOutput` to copy keys in `BytesRefBlockHash`
+area: EQL
+type: bug
+issues:
+ - 114599

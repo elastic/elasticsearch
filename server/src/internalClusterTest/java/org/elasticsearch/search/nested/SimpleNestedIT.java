@@ -21,7 +21,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
@@ -426,7 +428,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setExplain(true),
             response -> {
                 assertNoFailures(response);
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 Explanation explanation = response.getHits().getHits()[0].getExplanation();
                 assertThat(explanation.getValue(), equalTo(response.getHits().getHits()[0].getScore()));
                 assertThat(explanation.toString(), startsWith("0.36464313 = Score based on 2 child docs in range from 0 to 1"));
@@ -1579,6 +1581,64 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareDelete("test"));
         clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+    }
+
+    public void testSkipNestedInnerHits() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
+        ensureGreen();
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "foo")
+                    .field("n_field2", "bar")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        GetResponse getResponse = client().prepareGet("test", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
+        refresh();
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSource(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.nestedQuery("nested1", QueryBuilders.termQuery("nested1.n_field1", "foo"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder())
+                )
+            ),
+            res -> {
+                assertNotNull(res.getHits());
+                assertHitCount(res, 1);
+                assertThat(res.getHits().getHits().length, equalTo(1));
+                // by default we should get inner hits
+                assertNotNull(res.getHits().getHits()[0].getInnerHits());
+                assertNotNull(res.getHits().getHits()[0].getInnerHits().get("nested1"));
+            }
+        );
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSource(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.nestedQuery("nested1", QueryBuilders.termQuery("nested1.n_field1", "foo"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder())
+                ).skipInnerHits(true)
+            ),
+            res -> {
+                assertNotNull(res.getHits());
+                assertHitCount(res, 1);
+                assertThat(res.getHits().getHits().length, equalTo(1));
+                // if we explicitly say to ignore inner hits, then this should now be null
+                assertNull(res.getHits().getHits()[0].getInnerHits());
+            }
+        );
     }
 
     private void assertDocumentCount(String index, long numdocs) {

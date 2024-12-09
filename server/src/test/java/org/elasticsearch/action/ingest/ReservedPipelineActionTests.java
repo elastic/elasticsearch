@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,7 +32,6 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
@@ -94,7 +94,6 @@ public class ReservedPipelineActionTests extends ESTestCase {
             Collections.singletonList(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
             FailureStoreMetrics.NOOP
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
@@ -105,7 +104,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
         NodeInfo nodeInfo = new NodeInfo(
             Build.current().version(),
-            TransportVersion.current(),
+            new CompatibilityVersions(TransportVersion.current(), Map.of()),
             IndexVersion.current(),
             Map.of(),
             Build.current(),
@@ -135,7 +134,12 @@ public class ReservedPipelineActionTests extends ESTestCase {
         );
 
         fileSettingsService = spy(
-            new FileSettingsService(clusterService, mock(ReservedClusterStateService.class), newEnvironment(Settings.EMPTY))
+            new FileSettingsService(
+                clusterService,
+                mock(ReservedClusterStateService.class),
+                newEnvironment(Settings.EMPTY),
+                new FileSettingsService.FileSettingsHealthIndicatorService()
+            )
         );
     }
 

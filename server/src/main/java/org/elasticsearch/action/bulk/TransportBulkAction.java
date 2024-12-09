@@ -416,6 +416,13 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         for (String dataStream : dataStreamsToBeRolledOver) {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
+            if (targetFailureStore) {
+                rolloverRequest.setIndicesOptions(
+                    IndicesOptions.builder(rolloverRequest.indicesOptions())
+                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
+                        .build()
+                );
+            }
             // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
             // unconditional and performant rollover.
             rollOver(rolloverRequest, ActionListener.releaseAfter(new ActionListener<>() {

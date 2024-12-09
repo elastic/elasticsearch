@@ -26,6 +26,7 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation('org.apache.arrow:arrow-memory-unsafe:16.1.0')
+  testImplementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}")
 }
 
 tasks.named("dependencyLicenses").configure {

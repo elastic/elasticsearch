@@ -285,14 +285,14 @@ public final class IndicesPermission {
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
+                checkIndexAutomaton = Automatons.minusAndDeterminize(checkIndexAutomaton, restrictedIndices.getAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
                 for (var indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
-                    if (Operations.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
+                    if (Automatons.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
                         if (allowedIndexPrivilegesAutomaton != null) {
-                            allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
+                            allowedIndexPrivilegesAutomaton = Automatons.unionAndDeterminize(
                                 Arrays.asList(allowedIndexPrivilegesAutomaton, indexAndPrivilegeAutomaton.getKey())
                             );
                         } else {
@@ -303,7 +303,7 @@ public final class IndicesPermission {
                 for (String privilege : checkForPrivileges) {
                     IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
                     if (allowedIndexPrivilegesAutomaton != null
-                        && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
+                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
@@ -344,7 +344,7 @@ public final class IndicesPermission {
                 automatonList.add(group.privilege.getAutomaton());
             }
         }
-        return automatonList.isEmpty() ? Automatons.EMPTY : Automatons.unionAndMinimize(automatonList);
+        return automatonList.isEmpty() ? Automatons.EMPTY : Automatons.unionAndDeterminize(automatonList);
     }
 
     /**
@@ -775,7 +775,7 @@ public final class IndicesPermission {
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
             allAutomatons.compute(
                 group.privilege().getAutomaton(),
-                (key, value) -> value == null ? indexAutomaton : Automatons.unionAndMinimize(List.of(value, indexAutomaton))
+                (key, value) -> value == null ? indexAutomaton : Automatons.unionAndDeterminize(List.of(value, indexAutomaton))
             );
             if (combine) {
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
@@ -785,7 +785,7 @@ public final class IndicesPermission {
                         group.privilege().getAutomaton()
                     );
                     if (Operations.isEmpty(intersectingPrivileges) == false) {
-                        Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
+                        Automaton indexPatternAutomaton = Automatons.unionAndDeterminize(
                             List.of(indexAndPrivilegeAutomatons.getValue(), indexAutomaton)
                         );
                         combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
@@ -794,7 +794,7 @@ public final class IndicesPermission {
                 combinedAutomatons.forEach(
                     automatons -> allAutomatons.compute(
                         automatons.v1(),
-                        (key, value) -> value == null ? automatons.v2() : Automatons.unionAndMinimize(List.of(value, automatons.v2()))
+                        (key, value) -> value == null ? automatons.v2() : Automatons.unionAndDeterminize(List.of(value, automatons.v2()))
                     )
                 );
             }
@@ -839,7 +839,7 @@ public final class IndicesPermission {
                 this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
                     indices,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                    k -> Automatons.minusAndDeterminize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

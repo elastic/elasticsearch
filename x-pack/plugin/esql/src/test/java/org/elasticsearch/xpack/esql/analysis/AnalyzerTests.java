@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -55,6 +57,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1115,21 +1118,24 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, int)
-            """, "second argument of [date_trunc(1 month, int)] must be [datetime], found value [int] type [integer]");
+            """, "second argument of [date_trunc(1 month, int)] must be [date_nanos or datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, float)
-            """, "second argument of [date_trunc(1 month, float)] must be [datetime], found value [float] type [double]");
+            """, "second argument of [date_trunc(1 month, float)] must be [date_nanos or datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(1 month, keyword)
-            """, "second argument of [date_trunc(1 month, keyword)] must be [datetime], found value [keyword] type [keyword]");
+        verifyUnsupported(
+            """
+                from test
+                | eval date_trunc(1 month, keyword)
+                """,
+            "second argument of [date_trunc(1 month, keyword)] must be [date_nanos or datetime], found value [keyword] type [keyword]"
+        );
     }
 
     public void testDateTruncWithNumericInterval() {
@@ -1878,6 +1884,11 @@ public class AnalyzerTests extends ESTestCase {
         Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
         int first = supplier.get();
         int second = randomValueOtherThan(first, supplier);
+        Function<String, String> noText = (type) -> type.equals("text") ? "keyword" : type;
+        assumeTrue(
+            "Ignore tests with TEXT and KEYWORD combinations because they are now valid",
+            noText.apply(fields[first][0]).equals(noText.apply(fields[second][0])) == false
+        );
 
         String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
         verifyUnsupported(
@@ -1885,7 +1896,7 @@ public class AnalyzerTests extends ESTestCase {
             "second argument of ["
                 + signature
                 + "] must be ["
-                + fields[first][1]
+                + noText.apply(fields[first][1])
                 + "], found value ["
                 + fields[second][0]
                 + "] type ["
@@ -1898,11 +1909,11 @@ public class AnalyzerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         LogicalPlan plan = analyze(query);
@@ -1934,31 +1945,27 @@ public class AnalyzerTests extends ESTestCase {
                 .item(startsWith("job{f}"))
                 .item(startsWith("job.raw{f}"))
                 /*
-                 * Int is a reference here because we renamed it in project.
-                 * If we hadn't it'd be a field and that'd be fine.
+                 * Int key is returned as a full field (despite the rename)
                  */
-                .item(containsString("int{r}"))
+                .item(containsString("int{f}"))
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
                 /*
-                 * It's important that name is returned as a *reference* here
-                 * instead of a field. If it were a field we'd use SearchStats
-                 * on it and discover that it doesn't exist in the index. It doesn't!
-                 * We don't expect it to. It exists only in the lookup table.
+                 * As is the name column from the right side.
                  */
-                .item(containsString("name{r}"))
+                .item(containsString("name{f}"))
         );
     }
 
     public void testLookupMissingField() {
         String query = """
               FROM test
-            | LOOKUP int_number_names ON garbage
+            | LOOKUP_🐔 int_number_names ON garbage
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -1968,11 +1975,11 @@ public class AnalyzerTests extends ESTestCase {
     public void testLookupMissingTable() {
         String query = """
               FROM test
-            | LOOKUP garbage ON a
+            | LOOKUP_🐔 garbage ON a
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -1983,11 +1990,11 @@ public class AnalyzerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME last_name AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -2084,6 +2091,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiers() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         assertProjectionWithMapping(
             """
                 from test
@@ -2174,6 +2185,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedParamsForIdentifiers() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         // missing field
         assertError(
             """
@@ -2243,6 +2258,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifierPatterns() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         assertProjectionWithMapping(
             """
                 from test
@@ -2273,6 +2292,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedParamsForIdentifierPatterns() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         // missing pattern
         assertError(
             """
@@ -2291,6 +2314,25 @@ public class AnalyzerTests extends ESTestCase {
             new QueryParams(List.of(paramAsIdentifier("f1", "x*"))),
             "Unknown column [x*], did you mean [x]?"
         );
+    }
+
+    public void testFromEnrichAndMatchColonUsage() {
+        LogicalPlan plan = analyze("""
+            from *:test
+            | EVAL x = to_string(languages)
+            | ENRICH _any:languages ON x
+            | WHERE first_name: "Anna"
+            """, "mapping-default.json");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        var enrich = as(filter.child(), Enrich.class);
+        assertEquals(enrich.mode(), Enrich.Mode.ANY);
+        assertEquals(enrich.policy().getMatchField(), "language_code");
+        var eval = as(enrich.child(), Eval.class);
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertEquals(esRelation.index().name(), "test");
+
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

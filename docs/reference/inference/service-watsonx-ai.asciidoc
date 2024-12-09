@@ -1,0 +1,115 @@
+[[infer-service-watsonx-ai]]
+=== Watsonx {infer} service
+
+Creates an {infer} endpoint to perform an {infer} task with the `watsonxai` service.
+
+You need an https://cloud.ibm.com/docs/databases-for-elasticsearch?topic=databases-for-elasticsearch-provisioning&interface=api[IBM Cloud® Databases for Elasticsearch deployment] to use the `watsonxai` {infer} service.
+You can provision one through the https://cloud.ibm.com/databases/databases-for-elasticsearch/create[IBM catalog], the https://cloud.ibm.com/docs/databases-cli-plugin?topic=databases-cli-plugin-cdb-reference[Cloud Databases CLI plug-in], the https://cloud.ibm.com/apidocs/cloud-databases-api[Cloud Databases API], or https://registry.terraform.io/providers/IBM-Cloud/ibm/latest/docs/resources/database[Terraform].
+
+
+[discrete]
+[[infer-service-watsonx-ai-api-request]]
+==== {api-request-title}
+
+`PUT /_inference/<task_type>/<inference_id>`
+
+[discrete]
+[[infer-service-watsonx-ai-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=inference-id]
+
+`<task_type>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=task-type]
++
+--
+Available task types:
+
+* `text_embedding`.
+--
+
+[discrete]
+[[infer-service-watsonx-ai-api-request-body]]
+==== {api-request-body-title}
+
+`service`::
+(Required, string)
+The type of service supported for the specified task type. In this case, 
+`watsonxai`.
+
+`service_settings`::
+(Required, object)
+include::inference-shared.asciidoc[tag=service-settings]
++
+--
+These settings are specific to the `watsonxai` service.
+--
+
+`api_key`:::
+(Required, string)
+A valid API key of your Watsonx account.
+You can find your Watsonx API keys or you can create a new one https://cloud.ibm.com/iam/apikeys[on the API keys page].
++
+--
+include::inference-shared.asciidoc[tag=api-key-admonition]
+--
+
+`api_version`:::
+(Required, string)
+Version parameter that takes a version date in the format of `YYYY-MM-DD`.
+For the active version data parameters, refer to the https://cloud.ibm.com/apidocs/watsonx-ai#active-version-dates[documentation].
+
+`model_id`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+Refer to the IBM Embedding Models section in the https://www.ibm.com/products/watsonx-ai/foundation-models[Watsonx documentation] for the list of available text embedding models.
+
+`url`:::
+(Required, string)
+The URL endpoint to use for the requests.
+
+`project_id`:::
+(Required, string)
+The name of the project to use for the {infer} task.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `watsonxai` service sets the number of requests allowed per minute to `120`.
+This helps to minimize the number of rate limit errors returned from Watsonx.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+include::inference-shared.asciidoc[tag=request-per-minute-example]
+--
+
+
+[discrete]
+[[inference-example-watsonx-ai]]
+==== Watsonx AI service example
+
+The following example shows how to create an {infer} endpoint called `watsonx-embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/watsonx-embeddings
+{
+    "service": "watsonxai",
+    "service_settings": {
+        "api_key": "<api_key>", <1>
+        "url": "<url>", <2>
+        "model_id": "ibm/slate-30m-english-rtrvr",
+        "project_id": "<project_id>", <3>
+        "api_version": "2024-03-14" <4>
+    }
+}
+
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> A valid Watsonx API key.
+You can find on the https://cloud.ibm.com/iam/apikeys[API keys page of your account].
+<2> The {infer} endpoint URL you created on Watsonx.
+<3> The ID of your IBM Cloud project.
+<4> A valid API version parameter. You can find the active version data parameters https://cloud.ibm.com/apidocs/watsonx-ai#active-version-dates[here].

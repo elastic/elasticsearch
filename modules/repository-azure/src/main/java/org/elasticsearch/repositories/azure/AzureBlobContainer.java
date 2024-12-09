@@ -138,7 +138,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public DeleteResult delete(OperationPurpose purpose) {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         return blobStore.deleteBlobDirectory(purpose, keyPath);
     }
 

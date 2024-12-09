@@ -35,12 +35,13 @@ Dates::                 Date types, including <<date,`date`>> and
 [[object-types]]
 ==== Objects and relational types
 
-<<object,`object`>>::         A JSON object.
-<<flattened,`flattened`>>::   An entire JSON object as a single field value.
-<<nested,`nested`>>::         A JSON object that preserves the relationship
-                              between its subfields.
-<<parent-join,`join`>>::      Defines a parent/child relationship for documents
-                              in the same index.
+<<object,`object`>>::           A JSON object.
+<<flattened,`flattened`>>::     An entire JSON object as a single field value.
+<<nested,`nested`>>::           A JSON object that preserves the relationship
+                                between its subfields.
+<<parent-join,`join`>>::        Defines a parent/child relationship for documents
+                                in the same index.
+<<passthrough,`passthrough`>>:: Provides aliases for sub-fields at the same level.
 
 
 [discrete]
@@ -166,6 +167,8 @@ include::types/nested.asciidoc[]
 include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
+
+include::types/passthrough.asciidoc[]
 
 include::types/percolator.asciidoc[]
 

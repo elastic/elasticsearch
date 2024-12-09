@@ -656,7 +656,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         private static Stream<Index> getAliasIndexStream(
-            IndexNameExpressionResolver.ResolvedExpression resolvedExpression,
+            ResolvedExpression resolvedExpression,
             IndexAbstraction ia,
             SortedMap<String, IndexAbstraction> indicesLookup
         ) {

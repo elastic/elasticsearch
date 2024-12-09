@@ -89,7 +89,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
         ) {
             remoteTransport.getTaskManager().setTaskCancellationService(new TaskCancellationService(remoteTransport));
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     builder.build(),
@@ -163,11 +163,11 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             MockTransportService seedTransport = startTransport("seed_node", knownNodes);
             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
         ) {
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            knownNodes.add(seedTransport.getLocalNode());
+            knownNodes.add(discoverableTransport.getLocalNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
@@ -216,11 +216,11 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             MockTransportService seedTransport = startTransport("seed_node", knownNodes);
             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
         ) {
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            knownNodes.add(seedTransport.getLocalNode());
+            knownNodes.add(discoverableTransport.getLocalNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),

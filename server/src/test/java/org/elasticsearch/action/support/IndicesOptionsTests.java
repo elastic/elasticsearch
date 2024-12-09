@@ -59,8 +59,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowClosedIndices(randomBoolean())
                 )
                 .selectorOptions(
-                    SelectorOptions.builder()
-                        .setDefaultSelectors(EnumSet.copyOf(randomNonEmptySubsetOf(EnumSet.allOf(IndexComponentSelector.class))))
+                    randomFrom(SelectorOptions.DATA, SelectorOptions.FAILURES, SelectorOptions.ALL_APPLICABLE)
                 )
                 .build();
 
@@ -347,7 +346,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        SelectorOptions selectorOptions = new SelectorOptions(EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(IndexComponentSelector.class))));
+        IndicesOptions.SelectorOptions selectorOptions = new IndicesOptions.SelectorOptions(randomFrom(IndexComponentSelector.values()));
 
         IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
 

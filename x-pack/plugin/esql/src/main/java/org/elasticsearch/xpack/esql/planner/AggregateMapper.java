@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
@@ -47,9 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 
 /**
  * Static class used to convert aggregate expressions to the named expressions that represent their intermediate state.
@@ -78,6 +76,7 @@ final class AggregateMapper {
         Min.class,
         Percentile.class,
         SpatialCentroid.class,
+        StdDev.class,
         Sum.class,
         Values.class,
         Top.class,
@@ -171,7 +170,7 @@ final class AggregateMapper {
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
             types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
-        } else if (Rate.class.isAssignableFrom(clazz)) {
+        } else if (Rate.class.isAssignableFrom(clazz) || StdDev.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
             types = List.of(""); // no type
@@ -297,25 +296,19 @@ final class AggregateMapper {
         if (aggClass == Top.class && type.equals(DataType.IP)) {
             return "Ip";
         }
-        if (type.equals(DataType.BOOLEAN)) {
-            return "Boolean";
-        } else if (type.equals(DataType.INTEGER) || type.equals(DataType.COUNTER_INTEGER)) {
-            return "Int";
-        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME) || type.equals(DataType.COUNTER_LONG)) {
-            return "Long";
-        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE)) {
-            return "Double";
-        } else if (type.equals(DataType.KEYWORD)
-            || type.equals(DataType.IP)
-            || type.equals(DataType.VERSION)
-            || type.equals(DataType.TEXT)) {
-                return "BytesRef";
-            } else if (type.equals(GEO_POINT)) {
-                return "GeoPoint";
-            } else if (type.equals(CARTESIAN_POINT)) {
-                return "CartesianPoint";
-            } else {
-                throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
-            }
+
+        return switch (type) {
+            case DataType.BOOLEAN -> "Boolean";
+            case DataType.INTEGER, DataType.COUNTER_INTEGER -> "Int";
+            case DataType.LONG, DataType.DATETIME, DataType.COUNTER_LONG, DataType.DATE_NANOS -> "Long";
+            case DataType.DOUBLE, DataType.COUNTER_DOUBLE -> "Double";
+            case DataType.KEYWORD, DataType.IP, DataType.VERSION, DataType.TEXT, DataType.SEMANTIC_TEXT -> "BytesRef";
+            case GEO_POINT -> "GeoPoint";
+            case CARTESIAN_POINT -> "CartesianPoint";
+            case UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD, TIME_DURATION,
+                CARTESIAN_SHAPE, GEO_SHAPE, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
+                    "illegal agg type: " + type.typeName()
+                );
+        };
     }
 }

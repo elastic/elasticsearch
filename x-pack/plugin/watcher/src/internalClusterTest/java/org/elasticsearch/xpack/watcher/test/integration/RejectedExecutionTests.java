@@ -55,7 +55,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
             assertResponse(prepareSearch(".watcher-history-*"), searchResponse -> {
-                assertThat("Watcher history not found", searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L));
+                assertThat("Watcher history not found", searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo(2L));
                 assertThat(
                     "Did not find watcher history for rejected watch",
                     Arrays.stream(searchResponse.getHits().getHits())

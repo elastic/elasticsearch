@@ -88,12 +88,9 @@ public class IncludeExcludeTests extends ESTestCase {
 
             @Override
             public long nextOrd() {
-                if (consumed) {
-                    return SortedSetDocValues.NO_MORE_ORDS;
-                } else {
-                    consumed = true;
-                    return 0;
-                }
+                assert consumed == false;
+                consumed = true;
+                return 0;
             }
 
             @Override

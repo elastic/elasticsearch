@@ -668,7 +668,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
 
             Future<TransportResponse.Empty> res = submitRequest(
                 serviceC,
@@ -725,7 +725,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
 
             Future<StringMessageResponse> res = submitRequest(
                 serviceC,
@@ -795,8 +795,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
-            connectToNode(serviceA, serviceC.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
+            connectToNode(serviceA, serviceC.getLocalNode(), connectionProfile);
 
             TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<>() {
                 @Override
@@ -821,14 +821,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             Future<StringMessageResponse> compressed = submitRequest(
                 serviceC,
-                serviceA.getLocalDiscoNode(),
+                serviceA.getLocalNode(),
                 "internal:sayHello",
                 new StringMessageRequest(text, -1, true),
                 responseHandler
             );
             Future<StringMessageResponse> uncompressed = submitRequest(
                 serviceA,
-                serviceC.getLocalDiscoNode(),
+                serviceC.getLocalNode(),
                 "internal:sayHello",
                 new StringMessageRequest(text, -1, false),
                 responseHandler
@@ -1049,7 +1049,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     ignoringRequestHandler
                 );
                 serviceB = newService;
-                nodeB = newService.getLocalDiscoNode();
+                nodeB = newService.getLocalNode();
                 connectToNode(serviceB, nodeA);
                 connectToNode(serviceA, nodeB);
             } else if (serviceA.nodeConnected(nodeB)) {
@@ -3419,7 +3419,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         ) {
             final CountDownLatch latch = new CountDownLatch(1);
             serviceC.connectToNode(
-                serviceA.getLocalDiscoNode(),
+                serviceA.getLocalNode(),
                 ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY),
                 new ActionListener<>() {
                     @Override

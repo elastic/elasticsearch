@@ -333,7 +333,6 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
         replicatedSettings.add(IndexSettings.PREFER_ILM_SETTING);
-        replicatedSettings.add(IndexSettings.SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         replicatedSettings.add(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);

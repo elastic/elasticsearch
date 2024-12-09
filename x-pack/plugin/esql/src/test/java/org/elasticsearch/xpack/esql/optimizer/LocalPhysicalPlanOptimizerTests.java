@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -21,10 +20,13 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -59,7 +61,9 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -143,8 +147,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics())
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
+    }
+
+    private Analyzer makeAnalyzer(String mappingFileName) {
+        return makeAnalyzer(mappingFileName, new EnrichResolution());
     }
 
     /**
@@ -325,7 +333,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }, directoryReader -> {
             IndexSearcher searcher = newSearcher(directoryReader);
             SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
-            plan.set(plannerOptimizer.plan(query, new SearchStats(List.of(ctx))));
+            plan.set(plannerOptimizer.plan(query, SearchContextStats.from(List.of(ctx))));
         });
 
         return plan.get();
@@ -449,7 +457,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             from test
             | where qstr("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
@@ -610,7 +618,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             from test
             | where match(text, "beta") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
@@ -672,7 +680,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"bool":{"must":[{"match":{"last_name":{"query":"Smith"}}},
      *       {"match":{"first_name":{"query":"John"}}}],"boost":1.0}}][_doc{f}#14], limit[1000], sort[] estimatedRowSize[324]
      */
-    public void testMatchFunctionMultipleQstrClauses() {
+    public void testMatchFunctionMultipleMatchClauses() {
         String queryText = """
             from test
             | where match(last_name, "Smith") and match(first_name, "John")
@@ -689,6 +697,182 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryStringLeft = QueryBuilders.matchQuery("last_name", "Smith");
         var queryStringRight = QueryBuilders.matchQuery("first_name", "John");
         var expected = QueryBuilders.boolQuery().must(queryStringLeft).must(queryStringRight);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"kql":{"query":"last_name: Smith"}}]
+     */
+    public void testKqlFunction() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where kql("last_name: Smith")
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = kqlQueryBuilder("last_name: Smith");
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#1419, emp_no{f}#1413, first_name{f}#1414, gender{f}#1415, job{f}#1420, job.raw{f}#1421, langua
+     * ges{f}#1416, last_name{f}#1417, long_noidx{f}#1422, salary{f}#1418],false]
+     *   \_ProjectExec[[_meta_field{f}#1419, emp_no{f}#1413, first_name{f}#1414, gender{f}#1415, job{f}#1420, job.raw{f}#1421, langua
+     * ges{f}#1416, last_name{f}#1417, long_noidx{f}#1422, salary{f}#1418]]
+     *     \_FieldExtractExec[_meta_field{f}#1419, emp_no{f}#1413, first_name{f}#]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"bool":{"must":[{"kql":{"query":"last_name: Smith"}}
+     *        ,{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}},"source":"emp_no > 10010"}}],
+     *        "boost":1.0}}][_doc{f}#1423], limit[1000], sort[] estimatedRowSize[324]
+     */
+    public void testKqlFunctionConjunctionWhereOperands() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        String queryText = """
+            from test
+            | where kql("last_name: Smith") and emp_no > 10010
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source filterSource = new Source(2, 36, "emp_no > 10000");
+        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var kqlQuery = kqlQueryBuilder("last_name: Smith");
+        var expected = QueryBuilders.boolQuery().must(kqlQuery).must(range);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, double{f}#8, float{f}#9, half_
+     * float{f}#10, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#11, short{f}#17, text{f}#18, unsigned_long{f}#16],
+     * false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, double{f}#8, float{f}#9, half_
+     * float{f}#10, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#11, short{f}#17, text{f}#18, unsigned_long{f}#16]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#4, byte{f}#5, constant_k..]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"bool":{"must":[{"kql":{"query":"last_name: Smith"}},{
+     *       "esql_single_value":{"field":"ip","next":{"terms":{"ip":["127.0.0.1/32"],"boost":1.0}},
+     *       "source":"cidr_match(ip, \"127.0.0.1/32\")@2:38"}}],"boost":1.0}}][_doc{f}#21], limit[1000], sort[] estimatedRowSize[354]
+     */
+    public void testKqlFunctionWithFunctionsPushedToLucene() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        String queryText = """
+            from test
+            | where kql("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source filterSource = new Source(2, 36, "cidr_match(ip, \"127.0.0.1/32\")");
+        var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
+        var kqlQuery = kqlQueryBuilder("last_name: Smith");
+        var expected = QueryBuilders.boolQuery().must(kqlQuery).must(terms);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#1163, emp_no{f}#1157, first_name{f}#1158, gender{f}#1159, job{f}#1164, job.raw{f}#1165, langua
+     * ges{f}#1160, last_name{f}#1161, long_noidx{f}#1166, salary{f}#1162],false]
+     *   \_ProjectExec[[_meta_field{f}#1163, emp_no{f}#1157, first_name{f}#1158, gender{f}#1159, job{f}#1164, job.raw{f}#1165, langua
+     * ges{f}#1160, last_name{f}#1161, long_noidx{f}#1166, salary{f}#1162]]
+     *     \_FieldExtractExec[_meta_field{f}#1163, emp_no{f}#1157, first_name{f}#]
+     *       \_EsQueryExec[test], indexMode[standard],
+     *       query[{"bool":{"must":[{"kql":{"query":"last_name: Smith"}},
+     *       {"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}},"source":"emp_no > 10010@3:9"}}],
+     *       "boost":1.0}}][_doc{f}#1167], limit[1000], sort[] estimatedRowSize[324]
+     */
+    public void testKqlFunctionMultipleWhereClauses() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        String queryText = """
+            from test
+            | where kql("last_name: Smith")
+            | where emp_no > 10010
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source filterSource = new Source(3, 8, "emp_no > 10000");
+        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var kqlQuery = kqlQueryBuilder("last_name: Smith");
+        var expected = QueryBuilders.boolQuery().must(kqlQuery).must(range);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"bool": {"must":[
+     *       {"kql":{"query":"last_name: Smith"}},
+     *       {"kql":{"query":"emp_no > 10010"}}],"boost":1.0}}]
+     */
+    public void testKqlFunctionMultipleKqlClauses() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        String queryText = """
+            from test
+            | where kql("last_name: Smith") and kql("emp_no > 10010")
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        var kqlQueryLeft = kqlQueryBuilder("last_name: Smith");
+        var kqlQueryRight = kqlQueryBuilder("emp_no > 10010");
+        var expected = QueryBuilders.boolQuery().must(kqlQueryLeft).must(kqlQueryRight);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -892,8 +1076,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
 
+    private static final String LT = "<";
+    private static final String LTE = "<=";
+    private static final String GT = ">";
+    private static final String GTE = ">=";
+    private static final String EQ = "==";
+    private static final String NEQ = "!=";
+
     public void testOutOfRangeFilterPushdown() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
 
         String largerThanInteger = String.valueOf(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
         String smallerThanInteger = String.valueOf(randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L));
@@ -910,15 +1101,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
-            // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
         );
-
-        final String LT = "<";
-        final String LTE = "<=";
-        final String GT = ">";
-        final String GTE = ">=";
-        final String EQ = "==";
-        final String NEQ = "!=";
 
         for (OutOfRangeTestCase testCase : cases) {
             List<String> trueForSingleValuesPredicates = List.of(
@@ -968,6 +1151,51 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
                 var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery());
                 assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
+            }
+        }
+    }
+
+    public void testOutOfRangeFilterPushdownWithFloatAndHalfFloat() {
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
+
+        String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -Float.MAX_VALUE - 1d, true));
+        String largerThanFloat = String.valueOf(randomDoubleBetween(Float.MAX_VALUE + 1d, Double.MAX_VALUE, true));
+
+        List<OutOfRangeTestCase> cases = List.of(
+            new OutOfRangeTestCase("float", smallerThanFloat, largerThanFloat),
+            new OutOfRangeTestCase("half_float", smallerThanFloat, largerThanFloat)
+        );
+
+        for (OutOfRangeTestCase testCase : cases) {
+            for (var value : List.of(testCase.tooHigh, testCase.tooLow)) {
+                for (String predicate : List.of(LT, LTE, GT, GTE, EQ, NEQ)) {
+                    String comparison = testCase.fieldName + predicate + value;
+                    var query = "from test | where " + comparison;
+
+                    Source expectedSource = new Source(1, 18, comparison);
+
+                    logger.info("Query: " + query);
+                    EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+
+                    assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                    var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                    assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                    assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
+
+                    QueryBuilder actualInnerLuceneQuery = actualLuceneQuery.next();
+
+                    if (predicate.equals(EQ)) {
+                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value));
+                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                    } else if (predicate.equals(NEQ)) {
+                        QueryBuilder expectedInnerQuery = QueryBuilders.boolQuery()
+                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)));
+                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                    } else { // one of LT, LTE, GT, GTE
+                        assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
+                        assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));
+                    }
+                }
             }
         }
     }
@@ -1042,11 +1270,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
-
         var plan = plannerOptimizer.plan("""
             from test
-            | where first_name match "Anna"
+            | where first_name:"Anna"
             """);
 
         var limit = as(plan, LimitExec.class);
@@ -1074,15 +1300,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *         [_doc{f}#22], limit[1000], sort[[FieldSort[field=emp_no{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[336]
      */
     public void testMultipleMatchFilterPushdown() {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
-
         String query = """
             from test
-            | where first_name match "Anna" OR first_name match "Anneke"
+            | where first_name:"Anna" and first_name:"Anneke"
             | sort emp_no
             | where emp_no > 10000
             | eval description = concat("emp_no: ", to_str(emp_no), ", name: ", first_name, " ", last_name)
-            | where last_name match "Xinglin"
+            | where last_name:"Xinglin"
             """;
         var plan = plannerOptimizer.plan(query);
 
@@ -1094,9 +1318,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
         Source filterSource = new Source(4, 8, "emp_no > 10000");
-        var expectedLuceneQuery = new BoolQueryBuilder().must(
-            new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna")).should(new MatchQueryBuilder("first_name", "Anneke"))
-        )
+        var expectedLuceneQuery = new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Anna"))
+            .must(new MatchQueryBuilder("first_name", "Anneke"))
             .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin"));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
@@ -1120,5 +1343,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    private static KqlQueryBuilder kqlQueryBuilder(String query) {
+        return new KqlQueryBuilder(query);
     }
 }

@@ -160,11 +160,5 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         public void close() throws IOException {
             reader.close();
         }
-
-        @Override
-        public long ramBytesUsed() {
-            return reader.ramBytesUsed();
-        }
-
     }
 }

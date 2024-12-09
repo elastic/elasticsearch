@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -58,13 +57,13 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = includeTypeName(request);
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
+        request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.ackTimeout(getAckTimeout(request));
         rolloverIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        // PRTODO: Ensure rollover uses the selector on the name to roll over data stream failure stores
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
@@ -72,14 +71,4 @@ public class RestRolloverIndexAction extends BaseRestHandler {
             .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    private static boolean includeTypeName(RestRequest request) {
-        boolean includeTypeName = false;
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                deprecationLogger.compatibleCritical("index_rollover_with_types", TYPES_DEPRECATION_MESSAGE);
-            }
-            includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        }
-        return includeTypeName;
-    }
 }

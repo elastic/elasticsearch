@@ -19,6 +19,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -110,8 +111,9 @@ abstract class BaseKnnBitVectorsFormatTestCase extends BaseIndexFileFormatTestCa
                     totalSize += vectorValues.size();
                     StoredFields storedFields = ctx.reader().storedFields();
                     int docId;
-                    while ((docId = vectorValues.nextDoc()) != NO_MORE_DOCS) {
-                        byte[] v = vectorValues.vectorValue();
+                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+                    while ((docId = iterator.nextDoc()) != NO_MORE_DOCS) {
+                        byte[] v = vectorValues.vectorValue(iterator.index());
                         assertEquals(dimension, v.length);
                         String idString = storedFields.document(docId).getField("id").stringValue();
                         int id = Integer.parseInt(idString);

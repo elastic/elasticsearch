@@ -700,6 +700,9 @@ public class FollowingEngineTests extends ESTestCase {
             case LOGSDB:
                 settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
                 break;
+            case LOOKUP:
+                settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
+                break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
         }

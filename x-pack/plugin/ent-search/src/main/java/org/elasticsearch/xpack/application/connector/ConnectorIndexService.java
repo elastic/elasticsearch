@@ -194,9 +194,10 @@ public class ConnectorIndexService {
      * Gets the {@link Connector} from the underlying index.
      *
      * @param connectorId The id of the connector object.
+     * @param isDeleted   If set to true, it returns only soft-deleted connector; otherwise, it returns non-deleted connector.
      * @param listener    The action listener to invoke on response/failure.
      */
-    public void getConnector(String connectorId, ActionListener<ConnectorSearchResult> listener) {
+    public void getConnector(String connectorId, Boolean isDeleted, ActionListener<ConnectorSearchResult> listener) {
         try {
             final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
 
@@ -260,6 +261,7 @@ public class ConnectorIndexService {
      * @param connectorNames Filter connectors by connector names, if provided.
      * @param serviceTypes Filter connectors by service types, if provided.
      * @param searchQuery Apply a wildcard search on index name, connector name, and description, if provided.
+     * @param isDeleted  If set to true, it returns only soft-deleted connectors; otherwise, it returns non-deleted connectors.
      * @param listener Invoked with search results or upon failure.
      */
     public void listConnectors(
@@ -269,6 +271,7 @@ public class ConnectorIndexService {
         List<String> connectorNames,
         List<String> serviceTypes,
         String searchQuery,
+        Boolean isDeleted,
         ActionListener<ConnectorIndexService.ConnectorResult> listener
     ) {
         try {
@@ -367,7 +370,7 @@ public class ConnectorIndexService {
             Map<String, Object> configurationValues = request.getConfigurationValues();
             String connectorId = request.getConnectorId();
 
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
 
                 UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
                     WriteRequest.RefreshPolicy.IMMEDIATE
@@ -599,7 +602,7 @@ public class ConnectorIndexService {
         ActionListener<UpdateResponse> listener
     ) {
         try {
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
                 List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
                     connector.getSourceRef(),
                     XContentType.JSON
@@ -659,7 +662,7 @@ public class ConnectorIndexService {
         FilteringValidationInfo validation,
         ActionListener<UpdateResponse> listener
     ) {
-        getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+        getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
             try {
                 List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
                     connector.getSourceRef(),
@@ -703,7 +706,7 @@ public class ConnectorIndexService {
      * @param listener     Listener to respond to a successful response or an error.
      */
     public void activateConnectorDraftFiltering(String connectorId, ActionListener<UpdateResponse> listener) {
-        getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+        getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
             try {
                 List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
                     connector.getSourceRef(),
@@ -956,7 +959,7 @@ public class ConnectorIndexService {
     public void updateConnectorServiceType(UpdateConnectorServiceTypeAction.Request request, ActionListener<UpdateResponse> listener) {
         try {
             String connectorId = request.getConnectorId();
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
 
                 ConnectorStatus prevStatus = getConnectorStatusFromSearchResult(connector);
                 ConnectorStatus newStatus = prevStatus == ConnectorStatus.CREATED
@@ -1003,7 +1006,7 @@ public class ConnectorIndexService {
         try {
             String connectorId = request.getConnectorId();
             ConnectorStatus newStatus = request.getStatus();
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
 
                 ConnectorStatus prevStatus = getConnectorStatusFromSearchResult(connector);
 

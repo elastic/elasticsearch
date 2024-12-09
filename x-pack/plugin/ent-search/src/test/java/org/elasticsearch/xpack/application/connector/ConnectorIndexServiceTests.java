@@ -887,10 +887,14 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     private Connector awaitGetConnector(String connectorId) throws Exception {
+        return awaitGetConnector(connectorId, false);
+    }
+
+    private Connector awaitGetConnector(String connectorId, Boolean isDeleted) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Connector> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.getConnector(connectorId, new ActionListener<>() {
+        connectorIndexService.getConnector(connectorId, isDeleted, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorSearchResult connectorResult) {
                 // Serialize the sourceRef to Connector class for unit tests
@@ -925,10 +929,22 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         List<String> serviceTypes,
         String searchQuery
     ) throws Exception {
+        return awaitListConnector(from, size, indexNames, names, serviceTypes, searchQuery, false);
+    }
+
+    private ConnectorIndexService.ConnectorResult awaitListConnector(
+        int from,
+        int size,
+        List<String> indexNames,
+        List<String> names,
+        List<String> serviceTypes,
+        String searchQuery,
+        Boolean isDeleted
+    ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<ConnectorIndexService.ConnectorResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, new ActionListener<>() {
+        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, isDeleted, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorIndexService.ConnectorResult result) {
                 resp.set(result);

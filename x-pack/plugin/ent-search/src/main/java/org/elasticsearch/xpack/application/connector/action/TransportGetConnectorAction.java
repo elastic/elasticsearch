@@ -34,6 +34,6 @@ public class TransportGetConnectorAction extends HandledTransportAction<GetConne
 
     @Override
     protected void doExecute(Task task, GetConnectorAction.Request request, ActionListener<GetConnectorAction.Response> listener) {
-        connectorIndexService.getConnector(request.getConnectorId(), listener.map(GetConnectorAction.Response::new));
+        connectorIndexService.getConnector(request.getConnectorId(), request.getDeleted(), listener.map(GetConnectorAction.Response::new));
     }
 }

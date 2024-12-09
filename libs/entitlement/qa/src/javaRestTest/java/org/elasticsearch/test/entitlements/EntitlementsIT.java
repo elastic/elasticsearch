@@ -37,23 +37,23 @@ public class EntitlementsIT extends ESRestTestCase {
     }
 
     public void testCheckSystemExitThrows() {
-        var exception = expectThrows(
-            IOException.class,
-            () -> { client().performRequest(new Request("GET", "/_entitlement/negative/_check_system_exit")); }
-        );
+        var exception = expectThrows(IOException.class, () -> {
+            client().performRequest(new Request("GET", "/_entitlement/negative/_check_system_exit"));
+        });
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 
     public void testCheckSystemExitNonModularPluginThrows() {
-        var exception = expectThrows(
-            IOException.class,
-            () -> { client().performRequest(new Request("GET", "/_entitlement/nonmodular/_check_system_exit")); }
-        );
+        var exception = expectThrows(IOException.class, () -> {
+            client().performRequest(new Request("GET", "/_entitlement/nonmodular/_check_system_exit"));
+        });
         assertThat(
             exception.getMessage(),
-            containsString("Missing entitlement: caller " +
-                "[class org.elasticsearch.test.entitlements.RestEntitlementsCheckSystemExitAction], module [null], " +
-                "type [ExitVMEntitlement]")
+            containsString(
+                "Missing entitlement: caller "
+                    + "[class org.elasticsearch.test.entitlements.RestEntitlementsCheckSystemExitAction], module [null], "
+                    + "type [ExitVMEntitlement]"
+            )
         );
     }
 

@@ -10,9 +10,9 @@
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
-  name 'entitlement-negative-check'
-  description 'A test module that invokes entitlement checks and triggers exceptions'
-  classname 'org.elasticsearch.test.entitlements.EntitlementNegativeCheckPlugin'
+  name 'entitlement-allowed'
+  description 'A test module that invokes entitlement checks that are supposed to be granted'
+  classname 'org.elasticsearch.test.entitlements.EntitlementAllowedPlugin'
 }
 
 tasks.named("javadoc").configure {

@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EntitlementPositiveCheckPlugin extends Plugin implements ActionPlugin {
+public class EntitlementAllowedPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(

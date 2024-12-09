@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  clusterPlugins project(':libs:entitlement:qa:entitlement-negative-check')
-  clusterPlugins project(':libs:entitlement:qa:entitlement-positive-check')
+  clusterPlugins project(':libs:entitlement:qa:entitlement-denied')
+  clusterPlugins project(':libs:entitlement:qa:entitlement-allowed')
   clusterPlugins project(':libs:entitlement:qa:entitlement-nonmodular')
 }

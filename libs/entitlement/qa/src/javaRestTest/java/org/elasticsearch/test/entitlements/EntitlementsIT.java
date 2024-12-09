@@ -24,8 +24,8 @@ public class EntitlementsIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("entitlement-negative-check")
-        .plugin("entitlement-positive-check")
+        .plugin("entitlement-allowed")
+        .plugin("entitlement-denied")
         .plugin("entitlement-nonmodular")
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")

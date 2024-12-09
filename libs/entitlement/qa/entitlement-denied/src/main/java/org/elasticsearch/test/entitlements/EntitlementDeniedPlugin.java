@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EntitlementNegativeCheckPlugin extends Plugin implements ActionPlugin {
+public class EntitlementDeniedPlugin extends Plugin implements ActionPlugin {
 
     @Override
     @SuppressForbidden(reason = "Specifically testing System.exit")

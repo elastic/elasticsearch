@@ -613,6 +613,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -654,6 +655,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -1174,7 +1176,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            contains(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
 
         var source = source(extract.child());

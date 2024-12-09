@@ -15,8 +15,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 
-public class BitMultiDenseVector extends ByteMultiDenseVector {
-    public BitMultiDenseVector(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+public class BitRankVectors extends ByteRankVectors {
+    public BitRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
         super(vectorValues, magnitudesBytes, numVecs, dims);
     }
 

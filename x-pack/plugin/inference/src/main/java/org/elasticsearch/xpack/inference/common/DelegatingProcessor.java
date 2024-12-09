@@ -9,7 +9,14 @@ package org.elasticsearch.xpack.inference.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -21,9 +28,36 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> {
     private static final Logger log = LogManager.getLogger(DelegatingProcessor.class);
     private final AtomicLong pendingRequests = new AtomicLong();
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private Flow.Subscriber<? super R> downstream;
     private Flow.Subscription upstream;
+
+    public static <ParsedChunk> Deque<ParsedChunk> parseEvent(
+        Deque<ServerSentEvent> item,
+        ParseChunkFunction<ParsedChunk> parseFunction,
+        XContentParserConfiguration parserConfig,
+        Logger logger
+    ) throws Exception {
+        var results = new ArrayDeque<ParsedChunk>(item.size());
+        for (ServerSentEvent event : item) {
+            if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
+                try {
+                    var delta = parseFunction.apply(parserConfig, event);
+                    delta.forEachRemaining(results::offer);
+                } catch (Exception e) {
+                    logger.warn("Failed to parse event from inference provider: {}", event);
+                    throw e;
+                }
+            }
+        }
+
+        return results;
+    }
+
+    @FunctionalInterface
+    public interface ParseChunkFunction<ParsedChunk> {
+        Iterator<ParsedChunk> apply(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException;
+    }
 
     @Override
     public void subscribe(Flow.Subscriber<? super R> subscriber) {
@@ -49,9 +83,9 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             @Override
             public void request(long n) {
                 if (isClosed.get()) {
-                    downstream.onComplete(); // shouldn't happen, but reinforce that we're no longer listening
+                    downstream.onComplete();
                 } else if (upstream != null) {
-                    upstream.request(n);
+                    upstreamRequest(n);
                 } else {
                     pendingRequests.accumulateAndGet(n, Long::sum);
                 }
@@ -61,10 +95,20 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             public void cancel() {
                 if (isClosed.compareAndSet(false, true) && upstream != null) {
                     upstream.cancel();
+                    onCancel();
                 }
             }
         };
     }
+
+    /**
+     * Guaranteed to be called when the upstream is set and this processor had not been closed.
+     */
+    protected void upstreamRequest(long n) {
+        upstream.request(n);
+    }
+
+    protected void onCancel() {}
 
     @Override
     public void onSubscribe(Flow.Subscription subscription) {

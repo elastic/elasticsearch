@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -36,6 +37,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
+
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
@@ -62,9 +65,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
-    private Attribute[] attributesCache = new Attribute[64];
+    private Attribute[] attributesCache = new Attribute[1024];
 
-    private EsField[] esFieldsCache = new EsField[64];
+    private EsField[] esFieldsCache = new EsField[1024];
+
+    private String[] stringCache = new String[1024];
 
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
@@ -156,7 +161,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @Override
     public String sourceText() {
-        return configuration.query();
+        return configuration == null ? Source.EMPTY.text() : configuration.query();
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {
@@ -177,8 +182,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @Override
     @SuppressWarnings("unchecked")
     public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
@@ -195,10 +199,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     private Attribute attributeFromCache(int id) throws IOException {
-        if (attributesCache[id] == null) {
+        Attribute attribute = attributesCache[id];
+        if (attribute == null) {
             throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
         }
-        return attributesCache[id];
+        return attribute;
     }
 
     /**
@@ -216,12 +221,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @SuppressWarnings("unchecked")
     public <A extends EsField> A readEsFieldWithCache() throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
-                String className = readString();
+                String className = readCachedStringWithVersionCheck(this);
                 Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
                 cacheId = -1 - cacheId;
                 EsField result = reader.read(this);
@@ -231,17 +235,39 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
                 return (A) esFieldFromCache(cacheId);
             }
         } else {
-            String className = readString();
+            String className = readCachedStringWithVersionCheck(this);
             Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
             return (A) reader.read(this);
         }
     }
 
+    /**
+     * Reads a cached string, serialized with {@link PlanStreamOutput#writeCachedString(String)}.
+     */
+    @Override
+    public String readCachedString() throws IOException {
+        int cacheId = Math.toIntExact(readZLong());
+        if (cacheId < 0) {
+            String string = readString();
+            cacheId = -1 - cacheId;
+            cacheString(cacheId, string);
+            return string;
+        } else {
+            return stringFromCache(cacheId);
+        }
+    }
+
+    @Override
+    public String readOptionalCachedString() throws IOException {
+        return readBoolean() ? readCachedString() : null;
+    }
+
     private EsField esFieldFromCache(int id) throws IOException {
-        if (esFieldsCache[id] == null) {
+        EsField field = esFieldsCache[id];
+        if (field == null) {
             throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
         }
-        return esFieldsCache[id];
+        return field;
     }
 
     /**
@@ -257,4 +283,27 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         esFieldsCache[id] = field;
     }
 
+    private String stringFromCache(int id) throws IOException {
+        String value = stringCache[id];
+        if (value == null) {
+            throw new IOException("String not found in serialization cache [" + id + "]");
+        }
+        return value;
+    }
+
+    private void cacheString(int id, String string) {
+        assert id >= 0;
+        if (id >= stringCache.length) {
+            stringCache = ArrayUtil.grow(stringCache, id + 1);
+        }
+        stringCache[id] = string;
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        this.stringCache = null;
+        this.attributesCache = null;
+        this.esFieldsCache = null;
+    }
 }

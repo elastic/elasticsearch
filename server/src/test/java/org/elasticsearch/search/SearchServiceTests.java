@@ -20,7 +20,6 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -96,7 +95,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
@@ -111,6 +109,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -124,7 +123,6 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -772,7 +770,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 ),
             (response) -> {
                 SearchHits hits = response.getHits();
-                assertEquals(hits.getTotalHits().value, numDocs);
+                assertEquals(hits.getTotalHits().value(), numDocs);
                 assertEquals(hits.getHits().length, 2);
                 int index = 0;
                 for (SearchHit hit : hits.getHits()) {
@@ -2505,7 +2503,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
-            assertEquals(1, r.queryResult().getTotalHits().value);
+            assertEquals(1, r.queryResult().getTotalHits().value());
             l.onResponse(null);
         }));
         future.get();
@@ -2616,7 +2614,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         service.executeQueryPhase(request, task, future);
 
-        ElasticsearchTimeoutException ex = expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
     }
 
@@ -2714,7 +2712,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
 
             try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
-                assertNotNull(searchContext.searcher().getExecutor());
+                assertTrue(searchContext.searcher().hasExecutor());
             }
 
             try {
@@ -2725,7 +2723,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .get();
                 assertTrue(response.isAcknowledged());
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
-                    assertNull(searchContext.searcher().getExecutor());
+                    assertFalse(searchContext.searcher().hasExecutor());
                 }
             } finally {
                 // reset original default setting
@@ -2735,7 +2733,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
-                    assertNotNull(searchContext.searcher().getExecutor());
+                    assertTrue(searchContext.searcher().hasExecutor());
                 }
             }
         }
@@ -2778,7 +2776,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertTrue(searcher.hasExecutor());
 
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
@@ -2795,7 +2793,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
 
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "DFS supports parallel collection, so the number of slices should be > 1.",
@@ -2808,7 +2806,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertTrue(searcher.hasExecutor());
 
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
@@ -2825,7 +2823,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
 
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
@@ -2838,9 +2836,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNull(searcher.getExecutor());
+                    assertFalse(searcher.hasExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "The number of slices should be 1 as FETCH does not support parallel collection and thus runs on the calling"
@@ -2854,9 +2852,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNull(searcher.getExecutor());
+                    assertFalse(searcher.hasExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "The number of slices should be 1 as NONE does not support parallel collection.",
@@ -2877,9 +2875,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 {
                     try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                         ContextIndexSearcher searcher = searchContext.searcher();
-                        assertNull(searcher.getExecutor());
+                        assertFalse(searcher.hasExecutor());
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                        searcher.search(termQuery, new TotalHitCountCollectorManager());
+                        searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                         assertBusy(
                             () -> assertEquals(
                                 "The number of slices should be 1 when QUERY parallel collection is disabled.",
@@ -2899,7 +2897,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 {
                     try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                         ContextIndexSearcher searcher = searchContext.searcher();
-                        assertNotNull(searcher.getExecutor());
+                        assertTrue(searcher.hasExecutor());
 
                         final int maxPoolSize = executor.getMaximumPoolSize();
                         assertEquals(
@@ -2916,7 +2914,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
 
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                        searcher.search(termQuery, new TotalHitCountCollectorManager());
+                        searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                         assertBusy(
                             () -> assertEquals(
                                 "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
@@ -2926,119 +2924,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         );
                     }
                 }
-            }
-        }
-    }
-
-    /**
-     * This method tests validation that happens on the data nodes, which is now performed on the coordinating node.
-     * We still need the validation to cover for mixed cluster scenarios where the coordinating node does not perform the check yet.
-     */
-    public void testParseSourceValidation() {
-        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        IndexService indexService = createIndex(index);
-        final SearchService service = getInstanceFromNode(SearchService.class);
-        {
-            // scroll and search_after
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll(new TimeValue(1000));
-            searchRequest.source().searchAfter(new String[] { "value" });
-            assertCreateContextValidation(searchRequest, "`search_after` cannot be used in a scroll context.", indexService, service);
-        }
-        {
-            // scroll and collapse
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll(new TimeValue(1000));
-            searchRequest.source().collapse(new CollapseBuilder("field"));
-            assertCreateContextValidation(searchRequest, "cannot use `collapse` in a scroll context", indexService, service);
-        }
-        {
-            // search_after and `from` isn't valid
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().searchAfter(new String[] { "value" });
-            searchRequest.source().from(10);
-            assertCreateContextValidation(
-                searchRequest,
-                "`from` parameter must be set to 0 when `search_after` is used",
-                indexService,
-                service
-            );
-        }
-        {
-            // slice without scroll or pit
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().slice(new SliceBuilder(1, 10));
-            assertCreateContextValidation(
-                searchRequest,
-                "[slice] can only be used with [scroll] or [point-in-time] requests",
-                indexService,
-                service
-            );
-        }
-        {
-            // stored fields disabled with _source requested
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().storedField("_none_");
-            searchRequest.source().fetchSource(true);
-            assertCreateContextValidation(
-                searchRequest,
-                "[stored_fields] cannot be disabled if [_source] is requested",
-                indexService,
-                service
-            );
-        }
-        {
-            // stored fields disabled with fetch fields requested
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().storedField("_none_");
-            searchRequest.source().fetchSource(false);
-            searchRequest.source().fetchField("field");
-            assertCreateContextValidation(
-                searchRequest,
-                "[stored_fields] cannot be disabled when using the [fields] option",
-                indexService,
-                service
-            );
-        }
-    }
-
-    private static void assertCreateContextValidation(
-        SearchRequest searchRequest,
-        String errorMessage,
-        IndexService indexService,
-        SearchService searchService
-    ) {
-        ShardId shardId = new ShardId(indexService.index(), 0);
-        long nowInMillis = System.currentTimeMillis();
-        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
-        searchRequest.allowPartialSearchResults(randomBoolean());
-        ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            searchRequest,
-            shardId,
-            0,
-            indexService.numberOfShards(),
-            AliasFilter.EMPTY,
-            1f,
-            nowInMillis,
-            clusterAlias
-        );
-
-        SearchShardTask task = new SearchShardTask(1, "type", "action", "description", null, emptyMap());
-
-        ReaderContext readerContext = null;
-        try {
-            ReaderContext createOrGetReaderContext = searchService.createOrGetReaderContext(request);
-            readerContext = createOrGetReaderContext;
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> searchService.createContext(createOrGetReaderContext, request, task, ResultsType.QUERY, randomBoolean())
-            );
-            assertThat(exception.getMessage(), containsString(errorMessage));
-        } finally {
-            if (readerContext != null) {
-                readerContext.close();
-                searchService.freeReaderContext(readerContext.id());
             }
         }
     }

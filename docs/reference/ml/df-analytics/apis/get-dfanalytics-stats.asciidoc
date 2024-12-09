@@ -6,7 +6,7 @@
 <titleabbrev>Get {dfanalytics-jobs} stats</titleabbrev>
 ++++
 
-Retrieves usage information for {dfanalytics-jobs}.
+Retrieves usage information for {ml-docs}/ml-dfanalytics.html[{dfanalytics-jobs}].
 
 
 [[ml-get-dfanalytics-stats-request]]

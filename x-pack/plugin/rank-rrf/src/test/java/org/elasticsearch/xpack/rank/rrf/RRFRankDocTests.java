@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.search.rank.AbstractRankDocWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
 
-public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc> {
+public class RRFRankDocTests extends AbstractRankDocWireSerializingTestCase<RRFRankDoc> {
 
     static RRFRankDoc createTestRRFRankDoc(int queryCount) {
         RRFRankDoc instance = new RRFRankDoc(
@@ -35,9 +37,13 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
         return instance;
     }
 
-    static RRFRankDoc createTestRRFRankDoc() {
-        int queryCount = randomIntBetween(2, 20);
-        return createTestRRFRankDoc(queryCount);
+    @Override
+    protected List<NamedWriteableRegistry.Entry> getAdditionalNamedWriteables() {
+        try (RRFRankPlugin rrfRankPlugin = new RRFRankPlugin()) {
+            return rrfRankPlugin.getNamedWriteables();
+        } catch (IOException ex) {
+            throw new AssertionError("Failed to create RRFRankPlugin", ex);
+        }
     }
 
     @Override
@@ -46,8 +52,9 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
     }
 
     @Override
-    protected RRFRankDoc createTestInstance() {
-        return createTestRRFRankDoc();
+    protected RRFRankDoc createTestRankDoc() {
+        int queryCount = randomIntBetween(2, 20);
+        return createTestRRFRankDoc(queryCount);
     }
 
     @Override

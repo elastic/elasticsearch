@@ -25,22 +25,20 @@ import java.util.List;
 import java.util.Objects;
 
 public class CohereCompletionRequest extends CohereRequest {
-
     private final CohereAccount account;
-
     private final List<String> input;
-
     private final String modelId;
-
     private final String inferenceEntityId;
+    private final boolean stream;
 
-    public CohereCompletionRequest(List<String> input, CohereCompletionModel model) {
+    public CohereCompletionRequest(List<String> input, CohereCompletionModel model, boolean stream) {
         Objects.requireNonNull(model);
 
         this.account = CohereAccount.of(model, CohereCompletionRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
         this.modelId = model.getServiceSettings().modelId();
         this.inferenceEntityId = model.getInferenceEntityId();
+        this.stream = stream;
     }
 
     @Override
@@ -48,7 +46,7 @@ public class CohereCompletionRequest extends CohereRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereCompletionRequestEntity(input, modelId)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereCompletionRequestEntity(input, modelId, isStreaming())).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -60,6 +58,11 @@ public class CohereCompletionRequest extends CohereRequest {
     @Override
     public String getInferenceEntityId() {
         return inferenceEntityId;
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return stream;
     }
 
     @Override

@@ -17,7 +17,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -73,7 +73,6 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -112,6 +111,7 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
@@ -260,6 +260,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CCS_COLLECT_TELEMETRY = Setting.boolSetting(
+        "search.ccs.collect_telemetry",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -271,14 +278,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ScriptService scriptService;
 
-    private final ResponseCollectorService responseCollectorService;
-
     private final ExecutorSelector executorSelector;
 
     private final BigArrays bigArrays;
 
     private final FetchPhase fetchPhase;
-    private final RankFeatureShardPhase rankFeatureShardPhase;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -317,9 +321,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
-        RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -329,9 +331,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
-        this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
@@ -591,9 +591,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final TimeValue timeout = request.getWaitForCheckpointsTimeout();
             final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
                 if (isDone.compareAndSet(false, true)) {
-                    listener.onFailure(
-                        new ElasticsearchTimeoutException("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout)
+                    var shardTarget = new SearchShardTarget(
+                        shard.routingEntry().currentNodeId(),
+                        shard.shardId(),
+                        request.getClusterAlias()
                     );
+                    var message = LoggerMessageFormat.format("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout);
+                    listener.onFailure(new SearchTimeoutException(shardTarget, message));
                 }
             }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -739,9 +743,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchContext.rankFeatureResult().incRef();
                     return searchContext.rankFeatureResult();
                 }
-                rankFeatureShardPhase.prepareForFetch(searchContext, request);
+                RankFeatureShardPhase.prepareForFetch(searchContext, request);
                 fetchPhase.execute(searchContext, docIds, null);
-                rankFeatureShardPhase.processFetch(searchContext);
+                RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
                 return rankFeatureResult;
@@ -1273,13 +1277,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         if (query != null) {
             QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(query, innerHitsRewriteContext, true);
-            InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            if (false == source.skipInnerHits()) {
+                InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            }
             searchExecutionContext.setAliasFilter(context.request().getAliasFilter().getQueryBuilder());
             context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(source.postFilter(), innerHitsRewriteContext, true);
-            InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            if (false == source.skipInnerHits()) {
+                InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            }
             context.parsedPostFilter(searchExecutionContext.toQuery(source.postFilter()));
         }
         if (innerHitBuilders.size() > 0) {
@@ -1520,10 +1528,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getOpenScrollContexts() {
         return openScrollContexts.get();
-    }
-
-    public ResponseCollectorService getResponseCollectorService() {
-        return this.responseCollectorService;
     }
 
     public long getDefaultKeepAliveInMillis() {

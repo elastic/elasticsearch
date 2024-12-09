@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 
 import java.io.IOException;
@@ -100,7 +102,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
         var requestAsMap = requestToMap(request);
-        var resolvedTaskType = resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
+        var resolvedTaskType = ServiceUtils.resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
 
         String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {
@@ -158,7 +160,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, listener);
+        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, request.ackTimeout(), listener);
     }
 
     private void parseAndStoreModel(
@@ -166,12 +168,13 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        TimeValue timeout,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                ActionListener.wrap(r -> startInferenceEndpoint(service, verifiedModel, delegate), e -> {
+                ActionListener.wrap(r -> startInferenceEndpoint(service, timeout, verifiedModel, delegate), e -> {
                     if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
                         delegate.onFailure(
                             new ElasticsearchStatusException(
@@ -198,11 +201,16 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
-    private void startInferenceEndpoint(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
+    private void startInferenceEndpoint(
+        InferenceService service,
+        TimeValue timeout,
+        Model model,
+        ActionListener<PutInferenceModelAction.Response> listener
+    ) {
         if (skipValidationAndStart) {
             listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
         } else {
-            service.start(model, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
+            service.start(model, timeout, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
         }
     }
 
@@ -227,37 +235,4 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    /**
-     * task_type can be specified as either a URL parameter or in the
-     * request body. Resolve which to use or throw if the settings are
-     * inconsistent
-     * @param urlTaskType Taken from the URL parameter. ANY means not specified.
-     * @param bodyTaskType Taken from the request body. Maybe null
-     * @return The resolved task type
-     */
-    static TaskType resolveTaskType(TaskType urlTaskType, String bodyTaskType) {
-        if (bodyTaskType == null) {
-            if (urlTaskType == TaskType.ANY) {
-                throw new ElasticsearchStatusException("model is missing required setting [task_type]", RestStatus.BAD_REQUEST);
-            } else {
-                return urlTaskType;
-            }
-        }
-
-        TaskType parsedBodyTask = TaskType.fromStringOrStatusException(bodyTaskType);
-        if (parsedBodyTask == TaskType.ANY) {
-            throw new ElasticsearchStatusException("task_type [any] is not valid type for inference", RestStatus.BAD_REQUEST);
-        }
-
-        if (parsedBodyTask.isAnyOrSame(urlTaskType) == false) {
-            throw new ElasticsearchStatusException(
-                "Cannot resolve conflicting task_type parameter in the request URL [{}] and the request body [{}]",
-                RestStatus.BAD_REQUEST,
-                urlTaskType.toString(),
-                bodyTaskType
-            );
-        }
-
-        return parsedBodyTask;
-    }
 }

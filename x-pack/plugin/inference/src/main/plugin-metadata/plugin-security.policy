@@ -21,4 +21,9 @@ grant {
   // gcs client opens socket connections for to access repository
   // also, AWS Bedrock client opens socket connections and needs resolve for to access to resources
   permission java.net.SocketPermission "*", "connect,resolve";
+
+  // AWS Clients always try to access the credentials and config files, even if we configure otherwise
+  permission java.io.FilePermission "${user.home}/.aws/credentials", "read";
+  permission java.io.FilePermission "${user.home}/.aws/config", "read";
+  permission java.util.PropertyPermission "http.proxyHost", "read";
 };

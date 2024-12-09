@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -25,7 +26,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.transforms.scheduling.FakeClock;
@@ -68,8 +68,8 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         ClusterService clusterService = new ClusterService(
             Settings.builder().put("node.name", NODE_NAME).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null,
-            (TaskManager) null
+            new DeterministicTaskQueue().getThreadPool(),
+            null
         );
 
         indicesService = mock(IndicesService.class);

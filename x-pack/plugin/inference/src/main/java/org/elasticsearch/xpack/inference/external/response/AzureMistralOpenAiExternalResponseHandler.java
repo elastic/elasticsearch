@@ -9,15 +9,21 @@ package org.elasticsearch.xpack.inference.external.response;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiStreamingProcessor;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
+import java.util.concurrent.Flow;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -43,12 +49,16 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
     static final String SERVER_BUSY_ERROR = "Received a server busy error status code";
 
+    private final boolean canHandleStreamingResponses;
+
     public AzureMistralOpenAiExternalResponseHandler(
         String requestType,
         ResponseParser parseFunction,
-        Function<HttpResult, ErrorMessage> errorParseFunction
+        Function<HttpResult, ErrorMessage> errorParseFunction,
+        boolean canHandleStreamingResponses
     ) {
         super(requestType, parseFunction, errorParseFunction);
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
 
     @Override
@@ -58,13 +68,28 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
         checkForEmptyBody(throttlerManager, logger, request, result);
     }
 
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponses;
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
+        var openAiProcessor = new OpenAiStreamingProcessor();
+
+        flow.subscribe(serverSentEventProcessor);
+        serverSentEventProcessor.subscribe(openAiProcessor);
+        return new StreamingChatCompletionResults(openAiProcessor);
+    }
+
     public void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
         // handle error codes
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw handle500Error(request, result);
         } else if (statusCode == 503) {

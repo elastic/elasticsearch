@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -45,6 +46,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -62,7 +64,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoWarningHeaderOnResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertWarningHeaderOnResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -80,6 +84,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private static final Map<String, Integer> DOCUMENT_SOURCE = Collections.singletonMap("@timestamp", 123);
     public static final String REPO = "repo";
     public static final String SNAPSHOT = "snap";
+    public static final String TEMPLATE_1_ID = "t1";
+    public static final String TEMPLATE_2_ID = "t2";
     private Client client;
 
     private String dsBackingIndexName;
@@ -103,8 +109,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Path location = randomRepoPath();
         createRepository(REPO, "fs", location);
 
-        DataStreamIT.putComposableIndexTemplate("t1", List.of("ds", "other-ds"));
-        DataStreamIT.putComposableIndexTemplate("t2", """
+        DataStreamIT.putComposableIndexTemplate(TEMPLATE_1_ID, List.of("ds", "other-ds"));
+        DataStreamIT.putComposableIndexTemplate(TEMPLATE_2_ID, """
             {
                 "properties": {
                   "@timestamp": {
@@ -132,9 +138,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // Initialize the failure store.
         RolloverRequest rolloverRequest = new RolloverRequest("with-fs", null);
         rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions())
-                .failureStoreOptions(b -> b.includeRegularIndices(false).includeFailureIndices(true))
-                .build()
+            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
         );
         response = client.execute(RolloverAction.INSTANCE, rolloverRequest).get();
         assertTrue(response.isAcknowledged());
@@ -1335,4 +1339,149 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }
+
+    public void testWarningHeaderOnRestoreWithoutTemplates() throws Exception {
+        String datastreamName = "ds";
+
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices(datastreamName)
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
+
+        assertAcked(
+            client.execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, datastreamName, "other-ds")
+            )
+        );
+
+        assertAcked(
+            client.execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_1_ID)
+            ).get()
+        );
+
+        RestoreSnapshotRequestBuilder request = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices(datastreamName);
+
+        assertWarningHeaderOnResponse(
+            client,
+            request,
+            "Snapshot ["
+                + snapshotId
+                + "] contains data stream ["
+                + datastreamName
+                + "] but custer does not have a matching index "
+                + "template. This will cause rollover to fail until a matching index template is created"
+        );
+
+    }
+
+    public void testWarningHeaderAbsentOnRestoreWithTemplates() throws Exception {
+        String datastreamName = "ds";
+
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices(datastreamName)
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
+
+        assertAcked(
+            client.execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, datastreamName, "other-ds", "with-fs")
+            )
+        );
+
+        RestoreSnapshotRequestBuilder request = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices(datastreamName);
+
+        assertNoWarningHeaderOnResponse(
+            client,
+            request,
+            "but custer does not have a matching index template. This will cause rollover to fail until a matching index "
+                + "template is created"
+        );
+
+    }
+
+    /**
+     * This test is muted as it's awaiting the same fix as {@link #testPartialRestoreSnapshotThatIncludesDataStreamWithGlobalState()}
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
+    public void testWarningHeaderOnRestoreTemplateFromSnapshot() throws Exception {
+        String datastreamName = "ds";
+
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices(datastreamName)
+            .setIncludeGlobalState(true)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
+
+        assertAcked(
+            client.execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, datastreamName, "other-ds")
+            )
+        );
+
+        assertAcked(
+            client.execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_1_ID)
+            ).get()
+        );
+
+        RestoreSnapshotRequestBuilder request = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
+            .setIndices(datastreamName);
+
+        assertNoWarningHeaderOnResponse(
+            client,
+            request,
+            "Snapshot ["
+                + snapshotId
+                + "] contains data stream ["
+                + datastreamName
+                + "] but custer does not have a matching index "
+                + "template. This will cause rollover to fail until a matching index template is created"
+        );
+
+    }
+
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -59,9 +58,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = includeTypeName(request);
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
+        request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.ackTimeout(getAckTimeout(request));
@@ -71,7 +69,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
             if (failureStore) {
                 rolloverIndexRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
                         .build()
                 );
             }
@@ -83,14 +81,4 @@ public class RestRolloverIndexAction extends BaseRestHandler {
             .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    private static boolean includeTypeName(RestRequest request) {
-        boolean includeTypeName = false;
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                deprecationLogger.compatibleCritical("index_rollover_with_types", TYPES_DEPRECATION_MESSAGE);
-            }
-            includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        }
-        return includeTypeName;
-    }
 }

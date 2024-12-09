@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.amazonbedrock;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion.AmazonBedrockChatCompletionResponseListener;
@@ -33,11 +34,16 @@ public class AmazonBedrockChatCompletionExecutor extends AmazonBedrockExecutor {
 
     @Override
     protected void executeClientRequest(AmazonBedrockBaseClient awsBedrockClient) {
-        var chatCompletionResponseListener = new AmazonBedrockChatCompletionResponseListener(
-            chatCompletionRequest,
-            responseHandler,
-            inferenceResultsListener
-        );
-        chatCompletionRequest.executeChatCompletionRequest(awsBedrockClient, chatCompletionResponseListener);
+        if (chatCompletionRequest.isStreaming()) {
+            var publisher = chatCompletionRequest.executeStreamChatCompletionRequest(awsBedrockClient);
+            inferenceResultsListener.onResponse(new StreamingChatCompletionResults(publisher));
+        } else {
+            var chatCompletionResponseListener = new AmazonBedrockChatCompletionResponseListener(
+                chatCompletionRequest,
+                responseHandler,
+                inferenceResultsListener
+            );
+            chatCompletionRequest.executeChatCompletionRequest(awsBedrockClient, chatCompletionResponseListener);
+        }
     }
 }

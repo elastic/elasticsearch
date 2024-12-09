@@ -17,6 +17,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
+
+    public OpenAiEmbeddingsRequestTaskSettings createRandom() {
+        return new OpenAiEmbeddingsRequestTaskSettings(randomBoolean() ? null : "username");
+    }
+
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertNull(settings.user());

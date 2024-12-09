@@ -64,7 +64,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FRAGMENTER_FIELD = new ParseField("fragmenter");
     public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField("no_match_size");
-    public static final ParseField FORCE_SOURCE_FIELD = new ParseField("force_source").withAllDeprecated();
     public static final ParseField PHRASE_LIMIT_FIELD = new ParseField("phrase_limit");
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
@@ -152,9 +151,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
-        if (in.getTransportVersion().before(TransportVersions.V_8_8_0)) {
-            in.readOptionalBoolean();   // force_source, now deprecated
-        }
         boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
@@ -193,9 +189,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
-        if (out.getTransportVersion().before(TransportVersions.V_8_8_0)) {
-            out.writeOptionalBoolean(false);
-        }
         out.writeOptionalWriteable(boundaryScannerType);
         out.writeOptionalVInt(boundaryMaxScan);
         boolean hasBounaryChars = boundaryChars != null;
@@ -674,7 +667,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareString(HB::highlighterType, TYPE_FIELD);
         parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
-        parser.declareBoolean((builder, value) -> {}, FORCE_SOURCE_FIELD);  // force_source is ignored
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
         parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {

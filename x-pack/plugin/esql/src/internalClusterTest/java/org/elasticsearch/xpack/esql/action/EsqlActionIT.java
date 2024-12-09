@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -34,7 +35,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
@@ -1038,29 +1038,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMetaFunctions() {
-        try (EsqlQueryResponse results = run("meta functions")) {
-            assertThat(
-                results.columns(),
-                equalTo(
-                    List.of(
-                        new ColumnInfoImpl("name", "keyword"),
-                        new ColumnInfoImpl("synopsis", "keyword"),
-                        new ColumnInfoImpl("argNames", "keyword"),
-                        new ColumnInfoImpl("argTypes", "keyword"),
-                        new ColumnInfoImpl("argDescriptions", "keyword"),
-                        new ColumnInfoImpl("returnType", "keyword"),
-                        new ColumnInfoImpl("description", "keyword"),
-                        new ColumnInfoImpl("optionalArgs", "boolean"),
-                        new ColumnInfoImpl("variadic", "boolean"),
-                        new ColumnInfoImpl("isAggregation", "boolean")
-                    )
-                )
-            );
-            assertThat(getValuesList(results).size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
-        }
-    }
-
     public void testInWithNullValue() {
         try (EsqlQueryResponse results = run("from test | where null in (data, 2) | keep data")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("data", "long"))));
@@ -1669,6 +1646,44 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testScriptField() throws Exception {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("runtime");
+            {
+                mapping.startObject("k1");
+                mapping.field("type", "long");
+                mapping.endObject();
+                mapping.startObject("k2");
+                mapping.field("type", "long");
+                mapping.endObject();
+            }
+            mapping.endObject();
+            {
+                mapping.startObject("properties");
+                mapping.startObject("meter").field("type", "double").endObject();
+                mapping.endObject();
+            }
+        }
+        mapping.endObject();
+        String sourceMode = randomBoolean() ? "stored" : "synthetic";
+        Settings.Builder settings = indexSettings(1, 0).put(indexSettings()).put("index.mapping.source.mode", sourceMode);
+        client().admin().indices().prepareCreate("test-script").setMapping(mapping).setSettings(settings).get();
+        for (int i = 0; i < 10; i++) {
+            index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-" + i, "meter", 10000 * i));
+        }
+        refresh("test-script");
+        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 |  LIMIT 10")) {
+            List<Object> k1Column = Iterators.toList(resp.column(0));
+            assertThat(k1Column, contains(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L));
+            List<Object> k2Column = Iterators.toList(resp.column(1));
+            assertThat(k2Column, contains(null, null, null, null, null, null, null, null, null, null));
+            List<Object> meterColumn = Iterators.toList(resp.column(2));
+            assertThat(meterColumn, contains(0.0, 10000.0, 20000.0, 30000.0, 40000.0, 50000.0, 60000.0, 70000.0, 80000.0, 90000.0));
         }
     }
 

@@ -42,11 +42,11 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 404) {

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -138,7 +137,7 @@ public class ClusterPermission {
             }
             List<PermissionCheck> checks = this.permissionChecks;
             if (false == actionAutomatons.isEmpty()) {
-                final Automaton mergedAutomaton = Automatons.unionAndMinimize(this.actionAutomatons);
+                final Automaton mergedAutomaton = Automatons.unionAndDeterminize(this.actionAutomatons);
                 checks = new ArrayList<>(this.permissionChecks.size() + 1);
                 checks.add(new AutomatonPermissionCheck(mergedAutomaton));
                 checks.addAll(this.permissionChecks);
@@ -157,7 +156,7 @@ public class ClusterPermission {
             } else {
                 final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
                 final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
-                return Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
+                return Automatons.minusAndDeterminize(allowedAutomaton, excludedAutomaton);
             }
         }
     }
@@ -215,7 +214,7 @@ public class ClusterPermission {
         @Override
         public final boolean implies(final PermissionCheck permissionCheck) {
             if (permissionCheck instanceof ActionBasedPermissionCheck) {
-                return Operations.subsetOf(((ActionBasedPermissionCheck) permissionCheck).automaton, this.automaton)
+                return Automatons.subsetOf(((ActionBasedPermissionCheck) permissionCheck).automaton, this.automaton)
                     && doImplies((ActionBasedPermissionCheck) permissionCheck);
             }
             return false;

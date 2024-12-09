@@ -93,14 +93,14 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
             builder.field(TransformField.CHECKPOINT_PROGRESS.getPreferredName(), checkpointProgress);
         }
         if (timestampMillis > 0) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 TransformField.TIMESTAMP_MILLIS.getPreferredName(),
                 TransformField.TIMESTAMP.getPreferredName(),
                 timestampMillis
             );
         }
         if (timeUpperBoundMillis > 0) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName(),
                 TransformField.TIME_UPPER_BOUND.getPreferredName(),
                 timeUpperBoundMillis

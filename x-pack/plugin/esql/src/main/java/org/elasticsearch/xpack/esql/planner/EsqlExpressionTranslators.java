@@ -24,15 +24,20 @@ import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -44,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -55,6 +61,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
@@ -82,19 +89,13 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.StringQueries(),
-        new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
-        new FullTextFunctions(),
+        new MatchFunctionTranslator(),
+        new QueryStringFunctionTranslator(),
+        new KqlFunctionTranslator(),
+        new TermFunctionTranslator(),
         new Scalars()
     );
-
-    public static class FullTextFunctions extends ExpressionTranslator<FullTextFunction> {
-        @Override
-        protected Query asQuery(FullTextFunction fullTextFunction, TranslatorHandler handler) {
-            return fullTextFunction.asQuery();
-        }
-    }
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
         Query translation = null;
@@ -528,4 +529,33 @@ public final class EsqlExpressionTranslators {
             );
         }
     }
+
+    public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
+        @Override
+        protected Query asQuery(Match match, TranslatorHandler handler) {
+            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
+        }
+    }
+
+    public static class QueryStringFunctionTranslator extends ExpressionTranslator<QueryString> {
+        @Override
+        protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
+            return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), Map.of());
+        }
+    }
+
+    public static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
+        @Override
+        protected Query asQuery(Kql kqlFunction, TranslatorHandler handler) {
+            return new KqlQuery(kqlFunction.source(), kqlFunction.queryAsText());
+        }
+    }
+
+    public static class TermFunctionTranslator extends ExpressionTranslator<Term> {
+        @Override
+        protected Query asQuery(Term term, TranslatorHandler handler) {
+            return new TermQuery(term.source(), ((FieldAttribute) term.field()).name(), term.queryAsText());
+        }
+    }
+
 }

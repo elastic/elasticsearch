@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -115,7 +113,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         }
         return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
@@ -134,7 +132,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(executionInfo);
         }
     }
@@ -186,58 +184,38 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return executionInfo;
     }
 
-    private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
-        if (isAsync) {
-            return ChunkedToXContentHelper.singleChunk((builder, params) -> {
-                if (asyncExecutionId != null) {
-                    builder.field("id", asyncExecutionId);
-                }
-                builder.field("is_running", isRunning);
-                return builder;
-            });
-        } else {
-            return Collections.emptyIterator();
-        }
-    }
-
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+        return ChunkedToXContent.builder(params).object(b -> {
+            boolean dropNullColumns = b.params().paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+            boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
 
-        Iterator<ToXContent> tookTime;
-        if (executionInfo != null && executionInfo.overallTook() != null) {
-            tookTime = ChunkedToXContentHelper.singleChunk((builder, p) -> {
-                builder.field("took", executionInfo.overallTook().millis());
-                return builder;
-            });
-        } else {
-            tookTime = Collections.emptyIterator();
-        }
-
-        Iterator<? extends ToXContent> columnHeadings = dropNullColumns
-            ? Iterators.concat(
-                ResponseXContentUtils.allColumns(columns, "all_columns"),
-                ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
-            )
-            : ResponseXContentUtils.allColumns(columns, "columns");
-        Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
-        Iterator<ToXContent> profileRender = profile == null
-            ? List.<ToXContent>of().iterator()
-            : ChunkedToXContentHelper.field("profile", profile, params);
-        Iterator<ToXContent> executionInfoRender = executionInfo == null || executionInfo.isCrossClusterSearch() == false
-            ? List.<ToXContent>of().iterator()
-            : ChunkedToXContentHelper.field("_clusters", executionInfo, params);
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            asyncPropertiesOrEmpty(),
-            tookTime,
-            columnHeadings,
-            ChunkedToXContentHelper.array("values", valuesIt),
-            executionInfoRender,
-            profileRender,
-            ChunkedToXContentHelper.endObject()
-        );
+            if (isAsync) {
+                if (asyncExecutionId != null) {
+                    b.field("id", asyncExecutionId);
+                }
+                b.field("is_running", isRunning);
+            }
+            if (executionInfo != null) {
+                long tookInMillis = executionInfo.overallTook() == null
+                    ? executionInfo.tookSoFar().millis()
+                    : executionInfo.overallTook().millis();
+                b.field("took", tookInMillis);
+            }
+            if (dropNullColumns) {
+                b.append(ResponseXContentUtils.allColumns(columns, "all_columns"))
+                    .append(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
+            } else {
+                b.append(ResponseXContentUtils.allColumns(columns, "columns"));
+            }
+            b.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns));
+            if (executionInfo != null && executionInfo.isCrossClusterSearch() && executionInfo.includeCCSMetadata()) {
+                b.field("_clusters", executionInfo);
+            }
+            if (profile != null) {
+                b.field("profile", profile);
+            }
+        });
     }
 
     private boolean[] nullColumns() {

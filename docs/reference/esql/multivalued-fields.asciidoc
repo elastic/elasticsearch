@@ -178,6 +178,37 @@ POST /_query
 // TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 [discrete]
+[[esql-multivalued-nulls]]
+==== `null` in a list
+
+`null` values in a list are not preserved at the storage layer:
+
+[source,console,id=esql-multivalued-fields-multivalued-nulls]
+----
+POST /mv/_doc?refresh
+{ "a": [2, null, 1] }
+
+POST /_query
+{
+  "query": "FROM mv | LIMIT 1"
+}
+----
+
+[source,console-result]
+----
+{
+  "took": 28,
+  "columns": [
+    { "name": "a", "type": "long"},
+  ],
+  "values": [
+    [[1, 2]],
+  ]
+}
+----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
+[discrete]
 [[esql-multivalued-fields-functions]]
 ==== Functions
 

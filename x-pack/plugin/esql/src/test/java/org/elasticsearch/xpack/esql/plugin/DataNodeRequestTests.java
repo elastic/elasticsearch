@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -274,8 +274,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG));
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        var mapper = new Mapper(functionRegistry);
+        var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {
             physical = physicalPlanOptimizer.optimize(physical);

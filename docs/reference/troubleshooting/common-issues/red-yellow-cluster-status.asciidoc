@@ -2,12 +2,12 @@
 === Red or yellow cluster health status
 
 A red or yellow cluster health status indicates one or more shards are not assigned to
-a node. 
+a node.
 
 * **Red health status**: The cluster has some unassigned primary shards, which
-means that some operations such as searches and indexing may fail. 
-* **Yellow health status**: The cluster has no unassigned primary shards but some 
-unassigned replica shards. This increases your risk of data loss and can degrade 
+means that some operations such as searches and indexing may fail.
+* **Yellow health status**: The cluster has no unassigned primary shards but some
+unassigned replica shards. This increases your risk of data loss and can degrade
 cluster performance.
 
 When your cluster has a red or yellow health status, it will continue to process
@@ -16,9 +16,11 @@ cleanup activities until the cluster returns to green health status. For instanc
 some <<index-lifecycle-management,{ilm-init}>> actions require the index on which they
 operate to have a green health status.
 
-In many cases, your cluster will recover to green health status automatically. 
-If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>> 
+In many cases, your cluster will recover to green health status automatically.
+If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>>
 the remaining problems so management and cleanup activities can proceed.
+See https://www.youtube.com/watch?v=v2mbeSd1vTQ[this video]
+for a walkthrough of monitoring allocation health.
 
 [discrete]
 [[diagnose-cluster-status]]
@@ -90,6 +92,8 @@ PUT _cluster/settings
 }
 ----
 
+See https://www.youtube.com/watch?v=MiKKUdZvwnI[this video] for walkthrough of troubleshooting "no allocations are allowed".
+
 [discrete]
 [[fix-cluster-status-recover-nodes]]
 ===== Recover lost nodes
@@ -107,7 +111,7 @@ asynchronously in the background.
 
 [source,console]
 ----
-POST _cluster/reroute?metric=none
+POST _cluster/reroute
 ----
 
 [discrete]
@@ -231,10 +235,10 @@ unassigned. See <<high-jvm-memory-pressure>>.
 
 If a node containing a primary shard is lost, {es} can typically replace it
 using a replica on another node. If you can't recover the node and replicas
-don't exist or are irrecoverable, <<cluster-allocation-explain,Allocation 
-Explain>> will report `no_valid_shard_copy` and you'll need to do one of the following: 
+don't exist or are irrecoverable, <<cluster-allocation-explain,Allocation
+Explain>> will report `no_valid_shard_copy` and you'll need to do one of the following:
 
-* restore the missing data from <<snapshot-restore,snapshot>> 
+* restore the missing data from <<snapshot-restore,snapshot>>
 * index the missing data from its original data source
 * accept data loss on the index-level by running <<indices-delete-index,Delete Index>>
 * accept data loss on the shard-level by executing <<cluster-reroute,Cluster Reroute>> allocate_stale_primary or allocate_empty_primary command with `accept_data_loss: true`
@@ -246,7 +250,7 @@ resulting in data loss.
 +
 [source,console]
 ----
-POST _cluster/reroute?metric=none
+POST _cluster/reroute
 {
   "commands": [
     {
@@ -262,3 +266,5 @@ POST _cluster/reroute?metric=none
 ----
 // TEST[s/^/PUT my-index\n/]
 // TEST[catch:bad_request]
+
+See https://www.youtube.com/watch?v=6OAg9IyXFO4[this video] for a walkthrough of troubleshooting `no_valid_shard_copy`.

@@ -1377,6 +1377,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoFlatPaths() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createDynamicTemplateAutoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.field("foo.metric.count", 10);
@@ -1389,6 +1390,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoStructuredPaths() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createDynamicTemplateAutoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
@@ -1411,6 +1413,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoArrayOfObjects() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createDynamicTemplateAutoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
@@ -1444,6 +1447,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectAutoDynamicNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1482,6 +1486,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testRootSubobjectAutoDynamicNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1515,6 +1520,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicSubobjectsAutoDynamicFalse() throws Exception {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
         // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
@@ -1578,6 +1584,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoWithInnerNestedFromDynamicTemplate() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -2045,6 +2052,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoFlattened() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         String mapping = """
             {
               "_doc": {

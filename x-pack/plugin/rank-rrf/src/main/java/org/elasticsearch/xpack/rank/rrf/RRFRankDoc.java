@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.rank.rrf.RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
@@ -61,7 +62,7 @@ public final class RRFRankDoc extends RankDoc {
         rank = in.readVInt();
         positions = in.readIntArray();
         scores = in.readFloatArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.rankConstant = in.readVInt();
         } else {
             this.rankConstant = DEFAULT_RANK_CONSTANT;
@@ -118,7 +119,7 @@ public final class RRFRankDoc extends RankDoc {
         out.writeVInt(rank);
         out.writeIntArray(positions);
         out.writeFloatArray(scores);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVInt(rankConstant);
         }
     }
@@ -168,5 +169,10 @@ public final class RRFRankDoc extends RankDoc {
         builder.field("positions", positions);
         builder.field("scores", scores);
         builder.field("rankConstant", rankConstant);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_16_0;
     }
 }

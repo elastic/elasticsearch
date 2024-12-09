@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpFixture;
+import fixture.azure.MockAzureBlobStore;
 
 import com.azure.core.exception.HttpResponseException;
 import com.azure.storage.blob.BlobContainerClient;
@@ -30,6 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -46,6 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+    private static final Logger logger = LogManager.getLogger(AzureStorageCleanupThirdPartyTests.class);
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
     private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
@@ -57,33 +61,9 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         System.getProperty("test.azure.container"),
         System.getProperty("test.azure.tenant_id"),
         System.getProperty("test.azure.client_id"),
-        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT),
+        MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
-
-    @Override
-    public void testCreateSnapshot() {
-        super.testCreateSnapshot();
-    }
-
-    @Override
-    public void testIndexLatest() throws Exception {
-        super.testIndexLatest();
-    }
-
-    @Override
-    public void testListChildren() {
-        super.testListChildren();
-    }
-
-    @Override
-    public void testCleanup() throws Exception {
-        super.testCleanup();
-    }
-
-    @Override
-    public void testReadFromPositionWithLength() {
-        super.testReadFromPositionWithLength();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -114,8 +94,10 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
         if (hasSasToken) {
+            logger.info("--> Using SAS token authentication");
             secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
         } else {
+            logger.info("--> Using key authentication");
             secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
         }
         return secureSettings;

@@ -194,6 +194,20 @@ setup:
             client: integration_test
 
 ---
+"Register a read-only repository with a non existing container":
+
+  - do:
+      catch: /repository_verification_exception/
+      snapshot.create_repository:
+        repository: repository
+        body:
+          type: azure
+          settings:
+            container: zHHkfSqlbnBsbpSgvCYtxrEfFLqghXtyPvvvKPNBnRCicNHQLE
+            client: integration_test
+            readonly: true
+
+---
 "Register a repository with a non existing client":
 
   - do:

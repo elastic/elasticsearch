@@ -1,7 +1,12 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -9,8 +14,6 @@ apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
-  testImplementation project(path: ':x-pack:plugin:inference:qa:inference-service-tests')
-  compileOnly project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('inference'))
   clusterPlugins project(
@@ -20,10 +23,10 @@ dependencies {
 
 // inference is available in 8.11 or later
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
+  return bwcVersion.onOrAfter(Version.fromString("8.11.0")) && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
-BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

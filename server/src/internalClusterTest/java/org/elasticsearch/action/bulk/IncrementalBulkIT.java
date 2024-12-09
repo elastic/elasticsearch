@@ -65,7 +65,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
             .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "2KB")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "4KB")
             .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
             .build();
     }
@@ -90,7 +90,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 1));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
         });
 
         assertFalse(refCounted.hasReferences());
@@ -161,6 +161,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = indexRequest(index);
         long total = indexRequest.ramBytesUsed();
+        long lowWaterMarkSplits = indexingPressure.stats().getLowWaterMarkSplits();
+        long highWaterMarkSplits = indexingPressure.stats().getHighWaterMarkSplits();
         while (total < 2048) {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest), refCounted::decRef, () -> nextPage.set(true));
@@ -175,6 +177,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
+        assertBusy(() -> assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(lowWaterMarkSplits + 1)));
+        assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(highWaterMarkSplits));
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
@@ -192,6 +196,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
         IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+        long lowWaterMarkSplits = indexingPressure.stats().getLowWaterMarkSplits();
+        long highWaterMarkSplits = indexingPressure.stats().getHighWaterMarkSplits();
 
         AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         AtomicBoolean nextPage = new AtomicBoolean(false);
@@ -217,6 +223,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         handlerNoThrottle.addItems(requestsNoThrottle, refCounted::decRef, () -> nextPage.set(true));
         assertTrue(nextPage.get());
         nextPage.set(false);
+        assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(highWaterMarkSplits));
+        assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(lowWaterMarkSplits));
 
         ArrayList<DocWriteRequest<?>> requestsThrottle = new ArrayList<>();
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
@@ -232,6 +240,11 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         finishLatch.countDown();
 
         handlers.add(handlerThrottled);
+
+        // Wait until we are ready for the next page
+        assertBusy(() -> assertTrue(nextPage.get()));
+        assertBusy(() -> assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(highWaterMarkSplits + 1)));
+        assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(lowWaterMarkSplits));
 
         for (IncrementalBulkService.Handler h : handlers) {
             refCounted.incRef();
@@ -265,7 +278,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(docs));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docs));
             });
         }
     }
@@ -355,7 +368,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(hits.get()));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(hits.get()));
             });
         }
     }

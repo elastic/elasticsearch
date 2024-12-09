@@ -9,8 +9,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -47,7 +45,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceEndpointAction.class);
     private final Executor executor;
 
     @Inject
@@ -118,7 +115,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(request.getInferenceEndpointId(), listener);
+                service.get().stop(unparsedModel, listener);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(

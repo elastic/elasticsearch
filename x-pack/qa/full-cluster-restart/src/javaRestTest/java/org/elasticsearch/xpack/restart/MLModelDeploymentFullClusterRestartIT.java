@@ -91,6 +91,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
+
         String modelId = "trained-model-full-cluster-restart";
 
         if (isRunningAgainstOldCluster()) {
@@ -133,7 +134,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
                 equalTo("fully_allocated")
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
-        }, 90, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
     }
 
     private void assertInfer(String modelId) throws IOException {

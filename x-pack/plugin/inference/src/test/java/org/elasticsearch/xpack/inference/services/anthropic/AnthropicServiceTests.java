@@ -11,16 +11,22 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -29,6 +35,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
@@ -45,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.buildExpectationCompletions;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
@@ -527,6 +536,203 @@ public class AnthropicServiceTests extends ESTestCase {
                 requestMap,
                 is(Map.of("messages", List.of(Map.of("role", "user", "content", "input")), "model", "model", "max_tokens", 1))
             );
+        }
+    }
+
+    public void testInfer_StreamRequest() throws Exception {
+        String responseJson = """
+            data: {"type": "message_start", "message": {"model": "claude, probably"}}
+            data: {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}
+            data: {"type": "ping"}
+            data: {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hello"}}
+            data: {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": ", World"}}
+            data: {"type": "content_block_stop", "index": 0}
+            data: {"type": "message_delta", "delta": {"stop_reason": "end_turn", "stop_sequence":null}, "usage": {"output_tokens": 4}}
+            data: {"type": "message_stop"}
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+            {"completion":[{"delta":"Hello"},{"delta":", World"}]}""");
+    }
+
+    private InferenceServiceResults streamChatCompletion() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
+                getUrl(webServer),
+                "secret",
+                "model",
+                Integer.MAX_VALUE
+            );
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                true,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            return listener.actionGet(TIMEOUT);
+        }
+    }
+
+    public void testInfer_StreamRequest_ErrorResponse() throws Exception {
+        String responseJson = """
+            data: {"type": "error", "error": {"type": "request_too_large", "message": "blah"}}
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result)
+            .hasFinishedStream()
+            .hasNoEvents()
+            .hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus())
+            .hasErrorContaining("blah");
+    }
+
+    public void testGetConfiguration() throws Exception {
+        try (var service = createServiceWithMockSender()) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                      "provider": "anthropic",
+                      "task_types": [
+                           {
+                               "task_type": "completion",
+                               "configuration": {
+                                   "top_p": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "numeric",
+                                       "label": "Top P",
+                                       "order": 4,
+                                       "required": false,
+                                       "sensitive": false,
+                                       "tooltip": "Specifies to use Anthropic’s nucleus sampling.",
+                                       "type": "int",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   },
+                                   "max_tokens": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "numeric",
+                                       "label": "Max Tokens",
+                                       "order": 1,
+                                       "required": true,
+                                       "sensitive": false,
+                                       "tooltip": "The maximum number of tokens to generate before stopping.",
+                                       "type": "int",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   },
+                                   "top_k": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "numeric",
+                                       "label": "Top K",
+                                       "order": 3,
+                                       "required": false,
+                                       "sensitive": false,
+                                       "tooltip": "Specifies to only sample from the top K options for each subsequent token.",
+                                       "type": "int",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   },
+                                   "temperature": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "textbox",
+                                       "label": "Temperature",
+                                       "order": 2,
+                                       "required": false,
+                                       "sensitive": false,
+                                       "tooltip": "The amount of randomness injected into the response.",
+                                       "type": "str",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   }
+                               }
+                           }
+                      ],
+                      "configuration": {
+                          "api_key": {
+                              "default_value": null,
+                              "depends_on": [],
+                              "display": "textbox",
+                              "label": "API Key",
+                              "order": 1,
+                              "required": true,
+                              "sensitive": true,
+                              "tooltip": "API Key for the provider you're connecting to.",
+                              "type": "str",
+                              "ui_restrictions": [],
+                              "validations": [],
+                              "value": null
+                          },
+                          "rate_limit.requests_per_minute": {
+                              "default_value": null,
+                              "depends_on": [],
+                              "display": "numeric",
+                              "label": "Rate Limit",
+                              "order": 6,
+                              "required": false,
+                              "sensitive": false,
+                              "tooltip": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
+                              "type": "int",
+                              "ui_restrictions": [],
+                              "validations": [],
+                              "value": null
+                          },
+                          "model_id": {
+                              "default_value": null,
+                              "depends_on": [],
+                              "display": "textbox",
+                              "label": "Model ID",
+                              "order": 2,
+                              "required": true,
+                              "sensitive": false,
+                              "tooltip": "The name of the model to use for the inference task.",
+                              "type": "str",
+                              "ui_restrictions": [],
+                              "validations": [],
+                              "value": null
+                          }
+                      }
+                  }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
         }
     }
 

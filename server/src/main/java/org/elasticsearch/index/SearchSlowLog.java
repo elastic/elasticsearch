@@ -9,11 +9,9 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
@@ -46,11 +44,6 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
-
-    static {
-        Loggers.setLevel(queryLogger, Level.TRACE);
-        Loggers.setLevel(fetchLogger, Level.TRACE);
-    }
 
     private final SlowLogFieldProvider slowLogFieldProvider;
 

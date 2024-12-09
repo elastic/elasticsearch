@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
@@ -285,26 +284,22 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
-            boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
+        return ChunkedToXContent.builder(params).object(Fields.HITS, ob -> {
+            boolean totalHitAsInt = ob.params().paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
             if (totalHitAsInt) {
-                long total = totalHits == null ? -1 : totalHits.value;
-                b.field(Fields.TOTAL, total);
+                ob.field(Fields.TOTAL, totalHits == null ? -1 : totalHits.value());
             } else if (totalHits != null) {
-                b.startObject(Fields.TOTAL);
-                b.field("value", totalHits.value);
-                b.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
-                b.endObject();
+                ob.append((b, p) -> {
+                    b.startObject(Fields.TOTAL);
+                    b.field("value", totalHits.value());
+                    b.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
+                    return b.endObject();
+                });
             }
-            return b;
-        }), Iterators.single((b, p) -> {
-            if (Float.isNaN(maxScore)) {
-                b.nullField(Fields.MAX_SCORE);
-            } else {
-                b.field(Fields.MAX_SCORE, maxScore);
-            }
-            return b;
-        }), ChunkedToXContentHelper.array(Fields.HITS, Iterators.forArray(hits)), ChunkedToXContentHelper.endObject());
+
+            ob.field(Fields.MAX_SCORE, Float.isNaN(maxScore) ? null : maxScore);
+            ob.array(Fields.HITS, Iterators.forArray(hits));
+        });
     }
 
     @Override

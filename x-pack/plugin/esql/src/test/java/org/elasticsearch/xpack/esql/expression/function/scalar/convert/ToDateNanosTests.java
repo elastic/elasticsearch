@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -29,17 +31,26 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        if (EsqlCapabilities.Cap.TO_DATE_NANOS.isEnabled() == false) {
+            return List.of();
+        }
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.DATE_NANOS, DateUtils::toLong, List.of());
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateNanosCases(),
+            DataType.DATE_NANOS,
+            v -> DateUtils.toLong((Instant) v),
+            List.of()
+        );
+        TestCaseSupplier.unary(
             suppliers,
             "ToDateNanosFromDatetimeEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateCases(0, DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli()),
             DataType.DATE_NANOS,
-            0,
-            DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli(),
-            i -> DateUtils.toNanoSeconds(i.toEpochMilli()),
+            i -> DateUtils.toNanoSeconds(((Instant) i).toEpochMilli()),
             List.of()
         );
         TestCaseSupplier.forUnaryLong(

@@ -17,11 +17,11 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -74,7 +74,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
 
     @Override
     protected KnnRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnRetrieverBuilder.fromXContent(
+        return (KnnRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),

@@ -209,6 +209,15 @@ public final class ServiceUtils {
         );
     }
 
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
+        Class<? extends Model> invalidModelType
+    ) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
@@ -435,6 +444,32 @@ public final class ServiceUtils {
         return field;
     }
 
+    public static Integer extractRequiredPositiveIntegerBetween(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field < minValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue)
+            );
+            return null;
+        }
+        if (field != null && field > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
+            );
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,
@@ -626,6 +661,40 @@ public final class ServiceUtils {
     }
 
     /**
+     * task_type can be specified as either a URL parameter or in the
+     * request body. Resolve which to use or throw if the settings are
+     * inconsistent
+     * @param urlTaskType Taken from the URL parameter. ANY means not specified.
+     * @param bodyTaskType Taken from the request body. Maybe null
+     * @return The resolved task type
+     */
+    public static TaskType resolveTaskType(TaskType urlTaskType, String bodyTaskType) {
+        if (bodyTaskType == null) {
+            if (urlTaskType == TaskType.ANY) {
+                throw new ElasticsearchStatusException("model is missing required setting [task_type]", RestStatus.BAD_REQUEST);
+            } else {
+                return urlTaskType;
+            }
+        }
+
+        TaskType parsedBodyTask = TaskType.fromStringOrStatusException(bodyTaskType);
+        if (parsedBodyTask == TaskType.ANY) {
+            throw new ElasticsearchStatusException("task_type [any] is not valid type for inference", RestStatus.BAD_REQUEST);
+        }
+
+        if (parsedBodyTask.isAnyOrSame(urlTaskType) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot resolve conflicting task_type parameter in the request URL [{}] and the request body [{}]",
+                RestStatus.BAD_REQUEST,
+                urlTaskType.toString(),
+                bodyTaskType
+            );
+        }
+
+        return parsedBodyTask;
+    }
+
+    /**
      * Functional interface for creating an enum from a string.
      * @param <E>
      */
@@ -705,6 +774,10 @@ public final class ServiceUtils {
 
     public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
         return requestValue == null ? originalSettingsValue : requestValue;
+    }
+
+    public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
     }
 
     private ServiceUtils() {}

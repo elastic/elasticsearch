@@ -135,6 +135,7 @@ public class BigArraysTests extends ESTestCase {
             ref[i] = randomFrom(pool);
             array = bigArrays.grow(array, i + 1);
             array.set(i, ref[i]);
+            assertEquals(ref[i], array.getAndSet(i, ref[i]));
         }
         for (int i = 0; i < totalLen; ++i) {
             assertSame(ref[i], array.get(i));

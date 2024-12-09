@@ -47,6 +47,7 @@ public class AlibabaCloudSearchEmbeddingsModelTests extends ESTestCase {
             AlibabaCloudSearchUtils.SERVICE_NAME,
             serviceSettings,
             taskSettings,
+            null,
             secrets,
             null
         );
@@ -65,6 +66,7 @@ public class AlibabaCloudSearchEmbeddingsModelTests extends ESTestCase {
             AlibabaCloudSearchUtils.SERVICE_NAME,
             serviceSettings,
             taskSettings,
+            null,
             secretSettings
         );
     }

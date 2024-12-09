@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -39,15 +39,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class ComputeListener implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
 
-    private final RefCountingListener refs;
-    private final FailureCollector failureCollector = new FailureCollector();
+    private final EsqlRefCountingListener refs;
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final CancellableTask task;
     private final TransportService transportService;
     private final List<DriverProfile> collectedProfiles;
     private final ResponseHeadersCollector responseHeaders;
     private final EsqlExecutionInfo esqlExecutionInfo;
-    private final long queryStartTimeNanos;
     // clusterAlias indicating where this ComputeListener is running
     // used by the top level ComputeListener in ComputeService on both local and remote clusters
     private final String whereRunning;
@@ -61,7 +59,7 @@ final class ComputeListener implements Releasable {
         CancellableTask task,
         ActionListener<ComputeResponse> delegate
     ) {
-        return new ComputeListener(transportService, task, null, null, -1, delegate);
+        return new ComputeListener(transportService, task, null, null, delegate);
     }
 
     /**
@@ -75,7 +73,6 @@ final class ComputeListener implements Releasable {
      * @param transportService
      * @param task
      * @param executionInfo {@link EsqlExecutionInfo} to capture execution metadata
-     * @param queryStartTimeNanos Start time of the ES|QL query (stored in {@link org.elasticsearch.xpack.esql.session.Configuration})
      * @param delegate
      */
     public static ComputeListener create(
@@ -83,10 +80,9 @@ final class ComputeListener implements Releasable {
         TransportService transportService,
         CancellableTask task,
         EsqlExecutionInfo executionInfo,
-        long queryStartTimeNanos,
         ActionListener<ComputeResponse> delegate
     ) {
-        return new ComputeListener(transportService, task, clusterAlias, executionInfo, queryStartTimeNanos, delegate);
+        return new ComputeListener(transportService, task, clusterAlias, executionInfo, delegate);
     }
 
     private ComputeListener(
@@ -94,7 +90,6 @@ final class ComputeListener implements Releasable {
         CancellableTask task,
         String clusterAlias,
         EsqlExecutionInfo executionInfo,
-        long queryStartTimeNanos,
         ActionListener<ComputeResponse> delegate
     ) {
         this.transportService = transportService;
@@ -102,7 +97,6 @@ final class ComputeListener implements Releasable {
         this.responseHeaders = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         this.esqlExecutionInfo = executionInfo;
-        this.queryStartTimeNanos = queryStartTimeNanos;
         this.whereRunning = clusterAlias;
         // for the DataNodeHandler ComputeListener, clusterAlias and executionInfo will be null
         // for the top level ComputeListener in ComputeService both will be non-null
@@ -110,13 +104,14 @@ final class ComputeListener implements Releasable {
             : "clusterAlias and executionInfo must both be null or both non-null";
 
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
+        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
             ComputeResponse result;
 
             if (runningOnRemoteCluster()) {
                 // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized and
                 // received by the acquireCompute method callback on the coordinating cluster
+                setFinalStatusAndShardCounts(clusterAlias, executionInfo);
                 EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
                 result = new ComputeResponse(
                     collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
@@ -129,15 +124,33 @@ final class ComputeListener implements Releasable {
             } else {
                 result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
                 if (coordinatingClusterIsSearchedInCCS()) {
-                    // mark local cluster as finished once the coordinator and all data nodes have finished processing
-                    executionInfo.swapCluster(
-                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build()
-                    );
+                    // if not already marked as SKIPPED, mark the local cluster as finished once the coordinator and all
+                    // data nodes have finished processing
+                    setFinalStatusAndShardCounts(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, executionInfo);
                 }
             }
             delegate.onResponse(result);
-        }, e -> delegate.onFailure(failureCollector.getFailure())));
+        }));
+    }
+
+    private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            // TODO: once PARTIAL status is supported (partial results work to come), modify this code as needed
+            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
+                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    /*
+                     * Total and skipped shard counts are set early in execution (after can-match).
+                     * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
+                     * as successful and none are failed.
+                     */
+                    .setSuccessfulShards(v.getTotalShards())
+                    .setFailedShards(0)
+                    .build();
+            } else {
+                return v;
+            }
+        });
     }
 
     /**
@@ -177,7 +190,6 @@ final class ComputeListener implements Releasable {
      */
     ActionListener<Void> acquireAvoid() {
         return refs.acquire().delegateResponse((l, e) -> {
-            failureCollector.unwrapAndCollect(e);
             try {
                 if (cancelled.compareAndSet(false, true)) {
                     LOGGER.debug("cancelling ESQL task {} on failure", task);
@@ -196,8 +208,8 @@ final class ComputeListener implements Releasable {
      *                            info to be gathered (namely, the DataNodeRequestHandler ComputeListener) should pass in null.
      */
     ActionListener<ComputeResponse> acquireCompute(@Nullable String computeClusterAlias) {
-        assert computeClusterAlias == null || (esqlExecutionInfo != null && queryStartTimeNanos > 0)
-            : "When clusterAlias is provided to acquireCompute, executionInfo must be non-null and queryStartTimeNanos must be positive";
+        assert computeClusterAlias == null || (esqlExecutionInfo != null && esqlExecutionInfo.getRelativeStartNanos() != null)
+            : "When clusterAlias is provided to acquireCompute, executionInfo and relativeStartTimeNanos must be non-null";
 
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
@@ -209,24 +221,17 @@ final class ComputeListener implements Releasable {
                 return null;
             }
             if (isCCSListener(computeClusterAlias)) {
-                // this is the callback for the listener to the CCS compute
-                esqlExecutionInfo.swapCluster(
-                    computeClusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                        // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
-                        .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                        .setTook(resp.getTook())
-                        .setTotalShards(resp.getTotalShards())
-                        .setSuccessfulShards(resp.getSuccessfulShards())
-                        .setSkippedShards(resp.getSkippedShards())
-                        .setFailedShards(resp.getFailedShards())
-                        .build()
-                );
+                // this is the callback for the listener on the primary coordinator that receives a remote ComputeResponse
+                updateExecutionInfoWithRemoteResponse(computeClusterAlias, resp);
+
             } else if (shouldRecordTookTime()) {
+                Long relativeStartNanos = esqlExecutionInfo.getRelativeStartNanos();
                 // handler for this cluster's data node and coordinator completion (runs on "local" and remote clusters)
-                TimeValue tookTime = new TimeValue(System.nanoTime() - queryStartTimeNanos, TimeUnit.NANOSECONDS);
+                assert relativeStartNanos != null : "queryStartTimeNanos not set properly";
+                TimeValue tookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
                 esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
-                    if (v.getTook() == null || v.getTook().nanos() < tookTime.nanos()) {
+                    if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
+                        && (v.getTook() == null || v.getTook().nanos() < tookTime.nanos())) {
                         return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime).build();
                     } else {
                         return v;
@@ -235,6 +240,40 @@ final class ComputeListener implements Releasable {
             }
             return null;
         });
+    }
+
+    private void updateExecutionInfoWithRemoteResponse(String computeClusterAlias, ComputeResponse resp) {
+        TimeValue tookOnCluster;
+        if (resp.getTook() != null) {
+            TimeValue remoteExecutionTime = resp.getTook();
+            TimeValue planningTookTime = esqlExecutionInfo.planningTookTime();
+            tookOnCluster = new TimeValue(planningTookTime.nanos() + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
+            esqlExecutionInfo.swapCluster(
+                computeClusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
+                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(tookOnCluster)
+                    .setTotalShards(resp.getTotalShards())
+                    .setSuccessfulShards(resp.getSuccessfulShards())
+                    .setSkippedShards(resp.getSkippedShards())
+                    .setFailedShards(resp.getFailedShards())
+                    .build()
+            );
+        } else {
+            // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+            // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+            long remoteTook = System.nanoTime() - esqlExecutionInfo.getRelativeStartNanos();
+            tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
+            esqlExecutionInfo.swapCluster(
+                computeClusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
+                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(tookOnCluster)
+                    .build()
+            );
+        }
     }
 
     /**

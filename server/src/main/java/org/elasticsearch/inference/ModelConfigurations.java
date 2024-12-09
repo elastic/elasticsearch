@@ -121,7 +121,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)
+        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
             ? in.readOptionalNamedWriteable(ChunkingSettings.class)
             : null;
     }
@@ -133,7 +133,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalNamedWriteable(chunkingSettings);
         }
     }
@@ -173,7 +173,11 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
+        // Always write task settings to the index even if empty.
+        // But do not show empty settings in the response
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false) || (taskSettings != null && taskSettings.isEmpty() == false)) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
@@ -192,7 +196,11 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
-        builder.field(TASK_SETTINGS, taskSettings);
+        // Always write task settings to the index even if empty.
+        // But do not show empty settings in the response
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false) || (taskSettings != null && taskSettings.isEmpty() == false)) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }

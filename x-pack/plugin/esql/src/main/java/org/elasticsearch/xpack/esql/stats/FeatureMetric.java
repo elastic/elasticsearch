@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
 import java.util.BitSet;
@@ -29,11 +28,6 @@ import java.util.Locale;
 import java.util.function.Predicate;
 
 public enum FeatureMetric {
-    /**
-     * The order of these enum values is important, do not change it.
-     * For any new values added to it, they should go at the end of the list.
-     * see {@link org.elasticsearch.xpack.esql.analysis.Verifier#gatherMetrics}
-     */
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),
@@ -48,8 +42,7 @@ public enum FeatureMetric {
     FROM(EsRelation.class::isInstance),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
-    RENAME(Rename.class::isInstance),
-    META(MetaFunctions.class::isInstance);
+    RENAME(Rename.class::isInstance);
 
     private Predicate<LogicalPlan> planCheck;
 

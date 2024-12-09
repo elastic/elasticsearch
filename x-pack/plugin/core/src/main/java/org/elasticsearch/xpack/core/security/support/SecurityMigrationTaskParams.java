@@ -48,7 +48,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     public SecurityMigrationTaskParams(StreamInput in) throws IOException {
         this.migrationVersion = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_MIGRATIONS_MIGRATION_NEEDED_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.migrationNeeded = in.readBoolean();
         } else {
             this.migrationNeeded = true;
@@ -58,7 +58,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(migrationVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SECURITY_MIGRATIONS_MIGRATION_NEEDED_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(migrationNeeded);
         }
     }
@@ -70,7 +70,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ADD_METADATA_FLATTENED_TO_ROLES;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

@@ -38,24 +38,22 @@ public final class XPackRestTestHelper {
         // templates in the oldest version we test upgrades from
         assertBusy(() -> {
             Map<String, Object> response;
-            {
-                final Request request = new Request("GET", "_index_template");
-                request.addParameter("error_trace", "true");
+            final Request request = new Request("GET", "_index_template");
+            request.addParameter("error_trace", "true");
 
-                String string = EntityUtils.toString(client.performRequest(request).getEntity());
-                List<Map<String, Object>> templateList = (List<Map<String, Object>>) XContentHelper.convertToMap(
-                    JsonXContent.jsonXContent,
-                    string,
-                    false
-                ).get("index_templates");
-                response = templateList.stream().collect(Collectors.toMap(m -> (String) m.get("name"), m -> m.get("index_template")));
-            }
+            String string = EntityUtils.toString(client.performRequest(request).getEntity());
+            List<Map<String, Object>> templateList = (List<Map<String, Object>>) XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                string,
+                false
+            ).get("index_templates");
+            response = templateList.stream().collect(Collectors.toMap(m -> (String) m.get("name"), m -> m.get("index_template")));
             final Set<String> templates = new TreeSet<>(response.keySet());
 
             final Request legacyRequest = new Request("GET", "_template");
             legacyRequest.addParameter("error_trace", "true");
 
-            String string = EntityUtils.toString(client.performRequest(legacyRequest).getEntity());
+            string = EntityUtils.toString(client.performRequest(legacyRequest).getEntity());
             Map<String, Object> legacyResponse = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
 
             final Set<String> legacyTemplates = new TreeSet<>(legacyResponse.keySet());

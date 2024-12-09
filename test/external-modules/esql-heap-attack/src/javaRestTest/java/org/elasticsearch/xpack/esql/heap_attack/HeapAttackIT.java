@@ -129,6 +129,15 @@ public class HeapAttackIT extends ESRestTestCase {
                 try {
                     resp = client().performRequest(fetch);
                 } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 403) {
+                        /*
+                         * There's a bug when loading from the translog with security
+                         * enabled. If we retry a few times we'll load from the index
+                         * itself and should succeed.
+                         */
+                        logger.error("polled for results got 403");
+                        continue;
+                    }
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.error("polled for results got 404");
                         continue;
@@ -166,7 +175,7 @@ public class HeapAttackIT extends ESRestTestCase {
                     "error",
                     matchesMap().extraOk()
                         .entry("bytes_wanted", greaterThan(1000))
-                        .entry("reason", matchesRegex("\\[request] Data too large, data for \\[topn] would .+"))
+                        .entry("reason", matchesRegex("\\[request] Data too large, data for \\[.+] would be .+"))
                         .entry("durability", "TRANSIENT")
                         .entry("type", "circuit_breaking_exception")
                         .entry("bytes_limit", greaterThan(1000))
@@ -183,6 +192,13 @@ public class HeapAttackIT extends ESRestTestCase {
             map,
             matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
         );
+    }
+
+    private void assertParseFailure(ThrowingRunnable r) throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, r);
+        Map<?, ?> map = responseAsMap(e.getResponse());
+        logger.info("expected parse failure {}", map);
+        assertMap(map, matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "parsing_exception")));
     }
 
     private Response sortByManyLongs(int count) throws IOException {
@@ -286,15 +302,10 @@ public class HeapAttackIT extends ESRestTestCase {
      * Returns many moderately long strings.
      */
     public void testManyConcat() throws IOException {
+        int strings = 300;
         initManyLongs();
-        Response resp = manyConcat(300);
-        Map<?, ?> map = responseAsMap(resp);
-        ListMatcher columns = matchesList();
-        for (int s = 0; s < 300; s++) {
-            columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
-        }
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", any(List.class)).entry("took", greaterThanOrEqualTo(0)));
+        Response resp = manyConcat("FROM manylongs", strings);
+        assertManyStrings(resp, strings);
     }
 
     /**
@@ -302,15 +313,31 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyConcat(2000));
+        assertCircuitBreaks(() -> manyConcat("FROM manylongs", 2000));
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyConcatFromRow() throws IOException {
+        int strings = 2000;
+        Response resp = manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", strings);
+        assertManyStrings(resp, strings);
+    }
+
+    /**
+     * Fails to parse a huge huge query.
+     */
+    public void testHugeHugeManyConcatFromRow() throws IOException {
+        assertParseFailure(() -> manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", 50000));
     }
 
     /**
      * Tests that generate many moderately long strings.
      */
-    private Response manyConcat(int strings) throws IOException {
+    private Response manyConcat(String init, int strings) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM manylongs | EVAL str = CONCAT(");
+        query.append(init).append(" | EVAL str = CONCAT(");
         query.append(
             Arrays.stream(new String[] { "a", "b", "c", "d", "e" })
                 .map(f -> "TO_STRING(" + f + ")")
@@ -335,7 +362,71 @@ public class HeapAttackIT extends ESRestTestCase {
             query.append("str").append(s);
         }
         query.append("\"}");
-        return query(query.toString(), null);
+        return query(query.toString(), "columns");
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyRepeat() throws IOException {
+        int strings = 30;
+        initManyLongs();
+        Response resp = manyRepeat("FROM manylongs", strings);
+        assertManyStrings(resp, 30);
+    }
+
+    /**
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    public void testHugeManyRepeat() throws IOException {
+        initManyLongs();
+        assertCircuitBreaks(() -> manyRepeat("FROM manylongs", 75));
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyRepeatFromRow() throws IOException {
+        int strings = 10000;
+        Response resp = manyRepeat("ROW a = 99", strings);
+        assertManyStrings(resp, strings);
+    }
+
+    /**
+     * Fails to parse a huge huge query.
+     */
+    public void testHugeHugeManyRepeatFromRow() throws IOException {
+        assertParseFailure(() -> manyRepeat("ROW a = 99", 100000));
+    }
+
+    /**
+     * Tests that generate many moderately long strings.
+     */
+    private Response manyRepeat(String init, int strings) throws IOException {
+        StringBuilder query = startQuery();
+        query.append(init).append(" | EVAL str = TO_STRING(a)");
+        for (int s = 0; s < strings; s++) {
+            query.append(",\nstr").append(s).append("=REPEAT(str, 10000)");
+        }
+        query.append("\n|KEEP ");
+        for (int s = 0; s < strings; s++) {
+            if (s != 0) {
+                query.append(", ");
+            }
+            query.append("str").append(s);
+        }
+        query.append("\"}");
+        return query(query.toString(), "columns");
+    }
+
+    private void assertManyStrings(Response resp, int strings) throws IOException {
+        Map<?, ?> map = responseAsMap(resp);
+        ListMatcher columns = matchesList();
+        for (int s = 0; s < strings; s++) {
+            columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
+        }
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns));
     }
 
     public void testManyEval() throws IOException {
@@ -355,7 +446,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1874")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(490));
@@ -410,9 +500,6 @@ public class HeapAttackIT extends ESRestTestCase {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
-                    RequestConfig requestConfig = RequestConfig.custom()
-                        .setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(2).millis()))
-                        .build();
                     client().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
@@ -616,14 +703,13 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private void bulk(String name, String bulk) throws IOException {
         Request request = new Request("POST", "/" + name + "/_bulk");
-        request.addParameter("filter_path", "errors");
         request.setJsonEntity(bulk);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
         );
         Response response = client().performRequest(request);
-        assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
+        assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
     }
 
     private void initIndex(String name, String bulk) throws IOException {

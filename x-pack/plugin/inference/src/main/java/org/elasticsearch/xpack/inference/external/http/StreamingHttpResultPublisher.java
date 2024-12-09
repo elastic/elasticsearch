@@ -65,7 +65,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
     StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<Flow.Publisher<HttpResult>> listener) {
         this.settings = Objects.requireNonNull(settings);
-        this.listener = Objects.requireNonNull(listener);
+        this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.taskRunner = new RequestBasedTaskRunner(new OffloadThread(), threadPool, UTILITY_THREAD_POOL_NAME);
     }
@@ -96,11 +96,10 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
         try {
             var consumed = inputBuffer.consumeContent(contentDecoder);
-            var allBytes = new byte[consumed];
-            inputBuffer.read(allBytes);
-
-            // we can have empty bytes, don't bother sending them
-            if (allBytes.length > 0) {
+            // we could have read 0 bytes if the body was delayed getting in, we need to return out so apache can load the body/footer
+            if (consumed > 0) {
+                var allBytes = new byte[consumed];
+                inputBuffer.read(allBytes);
                 queue.offer(() -> {
                     subscriber.onNext(new HttpResult(response, allBytes));
                     var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - allBytes.length));
@@ -111,18 +110,17 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
                         }
                     }
                 });
-            }
 
-            // always check if totalByteSize > the configured setting in case the settings change
-            if (bytesInQueue.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
-                pauseProducer(ioControl);
-            }
+                // always check if totalByteSize > the configured setting in case the settings change
+                if (bytesInQueue.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
+                    pauseProducer(ioControl);
+                }
 
-            // always run in case we're waking up from a pause and need to start a new thread
-            taskRunner.requestNextRun();
+                taskRunner.requestNextRun();
 
-            if (listenerCalled.compareAndSet(false, true)) {
-                listener.onResponse(this);
+                if (listenerCalled.compareAndSet(false, true)) {
+                    listener.onResponse(this);
+                }
             }
         } finally {
             inputBuffer.reset();
@@ -152,9 +150,13 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
-            ex = e;
-            queue.offer(() -> subscriber.onError(e));
-            taskRunner.requestNextRun();
+            if (listenerCalled.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            } else {
+                ex = e;
+                queue.offer(() -> subscriber.onError(e));
+                taskRunner.requestNextRun();
+            }
         }
     }
 

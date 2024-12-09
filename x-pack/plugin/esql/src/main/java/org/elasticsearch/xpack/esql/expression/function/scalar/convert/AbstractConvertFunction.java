@@ -18,12 +18,12 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -48,7 +48,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
-    public static final List<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -90,9 +89,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             NUMERIC_TYPES.forEach(supportTypes::remove);
         }
 
-        if (types.containsAll(STRING_TYPES)) {
+        if (types.containsAll(DataType.stringTypes())) {
             supportedTypesNames.add("string");
-            STRING_TYPES.forEach(supportTypes::remove);
+            DataType.stringTypes().forEach(supportTypes::remove);
         }
 
         supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));
@@ -138,7 +137,12 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field, Source source) {
             this.driverContext = driverContext;
             this.fieldEvaluator = field;
-            this.warnings = new Warnings(source);
+            this.warnings = Warnings.createWarnings(
+                driverContext.warningsMode(),
+                source.source().getLineNumber(),
+                source.source().getColumnNumber(),
+                source.text()
+            );
         }
 
         protected abstract String name();

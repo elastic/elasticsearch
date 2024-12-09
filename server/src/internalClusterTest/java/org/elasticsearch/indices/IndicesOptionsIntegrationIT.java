@@ -287,7 +287,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesStats(indices), false);
         verify(forceMerge(indices), false);
         verify(refreshBuilder(indices), false);
-        verify(validateQuery(indices), true);
+        verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -338,7 +338,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesStats(indices), false);
         verify(forceMerge(indices), false);
         verify(refreshBuilder(indices), false);
-        verify(validateQuery(indices), true);
+        verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -398,8 +398,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     public void testAllMissingLenient() throws Exception {
         createIndex("test1");
         prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
-        assertHitCount(prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 0L);
-        assertHitCount(prepareSearch("test2", "test3").setQuery(matchAllQuery()).setIndicesOptions(IndicesOptions.lenientExpandOpen()), 0L);
+        assertHitCount(
+            0L,
+            prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()),
+            prepareSearch("test2", "test3").setQuery(matchAllQuery()).setIndicesOptions(IndicesOptions.lenientExpandOpen())
+        );
         // you should still be able to run empty searches without things blowing up
         assertHitCount(prepareSearch().setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 1L);
     }

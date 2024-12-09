@@ -10,14 +10,12 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -40,13 +38,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/{index}/_delete_by_query"),
-            Route.builder(POST, "/{index}/{type}/_delete_by_query")
-                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build()
-        );
-
+        return List.of(new Route(POST, "/{index}/_delete_by_query"));
     }
 
     @Override

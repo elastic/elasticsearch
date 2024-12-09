@@ -17,22 +17,16 @@ public class InternalElasticsearchDistributionTypes {
     public static ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
     public static ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_UBI = new DockerUbiElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_CLOUD = new DockerCloudElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_CLOUD_ESS = new DockerCloudEssElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_WOLFI = new DockerWolfiElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_WOLFI_ESS = new DockerWolfiEssElasticsearchDistributionType();
 
     public static List<ElasticsearchDistributionType> ALL_INTERNAL = List.of(
         DEB,
         RPM,
         DOCKER,
-        DOCKER_UBI,
         DOCKER_IRONBANK,
-        DOCKER_CLOUD,
         DOCKER_CLOUD_ESS,
-        DOCKER_WOLFI,
-        DOCKER_WOLFI_ESS
+        DOCKER_WOLFI
     );
 }

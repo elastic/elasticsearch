@@ -24,9 +24,11 @@ import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.MaxMind;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.InetAddress;
@@ -78,13 +80,19 @@ public class MaxMindSupportTests extends ESTestCase {
         "city.name",
         "continent.code",
         "continent.name",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "country.name",
+        "location.accuracyRadius",
         "location.latitude",
         "location.longitude",
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
-        "mostSpecificSubdivision.name"
+        "mostSpecificSubdivision.name",
+        "postal.code",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -94,14 +102,12 @@ public class MaxMindSupportTests extends ESTestCase {
         "continent.names",
         "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "leastSpecificSubdivision.confidence",
         "leastSpecificSubdivision.geoNameId",
         "leastSpecificSubdivision.isoCode",
         "leastSpecificSubdivision.name",
         "leastSpecificSubdivision.names",
-        "location.accuracyRadius",
         "location.averageIncome",
         "location.metroCode",
         "location.populationDensity",
@@ -109,13 +115,9 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -159,23 +161,23 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of(
         "continent.name",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "continent.code",
-        "country.name"
+        "country.name",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.geoNameId",
         "continent.names",
         "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "maxMind",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -213,16 +215,25 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<String> DOMAIN_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
 
     private static final Set<String> ENTERPRISE_SUPPORTED_FIELDS = Set.of(
+        "city.confidence",
         "city.name",
         "continent.code",
         "continent.name",
+        "country.confidence",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "country.name",
+        "location.accuracyRadius",
         "location.latitude",
         "location.longitude",
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
+        "postal.code",
+        "postal.confidence",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -241,21 +252,17 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.userType"
     );
     private static final Set<String> ENTERPRISE_UNSUPPORTED_FIELDS = Set.of(
-        "city.confidence",
         "city.geoNameId",
         "city.names",
         "continent.geoNameId",
         "continent.names",
-        "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "leastSpecificSubdivision.confidence",
         "leastSpecificSubdivision.geoNameId",
         "leastSpecificSubdivision.isoCode",
         "leastSpecificSubdivision.name",
         "leastSpecificSubdivision.names",
-        "location.accuracyRadius",
         "location.averageIncome",
         "location.metroCode",
         "location.populationDensity",
@@ -263,13 +270,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
-        "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -361,8 +363,19 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
+    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(
+        Database.AsnV2,
+        Database.CityV2,
+        Database.CountryV2,
+        Database.PrivacyDetection
+    );
+
     public void testMaxMindSupport() {
         for (Database databaseType : Database.values()) {
+            if (KNOWN_UNSUPPORTED_DATABASE_VARIANTS.contains(databaseType)) {
+                continue;
+            }
+
             Class<? extends AbstractResponse> maxMindClass = TYPE_TO_MAX_MIND_CLASS.get(databaseType);
             Set<String> supportedFields = TYPE_TO_SUPPORTED_FIELDS_MAP.get(databaseType);
             Set<String> unsupportedFields = TYPE_TO_UNSUPPORTED_FIELDS_MAP.get(databaseType);
@@ -469,7 +482,7 @@ public class MaxMindSupportTests extends ESTestCase {
     }
 
     /*
-     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through IpDatabase.
+     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through GeoIpDatabase.
      */
     public void testUsedMaxMindResponseClassesAreAccountedFor() {
         Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = getUsedMaxMindResponseClasses();
@@ -479,7 +492,7 @@ public class MaxMindSupportTests extends ESTestCase {
             supportedMaxMindClasses
         );
         assertThat(
-            "IpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
+            "MaxmindIpDataLookups exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
                 + "TYPE_TO_MAX_MIND_CLASS for the following: "
                 + usedButNotSupportedMaxMindResponseClasses,
             usedButNotSupportedMaxMindResponseClasses,
@@ -490,7 +503,7 @@ public class MaxMindSupportTests extends ESTestCase {
             usedMaxMindResponseClasses
         );
         assertThat(
-            "This test claims to support MaxMind response classes that are not exposed in IpDatabase. Remove the following from "
+            "This test claims to support MaxMind response classes that are not exposed in GeoIpDatabase. Remove the following from "
                 + "TYPE_TO_MAX_MIND_CLASS: "
                 + supportedButNotUsedMaxMindClasses,
             supportedButNotUsedMaxMindClasses,
@@ -618,18 +631,29 @@ public class MaxMindSupportTests extends ESTestCase {
     }
 
     /*
-     * This returns all AbstractResponse classes that are returned from getter methods on IpDatabase.
+     * This returns all AbstractResponse classes that are declared in transform methods in classes defined in MaxmindIpDataLookups.
      */
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "Need declared classes and methods")
     private static Set<Class<? extends AbstractResponse>> getUsedMaxMindResponseClasses() {
         Set<Class<? extends AbstractResponse>> result = new HashSet<>();
-        Method[] methods = IpDatabase.class.getMethods();
-        for (Method method : methods) {
-            if (method.getName().startsWith("get")) {
-                Class<?> returnType = method.getReturnType();
-                try {
-                    result.add(returnType.asSubclass(AbstractResponse.class));
-                } catch (ClassCastException ignore) {
-                    // This is not what we were looking for, move on
+        Class<?>[] declaredClasses = MaxmindIpDataLookups.class.getDeclaredClasses();
+        for (Class<?> declaredClass : declaredClasses) {
+            if (Modifier.isAbstract(declaredClass.getModifiers())) {
+                continue;
+            }
+            Method[] declaredMethods = declaredClass.getDeclaredMethods();
+            Optional<Method> nonAbstractTransformMethod = Arrays.stream(declaredMethods)
+                .filter(
+                    method -> method.getName().equals("transform")
+                        && method.getParameterTypes().length == 1
+                        && Modifier.isAbstract(method.getParameterTypes()[0].getModifiers()) == false
+                )
+                .findAny();
+            if (nonAbstractTransformMethod.isPresent()) {
+                Class<?> responseClass = nonAbstractTransformMethod.get().getParameterTypes()[0];
+                if (AbstractResponse.class.isAssignableFrom(responseClass)) {
+                    result.add((Class<? extends AbstractResponse>) responseClass);
                 }
             }
         }

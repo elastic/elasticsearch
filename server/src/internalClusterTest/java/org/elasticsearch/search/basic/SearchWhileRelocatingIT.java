@@ -64,6 +64,8 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
         assertHitCount(prepareSearch(), (numDocs));
+        // hold a copy of the node names before a new node is potentially added later
+        String[] nodeNamesBeforeClusterResize = internalCluster().getNodeNames();
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
@@ -76,34 +78,37 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                     public void run() {
                         try {
                             while (stop.get() == false) {
-                                assertResponse(prepareSearch().setSize(numDocs), response -> {
-                                    if (response.getHits().getTotalHits().value != numDocs) {
-                                        // if we did not search all shards but had no serious failures that is potentially fine
-                                        // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
-                                        // request comes in. It's a small window but a known limitation.
-                                        if (response.getTotalShards() != response.getSuccessfulShards()
-                                            && Stream.of(response.getShardFailures())
-                                                .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
-                                            nonCriticalExceptions.add(
-                                                "Count is "
-                                                    + response.getHits().getTotalHits().value
-                                                    + " but "
-                                                    + numDocs
-                                                    + " was expected. "
-                                                    + formatShardStatus(response)
-                                            );
-                                        } else {
-                                            assertHitCount(response, numDocs);
+                                assertResponse(
+                                    client(randomFrom(nodeNamesBeforeClusterResize)).prepareSearch().setSize(numDocs),
+                                    response -> {
+                                        if (response.getHits().getTotalHits().value() != numDocs) {
+                                            // if we did not search all shards but had no serious failures that is potentially fine
+                                            // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
+                                            // request comes in. It's a small window but a known limitation.
+                                            if (response.getTotalShards() != response.getSuccessfulShards()
+                                                && Stream.of(response.getShardFailures())
+                                                    .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
+                                                nonCriticalExceptions.add(
+                                                    "Count is "
+                                                        + response.getHits().getTotalHits().value()
+                                                        + " but "
+                                                        + numDocs
+                                                        + " was expected. "
+                                                        + formatShardStatus(response)
+                                                );
+                                            } else {
+                                                assertHitCount(response, numDocs);
+                                            }
                                         }
-                                    }
 
-                                    final SearchHits sh = response.getHits();
-                                    assertThat(
-                                        "Expected hits to be the same size the actual hits array",
-                                        sh.getTotalHits().value,
-                                        equalTo((long) (sh.getHits().length))
-                                    );
-                                });
+                                        final SearchHits sh = response.getHits();
+                                        assertThat(
+                                            "Expected hits to be the same size the actual hits array",
+                                            sh.getTotalHits().value(),
+                                            equalTo((long) (sh.getHits().length))
+                                        );
+                                    }
+                                );
                                 // this is the more critical but that we hit the actual hit array has a different size than the
                                 // actual number of hits.
                             }

@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
@@ -273,8 +272,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         // Fail before we attempt to create the term queries:
-        if (values.size() > BooleanQuery.getMaxClauseCount()) {
-            throw new BooleanQuery.TooManyClauses();
+        if (values.size() > IndexSearcher.getMaxClauseCount()) {
+            throw new IndexSearcher.TooManyClauses();
         }
 
         List<Query> queries = createTermQueries(context);

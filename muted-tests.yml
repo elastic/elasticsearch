@@ -294,6 +294,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/118224
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test60StartAndStop
+  issue: https://github.com/elastic/elasticsearch/issues/118216
 
 # Examples:
 #

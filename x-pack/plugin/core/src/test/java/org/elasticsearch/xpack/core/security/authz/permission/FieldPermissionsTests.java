@@ -164,7 +164,6 @@ public class FieldPermissionsTests extends ESTestCase {
         final Set<String> categorizedFields = Sets.union(excludedFields, FieldPermissions.METADATA_FIELDS_ALLOWLIST);
 
         final Set<String> builtinMetadataFields = IndicesModule.getBuiltInMetadataFields();
-        // ensure all built-in metadata fields are either allowlisted or excluded, usings sets.difference
         final Set<String> uncategorizedFields = Sets.difference(builtinMetadataFields, categorizedFields);
         assertThat(
             "Several metadata fields are neither allowlisted nor explicitly excluded from allowlist "

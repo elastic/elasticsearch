@@ -130,7 +130,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                   privileges: [ ALL ]
                   field_security:
                      grant: [ field1, _field1, _field2, id ]
-                     except: [ _field2 ]
+                     except: [ _field2, _id, _seq_no ]
             """;
     }
 
@@ -466,9 +466,21 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         {
             FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
             FieldCapabilitiesResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD))
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
             ).fieldCaps(fieldCapabilitiesRequest).actionGet();
             assertExpectedFieldsIgnoringAllowlistedMetadataFields(response, "field1");
+
+            GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
+            ).admin().indices().prepareGetFieldMappings("test").setFields("*").get();
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
+            assertEquals(1, mappings.size());
+            assertExpectedFieldsIgnoringAllowlistedMetadataFields(mappings.get("test"), "field1");
+
+            GetIndexResponse getIndexResponse = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
+            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            assertExpectedFields(getIndexResponse.getMappings(), "field1");
         }
 
         {
@@ -477,6 +489,18 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD))
             ).fieldCaps(fieldCapabilitiesRequest).actionGet();
             assertExpectedFieldsIgnoringAllowlistedMetadataFields(response, "field1", "_field1");
+
+            GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD))
+            ).admin().indices().prepareGetFieldMappings("test").setFields("*").get();
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
+            assertEquals(1, mappings.size());
+            assertExpectedFieldsIgnoringAllowlistedMetadataFields(mappings.get("test"), "field1", "_field1");
+
+            GetIndexResponse getIndexResponse = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD))
+            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            assertExpectedFields(getIndexResponse.getMappings(), "field1", "_field1");
         }
     }
 

@@ -204,7 +204,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), METADATA_FIELDS_ALLOWLIST_AUTOMATON);
+            grantedFieldsAutomaton = Automatons.patterns(grantedFields);
         }
 
         Automaton deniedFieldsAutomaton;
@@ -212,6 +212,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
             deniedFieldsAutomaton = Automatons.EMPTY;
         } else {
             deniedFieldsAutomaton = Automatons.patterns(deniedFields);
+        }
+
+        // short-circuit if we know that all fields are allowed
+        if (grantedFieldsAutomaton == Automatons.MATCH_ALL && deniedFieldsAutomaton == Automatons.EMPTY) {
+            return Automatons.MATCH_ALL;
         }
 
         grantedFieldsAutomaton = Operations.removeDeadStates(
@@ -222,8 +227,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
         );
 
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            // TODO optimize this: we don't want to break existing roles completely, so we need to account for denied fields
-            // that cover the "_*" pattern, since this was previously supported
+            // We should not break existing roles completely, so we need to account for denied fields that cover the "_*" pattern,
+            // since this was previously supported
             final Automaton legacyMetadataFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
             final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Operations.removeDeadStates(
                 Operations.determinize(
@@ -243,8 +248,16 @@ public final class FieldPermissions implements Accountable, CacheKey {
             // log something?
         }
 
-        grantedFieldsAutomaton = Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton);
-        return grantedFieldsAutomaton;
+        return Operations.removeDeadStates(
+            Operations.determinize(
+                Operations.union(
+                    Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton),
+                    // add in allowlisted metadata fields after removing denied fields since we always allow them
+                    METADATA_FIELDS_ALLOWLIST_AUTOMATON
+                ),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            )
+        );
     }
 
     /**
@@ -332,5 +345,4 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public long ramBytesUsed() {
         return ramBytesUsed;
     }
-
 }

@@ -192,9 +192,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 

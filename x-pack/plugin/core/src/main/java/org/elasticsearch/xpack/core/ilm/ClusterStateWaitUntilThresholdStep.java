@@ -19,7 +19,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.time.Clock;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -72,8 +71,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                 // we may not have passed the time threshold, but the step is not completable due to a different reason
                 thresholdPassed.set(true);
 
-                String message = String.format(
-                    Locale.ROOT,
+                String message = Strings.format(
                     "[%s] lifecycle step, as part of [%s] action, for index [%s] Is not "
                         + "completable, reason: [%s]. Abandoning execution and moving to the next fallback step [%s]",
                     getKey().name(),
@@ -90,8 +88,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                 // we retried this step enough, next step will be the configured to {@code nextKeyOnThresholdBreach}
                 thresholdPassed.set(true);
 
-                String message = String.format(
-                    Locale.ROOT,
+                String message = Strings.format(
                     "[%s] lifecycle step, as part of [%s] action, for index [%s] executed for"
                         + " more than [%s]. Abandoning execution and moving to the next fallback step [%s]",
                     getKey().name(),

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.time.Instant;
-import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
@@ -60,8 +60,7 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
             listener.onResponse(
                 false,
                 new SingleMessageFieldInfo(
-                    String.format(
-                        Locale.ROOT,
+                    Strings.format(
                         "The [%s] setting for index [%s] is [%s]. Waiting until the index's time series end time lapses before"
                             + " proceeding with action [%s] as the index can still accept writes.",
                         IndexSettings.TIME_SERIES_END_TIME.getKey(),

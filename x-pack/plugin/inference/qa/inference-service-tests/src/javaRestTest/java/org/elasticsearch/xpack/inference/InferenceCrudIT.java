@@ -11,13 +11,18 @@ package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +49,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = 12;
+        int numModels = 11;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -461,7 +466,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomUUID()).toList();
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
@@ -481,8 +486,58 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
     }
 
+    public void testUnifiedCompletionInference() throws Exception {
+        String modelId = "streaming";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("inference_id"));
+        assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
+
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
+        try {
+            var events = unifiedCompletionInferOnMockService(modelId, TaskType.COMPLETION, input);
+            var expectedResponses = expectedResultsIterator(input);
+            assertThat(events.size(), equalTo((input.size() + 1) * 2));
+            events.forEach(event -> {
+                switch (event.name()) {
+                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("message"));
+                    case DATA -> assertThat(event.value(), equalTo(expectedResponses.next()));
+                }
+            });
+        } finally {
+            deleteModel(modelId);
+        }
+    }
+
+    private static Iterator<String> expectedResultsIterator(List<String> input) {
+        return Stream.concat(input.stream().map(String::toUpperCase).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]")).iterator();
+    }
+
+    private static String expectedResult(String input) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.startObject();
+            builder.field("id", "id");
+            builder.startArray("choices");
+            builder.startObject();
+            builder.startObject("delta");
+            builder.field("content", input);
+            builder.endObject();
+            builder.field("index", 0);
+            builder.endObject();
+            builder.endArray();
+            builder.field("model", "gpt-4o-2024-08-06");
+            builder.field("object", "chat.completion.chunk");
+            builder.endObject();
+
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void testGetZeroModels() throws IOException {
-        var models = getModels("_all", TaskType.COMPLETION);
+        var models = getModels("_all", TaskType.RERANK);
         assertThat(models, empty());
     }
 }

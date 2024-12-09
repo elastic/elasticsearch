@@ -969,7 +969,7 @@ public abstract class Engine implements Closeable {
         long maxChunkSize
     ) throws IOException {
         // TODO: Remove this default implementation once the deprecated newChangesSnapshot is removed
-        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, 0);
+        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
     }
 
     /**

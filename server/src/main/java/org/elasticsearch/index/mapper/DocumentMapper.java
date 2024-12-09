@@ -21,6 +21,8 @@ import org.elasticsearch.index.IndexVersions;
 import java.util.List;
 
 public class DocumentMapper {
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
@@ -28,8 +30,6 @@ public class DocumentMapper {
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
     private final Logger logger;
-
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -72,9 +72,11 @@ public class DocumentMapper {
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
-    private void maybeLogDebug(Exception ex) {
+    private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document: " + ex.getMessage(), ex);
+        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
+            logger.error("Error while parsing document: " + ex.getMessage(), ex);
         }
     }
 
@@ -125,7 +127,7 @@ public class DocumentMapper {
         try {
             return documentParser.parseDocument(source, mappingLookup);
         } catch (Exception e) {
-            maybeLogDebug(e);
+            maybeLog(e);
             throw e;
         }
     }

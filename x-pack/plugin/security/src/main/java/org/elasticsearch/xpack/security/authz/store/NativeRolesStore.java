@@ -481,10 +481,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     );
                 } else if (Arrays.stream(role.getConditionalClusterPrivileges())
                     .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                    && clusterService.state().getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
+                    && clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
                         return new IllegalStateException(
                             "all nodes must have version ["
-                                + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                + TransportVersions.V_8_16_0.toReleaseVersion()
                                 + "] or higher to support the manage roles privilege"
                         );
                     }

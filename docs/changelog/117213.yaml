@@ -1,0 +1,6 @@
+pr: 117213
+summary: Fix reconstituting version string from components
+area: Ingest Node
+type: bug
+issues:
+ - 116950

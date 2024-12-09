@@ -26,6 +26,8 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -157,6 +159,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
+
+    private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -329,8 +333,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            var clientSettings = restClientSettings();
+            var adminSettings = restAdminSettings();
+            var hosts = clusterHosts.toArray(new HttpHost[0]);
+            client = buildClient(clientSettings, hosts);
+            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
@@ -1111,7 +1118,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
-            deleteRequest.setOptions(deleteRequest.getOptions().toBuilder().setWarningsHandler(ignoreAsyncSearchWarning()).build());
+
+            // If system index warning, ignore but log
+            // See: https://github.com/elastic/elasticsearch/issues/117099
+            // and: https://github.com/elastic/elasticsearch/issues/115809
+            deleteRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
+            );
+
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1124,28 +1138,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    // Make warnings handler that ignores the .async-search warning since .async-search may randomly appear when async requests are slow
-    // See: https://github.com/elastic/elasticsearch/issues/117099
-    protected static WarningsHandler ignoreAsyncSearchWarning() {
-        return new WarningsHandler() {
-            @Override
-            public boolean warningsShouldFailRequest(List<String> warnings) {
-                if (warnings.isEmpty()) {
-                    return false;
-                }
-                return warnings.equals(
-                    List.of(
-                        "this request accesses system indices: [.async-search], "
-                            + "but in a future major version, direct access to system indices will be prevented by default"
-                    )
-                ) == false;
+    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+        for (String warning : warnings) {
+            if (warning.startsWith("this request accesses system indices:")) {
+                SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
+            } else {
+                return true;
             }
+        }
 
-            @Override
-            public String toString() {
-                return "ignore .async-search warning";
-            }
-        };
+        return false;
     }
 
     protected static void wipeDataStreams() throws IOException {

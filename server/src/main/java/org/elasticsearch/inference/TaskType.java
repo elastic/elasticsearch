@@ -38,6 +38,10 @@ public enum TaskType implements Writeable {
     }
 
     public static TaskType fromStringOrStatusException(String name) {
+        if (name == null) {
+            throw new ElasticsearchStatusException("Task type must not be null", RestStatus.BAD_REQUEST);
+        }
+
         try {
             TaskType taskType = TaskType.fromString(name);
             return Objects.requireNonNull(taskType);

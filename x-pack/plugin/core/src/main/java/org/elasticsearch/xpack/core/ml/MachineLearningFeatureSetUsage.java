@@ -66,7 +66,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureUsage {
         this.analyticsUsage = in.readGenericMap();
         this.inferenceUsage = in.readGenericMap();
         this.nodeCount = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TELEMETRY_MEMORY_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.memoryUsage = in.readGenericMap();
         } else {
             this.memoryUsage = Map.of();
@@ -86,7 +86,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(analyticsUsage);
         out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TELEMETRY_MEMORY_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeGenericMap(memoryUsage);
         }
     }

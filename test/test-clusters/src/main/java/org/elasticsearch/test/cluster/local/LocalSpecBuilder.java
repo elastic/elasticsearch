@@ -137,7 +137,7 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     /**
      * Register a {@link SystemPropertyProvider}.
      */
-    T systemProperty(SystemPropertyProvider systemPropertyProvider);
+    T systemProperties(SystemPropertyProvider systemPropertyProvider);
 
     /**
      * Adds an additional command line argument to node JVM arguments.

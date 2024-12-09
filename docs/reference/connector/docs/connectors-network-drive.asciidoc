@@ -174,7 +174,7 @@ Advanced sync rules for this connector use *glob patterns*.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-recursively-within-folders]
-======= Indexing files and folders recursively within folders
+*Indexing files and folders recursively within folders*
 
 [source,js]
 ----
@@ -190,7 +190,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-folder]
-======= Indexing files and folders directly inside folder
+*Indexing files and folders directly inside folder*
 
 [source,js]
 ----
@@ -203,7 +203,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-a-set-of-folders]
-======= Indexing files and folders directly inside a set of folders
+*Indexing files and folders directly inside a set of folders*
 
 [source,js]
 ----
@@ -216,7 +216,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-network-drive-excluding-files-and-folders-that-match-a-pattern]
-======= Excluding files and folders that match a pattern
+*Excluding files and folders that match a pattern*
 
 [source,js]
 ----
@@ -432,7 +432,7 @@ Advanced sync rules for this connector use *glob patterns*.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-recursively-within-folders]
-======= Indexing files and folders recursively within folders
+*Indexing files and folders recursively within folders*
 
 [source,js]
 ----
@@ -448,7 +448,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder]
-======= Indexing files and folders directly inside folder
+*Indexing files and folders directly inside folder*
 
 [source,js]
 ----
@@ -461,7 +461,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders]
-======= Indexing files and folders directly inside a set of folders
+*Indexing files and folders directly inside a set of folders*
 
 [source,js]
 ----
@@ -474,7 +474,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern]
-======= Excluding files and folders that match a pattern
+*Excluding files and folders that match a pattern*
 
 [source,js]
 ----

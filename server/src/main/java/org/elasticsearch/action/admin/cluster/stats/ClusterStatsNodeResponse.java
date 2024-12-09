@@ -44,14 +44,11 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } else {
             searchUsageStats = new SearchUsageStats();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             repositoryUsageStats = RepositoryUsageStats.readFrom(in);
-        } else {
-            repositoryUsageStats = RepositoryUsageStats.EMPTY;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
             ccsMetrics = new CCSTelemetrySnapshot(in);
         } else {
+            repositoryUsageStats = RepositoryUsageStats.EMPTY;
             ccsMetrics = new CCSTelemetrySnapshot();
         }
     }
@@ -118,12 +115,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchUsageStats.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             repositoryUsageStats.writeTo(out);
-        } // else just drop these stats, ok for bwc
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
             ccsMetrics.writeTo(out);
-        }
+        } // else just drop these stats, ok for bwc
     }
 
 }

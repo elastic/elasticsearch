@@ -46,7 +46,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState = new BulkRequest.IncrementalState(in);
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
@@ -151,7 +151,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
     }

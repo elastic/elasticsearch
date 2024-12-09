@@ -500,9 +500,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         refresh();
 
-        assertHitCount(prepareSearch("test_index"), 5L);
-        assertHitCount(prepareSearch("simple_alias"), 5L);
-        assertHitCount(prepareSearch("templated_alias-test_index"), 5L);
+        assertHitCount(5L, prepareSearch("test_index"), prepareSearch("simple_alias"), prepareSearch("templated_alias-test_index"));
 
         assertResponse(prepareSearch("filtered_alias"), response -> {
             assertHitCount(response, 1L);
@@ -584,8 +582,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
-        assertHitCount(prepareSearch("test_index"), 2L);
-        assertHitCount(prepareSearch("alias1"), 2L);
+        assertHitCount(2L, prepareSearch("test_index"), prepareSearch("alias1"));
 
         assertResponse(prepareSearch("alias2"), response -> {
             assertHitCount(response, 1L);

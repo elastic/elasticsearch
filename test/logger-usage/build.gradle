@@ -10,9 +10,9 @@
 apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api 'org.ow2.asm:asm:9.7'
-  api 'org.ow2.asm:asm-tree:9.7'
-  api 'org.ow2.asm:asm-analysis:9.7'
+  api 'org.ow2.asm:asm:9.7.1'
+  api 'org.ow2.asm:asm-tree:9.7.1'
+  api 'org.ow2.asm:asm-analysis:9.7.1'
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   testImplementation project(":test:framework")
 }

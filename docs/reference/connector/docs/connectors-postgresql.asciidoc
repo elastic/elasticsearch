@@ -188,7 +188,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 Here is some example data that will be used in the following examples.
 
 [discrete#connectors-postgresql-sync-rules-advanced-example-data-1]
-======= `employee` table
+*`employee` table*
 
 [cols="3*", options="header"]
 |===
@@ -199,7 +199,7 @@ Here is some example data that will be used in the following examples.
 |===
 
 [discrete#connectors-postgresql-sync-rules-advanced-example-2]
-======= `customer` table
+*`customer` table*
 
 [cols="3*", options="header"]
 |===
@@ -213,7 +213,7 @@ Here is some example data that will be used in the following examples.
 ====== Advanced sync rules examples
 
 [discrete#connectors-postgresql-sync-rules-advanced-examples-1]
-======= Multiple table queries
+*Multiple table queries*
 
 [source,js]
 ----
@@ -235,7 +235,7 @@ Here is some example data that will be used in the following examples.
 // NOTCONSOLE
 
 [discrete#connectors-postgresql-sync-rules-advanced-examples-1-id-columns]
-======= Multiple table queries with `id_columns`
+*Multiple table queries with `id_columns`*
 
 In 8.15.0, we added a new optional `id_columns` field in our advanced sync rules for the PostgreSQL connector.
 Use the `id_columns` field to ingest tables which do not have a primary key. Include the names of unique fields so that the connector can use them to generate unique IDs for documents.
@@ -264,7 +264,7 @@ Use the `id_columns` field to ingest tables which do not have a primary key. Inc
 This example uses the `id_columns` field to specify the unique fields `emp_id` and `c_id` for the `employee` and `customer` tables, respectively.
 
 [discrete#connectors-postgresql-sync-rules-advanced-examples-2]
-======= Filtering data with `WHERE` clause
+*Filtering data with `WHERE` clause*
 
 [source,js]
 ----
@@ -278,7 +278,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
 // NOTCONSOLE
 
 [discrete#connectors-postgresql-sync-rules-advanced-examples-3]
-======= `JOIN` operations
+*`JOIN` operations*
 
 [source,js]
 ----
@@ -494,7 +494,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 Here is some example data that will be used in the following examples.
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-example-data-1]
-======= `employee` table
+*`employee` table*
 
 [cols="3*", options="header"]
 |===
@@ -505,7 +505,7 @@ Here is some example data that will be used in the following examples.
 |===
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-example-2]
-======= `customer` table
+*`customer` table*
 
 [cols="3*", options="header"]
 |===
@@ -519,7 +519,7 @@ Here is some example data that will be used in the following examples.
 ====== Advanced sync rules examples
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1]
-======== Multiple table queries
+*Multiple table queries*
 
 [source,js]
 ----
@@ -541,7 +541,7 @@ Here is some example data that will be used in the following examples.
 // NOTCONSOLE
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1-id-columns]
-======== Multiple table queries with `id_columns`
+*Multiple table queries with `id_columns`*
 
 In 8.15.0, we added a new optional `id_columns` field in our advanced sync rules for the PostgreSQL connector.
 Use the `id_columns` field to ingest tables which do not have a primary key. Include the names of unique fields so that the connector can use them to generate unique IDs for documents.
@@ -570,7 +570,7 @@ Use the `id_columns` field to ingest tables which do not have a primary key. Inc
 This example uses the `id_columns` field to specify the unique fields `emp_id` and `c_id` for the `employee` and `customer` tables, respectively.
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-2]
-======== Filtering data with `WHERE` clause
+*Filtering data with `WHERE` clause*
 
 [source,js]
 ----
@@ -584,7 +584,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
 // NOTCONSOLE
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-3]
-======== `JOIN` operations
+*`JOIN` operations*
 
 [source,js]
 ----

@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("c1", "c2");
     }
 

@@ -35,6 +35,19 @@ Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
 Now use <<semantic-search-semantic-text, semantic text>> to perform
 <<semantic-search, semantic search>> on your data.
 
+[discrete]
+[[adaptive-allocations]]
+=== Adaptive allocations
+
+Adaptive allocations allow inference services to dynamically adjust the number of model allocations based on the current load.
+
+When adaptive allocations are enabled:
+
+* The number of allocations scales up automatically when the load increases.
+- Allocations scale down to a minimum of 0 when the load decreases, saving resources.
+
+For more information about adaptive allocations and resources, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] documentation.
+
 //[discrete]
 //[[default-enpoints]]
 //=== Default {infer} endpoints

@@ -17,6 +17,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -287,40 +289,55 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
                 ObjectArray<B[]> topBucketsPerOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()))
             ) {
-                for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
-                    long owningOrd = owningBucketOrds.get(ordIdx);
-                    collectZeroDocEntriesIfNeeded(owningOrd, excludeDeletedDocs);
-                    int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+                try (IntArray bucketsToCollect = bigArrays().newIntArray(owningBucketOrds.size())) {
+                    long ordsToCollect = 0;
+                    for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                        final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                        collectZeroDocEntriesIfNeeded(owningBucketOrd, excludeDeletedDocs);
+                        final int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrd), bucketCountThresholds.getShardSize());
+                        ordsToCollect += size;
+                        bucketsToCollect.set(ordIdx, size);
+                    }
+                    try (LongArray ordsArray = bigArrays().newLongArray(ordsToCollect)) {
+                        long ordsCollected = 0;
+                        for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
+                            long owningOrd = owningBucketOrds.get(ordIdx);
+                            try (ObjectArrayPriorityQueue<BucketAndOrd<B>> ordered = buildPriorityQueue(bucketsToCollect.get(ordIdx))) {
+                                BucketAndOrd<B> spare = null;
+                                BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningOrd);
+                                BucketUpdater<B> bucketUpdater = bucketUpdater(owningOrd);
+                                while (ordsEnum.next()) {
+                                    long docCount = bucketDocCount(ordsEnum.ord());
+                                    otherDocCounts.increment(ordIdx, docCount);
+                                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                                        continue;
+                                    }
+                                    if (spare == null) {
+                                        checkRealMemoryCBForInternalBucket();
+                                        spare = new BucketAndOrd<>(buildEmptyBucket());
+                                    }
+                                    bucketUpdater.updateBucket(spare.bucket, ordsEnum, docCount);
+                                    spare.ord = ordsEnum.ord();
+                                    spare = ordered.insertWithOverflow(spare);
+                                }
 
-                    try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
-                        B spare = null;
-                        BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningOrd);
-                        BucketUpdater<B> bucketUpdater = bucketUpdater(owningOrd);
-                        while (ordsEnum.next()) {
-                            long docCount = bucketDocCount(ordsEnum.ord());
-                            otherDocCounts.increment(ordIdx, docCount);
-                            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                                continue;
+                                final int orderedSize = (int) ordered.size();
+                                final B[] buckets = buildBuckets(orderedSize);
+                                for (int i = orderedSize - 1; i >= 0; --i) {
+                                    BucketAndOrd<B> bucketAndOrd = ordered.pop();
+                                    finalizeBucket(bucketAndOrd.bucket);
+                                    buckets[i] = bucketAndOrd.bucket;
+                                    ordsArray.set(ordsCollected + i, bucketAndOrd.ord);
+                                    otherDocCounts.increment(ordIdx, -bucketAndOrd.bucket.getDocCount());
+                                }
+                                topBucketsPerOrd.set(ordIdx, buckets);
+                                ordsCollected += orderedSize;
                             }
-                            if (spare == null) {
-                                checkRealMemoryCBForInternalBucket();
-                                spare = buildEmptyBucket();
-                            }
-                            bucketUpdater.updateBucket(spare, ordsEnum, docCount);
-                            spare = ordered.insertWithOverflow(spare);
                         }
-
-                        topBucketsPerOrd.set(ordIdx, buildBuckets((int) ordered.size()));
-                        for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                            topBucketsPerOrd.get(ordIdx)[i] = ordered.pop();
-                            otherDocCounts.increment(ordIdx, -topBucketsPerOrd.get(ordIdx)[i].getDocCount());
-                            finalizeBucket(topBucketsPerOrd.get(ordIdx)[i]);
-                        }
+                        assert ordsCollected == ordsArray.size();
+                        buildSubAggs(topBucketsPerOrd, ordsArray);
                     }
                 }
-
-                buildSubAggs(topBucketsPerOrd);
-
                 return MapStringTermsAggregator.this.buildAggregations(
                     Math.toIntExact(owningBucketOrds.size()),
                     ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
@@ -355,7 +372,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract ObjectArrayPriorityQueue<B> buildPriorityQueue(int size);
+        abstract ObjectArrayPriorityQueue<BucketAndOrd<B>> buildPriorityQueue(int size);
 
         /**
          * Update fields in {@code spare} to reflect information collected for
@@ -382,9 +399,9 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
         /**
          * Build the sub-aggregations into the buckets. This will usually
-         * delegate to {@link #buildSubAggsForAllBuckets}.
+         * delegate to {@link #buildSubAggsForAllBuckets(ObjectArray, LongArray, BiConsumer)}.
          */
-        abstract void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd) throws IOException;
+        abstract void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd, LongArray ordsArray) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -407,9 +424,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
      */
     class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket> {
         private final ValuesSource valuesSource;
+        private final Comparator<BucketAndOrd<StringTerms.Bucket>> comparator;
 
-        StandardTermsResults(ValuesSource valuesSource) {
+        StandardTermsResults(ValuesSource valuesSource, Aggregator aggregator) {
             this.valuesSource = valuesSource;
+            this.comparator = order.partiallyBuiltBucketComparator(aggregator);
         }
 
         @Override
@@ -498,8 +517,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        ObjectArrayPriorityQueue<StringTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, bigArrays(), partiallyBuiltBucketComparator);
+        ObjectArrayPriorityQueue<BucketAndOrd<StringTerms.Bucket>> buildPriorityQueue(int size) {
+            return new BucketPriorityQueue<>(size, bigArrays(), comparator);
         }
 
         @Override
@@ -507,7 +526,6 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             return (spare, ordsEnum, docCount) -> {
                 ordsEnum.readValue(spare.termBytes);
                 spare.docCount = docCount;
-                spare.bucketOrd = ordsEnum.ord();
             };
         }
 
@@ -532,8 +550,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void buildSubAggs(ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd) throws IOException {
-            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
+        void buildSubAggs(ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd, LongArray ordArray) throws IOException {
+            buildSubAggsForAllBuckets(topBucketsPerOrd, ordArray, (b, a) -> b.aggregations = a);
         }
 
         @Override
@@ -625,7 +643,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        ObjectArrayPriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
+        ObjectArrayPriorityQueue<BucketAndOrd<SignificantStringTerms.Bucket>> buildPriorityQueue(int size) {
             return new BucketSignificancePriorityQueue<>(size, bigArrays());
         }
 
@@ -634,7 +652,6 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             long subsetSize = subsetSizes.get(owningBucketOrd);
             return (spare, ordsEnum, docCount) -> {
                 ordsEnum.readValue(spare.termBytes);
-                spare.bucketOrd = ordsEnum.ord();
                 spare.subsetDf = docCount;
                 spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
                 /*
@@ -667,8 +684,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void buildSubAggs(ObjectArray<SignificantStringTerms.Bucket[]> topBucketsPerOrd) throws IOException {
-            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
+        void buildSubAggs(ObjectArray<SignificantStringTerms.Bucket[]> topBucketsPerOrd, LongArray ordsArray) throws IOException {
+            buildSubAggsForAllBuckets(topBucketsPerOrd, ordsArray, (b, a) -> b.aggregations = a);
         }
 
         @Override

@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -57,6 +56,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -529,17 +529,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        // TODO: Use WeightedTokensQueryBuilder
                         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
-                        var boolQuery = QueryBuilders.boolQuery();
-                        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-                            boolQuery.should(
-                                QueryBuilders.termQuery(inferenceResultsFieldName, weightedToken.token()).boost(weightedToken.weight())
-                            );
-                        }
-                        boolQuery.minimumShouldMatch(1);
-
-                        yield boolQuery;
+                        yield new SparseVectorQueryBuilder(
+                            inferenceResultsFieldName,
+                            textExpansionResults.getWeightedTokens(),
+                            null,
+                            null,
+                            null,
+                            null
+                        );
                     }
                     case TEXT_EMBEDDING -> {
                         if (inferenceResults instanceof MlTextEmbeddingResults == false) {

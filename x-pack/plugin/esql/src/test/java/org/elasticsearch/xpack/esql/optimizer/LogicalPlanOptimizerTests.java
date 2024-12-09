@@ -4820,7 +4820,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         e.forEachUp(node -> {
             if (node.children().size() == 0) {
-                result.set(result.get() || Expressions.isNull(node));
+                result.set(result.get() || Expressions.isGuaranteedNull(node));
             }
         });
 

@@ -21,14 +21,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.reverseOrder;
 import static java.util.Collections.unmodifiableList;
+import static java.util.Comparator.comparing;
 
 /**
  * A container for elasticsearch supported version information used in BWC testing.
@@ -73,11 +74,11 @@ public class BwcVersions implements Serializable {
     private final transient List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
 
-    public BwcVersions(List<String> versionLines) {
-        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
+    public BwcVersions(List<String> versionLines, List<String> developmentBranches) {
+        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()), developmentBranches);
     }
 
-    public BwcVersions(Version currentVersionProperty, List<Version> allVersions) {
+    public BwcVersions(Version currentVersionProperty, List<Version> allVersions, List<String> developmentBranches) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
@@ -86,12 +87,12 @@ public class BwcVersions implements Serializable {
         this.currentVersion = allVersions.get(allVersions.size() - 1);
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
-        this.unreleased = computeUnreleased();
+        this.unreleased = computeUnreleased(developmentBranches);
     }
 
     // Visible for testing
-    BwcVersions(List<String> versionLines, Version currentVersionProperty) {
-        this(currentVersionProperty, parseVersionLines(versionLines));
+    BwcVersions(List<String> versionLines, Version currentVersionProperty, List<String> developmentBranches) {
+        this(currentVersionProperty, parseVersionLines(versionLines), developmentBranches);
     }
 
     private static List<Version> parseVersionLines(List<String> versionLines) {
@@ -126,58 +127,77 @@ public class BwcVersions implements Serializable {
         getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).map(unreleased::get).forEach(consumer);
     }
 
-    private String getBranchFor(Version version) {
-        if (version.equals(currentVersion)) {
-            // Just assume the current branch is 'main'. It's actually not important, we never check out the current branch.
-            return "main";
-        } else {
+    private String getBranchFor(Version version, List<String> developmentBranches) {
+        // If the current version matches a specific feature freeze branch, use that
+        if (developmentBranches.contains(version.getMajor() + "." + version.getMinor())) {
             return version.getMajor() + "." + version.getMinor();
+        } else if (developmentBranches.contains(version.getMajor() + ".x")) { // Otherwise if an n.x branch exists and we are that major
+            return version.getMajor() + ".x";
+        } else { // otherwise we're the main branch
+            return "main";
         }
     }
 
-    private Map<Version, UnreleasedVersionInfo> computeUnreleased() {
-        Set<Version> unreleased = new TreeSet<>();
-        // The current version is being worked, is always unreleased
-        unreleased.add(currentVersion);
-        // Recurse for all unreleased versions starting from the current version
-        addUnreleased(unreleased, currentVersion, 0);
-
-        // Grab the latest version from the previous major if necessary as well, this is going to be a maintenance release
-        Version maintenance = versions.stream()
-            .filter(v -> v.getMajor() == currentVersion.getMajor() - 1)
-            .max(Comparator.naturalOrder())
-            .orElseThrow();
-        // This is considered the maintenance release only if we haven't yet encountered it
-        boolean hasMaintenanceRelease = unreleased.add(maintenance);
-
-        List<Version> unreleasedList = unreleased.stream().sorted(Comparator.reverseOrder()).toList();
+    private Map<Version, UnreleasedVersionInfo> computeUnreleased(List<String> developmentBranches) {
         Map<Version, UnreleasedVersionInfo> result = new TreeMap<>();
-        boolean newMinor = false;
-        for (int i = 0; i < unreleasedList.size(); i++) {
-            Version esVersion = unreleasedList.get(i);
-            // This is either a new minor or staged release
-            if (currentVersion.equals(esVersion)) {
-                result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution"));
-            } else if (esVersion.getRevision() == 0) {
-                // If there are two upcoming unreleased minors then this one is the new minor
-                if (newMinor == false && unreleasedList.get(i + 1).getRevision() == 0) {
-                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, esVersion.getMajor() + ".x", ":distribution:bwc:minor"));
-                    newMinor = true;
-                } else if (newMinor == false
-                    && unreleasedList.stream().filter(v -> v.getMajor() == esVersion.getMajor() && v.getRevision() == 0).count() == 1) {
-                        // This is the only unreleased new minor which means we've not yet staged it for release
-                        result.put(esVersion, new UnreleasedVersionInfo(esVersion, esVersion.getMajor() + ".x", ":distribution:bwc:minor"));
-                        newMinor = true;
-                    } else {
-                        result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:staged"));
-                    }
-            } else {
-                // If this is the oldest unreleased version and we have a maintenance release
-                if (i == unreleasedList.size() - 1 && hasMaintenanceRelease) {
-                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:maintenance"));
-                } else {
-                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:bugfix"));
-                }
+
+        // The current version is always in development
+        String currentBranch = getBranchFor(currentVersion, developmentBranches);
+        result.put(currentVersion, new UnreleasedVersionInfo(currentVersion, currentBranch, ":distribution"));
+
+        // Check for an n.x branch as well
+        if (currentBranch.equals("main") && developmentBranches.stream().anyMatch(s -> s.endsWith(".x"))) {
+            // This should correspond to the latest new minor
+            Version version = versions.stream()
+                .sorted(Comparator.reverseOrder())
+                .filter(v -> v.getMajor() == (currentVersion.getMajor() - 1) && v.getRevision() == 0)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Unable to determine development version for branch"));
+            String branch = getBranchFor(version, developmentBranches);
+            assert branch.equals(currentVersion.getMajor() - 1 + ".x") : "Expected branch does not match development branch";
+
+            result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:minor"));
+        }
+
+        // Now handle all the feature freeze branches
+        List<String> featureFreezeBranches = developmentBranches.stream()
+            .filter(b -> Pattern.matches("[0-9]+\\.[0-9]+", b))
+            .sorted(reverseOrder(comparing(s -> Version.fromString(s, Version.Mode.RELAXED))))
+            .toList();
+
+        boolean existingBugfix = false;
+        for (int i = 0; i < featureFreezeBranches.size(); i++) {
+            String branch = featureFreezeBranches.get(i);
+            Version version = versions.stream()
+                .sorted(Comparator.reverseOrder())
+                .filter(v -> v.toString().startsWith(branch))
+                .findFirst()
+                .orElse(null);
+
+            // If we don't know about this version we can ignore it
+            if (version == null) {
+                continue;
+            }
+
+            // If this is the current version we can ignore as we've already handled it
+            if (version.equals(currentVersion)) {
+                continue;
+            }
+
+            // We only maintain compatibility back one major so ignore anything older
+            if (currentVersion.getMajor() - version.getMajor() > 1) {
+                continue;
+            }
+
+            // This is the maintenance version
+            if (i == featureFreezeBranches.size() - 1) {
+                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:maintenance"));
+            } else if (version.getRevision() == 0) { // This is the next staged minor
+                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:staged"));
+            } else { // This is a bugfix
+                String project = existingBugfix ? "bugfix2" : "bugfix";
+                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));
+                existingBugfix = true;
             }
         }
 

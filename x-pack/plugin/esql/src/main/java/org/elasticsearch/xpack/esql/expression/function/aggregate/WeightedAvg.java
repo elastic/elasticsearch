@@ -68,10 +68,8 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
                 : in.readNamedWriteable(Expression.class)
         );

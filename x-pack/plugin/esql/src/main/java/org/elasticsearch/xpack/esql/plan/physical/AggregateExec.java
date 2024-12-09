@@ -85,7 +85,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeEnum(getMode());
             out.writeNamedWriteableCollection(intermediateAttributes());
         } else {

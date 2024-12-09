@@ -105,7 +105,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestTimeInMillis = in.readVLong();
             suggestCurrent = in.readVLong();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_FAILURE_STATS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 queryFailure = in.readVLong();
                 fetchFailure = in.readVLong();
             }
@@ -129,7 +129,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(suggestTimeInMillis);
             out.writeVLong(suggestCurrent);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_FAILURE_STATS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeVLong(queryFailure);
                 out.writeVLong(fetchFailure);
             }

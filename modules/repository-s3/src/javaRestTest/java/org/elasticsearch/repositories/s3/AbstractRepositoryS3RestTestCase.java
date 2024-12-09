@@ -19,6 +19,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -27,7 +28,6 @@ import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -152,10 +152,9 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
         final var responseException = expectThrows(ResponseException.class, () -> client().performRequest(registerRequest));
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(
-            responseException.getMessage(),
-            allOf(containsString("repository_verification_exception"), containsString("is not accessible on master node"))
-        );
+        final var responseObjectPath = ObjectPath.createFromResponse(responseException.getResponse());
+        assertThat(responseObjectPath.evaluate("error.type"), equalTo("repository_verification_exception"));
+        assertThat(responseObjectPath.evaluate("error.reason"), containsString("is not accessible on master node"));
     }
 
     public void testNonexistentClient() throws Exception {
@@ -181,15 +180,11 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
         final var responseException = expectThrows(ResponseException.class, () -> client().performRequest(registerRequest));
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(
-            responseException.getMessage(),
-            allOf(
-                containsString("repository_verification_exception"),
-                containsString("is not accessible on master node"),
-                containsString("illegal_argument_exception"),
-                containsString("Unknown s3 client name")
-            )
-        );
+        final var responseObjectPath = ObjectPath.createFromResponse(responseException.getResponse());
+        assertThat(responseObjectPath.evaluate("error.type"), equalTo("repository_verification_exception"));
+        assertThat(responseObjectPath.evaluate("error.reason"), containsString("is not accessible on master node"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.type"), equalTo("illegal_argument_exception"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.reason"), containsString("Unknown s3 client name"));
     }
 
     public void testNonexistentSnapshot() throws Exception {
@@ -212,7 +207,8 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
             final var getSnapshotRequest = new Request("GET", "/_snapshot/" + repositoryName + "/" + randomIdentifier());
             final var getSnapshotException = expectThrows(ResponseException.class, () -> client().performRequest(getSnapshotRequest));
             assertEquals(RestStatus.NOT_FOUND.getStatus(), getSnapshotException.getResponse().getStatusLine().getStatusCode());
-            assertThat(getSnapshotException.getMessage(), containsString("snapshot_missing_exception"));
+            final var getResponseObjectPath = ObjectPath.createFromResponse(getSnapshotException.getResponse());
+            assertThat(getResponseObjectPath.evaluate("error.type"), equalTo("snapshot_missing_exception"));
 
             final var restoreRequest = new Request("POST", "/_snapshot/" + repositoryName + "/" + randomIdentifier() + "/_restore");
             if (randomBoolean()) {
@@ -220,13 +216,15 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
             }
             final var restoreException = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
             assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), restoreException.getResponse().getStatusLine().getStatusCode());
-            assertThat(restoreException.getMessage(), containsString("snapshot_restore_exception"));
+            final var restoreResponseObjectPath = ObjectPath.createFromResponse(restoreException.getResponse());
+            assertThat(restoreResponseObjectPath.evaluate("error.type"), equalTo("snapshot_restore_exception"));
 
             if (readonly != Boolean.TRUE) {
                 final var deleteRequest = new Request("DELETE", "/_snapshot/" + repositoryName + "/" + randomIdentifier());
                 final var deleteException = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
                 assertEquals(RestStatus.NOT_FOUND.getStatus(), deleteException.getResponse().getStatusLine().getStatusCode());
-                assertThat(deleteException.getMessage(), containsString("snapshot_missing_exception"));
+                final var deleteResponseObjectPath = ObjectPath.createFromResponse(deleteException.getResponse());
+                assertThat(deleteResponseObjectPath.evaluate("error.type"), equalTo("snapshot_missing_exception"));
             }
         }
     }

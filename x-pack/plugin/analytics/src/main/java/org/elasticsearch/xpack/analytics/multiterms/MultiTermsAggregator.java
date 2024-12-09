@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
 import org.elasticsearch.search.aggregations.bucket.terms.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.BytesKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -72,7 +74,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     protected final List<DocValueFormat> formats;
     protected final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
-    protected final Comparator<InternalMultiTerms.Bucket> partiallyBuiltBucketComparator;
+    protected final Comparator<BucketAndOrd<InternalMultiTerms.Bucket>> partiallyBuiltBucketComparator;
     protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
     private final List<TermValuesSource> values;
@@ -99,7 +101,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         super(name, factories, context, parent, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order;
-        partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
+        partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(this);
         this.formats = formats;
         this.showTermDocCountError = showTermDocCountError;
         if (subAggsNeedScore() && descendsFromNestedAggregator(parent) || context.isInSortOrderExecutionRequired()) {
@@ -242,51 +244,66 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
             ObjectArray<InternalMultiTerms.Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())
         ) {
-            for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
-                final long owningBucketOrd = owningBucketOrds.get(ordIdx);
-                long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
+            try (IntArray bucketsToCollect = bigArrays().newIntArray(owningBucketOrds.size())) {
+                long ordsToCollect = 0;
+                for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                    int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx)), bucketCountThresholds.getShardSize());
+                    ordsToCollect += size;
+                    bucketsToCollect.set(ordIdx, size);
+                }
+                try (LongArray ordsArray = bigArrays().newLongArray(ordsToCollect)) {
+                    long ordsCollected = 0;
+                    for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                        final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                        long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
 
-                int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-                try (
-                    ObjectArrayPriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(
-                        size,
-                        bigArrays(),
-                        partiallyBuiltBucketComparator
-                    )
-                ) {
-                    InternalMultiTerms.Bucket spare = null;
-                    BytesRef spareKey = null;
-                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts.increment(ordIdx, docCount);
-                        if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                            continue;
-                        }
-                        if (spare == null) {
-                            checkRealMemoryCBForInternalBucket();
-                            spare = new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters);
-                            spareKey = new BytesRef();
-                        }
-                        ordsEnum.readValue(spareKey);
-                        spare.terms = unpackTerms(spareKey);
-                        spare.docCount = docCount;
-                        spare.bucketOrd = ordsEnum.ord();
-                        spare = ordered.insertWithOverflow(spare);
-                    }
+                        int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+                        try (
+                            ObjectArrayPriorityQueue<BucketAndOrd<InternalMultiTerms.Bucket>> ordered = new BucketPriorityQueue<>(
+                                size,
+                                bigArrays(),
+                                partiallyBuiltBucketComparator
+                            )
+                        ) {
+                            BucketAndOrd<InternalMultiTerms.Bucket> spare = null;
+                            BytesRef spareKey = null;
+                            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+                            while (ordsEnum.next()) {
+                                long docCount = bucketDocCount(ordsEnum.ord());
+                                otherDocCounts.increment(ordIdx, docCount);
+                                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                                    continue;
+                                }
+                                if (spare == null) {
+                                    checkRealMemoryCBForInternalBucket();
+                                    spare = new BucketAndOrd<>(
+                                        new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters)
+                                    );
+                                    spareKey = new BytesRef();
+                                }
+                                ordsEnum.readValue(spareKey);
+                                spare.bucket.terms = unpackTerms(spareKey);
+                                spare.bucket.docCount = docCount;
+                                spare.ord = ordsEnum.ord();
+                                spare = ordered.insertWithOverflow(spare);
+                            }
 
-                    // Get the top buckets
-                    InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[(int) ordered.size()];
-                    topBucketsPerOrd.set(ordIdx, bucketsForOrd);
-                    for (int b = (int) ordered.size() - 1; b >= 0; --b) {
-                        InternalMultiTerms.Bucket[] buckets = topBucketsPerOrd.get(ordIdx);
-                        buckets[b] = ordered.pop();
-                        otherDocCounts.increment(ordIdx, -buckets[b].getDocCount());
+                            // Get the top buckets
+                            int orderedSize = (int) ordered.size();
+                            InternalMultiTerms.Bucket[] buckets = new InternalMultiTerms.Bucket[orderedSize];
+                            for (int i = orderedSize - 1; i >= 0; --i) {
+                                BucketAndOrd<InternalMultiTerms.Bucket> bucketAndOrd = ordered.pop();
+                                buckets[i] = bucketAndOrd.bucket;
+                                ordsArray.set(ordsCollected + i, bucketAndOrd.ord);
+                                otherDocCounts.increment(ordIdx, -buckets[i].getDocCount());
+                            }
+                            topBucketsPerOrd.set(ordIdx, buckets);
+                            ordsCollected += orderedSize;
+                        }
                     }
+                    buildSubAggsForAllBuckets(topBucketsPerOrd, ordsArray, (b, a) -> b.aggregations = a);
                 }
             }
-
-            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
 
             return buildAggregations(
                 Math.toIntExact(owningBucketOrds.size()),

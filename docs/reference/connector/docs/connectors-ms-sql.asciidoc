@@ -196,7 +196,7 @@ Here are a few examples of advanced sync rules for this connector.
 ====
 
 [discrete#es-connectors-ms-sql-sync-rules-advanced-queries]
-======= Example: Two queries
+*Example: Two queries*
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
 
@@ -220,7 +220,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 // NOTCONSOLE
 
 [discrete#es-connectors-ms-sql-sync-rules-example-one-where]
-======= Example: One WHERE query
+*Example: One WHERE query*
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
 
@@ -236,7 +236,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 // NOTCONSOLE
 
 [discrete#es-connectors-ms-sql-sync-rules-example-one-join]
-======= Example: One JOIN query
+*Example: One JOIN query*
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
 
@@ -484,7 +484,7 @@ Here are a few examples of advanced sync rules for this connector.
 ====
 
 [discrete#es-connectors-ms-sql-client-sync-rules-advanced-queries]
-======= Example: Two queries
+*Example: Two queries*
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
 
@@ -508,7 +508,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 // NOTCONSOLE
 
 [discrete#es-connectors-ms-sql-client-sync-rules-example-one-where]
-======= Example: One WHERE query
+*Example: One WHERE query*
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
 
@@ -524,7 +524,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 // NOTCONSOLE
 
 [discrete#es-connectors-ms-sql-client-sync-rules-example-one-join]
-======= Example: One JOIN query
+*Example: One JOIN query*
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
 

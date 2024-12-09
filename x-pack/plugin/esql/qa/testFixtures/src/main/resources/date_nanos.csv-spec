@@ -216,11 +216,25 @@ millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
 ;
 
+date nanos greater than millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) > TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+;
+
 date nanos greater than or equal
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
-FROM date_nanos | WHERE MV_MIN(nanos) >= TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") | SORT nanos DESC;
+FROM date_nanos | WHERE MV_MIN(nanos) >= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -231,11 +245,38 @@ millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
 ;
 
+date nanos greater than or equal millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) >= TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+
 date nanos less than
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
-FROM date_nanos | WHERE MV_MIN(nanos) < TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
+FROM date_nanos | WHERE MV_MIN(nanos) < TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos less than millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) < TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
@@ -246,13 +287,26 @@ date nanos less than equal
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
-FROM date_nanos | WHERE MV_MIN(nanos) <= TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
+FROM date_nanos | WHERE MV_MIN(nanos) <= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
 ;
+
+date nanos less than equal millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) <= TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
 
 date nanos equals
 required_capability: to_date_nanos
@@ -264,11 +318,46 @@ millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
 ;
 
+date nanos equals millis exact match
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) == TO_DATETIME("2023-10-23T12:27:28.948Z");
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos equals millis without exact match
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) == TO_DATETIME("2023-10-23T13:33:34.937");
+
+millis:date              | nanos:date_nanos               | num:long
+;
+
 date nanos not equals
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE MV_MIN(nanos) != TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos not equals millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) != TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456

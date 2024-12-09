@@ -45,12 +45,14 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -114,7 +116,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, FakeMlPlugin.class);
+        return List.of(XPackClientPlugin.class, InferencePlugin.class, FakeMlPlugin.class);
     }
 
     @Override
@@ -194,9 +196,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private void assertSparseEmbeddingLuceneQuery(Query query) {
         Query innerQuery = assertOuterBooleanQuery(query);
-        assertThat(innerQuery, instanceOf(BooleanQuery.class));
+        assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
+        assertThat(((SparseVectorQueryWrapper) innerQuery).getTermsQuery(), instanceOf(BooleanQuery.class));
 
-        BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
+        BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
             assertThat(c.occur(), equalTo(SHOULD));

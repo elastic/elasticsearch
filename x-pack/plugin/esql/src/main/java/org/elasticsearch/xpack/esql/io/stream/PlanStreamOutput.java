@@ -154,8 +154,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
             Integer cacheId = attributeIdFromCache(attribute);
             if (cacheId != null) {
                 writeZLong(cacheId);
@@ -186,8 +185,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
             Integer cacheId = esFieldIdFromCache(field);
             if (cacheId != null) {
                 writeZLong(cacheId);

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCr
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -58,6 +59,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
 
 public class MistralService extends SenderService {
@@ -86,6 +88,16 @@ public class MistralService extends SenderService {
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
     @Override

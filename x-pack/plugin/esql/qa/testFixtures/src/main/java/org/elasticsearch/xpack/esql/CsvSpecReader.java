@@ -80,7 +80,12 @@ public final class CsvSpecReader {
                     testCase.expectedWarningsRegexString.add(regex);
                     testCase.expectedWarningsRegex.add(warningRegexToPattern(regex));
                 } else if (lower.startsWith("ignoreorder:")) {
-                    testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
+                    String value = lower.substring("ignoreOrder:".length()).trim();
+                    if ("true".equals(value)) {
+                        testCase.ignoreOrder = true;
+                    } else if ("false".equals(value) == false) {
+                        throw new IllegalArgumentException("Invalid value for ignoreOrder: [" + value + "], it can only be true or false");
+                    }
                 } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
                     // clean-up and emit

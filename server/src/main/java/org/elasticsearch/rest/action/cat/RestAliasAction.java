@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -47,9 +48,11 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
-            ? new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias")))
-            : new GetAliasesRequest();
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
+        final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(
+            masterNodeTimeout,
+            Strings.commaDelimitedListToStringArray(request.param("alias"))
+        );
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()

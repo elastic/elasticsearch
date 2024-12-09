@@ -205,10 +205,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 in.readZLong(); // obsolete normalisedBytesParsed
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 in.readBoolean(); // obsolete originatesFromUpdateByScript
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
                 in.readBoolean(); // obsolete originatesFromUpdateByDoc
             }
         }
@@ -789,10 +787,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeZLong(-1);  // obsolete normalisedBytesParsed
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeBoolean(false); // obsolete originatesFromUpdateByScript
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
         }

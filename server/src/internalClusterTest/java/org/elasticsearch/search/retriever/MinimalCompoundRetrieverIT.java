@@ -26,7 +26,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +42,7 @@ public class MinimalCompoundRetrieverIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER = "cluster_a";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 

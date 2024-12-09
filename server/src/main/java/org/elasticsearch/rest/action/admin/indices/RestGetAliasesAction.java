@@ -27,6 +27,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -207,7 +208,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
-        final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
+        final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(masterNodeTimeout, aliases);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));

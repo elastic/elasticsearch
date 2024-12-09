@@ -61,6 +61,11 @@
         ],
         "default":"all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for waiting for new cluster state in case it is blocked",
+        "default":"30s"
       }
     }
   }

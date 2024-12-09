@@ -128,7 +128,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
-        // Datetime
+        // Datenanos
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "NotEqualsLongsEvaluator",
@@ -142,6 +142,36 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
+
+        // nanoseconds to milliseconds. NB: these have different evaluator names depending on the direction
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> false == l.equals(r),

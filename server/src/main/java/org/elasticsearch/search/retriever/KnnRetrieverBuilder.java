@@ -184,8 +184,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                     ll.onResponse(null);
                 }));
             });
-            var rewritten = new KnnRetrieverBuilder(this, () -> toSet.get(), null);
-            return rewritten;
+            return new KnnRetrieverBuilder(this, () -> toSet.get(), null);
         }
         return super.rewrite(ctx);
     }

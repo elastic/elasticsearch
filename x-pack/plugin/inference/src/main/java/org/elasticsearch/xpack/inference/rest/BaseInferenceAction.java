@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.rest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -21,27 +22,32 @@ import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
 abstract class BaseInferenceAction extends BaseRestHandler {
+    static Params parseParams(RestRequest restRequest) {
+        if (restRequest.hasParam(INFERENCE_ID)) {
+            var inferenceEntityId = restRequest.param(INFERENCE_ID);
+            var taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
+            return new Params(inferenceEntityId, taskType);
+        } else {
+            return new Params(restRequest.param(TASK_TYPE_OR_INFERENCE_ID), TaskType.ANY);
+        }
+    }
+
+    record Params(String inferenceEntityId, TaskType taskType) {}
+
+    static TimeValue parseTimeout(RestRequest restRequest) {
+        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), InferenceAction.Request.DEFAULT_TIMEOUT);
+    }
+
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String inferenceEntityId;
-        TaskType taskType;
-        if (restRequest.hasParam(INFERENCE_ID)) {
-            inferenceEntityId = restRequest.param(INFERENCE_ID);
-            taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
-        } else {
-            inferenceEntityId = restRequest.param(TASK_TYPE_OR_INFERENCE_ID);
-            taskType = TaskType.ANY;
-        }
+        var params = parseParams(restRequest);
 
         InferenceAction.Request.Builder requestBuilder;
         try (var parser = restRequest.contentParser()) {
-            requestBuilder = InferenceAction.Request.parseRequest(inferenceEntityId, taskType, parser);
+            requestBuilder = InferenceAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), parser);
         }
 
-        var inferTimeout = restRequest.paramAsTime(
-            InferenceAction.Request.TIMEOUT.getPreferredName(),
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
+        var inferTimeout = parseTimeout(restRequest);
         requestBuilder.setInferenceTimeout(inferTimeout);
         var request = prepareInferenceRequest(requestBuilder);
         return channel -> client.execute(InferenceAction.INSTANCE, request, listener(channel));

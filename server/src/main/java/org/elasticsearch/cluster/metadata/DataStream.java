@@ -71,6 +71,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
@@ -200,9 +201,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             : null;
         // This boolean flag has been moved in data stream options
         var failureStoreEnabled = in.getTransportVersion()
-            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS)
-                ? in.readBoolean()
-                : false;
+            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
         var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
             ? readIndices(in)
             : List.<Index>of();
@@ -216,7 +215,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
         DataStreamOptions dataStreamOptions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
         } else {
             // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
@@ -1077,7 +1076,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion()
-            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeBoolean(isFailureStoreEnabled());
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
@@ -1093,7 +1092,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeBoolean(failureIndices.rolloverOnWrite);
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
     }

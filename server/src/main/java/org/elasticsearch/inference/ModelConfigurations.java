@@ -121,7 +121,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)
+        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
             ? in.readOptionalNamedWriteable(ChunkingSettings.class)
             : null;
     }
@@ -133,7 +133,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalNamedWriteable(chunkingSettings);
         }
     }

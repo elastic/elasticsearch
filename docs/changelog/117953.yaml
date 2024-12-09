@@ -1,0 +1,5 @@
+pr: 117953
+summary: Acquire stats searcher for data stream stats
+area: Data streams
+type: bug
+issues: []

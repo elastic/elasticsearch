@@ -41,6 +41,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
 
     public void testLicenseAllowsSyntheticSource() {
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -53,6 +54,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
 
     public void testLicenseAllowsSyntheticSourceTemplateValidation() {
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -65,6 +67,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
 
     public void testDefaultDisallow() {
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -77,6 +80,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
 
     public void testFallback() {
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -95,6 +99,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         when(mockLicenseService.getLicense()).thenReturn(license);
 
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
@@ -103,6 +108,8 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
             "legacy licensed usage is allowed, so not fallback to stored source",
             licenseService.fallbackToStoredSource(false, true)
         );
+        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE));
+        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY));
         Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
     }
 
@@ -112,6 +119,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         when(mockLicenseService.getLicense()).thenReturn(license);
 
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         licenseService.setLicenseState(licenseState);
@@ -125,14 +133,16 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     }
 
     public void testGoldOrPlatinumLicenseBeyondCutoffDate() throws Exception {
-        long start = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        long start = LocalDateTime.of(2025, 2, 5, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         License license = createGoldOrPlatinumLicense(start);
         mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
         assertTrue("beyond cutoff date, so fallback to stored source", licenseService.fallbackToStoredSource(false, true));
@@ -143,19 +153,21 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     public void testGoldOrPlatinumLicenseCustomCutoffDate() throws Exception {
         licenseService = new SyntheticSourceLicenseService(Settings.EMPTY, "2025-01-02T00:00");
 
-        long start = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        long start = LocalDateTime.of(2025, 1, 3, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         License license = createGoldOrPlatinumLicense(start);
         mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
         MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertFalse("custom cutoff date, so fallback to stored source", licenseService.fallbackToStoredSource(false, true));
-        Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
-        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY));
+        assertTrue("custom cutoff date, so fallback to stored source", licenseService.fallbackToStoredSource(false, true));
+        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE));
+        Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
     }
 
     static License createEnterpriseLicense() throws Exception {

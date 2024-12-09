@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleNestedIT extends ESIntegTestCase {
+
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
         ensureGreen();
@@ -87,21 +88,20 @@ public class SimpleNestedIT extends ESIntegTestCase {
         // check the numDocs
         assertDocumentCount("test", 3);
 
-        assertHitCount(prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")), 0L);
-
-        // search for something that matches the nested doc, and see that we don't find the nested doc
-        assertHitCount(prepareSearch("test"), 1L);
-        assertHitCount(prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")), 0L);
-
-        // now, do a nested query
-        assertHitCountAndNoFailures(
-            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
-            1L
+        assertHitCount(
+            0L,
+            prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")),
+            prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1"))
         );
-        assertHitCountAndNoFailures(
+
+        assertHitCount(
+            1L,
+            // search for something that matches the nested doc, and see that we don't find the nested doc
+            prepareSearch("test"),
+            // now, do a nested query
+            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
             prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg))
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH),
-            1L
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
         );
 
         // add another doc, one that would match if it was not nested...

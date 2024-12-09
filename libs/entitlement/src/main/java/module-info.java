@@ -17,6 +17,7 @@ module org.elasticsearch.entitlement {
     requires static org.elasticsearch.entitlement.bridge; // At runtime, this will be in java.base
 
     exports org.elasticsearch.entitlement.runtime.api;
+    exports org.elasticsearch.entitlement.runtime.policy;
     exports org.elasticsearch.entitlement.instrumentation;
     exports org.elasticsearch.entitlement.bootstrap to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.initialization to java.base;

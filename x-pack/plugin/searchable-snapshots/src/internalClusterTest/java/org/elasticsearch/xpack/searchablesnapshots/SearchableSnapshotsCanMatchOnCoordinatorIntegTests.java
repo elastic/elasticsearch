@@ -42,7 +42,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -379,7 +378,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                     }
                     if (searchShardsResponse != null) {
                         for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                            assertFalse("no shard should be marked as skipped", group.skipped());
+                            assertTrue("the shard is skipped because index value is outside the query time range", group.skipped());
                         }
                     }
                 }
@@ -788,11 +787,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
      * The latter is a way to do only a can-match rather than all search phases.
      */
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/97878",
-        value = "org.elasticsearch.snapshots:DEBUG,org.elasticsearch.indices.recovery:DEBUG,org.elasticsearch.action.search:DEBUG"
-    )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105339")
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);

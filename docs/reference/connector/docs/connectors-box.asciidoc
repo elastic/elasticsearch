@@ -54,7 +54,7 @@ For additional operations, see <<es-connectors-usage>>.
 ====== Box Free Account
 
 [discrete#es-connectors-box-create-oauth-custom-app]
-======= Create Box User Authentication (OAuth 2.0) Custom App
+*Create Box User Authentication (OAuth 2.0) Custom App*
 
 You'll need to create an OAuth app in the Box developer console by following these steps:
 
@@ -64,7 +64,7 @@ You'll need to create an OAuth app in the Box developer console by following the
 4. Once the app is created, *Client ID* and *Client secret* values are available in the configuration tab. Keep these handy.
 
 [discrete#es-connectors-box-connector-generate-a-refresh-token]
-======= Generate a refresh Token
+*Generate a refresh Token*
 
 To generate a refresh token, follow these steps:
 
@@ -97,7 +97,7 @@ Save the refresh token from the response. You'll need this for the connector con
 ====== Box Enterprise Account
 
 [discrete#es-connectors-box-connector-create-box-server-authentication-client-credentials-grant-custom-app]
-======= Create Box Server Authentication (Client Credentials Grant) Custom App
+*Create Box Server Authentication (Client Credentials Grant) Custom App*
 
 1. Register a new app in the https://app.box.com/developers/console[Box dev console] with custom App and select Server Authentication (Client Credentials Grant).
 2. Check following permissions:
@@ -224,7 +224,7 @@ For additional operations, see <<es-connectors-usage>>.
 ====== Box Free Account
 
 [discrete#es-connectors-box-client-create-oauth-custom-app]
-======= Create Box User Authentication (OAuth 2.0) Custom App
+*Create Box User Authentication (OAuth 2.0) Custom App*
 
 You'll need to create an OAuth app in the Box developer console by following these steps:
 
@@ -234,7 +234,7 @@ You'll need to create an OAuth app in the Box developer console by following the
 4. Once the app is created, *Client ID* and *Client secret* values are available in the configuration tab. Keep these handy.
 
 [discrete#es-connectors-box-client-connector-generate-a-refresh-token]
-======= Generate a refresh Token
+*Generate a refresh Token*
 
 To generate a refresh token, follow these steps:
 
@@ -267,7 +267,7 @@ Save the refresh token from the response. You'll need this for the connector con
 ====== Box Enterprise Account
 
 [discrete#es-connectors-box-client-connector-create-box-server-authentication-client-credentials-grant-custom-app]
-======= Create Box Server Authentication (Client Credentials Grant) Custom App
+*Create Box Server Authentication (Client Credentials Grant) Custom App*
 
 1. Register a new app in the https://app.box.com/developers/console[Box dev console] with custom App and select Server Authentication (Client Credentials Grant).
 2. Check following permissions:

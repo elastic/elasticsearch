@@ -102,7 +102,7 @@ final class ExpandSearchPhase extends SearchPhase {
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
                     MultiSearchResponse.Item item = it.next();
                     if (item.isFailure()) {
-                        context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
+                        phaseFailure(item.getFailure());
                         return;
                     }
                     SearchHits innerHits = item.getResponse().getHits();
@@ -119,7 +119,11 @@ final class ExpandSearchPhase extends SearchPhase {
                 }
             }
             onPhaseDone();
-        }, context::onFailure));
+        }, this::phaseFailure));
+    }
+
+    private void phaseFailure(Exception ex) {
+        context.onPhaseFailure(this, "failed to expand hits", ex);
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {

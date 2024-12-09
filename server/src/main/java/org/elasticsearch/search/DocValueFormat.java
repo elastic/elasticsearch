@@ -263,7 +263,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         private DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
-            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
+            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? LocaleUtils.parse(in.readString())
                 : DateFieldMapper.DEFAULT_LOCALE;
             String zoneId = in.readString();
@@ -297,7 +297,7 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeString(formatter.locale().toString());
             }
             out.writeString(timeZone.getId());

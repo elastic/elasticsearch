@@ -62,7 +62,7 @@ public final class RRFRankDoc extends RankDoc {
         rank = in.readVInt();
         positions = in.readIntArray();
         scores = in.readFloatArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.rankConstant = in.readVInt();
         } else {
             this.rankConstant = DEFAULT_RANK_CONSTANT;
@@ -119,7 +119,7 @@ public final class RRFRankDoc extends RankDoc {
         out.writeVInt(rank);
         out.writeIntArray(positions);
         out.writeFloatArray(scores);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVInt(rankConstant);
         }
     }
@@ -173,6 +173,6 @@ public final class RRFRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RRF_QUERY_REWRITE;
+        return TransportVersions.V_8_16_0;
     }
 }

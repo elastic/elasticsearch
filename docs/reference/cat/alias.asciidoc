@@ -51,6 +51,8 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[cat-alias-api-example]]
 ==== {api-examples-title}
 

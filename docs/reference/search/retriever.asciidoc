@@ -765,11 +765,11 @@ clauses in a <<query-dsl-bool-query, boolean query>>.
 [[retriever-restrictions]]
 ==== Restrictions on search parameters when specifying a retriever
 
-When a retriever is specified as part of a search, the following elements are not allowed at the top-level.
-Instead they are only allowed as elements of specific retrievers:
+When a retriever is specified as part of a search, the following elements are not allowed at the top-level:
 
 * <<request-body-search-query, `query`>>
 * <<search-api-knn, `knn`>>
 * <<search-after, `search_after`>>
 * <<request-body-search-terminate-after, `terminate_after`>>
 * <<search-sort-param, `sort`>>
+* <<rescore, `rescore`>>

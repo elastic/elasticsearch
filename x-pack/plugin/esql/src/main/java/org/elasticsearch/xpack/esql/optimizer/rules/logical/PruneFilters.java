@@ -29,7 +29,7 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
             if (TRUE.equals(condition)) {
                 return filter.child();
             }
-            if (FALSE.equals(condition) || Expressions.isNull(condition)) {
+            if (FALSE.equals(condition) || Expressions.isGuaranteedNull(condition)) {
                 return PruneEmptyPlans.skipPlan(filter);
             }
         }
@@ -42,8 +42,8 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
 
     private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
         if (binaryLogic instanceof Or or) {
-            boolean nullLeft = Expressions.isNull(or.left());
-            boolean nullRight = Expressions.isNull(or.right());
+            boolean nullLeft = Expressions.isGuaranteedNull(or.left());
+            boolean nullRight = Expressions.isGuaranteedNull(or.right());
             if (nullLeft && nullRight) {
                 return new Literal(binaryLogic.source(), null, DataType.NULL);
             }
@@ -55,7 +55,7 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
             }
         }
         if (binaryLogic instanceof And and) {
-            if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
+            if (Expressions.isGuaranteedNull(and.left()) || Expressions.isGuaranteedNull(and.right())) {
                 return new Literal(binaryLogic.source(), null, DataType.NULL);
             }
         }

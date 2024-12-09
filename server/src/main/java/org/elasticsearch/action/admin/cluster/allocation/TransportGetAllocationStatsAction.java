@@ -118,7 +118,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)
+            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readEnumSet(Metric.class)
                 : EnumSet.of(Metric.ALLOCATIONS, Metric.FS);
         }
@@ -127,7 +127,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0);
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeEnumSet(metrics);
             }
         }

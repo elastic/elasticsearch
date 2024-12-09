@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
@@ -67,8 +68,15 @@ public class AmazonBedrockMockRequestSender implements Sender {
         ActionListener<InferenceServiceResults> listener
     ) {
         sendCounter++;
-        var docsInput = (DocumentsOnlyInput) inferenceInputs;
-        inputs.add(docsInput.getInputs());
+        if (inferenceInputs instanceof DocumentsOnlyInput docsInput) {
+            inputs.add(docsInput.getInputs());
+        } else if (inferenceInputs instanceof ChatCompletionInput chatCompletionInput) {
+            inputs.add(chatCompletionInput.getInputs());
+        } else {
+            throw new IllegalArgumentException(
+                "Invalid inference inputs received in mock sender: " + inferenceInputs.getClass().getSimpleName()
+            );
+        }
 
         if (results.isEmpty()) {
             listener.onFailure(new ElasticsearchException("No results found"));

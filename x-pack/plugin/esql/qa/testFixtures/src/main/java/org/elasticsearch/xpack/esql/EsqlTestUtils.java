@@ -730,7 +730,7 @@ public final class EsqlTestUtils {
             case SHORT -> randomShort();
             case INTEGER, COUNTER_INTEGER -> randomInt();
             case LONG, COUNTER_LONG -> randomLong();
-            case UNSIGNED_LONG, DATE_NANOS -> randomNonNegativeLong();
+            case UNSIGNED_LONG -> randomNonNegativeLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
             case DATE_NANOS -> randomLongBetween(0, Long.MAX_VALUE);

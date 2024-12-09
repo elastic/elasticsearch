@@ -16,13 +16,9 @@ esplugin {
   classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
-versions << [
-  'aws': '1.12.270'
-]
-
 dependencies {
-  api "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-ec2:${versions.awsv1sdk}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.awsv1sdk}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"

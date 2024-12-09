@@ -314,9 +314,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/116975
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testRetryPointInTime
-  issue: https://github.com/elastic/elasticsearch/issues/117116
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117027
@@ -405,3 +402,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
+- class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
+  method: testNonexistentBucketReadonlyFalse
+  issue: https://github.com/elastic/elasticsearch/issues/118225
+- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
+  method: testCancelRequestWhenFailingFetchingPages
+  issue: https://github.com/elastic/elasticsearch/issues/118213

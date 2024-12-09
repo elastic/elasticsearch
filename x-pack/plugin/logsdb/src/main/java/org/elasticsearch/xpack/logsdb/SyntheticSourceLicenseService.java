@@ -38,7 +38,6 @@ final class SyntheticSourceLicenseService {
         "xpack.mapping.synthetic_source_fallback_to_stored_source",
         false,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
         Setting.Property.OperatorDynamic
     );
 

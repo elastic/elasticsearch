@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.cluster.FeatureFlag.ELASTICSEARCH_RERANKER_ENABLED;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -46,6 +47,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
+        .feature(ELASTICSEARCH_RERANKER_ENABLED)
         .build();
 
     @Override

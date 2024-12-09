@@ -19,6 +19,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -160,9 +161,11 @@ public final class Utils {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
+        when(mockConfigs.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         var mockModel = mock(Model.class);
         when(mockModel.getConfigurations()).thenReturn(mockConfigs);
+        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         return mockModel;
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -152,10 +153,9 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
         final var responseException = expectThrows(ResponseException.class, () -> client().performRequest(registerRequest));
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(
-            responseException.getMessage(),
-            allOf(containsString("repository_verification_exception"), containsString("is not accessible on master node"))
-        );
+        final ObjectPath responseObjectPath = ObjectPath.createFromResponse(responseException.getResponse());
+        assertThat(responseObjectPath.evaluate("error.type"), equalTo("repository_verification_exception"));
+        assertThat(responseObjectPath.evaluate("error.reason"), containsString("is not accessible on master node"));
     }
 
     public void testNonexistentClient() throws Exception {

@@ -29,9 +29,16 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
             var limitSource = limit.limit();
             var l1 = (int) limitSource.fold();
             var l2 = (int) childLimit.limit().fold();
-            return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
+            // Re-execute the rule if the user specifies a limit at the end.
+            // eg like:FROM test | sort x | eval language_code = x::keyword | lookup join languages_lookup on language_code
+            // | keep x, language_code, language_name | limit 10
+            return this.rule(new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child()));
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
+                if (unary.child() instanceof Join join && join.left() instanceof Eval eval && eval.child() instanceof Limit == false) {
+                    eval = (Eval)eval.replaceChild(limit.replaceChild(eval.child()));
+                    unary = unary.replaceChild(join.replaceLeft(eval));
+                }
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand mvx) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down

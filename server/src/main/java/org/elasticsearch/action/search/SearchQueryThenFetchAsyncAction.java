@@ -517,7 +517,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 if (routing == null) {
                     failOnUnavailable(shardIndex, shardRoutings);
                 } else {
-                    if (minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION)) {
+                    if (routing.getClusterAlias() == null && minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION)) {
                         perNodeQueries.computeIfAbsent(
                             routing.getNodeId(),
                             ignored -> new NodeQueryRequest(new ArrayList<>(), request)
@@ -536,6 +536,16 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 }
             }
             perNodeQueries.forEach((nodeId, request) -> {
+                if (request.shards.size() == 1) {
+                    var shard = request.shards.getFirst();
+                    this.performPhaseOnShard(
+                        shard.shardIndex,
+                        shardIterators[shard.shardIndex],
+                        new SearchShardTarget(nodeId, shard.shardId, null)
+                    );
+                    return;
+                }
+
                 try {
                     searchTransportService.transportService()
                         .sendChildRequest(

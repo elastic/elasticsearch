@@ -27,10 +27,6 @@ base {
   archivesName = 'x-pack-inference'
 }
 
-versions << [
-  'aws2': '2.28.13'
-]
-
 dependencies {
   implementation project(path: ':libs:logging')
   compileOnly project(":server")
@@ -63,36 +59,36 @@ dependencies {
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 
   /* AWS SDK v2 */
-  implementation ("software.amazon.awssdk:bedrockruntime:${versions.aws2}")
-  api "software.amazon.awssdk:protocol-core:${versions.aws2}"
-  api "software.amazon.awssdk:aws-json-protocol:${versions.aws2}"
-  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws2}"
-  api "software.amazon.awssdk:http-auth-aws:${versions.aws2}"
-  api "software.amazon.awssdk:checksums-spi:${versions.aws2}"
-  api "software.amazon.awssdk:checksums:${versions.aws2}"
-  api "software.amazon.awssdk:sdk-core:${versions.aws2}"
+  implementation ("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  api "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
   api "org.reactivestreams:reactive-streams:1.0.4"
   api "org.reactivestreams:reactive-streams-tck:1.0.4"
-  api "software.amazon.awssdk:profiles:${versions.aws2}"
-  api "software.amazon.awssdk:retries:${versions.aws2}"
-  api "software.amazon.awssdk:auth:${versions.aws2}"
-  api "software.amazon.awssdk:http-auth-aws-eventstream:${versions.aws2}"
+  api "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:retries:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-auth-aws-eventstream:${versions.awsv2sdk}"
   api "software.amazon.eventstream:eventstream:1.0.1"
-  api "software.amazon.awssdk:http-auth-spi:${versions.aws2}"
-  api "software.amazon.awssdk:http-auth:${versions.aws2}"
-  api "software.amazon.awssdk:identity-spi:${versions.aws2}"
-  api "software.amazon.awssdk:http-client-spi:${versions.aws2}"
-  api "software.amazon.awssdk:regions:${versions.aws2}"
-  api "software.amazon.awssdk:annotations:${versions.aws2}"
-  api "software.amazon.awssdk:utils:${versions.aws2}"
-  api "software.amazon.awssdk:aws-core:${versions.aws2}"
-  api "software.amazon.awssdk:metrics-spi:${versions.aws2}"
-  api "software.amazon.awssdk:json-utils:${versions.aws2}"
-  api "software.amazon.awssdk:endpoints-spi:${versions.aws2}"
-  api "software.amazon.awssdk:retries-spi:${versions.aws2}"
+  api "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:retries-spi:${versions.awsv2sdk}"
 
   /* Netty (via AWS SDKv2) */
-  implementation "software.amazon.awssdk:netty-nio-client:${versions.aws2}"
+  implementation "software.amazon.awssdk:netty-nio-client:${versions.awsv2sdk}"
   runtimeOnly "io.netty:netty-buffer:${versions.netty}"
   runtimeOnly "io.netty:netty-codec-dns:${versions.netty}"
   runtimeOnly "io.netty:netty-codec-http2:${versions.netty}"

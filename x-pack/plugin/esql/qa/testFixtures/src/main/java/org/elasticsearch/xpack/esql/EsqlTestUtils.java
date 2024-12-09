@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -30,7 +31,9 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -118,6 +121,7 @@ import static org.elasticsearch.test.ESTestCase.randomIp;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -129,6 +133,8 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public final class EsqlTestUtils {
 
@@ -723,7 +729,8 @@ public final class EsqlTestUtils {
             case BYTE -> randomByte();
             case SHORT -> randomShort();
             case INTEGER, COUNTER_INTEGER -> randomInt();
-            case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
+            case LONG, COUNTER_LONG -> randomLong();
+            case UNSIGNED_LONG -> randomNonNegativeLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
             case DATE_NANOS -> randomLongBetween(0, Long.MAX_VALUE);
@@ -783,5 +790,18 @@ public final class EsqlTestUtils {
 
     public static QueryParam paramAsPattern(String name, Object value) {
         return new QueryParam(name, value, NULL, PATTERN);
+    }
+
+    /**
+     * Asserts that:
+     * 1. Cancellation exceptions are ignored when more relevant exceptions exist.
+     * 2. Transport exceptions are unwrapped, and the actual causes are reported to users.
+     */
+    public static void assertEsqlFailure(Exception e) {
+        assertNotNull(e);
+        var cancellationFailure = ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).orElse(null);
+        assertNull("cancellation exceptions must be ignored", cancellationFailure);
+        ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof RemoteTransportException)
+            .ifPresent(transportFailure -> assertNull("remote transport exception must be unwrapped", transportFailure.getCause()));
     }
 }

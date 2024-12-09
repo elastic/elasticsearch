@@ -217,7 +217,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String blobName = params.get("name");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final String uploadId = UUIDs.randomBase64UUID();
-                mockGcsBlobStore.updateBlob(blobName, ifGenerationMatch, BytesArray.EMPTY);
+                mockGcsBlobStore.updateBlob(blobName, ifGenerationMatch, BytesArray.EMPTY, uploadId);
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");

@@ -1733,7 +1733,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } catch (SearchContextMissingException e) {
                     final String searcherId = canMatchContext.request.readerId().getSearcherId();
                     if (searcherId == null) {
-                        throw e;
+                        return new CanMatchShardResponse(true, null);
                     }
                     if (queryStillMatchesAfterRewrite(
                         canMatchContext.request,
@@ -1744,7 +1744,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard().acquireSearcherSupplier();
                     if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
                         searcherSupplier.close();
-                        throw e;
+                        return new CanMatchShardResponse(true, null);
                     }
                     releasable = searcherSupplier;
                     searcher = searcherSupplier.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);

@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +30,7 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
         private final String sourceIndex;
 
@@ -71,6 +73,16 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
         @Override
         public int hashCode() {
             return Objects.hash(sourceIndex);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { sourceIndex };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
     }
 

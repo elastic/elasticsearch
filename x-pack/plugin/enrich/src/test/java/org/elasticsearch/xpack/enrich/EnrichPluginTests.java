@@ -54,6 +54,9 @@ public class EnrichPluginTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         final var warnings = super.filteredWarnings();
         warnings.add("[enrich.cache.size] setting was deprecated in Elasticsearch and will be removed in a future release.");
+        warnings.add(
+            "The [enrich.cache.size] setting is deprecated and will be removed in a future version. Please use [enrich.cache_size] instead."
+        );
         return warnings;
     }
 }

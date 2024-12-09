@@ -181,6 +181,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             }
             deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
+                "enrich_cache_size_name",
                 "The [{}] setting is deprecated and will be removed in a future version. Please use [{}] instead.",
                 CACHE_SIZE_SETTING_BWC_NAME,
                 CACHE_SIZE_SETTING_NAME

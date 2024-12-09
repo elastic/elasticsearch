@@ -937,14 +937,15 @@ public abstract class Engine implements Closeable {
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
     /**
-     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
-     * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
+     * @deprecated This method is deprecated will and be removed once #114618 is applied to the serverless repository.
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
+    @Deprecated
     public abstract Translog.Snapshot newChangesSnapshot(
         String source,
         long fromSeqNo,
@@ -953,6 +954,23 @@ public abstract class Engine implements Closeable {
         boolean singleConsumer,
         boolean accessStats
     ) throws IOException;
+
+    /**
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
+     * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
+     */
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats,
+        long maxChunkSize
+    ) throws IOException {
+        // TODO: Remove this default implementation once the deprecated newChangesSnapshot is removed
+        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
+    }
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)

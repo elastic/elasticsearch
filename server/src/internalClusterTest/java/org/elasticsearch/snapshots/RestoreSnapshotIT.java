@@ -809,6 +809,24 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(error.getMessage(), containsString("cannot modify setting [index.mapping.source.mode] on restore"));
     }
 
+    public void testRestoreChangeRecoveryUseSyntheticSource() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().put("index.recovery.use_synthetic_source", true))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.recovery.use_synthetic_source] on restore"));
+    }
+
     public void testRestoreChangeIndexSorts() {
         Client client = client();
         createRepository("test-repo", "fs");

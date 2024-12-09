@@ -225,8 +225,6 @@ public class BinaryQuantizer {
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        // FIXME: vectors need to be padded but that's expensive; update transponseBin to deal
-        byteQuery = BQVectorUtils.pad(byteQuery, discretizedDimensions);
         BQSpaceUtils.transposeHalfByte(byteQuery, queryDestination);
         QueryFactors factors = new QueryFactors(quantResult.quantizedSum, distToC, lower, width, normVmC, vDotC);
         final float[] indexCorrections;
@@ -368,8 +366,6 @@ public class BinaryQuantizer {
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        // FIXME: vectors need to be padded but that's expensive; update transponseBin to deal
-        byteQuery = BQVectorUtils.pad(byteQuery, discretizedDimensions);
         BQSpaceUtils.transposeHalfByte(byteQuery, destination);
 
         QueryFactors factors;

@@ -23,7 +23,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .name("yamlRestTest")
-        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.ml.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         // Integration tests are supposed to enable/disable exporters before/after each test

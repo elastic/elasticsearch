@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;

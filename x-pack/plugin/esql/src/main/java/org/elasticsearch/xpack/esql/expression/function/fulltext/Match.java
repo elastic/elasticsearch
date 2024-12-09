@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ChickenQueryBuilder;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ResolvedQueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -27,6 +33,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -41,8 +48,20 @@ public class Match extends FullTextFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
     private final Expression field;
+    private final QueryBuilder queryBuilder;
 
     private transient Boolean isOperator;
+
+    // TODO: I dislike the need of having a private constructor here
+    // We cannot simply add the queryBuilder argument to the existing constructor unless we
+    // add new FunctionDefinitions in EsqlFunctionRegistry to account for functions that can receive
+    // a QueryBuilder argument. This would be similar to what we did for the functions that can receive
+    // Configuration (e.g. Now).
+    private Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery));
+        this.field = field;
+        this.queryBuilder = queryBuilder;
+    }
 
     @FunctionInfo(
         returnType = "boolean",
@@ -59,15 +78,36 @@ public class Match extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, List.of(field, matchQuery));
-        this.field = field;
+        this(source, field, matchQuery, null);
+    }
+
+    public Match newWithQueryBuilder(QueryBuilder queryBuilder) {
+        return new Match(source(), field, query(), queryBuilder);
+    }
+
+    public Query asQuery() {
+        if (queryBuilder != null) {
+            return new ResolvedQueryBuilder(source(), queryBuilder);
+        }
+
+        // special temp handling of semantic text to show it works
+        if (field.dataType() == DataType.SEMANTIC_TEXT) {
+            return new ResolvedQueryBuilder(
+                source(),
+                new ChickenQueryBuilder(((FieldAttribute) field).name(), queryAsText())
+            );
+        }
+        // end special handling of semantic text
+
+        return new MatchQuery(source(), ((FieldAttribute) field).name(), queryAsText());
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Match(source, field, query);
+        QueryBuilder queryBuilder = in.readNamedWriteable(QueryBuilder.class);
+        return new Match(source, field, query, queryBuilder);
     }
 
     @Override
@@ -75,6 +115,7 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        out.writeNamedWriteable(queryBuilder);
     }
 
     @Override
@@ -104,7 +145,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder);
     }
 
     @Override
@@ -130,10 +171,32 @@ public class Match extends FullTextFunction implements Validatable {
         return isOperator() ? ":" : super.functionName();
     }
 
+    public QueryBuilder queryBuilder() {
+        return queryBuilder;
+    }
+
     private boolean isOperator() {
         if (isOperator == null) {
             isOperator = source().text().toUpperCase(Locale.ROOT).matches("^" + super.functionName() + "\\s*\\(.*\\)") == false;
         }
         return isOperator;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), field, queryBuilder);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+
+        Match other = (Match) obj;
+        return functionType().equals(other.functionType())
+            && field.equals(other.field)
+            && query().equals(other.query())
+            && Objects.equals(queryBuilder, other.queryBuilder);
     }
 }

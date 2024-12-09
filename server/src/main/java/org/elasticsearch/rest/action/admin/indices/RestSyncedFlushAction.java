@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -37,10 +38,14 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/_flush/synced").deprecated(DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_flush/synced").deprecated(DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

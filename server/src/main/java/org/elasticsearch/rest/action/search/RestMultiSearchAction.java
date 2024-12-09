@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
@@ -66,8 +67,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
             new Route(POST, "/{index}/_msearch"),
-            Route.builder(GET, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/_msearch")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_msearch")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

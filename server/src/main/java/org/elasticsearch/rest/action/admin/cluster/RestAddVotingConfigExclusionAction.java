@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -42,7 +43,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         return List.of(
             new Route(POST, "/_cluster/voting_config_exclusions"),
             Route.builder(POST, "/_cluster/voting_config_exclusions/{node_name}")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .deprecated(DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build()
         );
     }

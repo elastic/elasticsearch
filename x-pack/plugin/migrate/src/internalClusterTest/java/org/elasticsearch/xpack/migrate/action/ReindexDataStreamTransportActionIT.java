@@ -51,7 +51,10 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
 
     public void testNonExistentDataStream() {
         String nonExistentDataStreamName = randomAlphaOfLength(50);
-        ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(nonExistentDataStreamName);
+        ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
+            ReindexDataStreamAction.Mode.UPGRADE,
+            nonExistentDataStreamName
+        );
         assertThrows(
             ResourceNotFoundException.class,
             () -> client().execute(new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest)
@@ -61,7 +64,10 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
 
     public void testAlreadyUpToDateDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(50).toLowerCase(Locale.ROOT);
-        ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(dataStreamName);
+        ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
+            ReindexDataStreamAction.Mode.UPGRADE,
+            dataStreamName
+        );
         createDataStream(dataStreamName);
         ReindexDataStreamResponse response = client().execute(
             new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME),

@@ -276,7 +276,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "pausing timestamp should be set",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at [" + testThreadPool.relativeTimeInMillis() + "]*"
+                    "*Finished signalling shard snapshots to pause at [" + testThreadPool.relativeTimeInMillis() + " millis]*"
                 )
             );
 
@@ -360,7 +360,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "pausing timestamp should be unset",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at [-1]*"
+                    "*Finished signalling shard snapshots to pause at [-1 millis]*"
                 )
             );
 

@@ -108,7 +108,7 @@ setup:
           - create: {}
           - '{"@timestamp": "2017-06-22"}'
 
-          # event.ingested populated, it gets overwritten
+          # event.ingested populated, it is preserved
           - create: {}
           - '{"@timestamp": "2017-06-22", "event": {"ingested": "2017-06-22T00:00:00.123456Z"}}'
 
@@ -120,4 +120,5 @@ setup:
         body:
           fields: ["event.ingested"]
   - length: { hits.hits: 2 }
+  - match: { hits.hits.1.fields: {"event.ingested": ["2017-06-22T00:00:00.123Z"]} }
   

@@ -32,5 +32,6 @@ processors:
       if (ctx?.event == null) {
         ctx.event = [:];
       }
-
-      ctx.event.ingested = metadata().now.withNano(0).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+      if (!ctx.event.containsKey('ingested')) {
+        ctx.event.ingested = metadata().now.withNano(0).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+      }

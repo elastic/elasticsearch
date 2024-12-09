@@ -16,11 +16,11 @@ import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -62,8 +63,12 @@ import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -76,12 +81,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
@@ -160,9 +167,11 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
         QueryPragmas queryPragmas = configuration.pragmas();
+        Set<String> lookupIndexNames = findLookupIndexNames(physicalPlan);
+        Set<String> concreteIndexNames = selectConcreteIndices(clusterToConcreteIndices, lookupIndexNames);
         if (dataNodePlan == null) {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
-                String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
+            if (concreteIndexNames.isEmpty() == false) {
+                String error = "expected no concrete indices without data node plan; got " + concreteIndexNames;
                 assert false : error;
                 listener.onFailure(new IllegalStateException(error));
                 return;
@@ -185,7 +194,7 @@ public class ComputeService {
                 return;
             }
         } else {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
+            if (concreteIndexNames.isEmpty()) {
                 var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
                 assert false : error;
                 listener.onFailure(new IllegalStateException(error));
@@ -259,6 +268,42 @@ public class ComputeService {
         }
     }
 
+    private Set<String> selectConcreteIndices(Map<String, OriginalIndices> clusterToConcreteIndices, Set<String> indexesToIgnore) {
+        Set<String> concreteIndexNames = new HashSet<>();
+        clusterToConcreteIndices.forEach((clusterAlias, concreteIndices) -> {
+            for (String index : concreteIndices.indices()) {
+                if (indexesToIgnore.contains(index) == false) {
+                    concreteIndexNames.add(index);
+                }
+            }
+        });
+        return concreteIndexNames;
+    }
+
+    private Set<String> findLookupIndexNames(PhysicalPlan physicalPlan) {
+        Set<String> lookupIndexNames = new HashSet<>();
+        // When planning JOIN on the coordinator node: "LookupJoinExec.lookup()->FragmentExec.fragment()->EsRelation.index()"
+        physicalPlan.forEachDown(
+            LookupJoinExec.class,
+            lookupJoinExec -> lookupJoinExec.lookup()
+                .forEachDown(
+                    FragmentExec.class,
+                    frag -> frag.fragment().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
+                )
+        );
+        // When planning JOIN on the data node: "FragmentExec.fragment()->Join.right()->EsRelation.index()"
+        // TODO this only works for LEFT join, so we still need to support RIGHT join
+        physicalPlan.forEachDown(
+            FragmentExec.class,
+            fragmentExec -> fragmentExec.fragment()
+                .forEachDown(
+                    Join.class,
+                    join -> join.right().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
+                )
+        );
+        return lookupIndexNames;
+    }
+
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         if (execInfo.isCrossClusterSearch()) {
@@ -330,7 +375,7 @@ public class ComputeService {
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
-            try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
+            try (EsqlRefCountingListener refs = new EsqlRefCountingListener(lookupListener)) {
                 // update ExecutionInfo with shard counts (total and skipped)
                 executionInfo.swapCluster(
                     clusterAlias,
@@ -391,7 +436,7 @@ public class ComputeService {
     ) {
         var queryPragmas = configuration.pragmas();
         var linkExchangeListeners = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        try (RefCountingListener refs = new RefCountingListener(linkExchangeListeners)) {
+        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(linkExchangeListeners)) {
             for (RemoteCluster cluster : clusters) {
                 final var childSessionId = newChildSession(sessionId);
                 ExchangeService.openExchange(
@@ -428,12 +473,17 @@ public class ComputeService {
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts.size());
         for (int i = 0; i < context.searchContexts.size(); i++) {
             SearchContext searchContext = context.searchContexts.get(i);
+            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
+
+                @Override
+                public SourceProvider createSourceProvider() {
+                    final Supplier<SourceProvider> supplier = () -> super.createSourceProvider();
+                    return new ReinitializingSourceProvider(supplier);
+
+                }
+            };
             contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext.getSearchExecutionContext(),
-                    searchContext.request().getAliasFilter()
-                )
+                new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
         final List<Driver> drivers;
@@ -562,8 +612,9 @@ public class ComputeService {
     /**
      * Result from lookupDataNodes where can_match is performed to determine what shards can be skipped
      * and which target nodes are needed for running the ES|QL query
-     * @param dataNodes list of DataNode to perform the ES|QL query on
-     * @param totalShards Total number of shards (from can_match phase), including skipped shards
+     *
+     * @param dataNodes     list of DataNode to perform the ES|QL query on
+     * @param totalShards   Total number of shards (from can_match phase), including skipped shards
      * @param skippedShards Number of skipped shards (from can_match phase)
      */
     record DataNodeResult(List<DataNode> dataNodes, int totalShards, int skippedShards) {}

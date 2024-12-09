@@ -63,7 +63,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16)) {
+                || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_16_0)) {
                 this.persistDefaultConfig = in.readBoolean();
             } else {
                 this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
@@ -89,7 +89,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16)) {
+                || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_16_0)) {
                 out.writeBoolean(this.persistDefaultConfig);
             }
         }

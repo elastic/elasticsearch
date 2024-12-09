@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless;
 
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -47,7 +46,7 @@ import java.util.Map;
  */
 public class StatelessMockRepositoryStrategy {
     /**
-     * Called in {@link BlobStore#deleteBlobsIgnoringIfNotExists(OperationPurpose, Iterator)}.
+     * Called in {@link BlobContainer#deleteBlobsIgnoringIfNotExists(OperationPurpose, Iterator)}.
      */
     public void blobStoreDeleteBlobsIgnoringIfNotExists(
         CheckedRunnable<IOException> originalRunnable,

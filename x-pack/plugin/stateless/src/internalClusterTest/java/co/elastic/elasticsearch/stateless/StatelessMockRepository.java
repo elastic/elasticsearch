@@ -98,20 +98,6 @@ public class StatelessMockRepository extends FsRepository {
             return new StatelessMockBlobContainer(super.blobContainer(path));
         }
 
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-            // We need to consume and copy the blobNames iterator twice to ensure that both originalRunnable
-            // and blobStoreDeleteBlobsIgnoringIfNotExists get all the expected blob names
-            List<String> blobNamesCopy = new ArrayList<>();
-            blobNames.forEachRemaining(blobNamesCopy::add);
-            List<String> blobNamesCopy2 = new ArrayList<>(blobNamesCopy);
-            getStrategy().blobStoreDeleteBlobsIgnoringIfNotExists(
-                () -> super.deleteBlobsIgnoringIfNotExists(purpose, blobNamesCopy.iterator()),
-                purpose,
-                blobNamesCopy2.iterator()
-            );
-        }
-
         /**
          * BlobContainer wrapper that calls a {@link StatelessMockRepositoryStrategy} implementation before falling through to the delegate
          * BlobContainer.
@@ -149,6 +135,20 @@ public class StatelessMockRepository extends FsRepository {
                     blobName,
                     position,
                     length
+                );
+            }
+
+            @Override
+            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+                // We need to consume and copy the blobNames iterator twice to ensure that both originalRunnable
+                // and blobStoreDeleteBlobsIgnoringIfNotExists get all the expected blob names
+                List<String> blobNamesCopy = new ArrayList<>();
+                blobNames.forEachRemaining(blobNamesCopy::add);
+                List<String> blobNamesCopy2 = new ArrayList<>(blobNamesCopy);
+                getStrategy().blobStoreDeleteBlobsIgnoringIfNotExists(
+                    () -> super.deleteBlobsIgnoringIfNotExists(purpose, blobNamesCopy.iterator()),
+                    purpose,
+                    blobNamesCopy2.iterator()
                 );
             }
 

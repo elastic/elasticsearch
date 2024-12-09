@@ -19,6 +19,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -27,9 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 
-public class ErrorTraceIT extends HttpSmokeTestCase {
+public class SearchErrorTraceIT extends HttpSmokeTestCase {
     private AtomicBoolean hasStackTrace;
 
+    @Before
     private void setupMessageListener() {
         internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
             ts.addMessageListener(new TransportMessageListener() {
@@ -60,7 +62,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
 
     public void testSearchFailingQueryErrorTraceDefault() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -80,7 +81,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
 
     public void testSearchFailingQueryErrorTraceTrue() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -101,7 +101,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
 
     public void testSearchFailingQueryErrorTraceFalse() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -122,7 +121,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
 
     public void testMultiSearchFailingQueryErrorTraceDefault() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -140,7 +138,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
 
     public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -159,7 +156,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -174,68 +170,6 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
         searchRequest.addParameter("error_trace", "false");
         getRestClient().performRequest(searchRequest);
 
-        assertFalse(hasStackTrace.get());
-    }
-
-    public void testAsyncSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
-        setupIndexWithDocs();
-
-        Request searchRequest = new Request("POST", "/_async_search");
-        searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "simple_query_string" : {
-                        "query": "foo",
-                        "fields": ["field"]
-                    }
-                }
-            }
-            """);
-        getRestClient().performRequest(searchRequest);
-        assertFalse(hasStackTrace.get());
-    }
-
-    public void testAsyncSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
-        setupIndexWithDocs();
-
-        Request searchRequest = new Request("POST", "/_async_search");
-        searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "simple_query_string" : {
-                        "query": "foo",
-                        "fields": ["field"]
-                    }
-                }
-            }
-            """);
-        searchRequest.addParameter("error_trace", "true");
-        getRestClient().performRequest(searchRequest);
-        assertTrue(hasStackTrace.get());
-    }
-
-    public void testAsyncSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
-        setupIndexWithDocs();
-
-        Request searchRequest = new Request("POST", "/_async_search");
-        searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "simple_query_string" : {
-                        "query": "foo",
-                        "fields": ["field"]
-                    }
-                }
-            }
-            """);
-        searchRequest.addParameter("error_trace", "false");
-        getRestClient().performRequest(searchRequest);
         assertFalse(hasStackTrace.get());
     }
 }

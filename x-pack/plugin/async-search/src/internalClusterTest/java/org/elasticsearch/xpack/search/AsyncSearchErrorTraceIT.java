@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,6 +35,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     private AtomicBoolean hasStackTrace;
 
+    @Before
     private void setupMessageListener() {
         internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
             ts.addMessageListener(new TransportMessageListener() {
@@ -64,7 +66,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     public void testAsyncSearchFailingQueryErrorTraceDefault() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -84,7 +85,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     public void testAsyncSearchFailingQueryErrorTraceTrue() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -105,7 +105,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     public void testAsyncSearchFailingQueryErrorTraceFalse() throws IOException {
         hasStackTrace = new AtomicBoolean();
-        setupMessageListener();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");

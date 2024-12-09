@@ -270,6 +270,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
+    private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
 
     private final ThreadPool threadPool;
 
@@ -509,10 +510,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         String header = threadPool.getThreadContext().getHeaderOrDefault("error_trace", "true");
         if (header.equals("false")) {
             return listener.delegateResponse((l, e) -> {
-                // e.setStackTrace(new StackTraceElement[0]);
-                // e.getCause().setStackTrace(new StackTraceElement[0]);
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
-                    err.setStackTrace(new StackTraceElement[0]); // use constant
+                    err.setStackTrace(EMPTY_STACK_TRACE_ARRAY);
                     return false;
                 });
                 l.onFailure(e);

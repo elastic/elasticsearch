@@ -33,6 +33,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
@@ -46,11 +47,13 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
@@ -225,6 +228,210 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
             )
         );
+    }
+
+    private static Version nextMajor() {
+        return Version.fromId((Version.CURRENT.major + 1) * 1_000_000 + 99);
+    }
+
+    public void testCanJoinClusterWithAssumedFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "af1"), otherNode.getId(), Set.of("f1", "af1")))
+            .build();
+
+        DiscoveryNode newNode = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+            )
+        );
+    }
+
+    @SuppressForbidden(reason = "we need to actually check what is in cluster state")
+    private static Map<String, Set<String>> getRecordedNodeFeatures(ClusterState state) {
+        return state.clusterFeatures().nodeFeatures();
+    }
+
+    public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumed() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1"));
+        features.put(otherNode.getId(), Set.of("f1", "af1"));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        DiscoveryNode newNodeNextMajor = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeNextMajor,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        );
+        features.put(newNodeNextMajor.getId(), Set.of("f1"));
+
+        // even though a next major has joined without af1, this doesnt allow the current major to join with af1 missing features
+        DiscoveryNode newNodeCurMajor = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        AtomicReference<Exception> ex = new AtomicReference<>();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeCurMajor,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    ActionTestUtils.assertNoSuccessListener(ex::set),
+                    0L
+                )
+            )
+        );
+        assertThat(ex.get().getMessage(), containsString("missing required features [af1]"));
+
+        // a next major can't join missing non-assumed features
+        DiscoveryNode newNodeNextMajorMissing = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        ex.set(null);
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeNextMajorMissing,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
+                    TEST_REASON,
+                    ActionTestUtils.assertNoSuccessListener(ex::set),
+                    0L
+                )
+            )
+        );
+        assertThat(ex.get().getMessage(), containsString("missing required features [f1]"));
+
+        // extra final check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    /*
+     * Same as above but the current major missing features is processed in the same execution
+     */
+    public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumedSameExecute() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1"));
+        features.put(otherNode.getId(), Set.of("f1", "af1"));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        DiscoveryNode newNodeNextMajor = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        DiscoveryNode newNodeCurMajor = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode newNodeNextMajorMissing = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        // even though a next major could join, this doesnt allow the current major to join with missing features
+        // nor a next major missing non-assumed features
+        AtomicReference<Exception> thisMajorEx = new AtomicReference<>();
+        AtomicReference<Exception> nextMajorEx = new AtomicReference<>();
+        List<JoinTask> tasks = List.of(
+            JoinTask.singleNode(
+                newNodeNextMajor,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of("f1"),
+                TEST_REASON,
+                NO_FAILURE_LISTENER,
+                0L
+            ),
+            JoinTask.singleNode(
+                newNodeCurMajor,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of("f1"),
+                TEST_REASON,
+                ActionTestUtils.assertNoSuccessListener(thisMajorEx::set),
+                0L
+            ),
+            JoinTask.singleNode(
+                newNodeNextMajorMissing,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
+                TEST_REASON,
+                ActionTestUtils.assertNoSuccessListener(nextMajorEx::set),
+                0L
+            )
+        );
+        if (randomBoolean()) {
+            // sometimes combine them together into a single task for completeness
+            tasks = List.of(new JoinTask(tasks.stream().flatMap(t -> t.nodeJoinTasks().stream()).toList(), false, 0L, null));
+        }
+
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
+        features.put(newNodeNextMajor.getId(), Set.of("f1"));
+
+        assertThat(thisMajorEx.get().getMessage(), containsString("missing required features [af1]"));
+        assertThat(nextMajorEx.get().getMessage(), containsString("missing required features [f1]"));
+
+        // extra check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
     }
 
     public void testSuccess() {

@@ -145,7 +145,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
                 }
             }
 
-            // all nodes missing the feature are the next major - so that's alright then
+            // all nodes missing the feature can assume it - so that's alright then
             return true;
         }
 

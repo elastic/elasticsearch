@@ -292,7 +292,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 if (settingsDirWatchKey != null) {
                     settingsDirWatchKey.cancel();
                 }
-            } catch (IOException | ExecutionException  e) {
+            } catch (IOException | ExecutionException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {
                 logger.info("interrupted while closing the watch service", interruptedException);

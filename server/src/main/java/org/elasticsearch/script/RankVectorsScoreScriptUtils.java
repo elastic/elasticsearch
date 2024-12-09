@@ -12,19 +12,19 @@ package org.elasticsearch.script;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.vectors.DenseVector;
-import org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.RankVectorsDocValuesField;
 
 import java.io.IOException;
 import java.util.HexFormat;
 import java.util.List;
 
-public class MultiVectorScoreScriptUtils {
+public class RankVectorsScoreScriptUtils {
 
-    public static class MultiDenseVectorFunction {
+    public static class RankVectorsFunction {
         protected final ScoreScript scoreScript;
-        protected final MultiDenseVectorDocValuesField field;
+        protected final RankVectorsDocValuesField field;
 
-        public MultiDenseVectorFunction(ScoreScript scoreScript, MultiDenseVectorDocValuesField field) {
+        public RankVectorsFunction(ScoreScript scoreScript, RankVectorsDocValuesField field) {
             this.scoreScript = scoreScript;
             this.field = field;
         }
@@ -41,7 +41,7 @@ public class MultiVectorScoreScriptUtils {
         }
     }
 
-    public static class ByteMultiDenseVectorFunction extends MultiDenseVectorFunction {
+    public static class ByteRankVectorsFunction extends RankVectorsFunction {
         protected final byte[][] queryVector;
 
         /**
@@ -51,7 +51,7 @@ public class MultiVectorScoreScriptUtils {
          * @param field The vector field.
          * @param queryVector The query vector.
          */
-        public ByteMultiDenseVectorFunction(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, List<List<Number>> queryVector) {
+        public ByteRankVectorsFunction(ScoreScript scoreScript, RankVectorsDocValuesField field, List<List<Number>> queryVector) {
             super(scoreScript, field);
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
@@ -84,13 +84,13 @@ public class MultiVectorScoreScriptUtils {
          * @param field The vector field.
          * @param queryVector The query vector.
          */
-        public ByteMultiDenseVectorFunction(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, byte[][] queryVector) {
+        public ByteRankVectorsFunction(ScoreScript scoreScript, RankVectorsDocValuesField field, byte[][] queryVector) {
             super(scoreScript, field);
             this.queryVector = queryVector;
         }
     }
 
-    public static class FloatMultiDenseVectorFunction extends MultiDenseVectorFunction {
+    public static class FloatRankVectorsFunction extends RankVectorsFunction {
         protected final float[][] queryVector;
 
         /**
@@ -100,11 +100,7 @@ public class MultiVectorScoreScriptUtils {
          * @param field The vector field.
          * @param queryVector The query vector.
          */
-        public FloatMultiDenseVectorFunction(
-            ScoreScript scoreScript,
-            MultiDenseVectorDocValuesField field,
-            List<List<Number>> queryVector
-        ) {
+        public FloatRankVectorsFunction(ScoreScript scoreScript, RankVectorsDocValuesField field, List<List<Number>> queryVector) {
             super(scoreScript, field);
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
@@ -133,13 +129,13 @@ public class MultiVectorScoreScriptUtils {
         float maxSimInvHamming();
     }
 
-    public static class ByteMaxSimInvHammingDistance extends ByteMultiDenseVectorFunction implements MaxSimInvHammingDistanceInterface {
+    public static class ByteMaxSimInvHammingDistance extends ByteRankVectorsFunction implements MaxSimInvHammingDistanceInterface {
 
-        public ByteMaxSimInvHammingDistance(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, List<List<Number>> queryVector) {
+        public ByteMaxSimInvHammingDistance(ScoreScript scoreScript, RankVectorsDocValuesField field, List<List<Number>> queryVector) {
             super(scoreScript, field, queryVector);
         }
 
-        public ByteMaxSimInvHammingDistance(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, byte[][] queryVector) {
+        public ByteMaxSimInvHammingDistance(ScoreScript scoreScript, RankVectorsDocValuesField field, byte[][] queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -183,7 +179,7 @@ public class MultiVectorScoreScriptUtils {
         private final MaxSimInvHammingDistanceInterface function;
 
         public MaxSimInvHamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
-            MultiDenseVectorDocValuesField field = (MultiDenseVectorDocValuesField) scoreScript.field(fieldName);
+            RankVectorsDocValuesField field = (RankVectorsDocValuesField) scoreScript.field(fieldName);
             if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
             }
@@ -205,11 +201,11 @@ public class MultiVectorScoreScriptUtils {
         double maxSimDotProduct();
     }
 
-    public static class MaxSimBitDotProduct extends MultiDenseVectorFunction implements MaxSimDotProductInterface {
+    public static class MaxSimBitDotProduct extends RankVectorsFunction implements MaxSimDotProductInterface {
         private final byte[][] byteQueryVector;
         private final float[][] floatQueryVector;
 
-        public MaxSimBitDotProduct(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, byte[][] queryVector) {
+        public MaxSimBitDotProduct(ScoreScript scoreScript, RankVectorsDocValuesField field, byte[][] queryVector) {
             super(scoreScript, field);
             if (field.getElementType() != DenseVectorFieldMapper.ElementType.BIT) {
                 throw new IllegalArgumentException("Cannot calculate bit dot product for non-bit vectors");
@@ -230,7 +226,7 @@ public class MultiVectorScoreScriptUtils {
             this.floatQueryVector = null;
         }
 
-        public MaxSimBitDotProduct(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, List<List<Number>> queryVector) {
+        public MaxSimBitDotProduct(ScoreScript scoreScript, RankVectorsDocValuesField field, List<List<Number>> queryVector) {
             super(scoreScript, field);
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
@@ -304,13 +300,13 @@ public class MultiVectorScoreScriptUtils {
         }
     }
 
-    public static class MaxSimByteDotProduct extends ByteMultiDenseVectorFunction implements MaxSimDotProductInterface {
+    public static class MaxSimByteDotProduct extends ByteRankVectorsFunction implements MaxSimDotProductInterface {
 
-        public MaxSimByteDotProduct(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, List<List<Number>> queryVector) {
+        public MaxSimByteDotProduct(ScoreScript scoreScript, RankVectorsDocValuesField field, List<List<Number>> queryVector) {
             super(scoreScript, field, queryVector);
         }
 
-        public MaxSimByteDotProduct(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, byte[][] queryVector) {
+        public MaxSimByteDotProduct(ScoreScript scoreScript, RankVectorsDocValuesField field, byte[][] queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -320,9 +316,9 @@ public class MultiVectorScoreScriptUtils {
         }
     }
 
-    public static class MaxSimFloatDotProduct extends FloatMultiDenseVectorFunction implements MaxSimDotProductInterface {
+    public static class MaxSimFloatDotProduct extends FloatRankVectorsFunction implements MaxSimDotProductInterface {
 
-        public MaxSimFloatDotProduct(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, List<List<Number>> queryVector) {
+        public MaxSimFloatDotProduct(ScoreScript scoreScript, RankVectorsDocValuesField field, List<List<Number>> queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -338,7 +334,7 @@ public class MultiVectorScoreScriptUtils {
 
         @SuppressWarnings("unchecked")
         public MaxSimDotProduct(ScoreScript scoreScript, Object queryVector, String fieldName) {
-            MultiDenseVectorDocValuesField field = (MultiDenseVectorDocValuesField) scoreScript.field(fieldName);
+            RankVectorsDocValuesField field = (RankVectorsDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
                 case BIT -> {
                     BytesOrList bytesOrList = parseBytes(queryVector);

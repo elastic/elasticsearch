@@ -50,8 +50,6 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
@@ -80,19 +78,7 @@ import static java.util.Map.entry;
 
 public class Analysis {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
     private static final Logger logger = LogManager.getLogger(Analysis.class);
-
-    public static void checkForDeprecatedVersion(String name, Settings settings) {
-        String sVersion = settings.get("version");
-        if (sVersion != null) {
-            DEPRECATION_LOGGER.warn(
-                DeprecationCategory.ANALYSIS,
-                "analyzer.version",
-                "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"
-            );
-        }
-    }
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");

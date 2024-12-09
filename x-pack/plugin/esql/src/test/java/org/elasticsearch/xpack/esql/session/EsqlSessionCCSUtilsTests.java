@@ -726,7 +726,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
     }
 
     private XPackLicenseStatus activeLicenseStatus(License.OperationMode operationMode) {
-        return new XPackLicenseStatus(operationMode, true, "License Expired 123");
+        return new XPackLicenseStatus(operationMode, true, null);
     }
 
     private XPackLicenseStatus inactiveLicenseStatus(License.OperationMode operationMode) {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -234,8 +234,7 @@ public record SemanticTextField(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final boolean useInferenceMetadataFieldsFormat = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
 
         builder.startObject();
         List<String> originalValues = originalValues();
@@ -288,8 +287,7 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
-            if (context.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            if (InferenceMetadataFieldsMapper.isEnabled(context.indexVersionCreated)) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
                 }
@@ -316,8 +314,7 @@ public record SemanticTextField(
         true,
         (args, context) -> {
             String text = (String) args[0];
-            if ((context.indexVersionCreated.before(IndexVersions.INFERENCE_METADATA_FIELDS)
-                || INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() == false) && text == null) {
+            if (InferenceMetadataFieldsMapper.isEnabled(context.indexVersionCreated) == false && text == null) {
                 throw new IllegalArgumentException("Missing chunk text");
             }
             return new Chunk(text, args[1] != null ? (int) args[1] : -1, args[2] != null ? (int) args[2] : -1, (BytesReference) args[3]);
@@ -353,8 +350,7 @@ public record SemanticTextField(
             new ParseField(MODEL_SETTINGS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
-            if (c.indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            if (InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated)) {
                 return parseChunksMap(p, c);
             } else {
                 return Map.of(c.fieldName, parseChunksArrayLegacy(p, c));

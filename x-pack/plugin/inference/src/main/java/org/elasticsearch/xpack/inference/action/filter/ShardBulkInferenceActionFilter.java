@@ -32,7 +32,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceService;
@@ -57,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
@@ -390,8 +388,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             var newDocMap = indexRequest.sourceAsMap();
             Map<String, Object> inferenceFieldsMap = new HashMap<>();
-            final boolean addMetadataField = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+            final boolean addMetadataField = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
@@ -447,8 +444,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * TODO: We should validate the settings for pre-existing results here and apply the inference only if they differ?
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
-            final boolean useInferenceMetadataFieldsFormat = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+            final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
 
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
             for (int itemIndex = 0; itemIndex < bulkShardRequest.items().length; itemIndex++) {

@@ -42,9 +42,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
@@ -65,7 +65,6 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportBulkAction.unwrappingSingleItemBulkResponse;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
@@ -377,8 +376,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         MappingLookup mappingLookup
     ) {
         if (result.getResponseResult() != DocWriteResponse.Result.UPDATED
-            || (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled())) {
+            || InferenceMetadataFieldsMapper.isEnabled(indexMetadata.getCreationVersion())) {
             return result;
         }
 

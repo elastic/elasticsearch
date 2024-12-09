@@ -62,7 +62,6 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
@@ -180,8 +179,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     public void testItemFailures() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
         IndexVersion indexVersion = getRandomIndexVersion();
-        boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -387,8 +385,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
         XContentType requestContentType = randomFrom(XContentType.values());
-        boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         Map<String, Object> inferenceMetadataFields = new HashMap<>();
         for (var entry : fieldInferenceMap.values()) {

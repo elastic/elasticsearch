@@ -43,7 +43,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -78,7 +77,6 @@ import java.util.function.LongSupplier;
 import java.util.function.ObjLongConsumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -407,8 +405,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static String[] getStoredFieldsSpec(IndexShard indexShard) {
-        if (indexShard.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (InferenceMetadataFieldsMapper.isEnabled(indexShard.indexSettings().getIndexVersionCreated())) {
             if (indexShard.mapperService().mappingLookup().inferenceFields().size() > 0) {
                 // Retrieves the inference metadata field containing the inference results for all semantic fields defined in the mapping.
                 return new String[] { RoutingFieldMapper.NAME, InferenceMetadataFieldsMapper.NAME };

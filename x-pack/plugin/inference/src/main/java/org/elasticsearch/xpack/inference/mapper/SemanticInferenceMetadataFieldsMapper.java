@@ -12,7 +12,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -49,8 +48,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.INFERENCE_METADATA_FIELDS)
-                || INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() == false) {
+            if (InferenceMetadataFieldsMapper.isEnabled(context.getIndexSettings().getIndexVersionCreated()) == false) {
                 return ValueFetcher.EMPTY;
             }
             return valueFetcher(context.getMappingLookup(), context::bitsetFilter, context.searcher());

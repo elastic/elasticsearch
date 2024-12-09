@@ -40,8 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
-
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
     public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
@@ -431,8 +429,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         var modSourceFilter = sourceFilter;
         if (context != null
-            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()
+            && InferenceMetadataFieldsMapper.isEnabled(context.indexSettings().getIndexVersionCreated())
             && context.mappingLookup().inferenceFields().isEmpty() == false) {
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {

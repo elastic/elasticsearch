@@ -77,7 +77,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
@@ -457,10 +456,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     private static void assertSemanticTextField(MapperService mapperService, String fieldName, boolean expectedModelSettings) {
-        final boolean useInferenceMetadataFieldsFormat = mapperService.getIndexSettings()
-            .getIndexVersionCreated()
-            .onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(
+            mapperService.getIndexSettings().getIndexVersionCreated()
+        );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
@@ -661,8 +659,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testMissingInferenceId() throws IOException {
         final MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
         final IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-        final boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
@@ -783,10 +780,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             MapperService.MergeReason.MAPPING_UPDATE
         );
 
-        final boolean useInferenceMetadataFieldsFormat = mapperService.getIndexSettings()
-            .getIndexVersionCreated()
-            .onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(
+            mapperService.getIndexSettings().getIndexVersionCreated()
+        );
 
         SemanticTextField semanticTextField = new SemanticTextField(
             mapperService.getIndexSettings().getIndexVersionCreated(),
@@ -879,8 +875,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         XContentBuilder sourceBuilder,
         List<SemanticTextField> semanticTextInferenceResults
     ) throws IOException {
-        final boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         if (useInferenceMetadataFieldsFormat) {
             // Use a linked hash map to maintain insertion-order iteration over the inference fields
@@ -931,8 +926,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private static SourceToParse semanticTextInferenceSource(IndexVersion indexVersion, CheckedConsumer<XContentBuilder, IOException> build)
         throws IOException {
-        final boolean useInferenceMetadataFieldsFormat = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         return source(b -> {
             if (useInferenceMetadataFieldsFormat) {

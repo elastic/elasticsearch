@@ -13,6 +13,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
@@ -56,5 +58,9 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
             Function<Query, BitSetProducer> bitSetCache,
             IndexSearcher searcher
         );
+    }
+
+    public static boolean isEnabled(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
     }
 }

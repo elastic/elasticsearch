@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
@@ -37,7 +38,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
@@ -234,8 +234,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         ChunkedInferenceServiceResults results,
         XContentType contentType
     ) {
-        final boolean useInferenceMetadataFields = indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
+        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         final List<SemanticTextField.Chunk> chunks;
         if (useInferenceMetadataFields) {

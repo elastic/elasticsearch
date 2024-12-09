@@ -1205,8 +1205,28 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new SecureString(randomAlpha.toCharArray());
     }
 
-    public static String randomNullOrAlphaOfLength(int codeUnits) {
+    public static String randomAlphaOfLengthOrNull(int codeUnits) {
         return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
+    }
+
+    public static Long randomLongOrNull() {
+        return randomBoolean() ? null : randomLong();
+    }
+
+    public static Long randomPositiveLongOrNull() {
+        return randomBoolean() ? null : randomNonNegativeLong();
+    }
+
+    public static Integer randomIntOrNull() {
+        return randomBoolean() ? null : randomInt();
+    }
+
+    public static Integer randomPositiveIntOrNull() {
+        return randomBoolean() ? null : randomNonNegativeInt();
+    }
+
+    public static Float randomFloatOrNull() {
+        return randomBoolean() ? null : randomFloat();
     }
 
     /**
@@ -1356,6 +1376,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomDateFormatterPattern() {
         return randomFrom(FormatNames.values()).getName();
+    }
+
+    /**
+     * Generate a random string of at least 112 bits to satisfy minimum entropy requirement when running in FIPS mode.
+     */
+    public static String randomSecretKey() {
+        return randomAlphaOfLengthBetween(14, 20);
     }
 
     /**

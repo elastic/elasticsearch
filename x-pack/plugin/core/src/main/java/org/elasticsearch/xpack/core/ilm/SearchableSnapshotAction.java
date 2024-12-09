@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -32,7 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
@@ -102,9 +102,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
-        this.totalShardsPerNode = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE)
-            ? in.readOptionalInt()
-            : null;
+        this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
     }
 
     boolean isForceMergeIndex() {
@@ -424,7 +422,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
         out.writeBoolean(forceMergeIndex);
-        if (out.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
     }

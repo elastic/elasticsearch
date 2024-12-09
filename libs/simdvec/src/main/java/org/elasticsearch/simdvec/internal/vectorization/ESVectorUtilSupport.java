@@ -14,4 +14,8 @@ public interface ESVectorUtilSupport {
     short B_QUERY = 4;
 
     long ipByteBinByte(byte[] q, byte[] d);
+
+    int ipByteBit(byte[] q, byte[] d);
+
+    float ipFloatBit(float[] q, byte[] d);
 }

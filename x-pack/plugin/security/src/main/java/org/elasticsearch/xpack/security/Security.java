@@ -337,7 +337,6 @@ import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorCon
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.QueryableBuiltInRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
@@ -1215,7 +1214,7 @@ public class Security extends Plugin
                     clusterService,
                     featureService,
                     queryableRolesProviderFactory.get(),
-                    new QueryableBuiltInRolesStore(nativeRolesStore),
+                    nativeRolesStore,
                     reservedRolesStore,
                     fileRolesStore.get(),
                     systemIndices.getMainIndexManager(),

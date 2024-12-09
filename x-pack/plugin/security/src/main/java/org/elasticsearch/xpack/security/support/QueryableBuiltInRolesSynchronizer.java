@@ -14,13 +14,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,11 +45,10 @@ import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.authz.store.QueryableBuiltInRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -124,8 +123,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private final QueryableBuiltInRoles.Provider rolesProvider;
-    private final SecurityIndexManager securityIndex;
-    private final QueryableBuiltInRolesStore queryableBuiltInRolesStore;
+    private final NativeRolesStore nativeRolesStore;
     private final Executor executor;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
@@ -135,7 +133,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         ClusterService clusterService,
         FeatureService featureService,
         QueryableBuiltInRolesProviderFactory rolesProviderFactory,
-        QueryableBuiltInRolesStore queryableBuiltInRolesStore,
+        NativeRolesStore nativeRolesStore,
         ReservedRolesStore reservedRolesStore,
         FileRolesStore fileRolesStore,
         SecurityIndexManager securityIndex,
@@ -144,8 +142,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.rolesProvider = rolesProviderFactory.createProvider(reservedRolesStore, fileRolesStore);
-        this.queryableBuiltInRolesStore = queryableBuiltInRolesStore;
-        this.securityIndex = securityIndex;
+        this.nativeRolesStore = nativeRolesStore;
         this.executor = threadPool.generic();
         this.markRolesAsSyncedTaskQueue = clusterService.createTaskQueue(
             "mark-built-in-roles-as-synced-task-queue",
@@ -191,14 +188,21 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
     }
 
-    private void syncBuiltInRoles(QueryableBuiltInRoles roles, ClusterState state) {
-        final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(state);
+    private void syncBuiltInRoles(QueryableBuiltInRoles roles, ClusterState clusterState) {
+        final IndexMetadata securityIndexMetadata = resolveSecurityIndexMetadata(clusterState.metadata());
+        if (securityIndexMetadata == null) {
+            logger.debug("Security index does not exist, skipping built-in roles synchronization");
+            return;
+        }
+        final Map<String, String> indexedRolesDigests = securityIndexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
         if (roles.rolesDigest().equals(indexedRolesDigests)) {
             logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
         }
+        final Index securityIndex = securityIndexMetadata.getIndex();
+
         if (synchronizationInProgress.compareAndSet(false, true)) {
-            executor.execute(() -> doSyncBuiltinRoles(indexedRolesDigests, roles, ActionListener.wrap(v -> {
+            executor.execute(() -> doSyncBuiltinRoles(securityIndex, indexedRolesDigests, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced [" + roles.roleDescriptors().size() + "] built-in roles to .security index");
                 synchronizationInProgress.set(false);
             }, e -> {
@@ -245,8 +249,8 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             logger.trace("Cluster state has not recovered yet, skipping built-in roles synchronization");
             return false;
         }
-        if (queryableBuiltInRolesStore.isEnabled() == false) {
-            logger.trace("Role store is not enabled, skipping built-in roles synchronization");
+        if (nativeRolesStore.isEnabled() == false) {
+            logger.trace("Native roles store is not enabled, skipping built-in roles synchronization");
             return false;
         }
         if (state.nodes().getDataNodes().isEmpty()) {
@@ -274,24 +278,21 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         return true;
     }
 
-    private void doSyncBuiltinRoles(Map<String, String> indexedRolesDigests, QueryableBuiltInRoles roles, ActionListener<Void> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-            if (frozenSecurityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS) == false) {
-                listener.onFailure(frozenSecurityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS));
-
+    private void doSyncBuiltinRoles(
+        Index securityIndex,
+        Map<String, String> indexedRolesDigests,
+        QueryableBuiltInRoles roles,
+        ActionListener<Void> listener
+    ) {
+        final Collection<RoleDescriptor> rolesToUpsert = rolesToUpsert(roles, indexedRolesDigests);
+        indexRoles(rolesToUpsert, ActionListener.wrap(onResponse -> {
+            final Set<String> rolesToDelete = rolesToDelete(roles, indexedRolesDigests);
+            if (rolesToDelete.isEmpty()) {
+                markRolesAsSynced(securityIndex, indexedRolesDigests, roles.rolesDigest(), listener);
             } else {
-                final Collection<RoleDescriptor> rolesToUpsert = rolesToUpsert(roles, indexedRolesDigests);
-                indexRoles(rolesToUpsert, frozenSecurityIndex, ActionListener.wrap(onResponse -> {
-                    final Set<String> rolesToDelete = rolesToDelete(roles, indexedRolesDigests);
-                    if (rolesToDelete.isEmpty()) {
-                        markRolesAsSynced(frozenSecurityIndex.getConcreteIndexName(), indexedRolesDigests, roles.rolesDigest(), listener);
-                    } else {
-                        deleteRoles(frozenSecurityIndex, roles, rolesToDelete, indexedRolesDigests, listener);
-                    }
-                }, listener::onFailure));
+                deleteRoles(securityIndex, roles, rolesToDelete, indexedRolesDigests, listener);
             }
-        });
+        }, listener::onFailure));
     }
 
     private static Set<String> rolesToDelete(QueryableBuiltInRoles roles, Map<String, String> indexedRolesDigests) {
@@ -312,13 +313,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void deleteRoles(
-        SecurityIndexManager securityIndex,
+        Index concreteSecurityIndex,
         QueryableBuiltInRoles roles,
         Set<String> rolesToDelete,
         Map<String, String> indexedRolesDigests,
         ActionListener<Void> listener
     ) {
-        queryableBuiltInRolesStore.deleteRoles(securityIndex, rolesToDelete, ActionListener.wrap(deleteResponse -> {
+        nativeRolesStore.deleteRoles(rolesToDelete, WriteRequest.RefreshPolicy.IMMEDIATE, false, ActionListener.wrap(deleteResponse -> {
             final Optional<Exception> deleteFailure = deleteResponse.getItems()
                 .stream()
                 .filter(BulkRolesResponse.Item::isFailed)
@@ -327,13 +328,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             if (deleteFailure.isPresent()) {
                 listener.onFailure(deleteFailure.get());
             } else {
-                markRolesAsSynced(securityIndex.getConcreteIndexName(), indexedRolesDigests, roles.rolesDigest(), listener);
+                markRolesAsSynced(concreteSecurityIndex, indexedRolesDigests, roles.rolesDigest(), listener);
             }
         }, listener::onFailure));
     }
 
-    private void indexRoles(Collection<RoleDescriptor> rolesToUpsert, SecurityIndexManager securityIndex, ActionListener<Void> listener) {
-        queryableBuiltInRolesStore.putRoles(securityIndex, rolesToUpsert, ActionListener.wrap(response -> {
+    private void indexRoles(Collection<RoleDescriptor> rolesToUpsert, ActionListener<Void> listener) {
+        nativeRolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, rolesToUpsert, false, ActionListener.wrap(response -> {
             final Optional<Exception> indexFailure = response.getItems()
                 .stream()
                 .filter(BulkRolesResponse.Item::isFailed)
@@ -374,7 +375,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
      * .security index or if they are equal to the new roles digests.
      */
     private void markRolesAsSynced(
-        String concreteSecurityIndexName,
+        Index concreteSecurityIndex,
         Map<String, String> expectedRolesDigests,
         Map<String, String> newRolesDigests,
         ActionListener<Void> listener
@@ -397,37 +398,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 } else {
                     listener.onResponse(null);
                 }
-            }, listener::onFailure), concreteSecurityIndexName, expectedRolesDigests, newRolesDigests),
+            }, listener::onFailure), concreteSecurityIndex.getName(), expectedRolesDigests, newRolesDigests),
             null
         );
     }
 
-    private Map<String, String> readIndexedBuiltInRolesDigests(ClusterState state) {
-        final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
-        if (indexMetadata == null) {
-            return null;
-        }
-        return indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
-    }
-
     private static IndexMetadata resolveSecurityIndexMetadata(final Metadata metadata) {
-        final Index index = resolveConcreteSecurityIndex(metadata);
-        if (index != null) {
-            return metadata.getIndexSafe(index);
-        }
-        return null;
-    }
-
-    private static Index resolveConcreteSecurityIndex(final Metadata metadata) {
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
-        if (indexAbstraction != null) {
-            final List<Index> indices = indexAbstraction.getIndices();
-            if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
-                throw new IllegalStateException("alias [" + SECURITY_MAIN_ALIAS + "] points to more than one index [" + indices + "]");
-            }
-            return indices.get(0);
-        }
-        return null;
+        return SecurityIndexManager.resolveConcreteIndex(SECURITY_MAIN_ALIAS, metadata);
     }
 
     static class MarkRolesAsSyncedTask implements ClusterStateTaskListener {

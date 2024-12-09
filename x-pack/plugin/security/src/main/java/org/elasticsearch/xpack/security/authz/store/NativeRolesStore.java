@@ -354,11 +354,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         WriteRequest.RefreshPolicy refreshPolicy,
         final ActionListener<BulkRolesResponse> listener
     ) {
-        deleteRoles(null, roleNames, refreshPolicy, true, listener);
+        deleteRoles(roleNames, refreshPolicy, true, listener);
     }
 
-    void deleteRoles(
-        SecurityIndexManager securityIndexManager,
+    public void deleteRoles(
         final Collection<String> roleNames,
         WriteRequest.RefreshPolicy refreshPolicy,
         boolean validateRoles,
@@ -388,9 +387,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager != null
-            ? securityIndexManager
-            : securityIndex.defensiveCopy();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(new BulkRolesResponse(List.of()));
@@ -565,11 +562,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         final Collection<RoleDescriptor> roles,
         final ActionListener<BulkRolesResponse> listener
     ) {
-        putRoles(securityIndex, refreshPolicy, roles, true, listener);
+        putRoles(refreshPolicy, roles, true, listener);
     }
 
-    void putRoles(
-        SecurityIndexManager securityIndexManager,
+    public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
         final Collection<RoleDescriptor> roles,
         boolean validateRoles,
@@ -608,7 +604,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        securityIndexManager.prepareIndexIfNeededThenExecute(
+        securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),

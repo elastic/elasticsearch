@@ -56,6 +56,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField FAILED_FIELD = new ParseField("failed");
     public static final ParseField DETAILS_FIELD = new ParseField("details");
     public static final ParseField TOOK = new ParseField("took");
+    public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
@@ -241,6 +242,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
             b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
             b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
+            b.field(IS_PARTIAL_FIELD.getPreferredName(), isPartial);
             // each Cluster object defines its own field object name
             b.xContentObject("details", clusterInfo.values().iterator());
         });

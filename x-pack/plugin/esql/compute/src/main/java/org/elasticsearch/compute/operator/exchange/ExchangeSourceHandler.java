@@ -45,6 +45,7 @@ public final class ExchangeSourceHandler {
 
     private final AtomicInteger nextSinkId = new AtomicInteger();
     private final Map<Integer, RemoteSink> remoteSinks = ConcurrentCollections.newConcurrentMap();
+    private Runnable finishEarlyHandler;
 
     /**
      * Creates a new ExchangeSourceHandler.
@@ -81,6 +82,10 @@ public final class ExchangeSourceHandler {
                 }
             }
         }));
+    }
+
+    public void onFinishEarly(Runnable finishEarlyHandler) {
+        this.finishEarlyHandler = finishEarlyHandler;
     }
 
     private class ExchangeSourceImpl implements ExchangeSource {
@@ -311,6 +316,9 @@ public final class ExchangeSourceHandler {
      * @param drainingPages whether to discard pages already fetched in the exchange
      */
     public void finishEarly(boolean drainingPages, ActionListener<Void> listener) {
+        if (finishEarlyHandler != null) {
+            finishEarlyHandler.run();
+        }
         buffer.finish(drainingPages);
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
             for (RemoteSink remoteSink : remoteSinks.values()) {

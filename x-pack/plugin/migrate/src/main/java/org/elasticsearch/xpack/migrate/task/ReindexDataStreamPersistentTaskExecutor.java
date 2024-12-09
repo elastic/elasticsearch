@@ -51,7 +51,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             params.startTime(),
             params.totalIndices(),
             params.totalIndicesToBeUpgraded(),
-            threadPool,
             id,
             type,
             action,
@@ -67,16 +66,19 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         GetDataStreamAction.Request request = new GetDataStreamAction.Request(TimeValue.MAX_VALUE, new String[] { sourceDataStream });
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
-        client.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
+        ExecuteWithHeadersClient reindexClient = new ExecuteWithHeadersClient(client, params.headers());
+        reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
                 List<Index> indicesToBeReindexed = indices.stream()
                     .filter(index -> clusterService.state().getMetadata().index(index).getCreationVersion().isLegacyIndexVersion())
                     .toList();
-                reindexDataStreamTask.setPendingIndices(indicesToBeReindexed.stream().map(Index::getName).toList());
+                reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
                 for (Index index : indicesToBeReindexed) {
+                    reindexDataStreamTask.incrementInProgressIndicesCount();
                     // TODO This is just a placeholder. This is where the real data stream reindex logic will go
+                    reindexDataStreamTask.reindexSucceeded();
                 }
 
                 completeSuccessfulPersistentTask(reindexDataStreamTask);
@@ -87,12 +89,12 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     }
 
     private void completeSuccessfulPersistentTask(ReindexDataStreamTask persistentTask) {
-        persistentTask.reindexSucceeded();
+        persistentTask.allReindexesCompleted();
         threadPool.schedule(persistentTask::markAsCompleted, getTimeToLive(persistentTask), threadPool.generic());
     }
 
     private void completeFailedPersistentTask(ReindexDataStreamTask persistentTask, Exception e) {
-        persistentTask.reindexFailed(e);
+        persistentTask.taskFailed(e);
         threadPool.schedule(() -> persistentTask.markAsFailed(e), getTimeToLive(persistentTask), threadPool.generic());
     }
 

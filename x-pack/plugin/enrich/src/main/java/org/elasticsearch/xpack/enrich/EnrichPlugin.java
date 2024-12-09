@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,6 +14,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -77,7 +77,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATT
 
 public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
 
-    private static final Logger logger = LogManager.getLogger(EnrichPlugin.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EnrichPlugin.class);
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING = Setting.intSetting(
         "enrich.fetch_size",
@@ -179,7 +179,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
                     )
                 );
             }
-            logger.warn(
+            deprecationLogger.warn(
+                DeprecationCategory.SETTINGS,
                 "The [{}] setting is deprecated and will be removed in a future version. Please use [{}] instead.",
                 CACHE_SIZE_SETTING_BWC_NAME,
                 CACHE_SIZE_SETTING_NAME

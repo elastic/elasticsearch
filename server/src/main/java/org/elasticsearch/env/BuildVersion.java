@@ -38,7 +38,8 @@ import java.util.ServiceLoader;
 public abstract class BuildVersion implements ToXContentFragment, Writeable {
 
     /**
-     * Checks if this version can have features removed that are assumed in the currently running Elasticsearch.
+     * Checks if this version can operate properly in a cluster without features
+     * that are assumed in the currently running Elasticsearch.
      */
     public abstract boolean canRemoveAssumedFeatures();
 

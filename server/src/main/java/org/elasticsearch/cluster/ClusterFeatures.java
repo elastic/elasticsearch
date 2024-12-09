@@ -89,13 +89,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     /**
      * Returns {@code true} if {@code node} can have assumed features.
-     * <p>
-     * This is true if it is of the next major version, or it is running on serverless.<br/>
-     * The next major version can be assumed because the next major version can only ever
-     * talk to the highest minor of the previous major, so any features added before that
-     * will always exist on the cluster.<br/>
-     * It can be assumed for serverless because we never go backwards on serverless,
-     * so once a feature is in the serverless environment it will always be there.
+     * @see {@link org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures}
      */
     public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
         return node.getBuildVersion().canRemoveAssumedFeatures();
@@ -103,13 +97,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     /**
      * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
-     * <p>
-     * This is true if it is of the next major version, or it is running on serverless.<br/>
-     * The next major version can be assumed because the next major version can only ever
-     * talk to the highest minor of the previous major, so any features added before that point
-     * will always exist on the cluster.<br/>
-     * It can be assumed for serverless because we never go backwards on serverless,
-     * so once a feature is in the serverless environment it will always be there.
+     * @see {@link org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures}
      */
     public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
         return nodes.getAllNodes().stream().anyMatch(n -> n.getBuildVersion().canRemoveAssumedFeatures());

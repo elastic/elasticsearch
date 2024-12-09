@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.io.IOException;
+import java.util.OptionalInt;
 import java.util.ServiceLoader;
 
 /**
@@ -36,6 +37,11 @@ import java.util.ServiceLoader;
  * schemes.</p>
  */
 public abstract class BuildVersion implements ToXContentFragment, Writeable {
+
+    /**
+     * Returns the major version of this build, or {@link OptionalInt#empty} if major versions are not applicable.
+     */
+    public abstract OptionalInt majorVersion();
 
     /**
      * Check whether this version is on or after a minimum threshold.

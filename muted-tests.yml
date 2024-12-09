@@ -288,6 +288,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/10_reindex/Test Reindex With Bad Data Stream Name}
+  issue: https://github.com/elastic/elasticsearch/issues/118272
 
 # Examples:
 #

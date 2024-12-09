@@ -2689,7 +2689,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             newMapping.toCompressedXContent(),
             IndexVersion.current(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
             "myIndex"
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""

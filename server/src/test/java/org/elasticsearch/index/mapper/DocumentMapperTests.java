@@ -82,7 +82,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             merged.toCompressedXContent(),
             IndexVersion.current(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
             "myIndex"
         );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());

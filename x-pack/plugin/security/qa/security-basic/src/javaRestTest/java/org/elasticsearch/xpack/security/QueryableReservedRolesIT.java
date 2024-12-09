@@ -107,7 +107,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
             assertThat((String) roles.get(0).get("name"), equalTo(roleName));
         });
 
-        assertCannotDeleteReservedRole(roleName);
+        assertCannotDeleteReservedRoles();
         assertCannotCreateOrUpdateReservedRole(roleName);
     }
 
@@ -122,10 +122,31 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertThat(responseMap.containsKey(roleName), is(true));
     }
 
-    private void assertCannotDeleteReservedRole(String roleName) throws Exception {
-        Request request = new Request("DELETE", "/_security/role/" + roleName);
-        var e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
-        assertThat(e.getMessage(), containsString("role [" + roleName + "] is reserved and cannot be deleted"));
+    private void assertCannotDeleteReservedRoles() throws Exception {
+        {
+            String roleName = randomFrom(ReservedRolesStore.names());
+            Request request = new Request("DELETE", "/_security/role/" + roleName);
+            var e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+            assertThat(e.getMessage(), containsString("role [" + roleName + "] is reserved and cannot be deleted"));
+        }
+        {
+            Request request = new Request("DELETE", "/_security/role/");
+            request.setJsonEntity(
+                """
+                    {
+                      "names": [%s]
+                    }
+                    """.formatted(
+                    ReservedRolesStore.names().stream().map(name -> "\"" + name + "\"").reduce((a, b) -> a + ", " + b).orElse("")
+                )
+            );
+            Response response = adminClient().performRequest(request);
+            assertOK(response);
+            String responseAsString = responseAsMap(response).toString();
+            for (String roleName : ReservedRolesStore.names()) {
+                assertThat(responseAsString, containsString("role [" + roleName + "] is reserved and cannot be deleted"));
+            }
+        }
     }
 
     private void assertCannotCreateOrUpdateReservedRole(String roleName) throws Exception {

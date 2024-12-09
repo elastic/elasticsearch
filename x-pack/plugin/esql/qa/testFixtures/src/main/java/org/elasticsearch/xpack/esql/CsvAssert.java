@@ -250,9 +250,13 @@ public final class CsvAssert {
                     }
                 }
 
-                var delta = actualRow.size() - expectedRow.size();
-                if (delta > 0) {
-                    fail("Plan has extra columns, returned [" + actualRow.size() + "], expected [" + expectedRow.size() + "]");
+                if (actualRow.size() != expectedRow.size()) {
+                    dataFailure(
+                        "Plan has extra columns, returned [" + actualRow.size() + "], expected [" + expectedRow.size() + "]",
+                        dataFailures,
+                        expected,
+                        actualValues
+                    );
                 }
             } catch (AssertionError ae) {
                 if (logger != null && row + 1 < actualValues.size()) {
@@ -266,9 +270,7 @@ public final class CsvAssert {
             dataFailure("", dataFailures, expected, actualValues);
         }
         if (expectedValues.size() < actualValues.size()) {
-            fail(
-                "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
-            );
+            dataFailure("Elasticsearch still has data after [" + expectedValues.size() + "] entries", dataFailures, expected, actualValues);
         }
     }
 
@@ -302,6 +304,9 @@ public final class CsvAssert {
                 appendValue(result, values.get(r).get(c), width[c]);
             }
             result.append('|').append(System.lineSeparator());
+        }
+        if (values.size() > maxRows) {
+            result.append("...").append(System.lineSeparator());
         }
         return result.toString();
     }

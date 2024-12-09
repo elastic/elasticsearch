@@ -81,9 +81,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // set weather data nodes should send back stack trace based on the `error_trace` query parameter
-        if (request.param("error_trace", "false").equals("true")) {
-            context.putHeader("error_trace", "true");
-        }
+        context.putHeader("error_trace", request.param("error_trace", "false"));
+
         final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

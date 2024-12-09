@@ -9,40 +9,28 @@
 
 package org.elasticsearch.http;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 
 public class ErrorTraceIT extends HttpSmokeTestCase {
+    private AtomicBoolean hasStackTrace;
 
-    private void createIndexWithDivergentFieldType(Consumer<SearchResponse> consumer) {
-        createIndex("test1", "test2");
-        indexRandom(
-            true,
-            prepareIndex("test1").setId("1").setSource("field", "foo"),
-            prepareIndex("test2").setId("10").setSource("field", 5)
-        );
-        refresh();
-
-        assertResponse(prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field")), consumer);
-    }
-
-    public void testStandardFailingQueryErrorTraceDefault() throws Exception {
+    private void setupMessageListener() {
         internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
             ts.addMessageListener(new TransportMessageListener() {
                 @Override
@@ -53,46 +41,47 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
                             error,
                             t -> t.getStackTrace().length > 0
                         );
-                        assertTrue(throwable.isEmpty());
+                        hasStackTrace.set(throwable.isPresent());
                     }
                 }
             });
         });
-        createIndexWithDivergentFieldType(response -> {
-            assertFailures(response);
-            for (ShardSearchFailure failedShard : response.getShardFailures()) {
-                assertThat(failedShard.getStackTrace().length, is(not(equalTo(0))));
+    }
+
+    private void setupIndexWithDocs() {
+        createIndex("test1", "test2");
+        indexRandom(
+            true,
+            prepareIndex("test1").setId("1").setSource("field", "foo"),
+            prepareIndex("test2").setId("10").setSource("field", 5)
+        );
+        refresh();
+    }
+
+    public void testSearchFailingQueryErrorTraceDefault() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
             }
-        });
+            """);
+        getRestClient().performRequest(searchRequest);
+        assertFalse(hasStackTrace.get());
     }
 
-    public void testBase() throws IOException {
-
-    }
-
-    public void testWithRestRequest() throws IOException {
-        internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
-            ts.addMessageListener(new TransportMessageListener() {
-                @Override
-                public void onResponseSent(long requestId, String action, Exception error) {
-                    TransportMessageListener.super.onResponseSent(requestId, action, error);
-                    if (action.startsWith("indices:data/read/search")) {
-                        Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(
-                            error,
-                            t -> t.getStackTrace().length > 0
-                        );
-                        assertTrue(throwable.isEmpty());
-                    }
-                }
-            });
-        });
-        createIndex("test1", "test2");
-        indexRandom(
-            true,
-            prepareIndex("test1").setId("1").setSource("field", "foo"),
-            prepareIndex("test2").setId("10").setSource("field", 5)
-        );
-        refresh();
+    public void testSearchFailingQueryErrorTraceTrue() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
         searchRequest.setJsonEntity("""
@@ -106,6 +95,147 @@ public class ErrorTraceIT extends HttpSmokeTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "true");
-        ObjectPath response = ObjectPath.createFromResponse(getRestClient().performRequest(searchRequest));
+        getRestClient().performRequest(searchRequest);
+        assertTrue(hasStackTrace.get());
+    }
+
+    public void testSearchFailingQueryErrorTraceFalse() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
+            }
+            """);
+        searchRequest.addParameter("error_trace", "false");
+        getRestClient().performRequest(searchRequest);
+        assertFalse(hasStackTrace.get());
+    }
+
+    public void testMultiSearchFailingQueryErrorTraceDefault() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        XContentType contentType = XContentType.JSON;
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
+            new SearchRequest("test*").source(new SearchSourceBuilder().query(simpleQueryStringQuery("foo").field("field")))
+        );
+        Request searchRequest = new Request("POST", "/_msearch");
+        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
+        searchRequest.setEntity(
+            new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
+        );
+        getRestClient().performRequest(searchRequest);
+        assertFalse(hasStackTrace.get());
+    }
+
+    public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        XContentType contentType = XContentType.JSON;
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
+            new SearchRequest("test*").source(new SearchSourceBuilder().query(simpleQueryStringQuery("foo").field("field")))
+        );
+        Request searchRequest = new Request("POST", "/_msearch");
+        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
+        searchRequest.setEntity(
+            new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
+        );
+        searchRequest.addParameter("error_trace", "true");
+        getRestClient().performRequest(searchRequest);
+        assertTrue(hasStackTrace.get());
+    }
+
+    public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        XContentType contentType = XContentType.JSON;
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
+            new SearchRequest("test*").source(new SearchSourceBuilder().query(simpleQueryStringQuery("foo").field("field")))
+        );
+        Request searchRequest = new Request("POST", "/_msearch");
+        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
+        searchRequest.setEntity(
+            new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
+        );
+        searchRequest.addParameter("error_trace", "false");
+        getRestClient().performRequest(searchRequest);
+
+        assertFalse(hasStackTrace.get());
+    }
+
+    public void testAsyncSearchFailingQueryErrorTraceDefault() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_async_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
+            }
+            """);
+        getRestClient().performRequest(searchRequest);
+        assertFalse(hasStackTrace.get());
+    }
+
+    public void testAsyncSearchFailingQueryErrorTraceTrue() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_async_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
+            }
+            """);
+        searchRequest.addParameter("error_trace", "true");
+        getRestClient().performRequest(searchRequest);
+        assertTrue(hasStackTrace.get());
+    }
+
+    public void testAsyncSearchFailingQueryErrorTraceFalse() throws IOException {
+        hasStackTrace = new AtomicBoolean();
+        setupMessageListener();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_async_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
+            }
+            """);
+        searchRequest.addParameter("error_trace", "false");
+        getRestClient().performRequest(searchRequest);
+        assertFalse(hasStackTrace.get());
     }
 }

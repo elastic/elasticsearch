@@ -37,9 +37,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     public static final TermsComparator TERMS_COMPARATOR = new TermsComparator();
 
     public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket<Bucket> {
-
-        long bucketOrd;
-
         protected long docCount;
         protected InternalAggregations aggregations;
         private long docCountError;

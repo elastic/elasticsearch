@@ -633,9 +633,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
                 join = new LookupJoin(join.source(), join.left(), join.right(), config);
-            }
-            // everything else is unsupported for now
-            else {
+            } else if (type != JoinTypes.LEFT) {
+                // everything else is unsupported for now
+                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
+                // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
@@ -651,7 +652,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (resolvedCol instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
-                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + "in " + side + " side of join"));
+                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
                     resolved.add(resolvedCol);
                 }

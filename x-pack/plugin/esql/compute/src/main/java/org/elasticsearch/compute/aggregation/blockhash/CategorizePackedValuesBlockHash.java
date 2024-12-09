@@ -38,6 +38,7 @@ import java.util.Map;
  */
 public class CategorizePackedValuesBlockHash extends BlockHash {
 
+    private final List<GroupSpec> specs;
     private final AggregatorMode aggregatorMode;
     private final CategorizeBlockHash categorizeBlockHash;
     private final PackedValuesBlockHash packedValuesBlockHash;
@@ -50,15 +51,19 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         int emitBatchSize
     ) {
         super(blockFactory);
+        this.specs = specs;
         this.aggregatorMode = aggregatorMode;
 
-        List<GroupSpec> packedValuesBlockHashSpecs = new ArrayList<>(specs);
-        packedValuesBlockHashSpecs.set(0, new GroupSpec(-1, ElementType.INT));
+        List<GroupSpec> delegateSpecs = new ArrayList<>();
+        delegateSpecs.add(new GroupSpec(0, ElementType.INT));
+        for (int i = 1; i < specs.size(); i++) {
+            delegateSpecs.add(new GroupSpec(i, specs.get(i).elementType()));
+        }
 
         boolean success = false;
         try {
             categorizeBlockHash = new CategorizeBlockHash(blockFactory, specs.get(0).channel(), aggregatorMode, analysisRegistry);
-            packedValuesBlockHash = new PackedValuesBlockHash(packedValuesBlockHashSpecs, blockFactory, emitBatchSize);
+            packedValuesBlockHash = new PackedValuesBlockHash(delegateSpecs, blockFactory, emitBatchSize);
             success = true;
         } finally {
             if (success == false) {
@@ -70,7 +75,12 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         try (IntBlock categories = getCategories(page)) {
-            packedValuesBlockHash.add(page.appendBlock(categories), addInput);
+            Block[] blocks = new Block[specs.size()];
+            blocks[0] = categories;
+            for (int i = 1; i < specs.size(); i++) {
+                blocks[i] = page.getBlock(specs.get(i).channel());
+            }
+            packedValuesBlockHash.add(new Page(blocks), addInput);
         }
     }
 

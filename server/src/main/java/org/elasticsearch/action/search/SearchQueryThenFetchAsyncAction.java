@@ -1005,7 +1005,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                         try {
                             final Object[] results = new Object[request.shards.size()];
                             for (int i = 0; i < results.length; i++) {
-                                var e = failures.get(i);
+                                int shardIdx = request.shards.get(i).shardIndex;
+                                var e = failures.get(shardIdx);
                                 if (e != null) {
                                     results[i] = e;
                                 } else {

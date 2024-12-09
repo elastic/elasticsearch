@@ -52,35 +52,6 @@ import static org.mockito.Mockito.when;
 
 public class AbstractFileWatchingServiceTests extends ESTestCase {
 
-    class TestFileWatchingService extends AbstractFileWatchingService {
-
-        private final CountDownLatch countDownLatch;
-
-        TestFileWatchingService(Path watchedFile) {
-            super(watchedFile);
-            this.countDownLatch = null;
-        }
-
-        TestFileWatchingService(Path watchedFile, CountDownLatch countDownLatch) {
-            super(watchedFile);
-            this.countDownLatch = countDownLatch;
-        }
-
-        @Override
-        protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
-            if (countDownLatch != null) {
-                countDownLatch.countDown();
-            }
-        }
-
-        @Override
-        protected void processInitialFileMissing() {
-            if (countDownLatch != null) {
-                countDownLatch.countDown();
-            }
-        }
-    }
-
     private AbstractFileWatchingService fileWatchingService;
     private ThreadPool threadpool;
     private ClusterService clusterService;
@@ -202,6 +173,35 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
     private static Path getWatchedFilePath(Environment env) {
         return env.configFile().toAbsolutePath().resolve("test").resolve("test.json");
+    }
+
+    class TestFileWatchingService extends AbstractFileWatchingService {
+
+        private final CountDownLatch countDownLatch;
+
+        TestFileWatchingService(Path watchedFile) {
+            super(watchedFile);
+            this.countDownLatch = null;
+        }
+
+        TestFileWatchingService(Path watchedFile, CountDownLatch countDownLatch) {
+            super(watchedFile);
+            this.countDownLatch = countDownLatch;
+        }
+
+        @Override
+        protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
+            if (countDownLatch != null) {
+                countDownLatch.countDown();
+            }
+        }
+
+        @Override
+        protected void processInitialFileMissing() {
+            if (countDownLatch != null) {
+                countDownLatch.countDown();
+            }
+        }
     }
 
 }

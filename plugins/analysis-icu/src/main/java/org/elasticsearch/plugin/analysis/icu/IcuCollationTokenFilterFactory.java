@@ -44,7 +44,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @SuppressWarnings("HiddenField")
     public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
 
         Collator collator;
         String rules = settings.get("rules");

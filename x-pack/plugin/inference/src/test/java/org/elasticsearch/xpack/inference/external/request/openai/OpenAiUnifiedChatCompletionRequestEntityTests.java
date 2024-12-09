@@ -43,7 +43,10 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
         OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", USER);
 
-        OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
+        OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            new OpenAiUnifiedChatCompletionRequestEntity.ModelFields("Open AI model", null)
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);

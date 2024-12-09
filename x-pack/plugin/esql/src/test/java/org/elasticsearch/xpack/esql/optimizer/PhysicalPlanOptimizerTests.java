@@ -2309,10 +2309,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         final var finalPlan = plan;
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
-        assertThat(
-            e.getMessage(),
-            containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#")
-        );
+        assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
     }
 
     public void testVerifierOnDuplicateOutputAttributes() {

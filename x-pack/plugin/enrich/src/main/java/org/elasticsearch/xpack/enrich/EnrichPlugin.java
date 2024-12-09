@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
@@ -74,6 +76,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
 public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
+
+    private static final Logger logger = LogManager.getLogger(EnrichPlugin.class);
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING = Setting.intSetting(
         "enrich.fetch_size",
@@ -175,6 +179,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
                     )
                 );
             }
+            logger.warn(
+                "The [{}] setting is deprecated and will be removed in a future version. Please use [{}] instead.",
+                CACHE_SIZE_SETTING_BWC_NAME,
+                CACHE_SIZE_SETTING_NAME
+            );
             maxSize = CACHE_SIZE_BWC.get(settings);
         } else {
             maxSize = CACHE_SIZE.get(settings);

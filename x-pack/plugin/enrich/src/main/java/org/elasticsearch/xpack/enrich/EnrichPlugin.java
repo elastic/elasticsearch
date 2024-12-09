@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
@@ -147,7 +146,6 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
      * This setting solely exists because the original setting was accidentally renamed in
      * https://github.com/elastic/elasticsearch/pull/111412.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public static final String CACHE_SIZE_SETTING_BWC_NAME = "enrich.cache.size";
     public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE_BWC = new Setting<>(
         CACHE_SIZE_SETTING_BWC_NAME,

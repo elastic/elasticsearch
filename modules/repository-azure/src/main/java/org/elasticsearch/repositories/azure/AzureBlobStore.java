@@ -264,8 +264,7 @@ public class AzureBlobStore implements BlobStore {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) {
         if (blobNames.hasNext() == false) {
             return;
         }

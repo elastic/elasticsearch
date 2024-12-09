@@ -230,6 +230,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
         );
     }
 
+    @SuppressForbidden(reason = "we need to actually check what is in cluster state")
+    private static Map<String, Set<String>> getRecordedNodeFeatures(ClusterState state) {
+        return state.clusterFeatures().nodeFeatures();
+    }
+
     private static Version nextMajor() {
         return Version.fromId((Version.CURRENT.major + 1) * 1_000_000 + 99);
     }
@@ -240,7 +245,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         FeatureService featureService = new FeatureService(Settings.EMPTY, List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
-                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true), new NodeFeature("af2", true));
             }
         }));
 
@@ -248,26 +253,38 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1", "af2"));
+        features.put(otherNode.getId(), Set.of("f1", "af1", "af2"));
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
-            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "af1"), otherNode.getId(), Set.of("f1", "af1")))
+            .nodeFeatures(features)
             .build();
 
+        // it is valid for major+1 versions to join clusters assumed features still present
+        // this can happen in the process of marking, then removing, assumed features
+        // they should still be recorded appropriately
         DiscoveryNode newNode = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
             .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
-        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+                JoinTask.singleNode(
+                    newNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1", "af2"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
             )
         );
-    }
+        features.put(newNode.getId(), Set.of("f1", "af2"));
 
-    @SuppressForbidden(reason = "we need to actually check what is in cluster state")
-    private static Map<String, Set<String>> getRecordedNodeFeatures(ClusterState state) {
-        return state.clusterFeatures().nodeFeatures();
+        // extra final check that the recorded cluster features are as they should be
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
     }
 
     public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumed() throws Exception {

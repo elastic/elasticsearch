@@ -386,6 +386,17 @@ COUNT():long | SUM(event_duration):long | category:keyword
            7 |                 23231327 |  null
 ;
 
+on null row
+required_capability: categorize_v3
+
+ROW message = null, str = ["a", "b", "c"]
+| STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message)
+;
+
+COUNT():long | VALUES(str):keyword | category:keyword
+           1 | [a, b, c]           | null
+;
+
 filtering out all data
 required_capability: categorize_v5
 

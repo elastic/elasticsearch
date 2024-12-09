@@ -50,14 +50,24 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + Strings.format("""
-            user1:%s
-            user2:%s
-            user3:%s
-            user4:%s
-            user5:%s
-            user6:%s
-            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+        return super.configUsers() + Strings.format(
+            """
+                user1:%s
+                user2:%s
+                user3:%s
+                user4:%s
+                user5:%s
+                user6:%s
+                user7:%s
+                """,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed
+        );
     }
 
     @Override
@@ -67,7 +77,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             + "role2:user1,user4\n"
             + "role3:user2,user4\n"
             + "role4:user3,user4,user5\n"
-            + "role5:user6\n";
+            + "role5:user6\n"
+            + "role6:user7\n";
     }
 
     @Override
@@ -111,6 +122,14 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                   privileges: [ ALL ]
                   field_security:
                      grant: [ field1, id ]
+                     except: [ _field1 ]
+            role6:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  field_security:
+                     grant: [ field1, _field1, _field2, id ]
                      except: [ _field2 ]
             """;
     }
@@ -434,6 +453,30 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
             ).fieldCaps(fieldCapabilitiesRequest).actionGet();
             assertExpectedFieldsIgnoringAllowlistedMetadataFields(response, "field1", "field2");
+        }
+    }
+
+    public void testUnderscoredFieldsFiltered() {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "_field1", "type=text", "_field2", "type=text"));
+        prepareIndex("test").setId("1")
+            .setSource("field1", "value1", "_field1", "_value1", "_field2", "_value2")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        {
+            FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
+            FieldCapabilitiesResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD))
+            ).fieldCaps(fieldCapabilitiesRequest).actionGet();
+            assertExpectedFieldsIgnoringAllowlistedMetadataFields(response, "field1");
+        }
+
+        {
+            FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
+            FieldCapabilitiesResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD))
+            ).fieldCaps(fieldCapabilitiesRequest).actionGet();
+            assertExpectedFieldsIgnoringAllowlistedMetadataFields(response, "field1", "_field1");
         }
     }
 

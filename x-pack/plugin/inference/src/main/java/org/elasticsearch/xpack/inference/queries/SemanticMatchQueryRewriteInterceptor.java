@@ -16,9 +16,10 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryRewriteInterceptor;
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;

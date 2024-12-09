@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;

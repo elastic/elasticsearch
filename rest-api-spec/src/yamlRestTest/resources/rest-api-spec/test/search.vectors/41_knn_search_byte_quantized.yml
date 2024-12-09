@@ -398,7 +398,7 @@ setup:
               field: vector
               query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
               rescore_vector:
-                oversample: 1.5
+                num_candidates_factor: 1.5
 
   # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }

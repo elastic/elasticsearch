@@ -288,7 +288,7 @@ setup:
             k: 3
             num_candidates: 3
             rescore_vector:
-              oversample: 1.5
+              num_candidates_factor: 1.5
 
   # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }

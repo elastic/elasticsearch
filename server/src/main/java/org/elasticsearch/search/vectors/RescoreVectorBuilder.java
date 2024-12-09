@@ -23,41 +23,41 @@ import java.util.Objects;
 
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
-    public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
-    public static final float MIN_OVERSAMPLE = 1.0F;
+    public static final ParseField NUM_CANDIDATES_FACTOR_FIELD = new ParseField("num_candidates_factor");
+    public static final float MIN_OVERSAMPLE = 0.0F;
     private static final ConstructingObjectParser<RescoreVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rescore_vector",
         args -> new RescoreVectorBuilder((Float) args[0])
     );
 
     static {
-        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
+        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), NUM_CANDIDATES_FACTOR_FIELD);
     }
 
     // Oversample is required as of now as it is the only field in the rescore vector
-    private final float oversample;
+    private final float numCandidatesFactor;
 
-    public RescoreVectorBuilder(Float oversample) {
-        Objects.requireNonNull(oversample, "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be set");
-        if (oversample <= MIN_OVERSAMPLE) {
-            throw new IllegalArgumentException("[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be > " + MIN_OVERSAMPLE);
+    public RescoreVectorBuilder(Float numCandidatesFactor) {
+        Objects.requireNonNull(numCandidatesFactor, "[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be set");
+        if (numCandidatesFactor <= MIN_OVERSAMPLE) {
+            throw new IllegalArgumentException("[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be > " + MIN_OVERSAMPLE);
         }
-        this.oversample = oversample;
+        this.numCandidatesFactor = numCandidatesFactor;
     }
 
     public RescoreVectorBuilder(StreamInput in) throws IOException {
-        this.oversample = in.readFloat();
+        this.numCandidatesFactor = in.readFloat();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(oversample);
+        out.writeFloat(numCandidatesFactor);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(OVERSAMPLE_FIELD.getPreferredName(), oversample);
+        builder.field(NUM_CANDIDATES_FACTOR_FIELD.getPreferredName(), numCandidatesFactor);
         builder.endObject();
         return builder;
     }
@@ -71,15 +71,15 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RescoreVectorBuilder that = (RescoreVectorBuilder) o;
-        return Objects.equals(oversample, that.oversample);
+        return Objects.equals(numCandidatesFactor, that.numCandidatesFactor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(oversample);
+        return Objects.hashCode(numCandidatesFactor);
     }
 
-    public Float oversample() {
-        return oversample;
+    public Float numCandidatesFactor() {
+        return numCandidatesFactor;
     }
 }

@@ -124,7 +124,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
-    public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
+    public static final int NUM_CANDS_OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -2008,7 +2008,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             Integer k,
             int numCands,
-            Float rescoreOversample,
+            Float numCandsFactor,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2024,7 +2024,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector.asFloatVector(),
                     k,
                     numCands,
-                    rescoreOversample,
+                    numCandsFactor,
                     filter,
                     similarityThreshold,
                     parentFilter
@@ -2090,7 +2090,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             Integer k,
             int numCands,
-            Float rescoreOversample,
+            Float numCandsFactor,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2111,15 +2111,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
-            Integer adjustedK = k;
             int adjustedNumCands = numCands;
-            if (needsRescore(rescoreOversample) && adjustedK != null) {
-                adjustedK = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample));
-                adjustedNumCands = Math.max(adjustedK, numCands);
+            if (needsRescore(numCandsFactor)) {
+                // We shouldn't have less than k candidates (or 1 in case k is not set) to rescore
+                int minCands = k == null ? 1 : k;
+                // k <= numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
+                adjustedNumCands = Math.max(minCands, (int) Math.ceil(numCands * numCandsFactor));
+                adjustedNumCands = Math.min(adjustedNumCands, NUM_CANDS_OVERSAMPLE_LIMIT);
             }
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
+                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, k, adjustedNumCands, parentFilter)
+                : new ESKnnFloatVectorQuery(name(), queryVector, k, adjustedNumCands, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2127,7 +2129,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.score(similarityThreshold, elementType, dims)
                 );
             }
-            if (needsRescore(rescoreOversample)) {
+            if (needsRescore(numCandsFactor)) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),
                     queryVector,

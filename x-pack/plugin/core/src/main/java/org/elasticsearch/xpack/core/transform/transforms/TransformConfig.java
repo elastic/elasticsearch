@@ -69,8 +69,10 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
     private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
-    private static final String DATA_FRAME_TRANSFORMS_ADMIN_ROLE = "data_frame_transforms_admin";
-    private static final String DATA_FRAME_TRANSFORMS_USER_ROLE = "data_frame_transforms_user";
+    private static final List<String> DEPRECATED_DATA_FRAME_TRANSFORMS_ROLES = List.of(
+        "data_frame_transforms_admin",
+        "data_frame_transforms_user"
+    );
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -411,9 +413,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
         }
 
-        var deprecatedTransformRoles = getRolesFromHeaders().stream()
-            .filter(role -> role.equals(DATA_FRAME_TRANSFORMS_ADMIN_ROLE) || role.equals(DATA_FRAME_TRANSFORMS_USER_ROLE))
-            .toList();
+        var deprecatedTransformRoles = getRolesFromHeaders().stream().filter(DEPRECATED_DATA_FRAME_TRANSFORMS_ROLES::contains).toList();
         if (deprecatedTransformRoles.isEmpty() == false) {
             deprecations.add(
                 new DeprecationIssue(

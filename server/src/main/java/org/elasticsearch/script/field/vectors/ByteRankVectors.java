@@ -16,7 +16,7 @@ import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class ByteMultiDenseVector implements MultiDenseVector {
+public class ByteRankVectors implements RankVectors {
 
     protected final VectorIterator<byte[]> vectorValues;
     protected final int numVecs;
@@ -25,7 +25,7 @@ public class ByteMultiDenseVector implements MultiDenseVector {
     private float[] magnitudes;
     private final BytesRef magnitudesBytes;
 
-    public ByteMultiDenseVector(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+    public ByteRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
         assert magnitudesBytes.length == numVecs * Float.BYTES;
         this.vectorValues = vectorValues;
         this.numVecs = numVecs;

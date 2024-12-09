@@ -435,3 +435,6 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
   method: testAlreadyUpToDateDataStream
   issue: https://github.com/elastic/elasticsearch/issues/118276
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultRerank
+  issue: https://github.com/elastic/elasticsearch/issues/118184

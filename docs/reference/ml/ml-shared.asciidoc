@@ -18,7 +18,8 @@ end::adaptive-allocation-max-number[]
 
 tag::adaptive-allocation-min-number[]
 Specifies the minimum number of allocations to scale to.
-If set, it must be greater than or equal to `1`.
+If set, it must be greater than or equal to `0`.
+If not defined, the deployment scales to `0`.
 end::adaptive-allocation-min-number[]
 
 tag::aggregations[]

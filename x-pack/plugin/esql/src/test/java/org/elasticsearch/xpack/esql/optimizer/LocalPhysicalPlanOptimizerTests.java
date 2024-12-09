@@ -42,7 +42,9 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
@@ -67,9 +70,11 @@ import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
@@ -378,6 +383,67 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSingleCountWithStatsFilter() {
+        // an optimizer that filters out the ExtractAggregateCommonFilter rule
+        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config)) {
+            @Override
+            protected List<Batch<LogicalPlan>> batches() {
+                var oldBatches = super.batches();
+                List<Batch<LogicalPlan>> newBatches = new ArrayList<>(oldBatches.size());
+                for (var batch : oldBatches) {
+                    List<Rule<?, LogicalPlan>> rules = new ArrayList<>(List.of(batch.rules()));
+                    rules.removeIf(r -> r instanceof ExtractAggregateCommonFilter);
+                    newBatches.add(batch.with(rules.toArray(Rule[]::new)));
+                }
+                return newBatches;
+            }
+        };
+        var analyzer = makeAnalyzer("mapping-default.json");
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, logicalOptimizer);
+        var plan = plannerOptimizer.plan("""
+            from test
+            | stats c = count(hire_date) where emp_no < 10042
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+
+        Function<String, String> compact = s -> s.replaceAll("\\s+", "");
+        assertThat(compact.apply(esStatsQuery.query().toString()), is(compact.apply("""
+            {
+                "bool": {
+                    "must": [
+                        {
+                            "exists": {
+                                "field": "hire_date",
+                                "boost": 1.0
+                            }
+                        },
+                        {
+                            "esql_single_value": {
+                                "field": "emp_no",
+                                "next": {
+                                    "range": {
+                                        "emp_no": {
+                                            "lt": 10042,
+                                            "boost": 1.0
+                                        }
+                                    }
+                                },
+                                "source": "emp_no < 10042@2:36"
+                            }
+                        }
+                    ],
+                    "boost": 1.0
+                }
+            }
+            """)));
     }
 
     /**
@@ -1323,6 +1389,35 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin"));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"term":{"last_name":{"query":"Smith"}}}]
+     */
+    public void testTermFunction() {
+        // Skip test if the term function is not enabled.
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where term(last_name, "Smith")
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.termQuery("last_name", "Smith");
+        assertThat(query.query().toString(), is(expected.toString()));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

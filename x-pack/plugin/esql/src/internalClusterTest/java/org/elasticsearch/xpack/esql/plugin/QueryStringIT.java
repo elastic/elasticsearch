@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -136,5 +137,100 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);
+    }
+
+    public void testWhereQstrWithScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(
+                resp.values(),
+                List.of(
+                    List.of(2, 0.3028995096683502),
+                    List.of(3, 0.3028995096683502),
+                    List.of(4, 0.2547692656517029),
+                    List.of(5, 0.28161853551864624)
+                )
+            );
+
+        }
+    }
+
+    public void testWhereQstrWithScoringSorted() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content:fox fox")
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(3, 1.5605685710906982),
+                    List.of(2, 0.6057990193367004),
+                    List.of(5, 0.5632370710372925),
+                    List.of(4, 0.5095385313034058)
+                )
+            );
+
+        }
+    }
+
+    public void testWhereQstrWithScoringNoSort() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(
+                resp.values(),
+                List.of(
+                    List.of(2, 0.3028995096683502),
+                    List.of(3, 0.3028995096683502),
+                    List.of(4, 0.2547692656517029),
+                    List.of(5, 0.28161853551864624)
+                )
+            );
+        }
+    }
+
+    public void testWhereQstrWithNonPushableAndScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+              AND abs(id) > 0
+            | EVAL c_score = ceil(_score)
+            | KEEP id, c_score
+            | SORT id DESC
+            | LIMIT 2
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "c_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(resp.values(), List.of(List.of(5, 1.0), List.of(4, 1.0)));
+        }
     }
 }

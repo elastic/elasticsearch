@@ -36,10 +36,12 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -595,7 +597,11 @@ public class Verifier {
     }
 
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
@@ -640,6 +646,12 @@ public class Verifier {
         if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
+
+        // Allow mixed millisecond and nanosecond binary comparisons
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+            return null;
+        }
+
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,
@@ -833,6 +845,14 @@ public class Verifier {
                 plan,
                 condition,
                 Match.class,
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                m -> "[" + m.functionName() + "] " + m.functionType(),
+                failures
+            );
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                Term.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures

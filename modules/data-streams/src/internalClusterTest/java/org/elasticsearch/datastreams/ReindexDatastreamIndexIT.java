@@ -156,7 +156,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
         var destMappings = mappings.get(destIndex).sourceAsMap();
-        var sourceMappings = mappings.get(destIndex).sourceAsMap();
+        var sourceMappings = mappings.get(sourceIndex).sourceAsMap();
 
         assertEquals(sourceMappings, destMappings);
         // sanity check specific value from dest mapping

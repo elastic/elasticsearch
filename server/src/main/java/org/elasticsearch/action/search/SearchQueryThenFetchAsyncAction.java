@@ -575,6 +575,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                         } else if (response.results[i] instanceof QuerySearchResult q) {
                                             q.setShardIndex(s.shardIndex);
                                             q.setSearchShardTarget(new SearchShardTarget(nodeId, s.shardId(), null));
+                                            totalOps.addAndGet(shardIterators[s.shardIndex].remaining());
                                         }
                                     }
                                     final int successfulShards = request.shards.size() - failedShards;
@@ -585,21 +586,28 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                         queryPhaseResultConsumer.reduce(response.results, response.topDocsStats, response.mergeResult);
                                     } else {
                                         if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
-                                            var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
+                                            /*
+                                              TODO: do this
+                                              var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
                                             countOnlyQueryPhaseResultConsumer.reduce(
                                                 false,
                                                 false,
                                                 reducedTotalHits.value(),
                                                 reducedTotalHits.relation()
                                             );
+                                             */
+                                            for (Object result : response.results) {
+                                                if (result instanceof SearchPhaseResult searchPhaseResult) {
+                                                    countOnlyQueryPhaseResultConsumer.consumeResult(searchPhaseResult, () -> {});
+                                                }
+                                            }
                                         }
                                     }
-                                    final int numShards = results.getNumShards();
                                     successfulOps.addAndGet(successfulShards);
                                     final int total = totalOps.addAndGet(successfulShards + failedShards);
-                                    if (total == numShards) {
+                                    if (total == expectedTotalOps) {
                                         onPhaseDone();
-                                    } else if (total > numShards) {
+                                    } else if (total > expectedTotalOps) {
                                         throw new AssertionError();
                                     }
                                 }

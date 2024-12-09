@@ -90,7 +90,7 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
             String errorMessage = Strings.format(
-                "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
+                "[%s] lifecycle action for index [%s] executed but the target index [%s] does not exist",
                 getKey().action(),
                 index.getName(),
                 indexName

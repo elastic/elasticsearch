@@ -47,7 +47,7 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndexMetadata indexMetadata = metadata.index(index);
         assert indexMetadata != null
-            : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step " + "[" + NAME + "]";
+            : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
 
         if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
             // this index is not a time series index so no need to wait

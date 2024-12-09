@@ -103,7 +103,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
         if (targetIndexMetadata == null) {
             String errorMessage = Strings.format(
-                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" + " index [%s]",
+                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for index [%s]",
                 targetIndexName,
                 policyName,
                 originalIndex

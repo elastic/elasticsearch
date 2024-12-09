@@ -84,7 +84,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         if (targetIndexMetadata == null) {
             String policyName = indexMetadata.getLifecyclePolicyName();
             String errorMessage = Strings.format(
-                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" + " index [%s]",
+                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for index [%s]",
                 targetIndexName,
                 policyName,
                 originalIndex

@@ -79,7 +79,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
         if (targetIndexMetadata == null) {
             String errorMessage = Strings.format(
-                "index [%s] is being referenced by ILM action [%s] on step [%s] but " + "it doesn't exist",
+                "index [%s] is being referenced by ILM action [%s] on step [%s] but it doesn't exist",
                 targetIndexName,
                 getKey().action(),
                 getKey().name()

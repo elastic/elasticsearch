@@ -87,7 +87,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
                 logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
             } else {
                 logger.debug(
-                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " + "is {}",
+                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     actionTime,
                     snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()

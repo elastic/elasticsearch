@@ -115,7 +115,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             )
                 .orElseGet(
                     () -> Strings.format(
-                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " + "available in the cluster",
+                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are available in the cluster",
                         index.getName(),
                         preferredTierConfiguration
                     )

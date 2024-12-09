@@ -260,7 +260,7 @@ public class TransportVersions {
 
         Collections.sort(definedTransportVersions);
 
-        return Collections.unmodifiableList(definedTransportVersions);
+        return List.copyOf(definedTransportVersions);
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());

@@ -16,7 +16,6 @@ import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -24,6 +23,7 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
@@ -172,14 +172,12 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             if (extendedVersions.isEmpty()) {
                 ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
             } else {
-                List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS.size() + extendedVersions.size());
-                allVersions.addAll(TransportVersions.DEFINED_VERSIONS);
-                allVersions.addAll(extendedVersions);
-                Collections.sort(allVersions);
-                ALL_VERSIONS = Collections.unmodifiableList(allVersions);
+                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream())
+                    .sorted()
+                    .toList();
             }
 
-            ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toMap(TransportVersion::id, Function.identity()));
+            ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
 
             CURRENT = ALL_VERSIONS.getLast();
         }

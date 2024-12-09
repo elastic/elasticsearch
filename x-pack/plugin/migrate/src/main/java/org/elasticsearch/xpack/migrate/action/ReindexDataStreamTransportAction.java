@@ -20,6 +20,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
@@ -72,7 +73,8 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),
             totalIndices,
-            totalIndicesToBeUpgraded
+            totalIndicesToBeUpgraded,
+            ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
         String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
         persistentTasksService.sendStartRequest(

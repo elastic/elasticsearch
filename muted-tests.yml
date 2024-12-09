@@ -274,9 +274,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113054
-- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
-  method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
-  issue: https://github.com/elastic/elasticsearch/issues/116523
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
@@ -289,6 +286,9 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
+  method: testFallbackIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/117937
 
 # Examples:
 #

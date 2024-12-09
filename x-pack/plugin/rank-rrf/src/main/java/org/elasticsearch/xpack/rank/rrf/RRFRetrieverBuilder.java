@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -108,8 +109,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        return clone;
     }
 
     @Override

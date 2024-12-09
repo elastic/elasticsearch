@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -46,6 +47,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
 
+    public static final NodeFeature INNER_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("inner_retrievers_filter_support");
+
     public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
 
     protected final int rankWindowSize;
@@ -64,9 +67,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     /**
      * Returns a clone of the original retriever, replacing the sub-retrievers with
-     * the provided {@code newChildRetrievers}.
+     * the provided {@code newChildRetrievers} and the filters with the {@code newPreFilterQueryBuilders}.
      */
-    protected abstract T clone(List<RetrieverSource> newChildRetrievers);
+    protected abstract T clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders);
 
     /**
      * Combines the provided {@code rankResults} to return the final top documents.
@@ -85,13 +88,25 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
 
         // Rewrite prefilters
-        boolean hasChanged = false;
+        // We eagerly rewrite prefilters, because some of the innerRetrievers
+        // could be compound too, so we want to propagate all the necessary filter information to them
+        // and have it available as part of their own rewrite step
         var newPreFilters = rewritePreFilters(ctx);
-        hasChanged |= newPreFilters != preFilterQueryBuilders;
+        if (newPreFilters != preFilterQueryBuilders) {
+            return clone(innerRetrievers, newPreFilters);
+        }
 
+        boolean hasChanged = false;
         // Rewrite retriever sources
         List<RetrieverSource> newRetrievers = new ArrayList<>();
         for (var entry : innerRetrievers) {
+            // we propagate the filters only for compound retrievers as they won't be attached through
+            // the createSearchSourceBuilder.
+            // We could remove this check, but we would end up adding the same filters
+            // multiple times in case an inner retriever rewrites itself, when we re-enter to rewrite
+            if (entry.retriever.isCompound() && false == preFilterQueryBuilders.isEmpty()) {
+                entry.retriever.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
+            }
             RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
             if (newRetriever != entry.retriever) {
                 newRetrievers.add(new RetrieverSource(newRetriever, null));
@@ -106,7 +121,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             }
         }
         if (hasChanged) {
-            return clone(newRetrievers);
+            return clone(newRetrievers, newPreFilters);
         }
 
         // execute searches
@@ -166,12 +181,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             });
         });
 
-        return new RankDocsRetrieverBuilder(
-            rankWindowSize,
-            newRetrievers.stream().map(s -> s.retriever).toList(),
-            results::get,
-            newPreFilters
-        );
+        return new RankDocsRetrieverBuilder(rankWindowSize, newRetrievers.stream().map(s -> s.retriever).toList(), results::get);
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,6 +49,12 @@ public class Categorize extends GroupingFunction implements Validatable {
     @FunctionInfo(
         returnType = "keyword",
         description = "Groups text messages into categories of similarly formatted text values.",
+        detailedDescription = """
+            `CATEGORIZE` has the following limitations:
+
+            * can't be used within other expressions
+            * can't be used with multiple groupings
+            * can't be used or referenced within aggregate functions""",
         examples = {
             @Example(
                 file = "docs",
@@ -84,6 +91,12 @@ public class Categorize extends GroupingFunction implements Validatable {
     public boolean foldable() {
         // Categorize cannot be currently folded
         return false;
+    }
+
+    @Override
+    public Nullability nullable() {
+        // Both nulls and empty strings result in null values
+        return Nullability.TRUE;
     }
 
     @Override

@@ -417,3 +417,6 @@ tests:
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/118156
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  method: testElser {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118127

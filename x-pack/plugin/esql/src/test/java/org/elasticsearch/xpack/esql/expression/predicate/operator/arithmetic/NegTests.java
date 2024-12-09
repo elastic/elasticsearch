@@ -100,7 +100,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 Matchers.startsWith("LiteralsEvaluator[lit="),
                 DataType.TIME_DURATION,
                 equalTo(arg.negated())
-            );
+            ).withoutEvaluator();
         }), new TestCaseSupplier("Period", List.of(DataType.DATE_PERIOD), () -> {
             Period arg = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
@@ -108,7 +108,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 Matchers.startsWith("LiteralsEvaluator[lit="),
                 DataType.DATE_PERIOD,
                 equalTo(arg.negated())
-            );
+            ).withoutEvaluator();
         })));
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "numeric, date_period or time_duration");
     }

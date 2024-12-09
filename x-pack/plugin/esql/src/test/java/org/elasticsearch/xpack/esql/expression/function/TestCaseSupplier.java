@@ -278,6 +278,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
+            if (DataType.isRepresentable(expectedType) == false) {
+                testCase = testCase.withoutEvaluator();
+            }
             return testCase;
         });
     }
@@ -1438,8 +1441,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
-                // If the expected type is null, the test won't try to evaluate the expression
-                expectedType == null || DataType.isRepresentable(expectedType)
+                true
             );
         }
 

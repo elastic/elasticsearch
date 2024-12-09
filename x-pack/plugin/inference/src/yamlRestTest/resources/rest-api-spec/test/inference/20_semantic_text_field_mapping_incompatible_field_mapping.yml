@@ -59,6 +59,15 @@ setup:
 
 ---
 "Fails for non-compatible dimensions":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /Incompatible model settings for field \[dense_field\].+/
@@ -81,6 +90,15 @@ setup:
 
 ---
 "Fails for non-compatible inference id":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /The configured inference_id \[a-different-inference-id\] for field \[dense_field\] doesn't match the inference_id \[dense-inference-id\].+/
@@ -103,6 +121,15 @@ setup:
 
 ---
 "Fails for non-compatible similarity":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /Incompatible model settings for field \[dense_field\].+/
@@ -125,6 +152,15 @@ setup:
 
 ---
 "Fails for non-compatible element type":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /Incompatible model settings for field \[dense_field\].+/
@@ -147,6 +183,15 @@ setup:
 
 ---
 "Fails for non-compatible task type for dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /Incompatible model settings for field \[dense_field\].+/
@@ -170,6 +215,15 @@ setup:
 
 ---
 "Fails for non-compatible task type for sparse vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /Incompatible model settings for field \[sparse_field\].+/
@@ -192,6 +246,15 @@ setup:
 
 ---
 "Fails for missing dense vector inference results in chunks":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
@@ -213,6 +276,15 @@ setup:
 
 ---
 "Fails for missing sparse vector inference results in chunks":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /failed to parse field \[sparse_field\] of type \[semantic_text\]/
@@ -231,6 +303,15 @@ setup:
 
 ---
 "Fails for missing text in chunks":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/

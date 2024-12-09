@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -91,12 +90,12 @@ public final class FetchSourcePhase implements FetchSubPhase {
              * to the original _source if it has been requested.
              */
             private Source replaceInferenceMetadataFields(SearchHit hit, Source source) {
-                if (fetchContext.getSearchExecutionContext()
-                    .getIndexSettings()
-                    .getIndexVersionCreated()
-                    .before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (InferenceMetadataFieldsMapper.isEnabled(
+                    fetchContext.getSearchExecutionContext().getIndexSettings().getIndexVersionCreated()
+                ) == false) {
                     return source;
                 }
+
                 var field = hit.removeMetadataFields(InferenceMetadataFieldsMapper.NAME);
                 if (field == null || field.getValues().isEmpty()) {
                     return source;

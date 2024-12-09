@@ -59,9 +59,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         this.invalidatedTokens = in.readStringCollectionAsList();
         this.previouslyInvalidatedTokens = in.readStringCollectionAsList();
         this.errors = in.readCollectionAsList(StreamInput::readException);
-        if (in.getTransportVersion().before(TransportVersions.V_7_2_0)) {
-            in.readVInt();
-        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.restStatus = RestStatus.readFrom(in);
         }
@@ -111,9 +108,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         out.writeStringCollection(invalidatedTokens);
         out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
-        if (out.getTransportVersion().before(TransportVersions.V_7_2_0)) {
-            out.writeVInt(5);
-        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             RestStatus.writeTo(out, restStatus);
         }

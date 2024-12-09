@@ -47,7 +47,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -97,11 +97,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private Integer queryTokenCount;
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, XPackPlugin.class, FakeMlPlugin.class);
-    }
-
     @BeforeClass
     public static void setInferenceResultType() {
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
@@ -119,6 +114,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     public void setUp() throws Exception {
         super.setUp();
         queryTokenCount = null;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(XPackClientPlugin.class, InferencePlugin.class, FakeMlPlugin.class);
     }
 
     @Override
@@ -206,10 +206,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private void assertSparseEmbeddingLuceneQuery(Query query) {
         Query innerQuery = assertOuterBooleanQuery(query);
         assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
-        Query termsQuery = ((SparseVectorQueryWrapper) innerQuery).getTermsQuery();
-        assertThat(termsQuery, instanceOf(BooleanQuery.class));
+        var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
+        assertThat(((SparseVectorQueryWrapper) innerQuery).getTermsQuery(), instanceOf(BooleanQuery.class));
 
-        BooleanQuery innerBooleanQuery = (BooleanQuery) termsQuery;
+        BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
             assertThat(c.occur(), equalTo(SHOULD));

@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -41,6 +42,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginsLoader;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -199,12 +201,23 @@ class Elasticsearch {
             VectorUtil.class
         );
 
+        // load the plugin Java modules and layers now for use in entitlements
+        var pluginsLoader = PluginsLoader.createPluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
+        bootstrap.setPluginsLoader(pluginsLoader);
+        var pluginsResolver = PluginsResolver.create(pluginsLoader);
+
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
-            logger.info("Bootstrapping Entitlements");
-            EntitlementBootstrap.bootstrap();
+            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
+
+            List<Tuple<Path, Boolean>> pluginData = pluginsLoader.allBundles()
+                .stream()
+                .map(bundle -> Tuple.tuple(bundle.getDir(), bundle.pluginDescriptor().isModular()))
+                .toList();
+
+            EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
         } else {
             // install SM after natives, shutdown hooks, etc.
-            logger.info("Bootstrapping java SecurityManager");
+            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
                 nodeEnv,
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
@@ -244,7 +257,7 @@ class Elasticsearch {
     private static void initPhase3(Bootstrap bootstrap) throws IOException, NodeValidationException {
         checkLucene();
 
-        Node node = new Node(bootstrap.environment()) {
+        Node node = new Node(bootstrap.environment(), bootstrap.pluginsLoader()) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,

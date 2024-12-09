@@ -591,7 +591,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mappingSource,
             indexVersionCreated,
             indexSettings,
-            mapperMetrics
+            mapperMetrics,
+            index().getName()
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;

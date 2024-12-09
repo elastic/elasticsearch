@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -19,14 +21,15 @@ import org.elasticsearch.index.IndexVersions;
 import java.util.List;
 
 public class DocumentMapper {
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
-
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+    private final Logger logger;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -45,7 +48,8 @@ public class DocumentMapper {
             mapping.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getIndexSettings(),
-            mapperService.getMapperMetrics()
+            mapperService.getMapperMetrics(),
+            mapperService.index().getName()
         );
     }
 
@@ -55,7 +59,8 @@ public class DocumentMapper {
         CompressedXContent source,
         IndexVersion version,
         IndexSettings indexSettings,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        String indexName
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
@@ -63,9 +68,18 @@ public class DocumentMapper {
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;
+        this.logger = Loggers.getLogger(getClass(), indexName);
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+    }
+
+    private void maybeLog(Exception ex) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Error while parsing document: " + ex.getMessage(), ex);
+        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
+            logger.error("Error while parsing document: " + ex.getMessage(), ex);
+        }
     }
 
     /**
@@ -112,7 +126,12 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws DocumentParsingException {
-        return documentParser.parseDocument(source, mappingLookup);
+        try {
+            return documentParser.parseDocument(source, mappingLookup);
+        } catch (Exception e) {
+            maybeLog(e);
+            throw e;
+        }
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

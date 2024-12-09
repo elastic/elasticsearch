@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -30,27 +29,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
  */
 public abstract class AggregateFunction extends Function {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            Avg.ENTRY,
-            Count.ENTRY,
-            CountDistinct.ENTRY,
-            Max.ENTRY,
-            Median.ENTRY,
-            MedianAbsoluteDeviation.ENTRY,
-            Min.ENTRY,
-            Percentile.ENTRY,
-            Rate.ENTRY,
-            SpatialCentroid.ENTRY,
-            Sum.ENTRY,
-            Top.ENTRY,
-            Values.ENTRY,
-            // internal functions
-            ToPartial.ENTRY,
-            FromPartial.ENTRY,
-            WeightedAvg.ENTRY
-        );
-    }
 
     private final Expression field;
     private final List<? extends Expression> parameters;
@@ -75,10 +53,8 @@ public abstract class AggregateFunction extends Function {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : emptyList()
         );
@@ -88,7 +64,7 @@ public abstract class AggregateFunction extends Function {
     public final void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeNamedWriteable(filter);
             out.writeNamedWriteableCollection(parameters);
         } else {

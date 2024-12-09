@@ -189,20 +189,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void syncBuiltInRoles(QueryableBuiltInRoles roles, ClusterState clusterState) {
-        final IndexMetadata securityIndexMetadata = resolveSecurityIndexMetadata(clusterState.metadata());
-        if (securityIndexMetadata == null) {
-            logger.debug("Security index does not exist, skipping built-in roles synchronization");
-            return;
-        }
-        final Map<String, String> indexedRolesDigests = securityIndexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
-        if (roles.rolesDigest().equals(indexedRolesDigests)) {
-            logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
-            return;
-        }
-        final Index securityIndex = securityIndexMetadata.getIndex();
-
         if (synchronizationInProgress.compareAndSet(false, true)) {
-            executor.execute(() -> doSyncBuiltinRoles(securityIndex, indexedRolesDigests, roles, ActionListener.wrap(v -> {
+            final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
+            if (roles.rolesDigest().equals(indexedRolesDigests)) {
+                logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
+                return;
+            }
+            executor.execute(() -> doSyncBuiltinRoles(indexedRolesDigests, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced [" + roles.roleDescriptors().size() + "] built-in roles to .security index");
                 synchronizationInProgress.set(false);
             }, e -> {
@@ -278,19 +271,14 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         return true;
     }
 
-    private void doSyncBuiltinRoles(
-        Index securityIndex,
-        Map<String, String> indexedRolesDigests,
-        QueryableBuiltInRoles roles,
-        ActionListener<Void> listener
-    ) {
+    private void doSyncBuiltinRoles(Map<String, String> indexedRolesDigests, QueryableBuiltInRoles roles, ActionListener<Void> listener) {
         final Collection<RoleDescriptor> rolesToUpsert = rolesToUpsert(roles, indexedRolesDigests);
         indexRoles(rolesToUpsert, ActionListener.wrap(onResponse -> {
             final Set<String> rolesToDelete = rolesToDelete(roles, indexedRolesDigests);
             if (rolesToDelete.isEmpty()) {
-                markRolesAsSynced(securityIndex, indexedRolesDigests, roles.rolesDigest(), listener);
+                markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), listener);
             } else {
-                deleteRoles(securityIndex, roles, rolesToDelete, indexedRolesDigests, listener);
+                deleteRoles(roles, rolesToDelete, indexedRolesDigests, listener);
             }
         }, listener::onFailure));
     }
@@ -313,7 +301,6 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void deleteRoles(
-        Index concreteSecurityIndex,
         QueryableBuiltInRoles roles,
         Set<String> rolesToDelete,
         Map<String, String> indexedRolesDigests,
@@ -328,7 +315,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             if (deleteFailure.isPresent()) {
                 listener.onFailure(deleteFailure.get());
             } else {
-                markRolesAsSynced(concreteSecurityIndex, indexedRolesDigests, roles.rolesDigest(), listener);
+                markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), listener);
             }
         }, listener::onFailure));
     }
@@ -375,11 +362,11 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
      * .security index or if they are equal to the new roles digests.
      */
     private void markRolesAsSynced(
-        Index concreteSecurityIndex,
         Map<String, String> expectedRolesDigests,
         Map<String, String> newRolesDigests,
         ActionListener<Void> listener
     ) {
+        final Index concreteSecurityIndex = resolveSecurityIndexMetadata(clusterService.state().metadata()).getIndex();
         markRolesAsSyncedTaskQueue.submitTask(
             "mark built-in roles as synced task",
             new MarkRolesAsSyncedTask(ActionListener.wrap(response -> {
@@ -401,6 +388,14 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             }, listener::onFailure), concreteSecurityIndex.getName(), expectedRolesDigests, newRolesDigests),
             null
         );
+    }
+
+    private Map<String, String> readIndexedBuiltInRolesDigests(ClusterState state) {
+        final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
+        if (indexMetadata == null) {
+            return null;
+        }
+        return indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
     }
 
     private static IndexMetadata resolveSecurityIndexMetadata(final Metadata metadata) {

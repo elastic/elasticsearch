@@ -76,14 +76,23 @@ setup:
         name: my-data-stream
   - is_true: acknowledged
 
-# Uncomment once the cancel API is in place
-#  - do:
-#      migrate.reindex:
-#        body: |
-#          {
-#            "mode": "upgrade",
-#            "source": {
-#              "index": "my-data-stream"
-#            }
-#          }
-#  - match: { task: "reindex-data-stream-my-data-stream" }
+  - do:
+      migrate.reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      migrate.cancel_reindex:
+        index: "my-data-stream"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /resource_not_found_exception/
+      migrate.cancel_reindex:
+        index: "my-data-stream"

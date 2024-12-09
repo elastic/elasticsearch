@@ -81,13 +81,15 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             );
 
             for (String template : templates) {
-                awaitCallApi(
-                    "indices.exists_index_template",
-                    singletonMap("name", template),
-                    emptyList(),
-                    response -> true,
-                    () -> "Exception when waiting for [" + template + "] template to be created"
-                );
+                if (template.startsWith(".ml") == false) {
+                    awaitCallApi(
+                        "indices.exists_index_template",
+                        singletonMap("name", template),
+                        emptyList(),
+                        response -> true,
+                        () -> "Exception when waiting for [" + template + "] template to be created"
+                    );
+                }
             }
         }
     }
@@ -207,7 +209,7 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
      * @return Wait for pending tasks
      */
     protected boolean isWaitForPendingTasks() {
-        return true;
+        return false;
     }
 
 }

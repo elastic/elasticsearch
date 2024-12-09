@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es816;
+package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
@@ -50,7 +50,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -62,7 +62,7 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         return new Lucene912Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES816BinaryQuantizedRWVectorsFormat();
+                return new ES818BinaryQuantizedVectorsFormat();
             }
         };
     }
@@ -102,12 +102,12 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES816BinaryQuantizedVectorsFormat();
+                return new ES818BinaryQuantizedVectorsFormat();
             }
         };
-        String expectedPattern = "ES816BinaryQuantizedVectorsFormat("
-            + "name=ES816BinaryQuantizedVectorsFormat, "
-            + "flatVectorScorer=ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=%s()))";
+        String expectedPattern = "ES818BinaryQuantizedVectorsFormat("
+            + "name=ES818BinaryQuantizedVectorsFormat, "
+            + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=%s()))";
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
         assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
@@ -149,25 +149,27 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     LeafReader r = getOnlyLeafReader(reader);
                     FloatVectorValues vectorValues = r.getFloatVectorValues(fieldName);
                     assertEquals(vectorValues.size(), numVectors);
-                    OffHeapBinarizedVectorValues qvectorValues = ((ES816BinaryQuantizedVectorsReader.BinarizedVectorValues) vectorValues)
+                    BinarizedByteVectorValues qvectorValues = ((ES818BinaryQuantizedVectorsReader.BinarizedVectorValues) vectorValues)
                         .getQuantizedVectorValues();
                     float[] centroid = qvectorValues.getCentroid();
                     assertEquals(centroid.length, dims);
 
-                    int descritizedDimension = BQVectorUtils.discretize(dims, 64);
-                    BinaryQuantizer quantizer = new BinaryQuantizer(dims, descritizedDimension, similarityFunction);
+                    OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
+                    byte[] quantizedVector = new byte[dims];
                     byte[] expectedVector = new byte[BQVectorUtils.discretize(dims, 64) / 8];
                     if (similarityFunction == VectorSimilarityFunction.COSINE) {
-                        vectorValues = new ES816BinaryQuantizedVectorsWriter.NormalizedFloatVectorValues(vectorValues);
+                        vectorValues = new ES818BinaryQuantizedVectorsWriter.NormalizedFloatVectorValues(vectorValues);
                     }
-
                     while (vectorValues.nextDoc() != NO_MORE_DOCS) {
-                        float[] corrections = quantizer.quantizeForIndex(vectorValues.vectorValue(), expectedVector, centroid);
+                        OptimizedScalarQuantizer.QuantizationResult corrections = quantizer.scalarQuantize(
+                            vectorValues.vectorValue(),
+                            quantizedVector,
+                            (byte) 1,
+                            centroid
+                        );
+                        BQVectorUtils.packAsBinary(quantizedVector, expectedVector);
                         assertArrayEquals(expectedVector, qvectorValues.vectorValue());
-                        assertEquals(corrections.length, qvectorValues.getCorrectiveTerms().length);
-                        for (int i = 0; i < corrections.length; i++) {
-                            assertEquals(corrections[i], qvectorValues.getCorrectiveTerms()[i], 0.00001f);
-                        }
+                        assertEquals(corrections, qvectorValues.getCorrectiveTerms());
                     }
                 }
             }

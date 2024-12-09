@@ -35,11 +35,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
 
     @Override
     public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-
-        if (queryBuilder instanceof MatchQueryBuilder == false) {
-            return queryBuilder;
-        }
-
+        assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
         QueryBuilder rewritten = queryBuilder;
         ResolvedIndices resolvedIndices = context.getResolvedIndices();

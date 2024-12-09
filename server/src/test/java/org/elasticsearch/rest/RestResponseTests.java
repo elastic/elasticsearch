@@ -34,7 +34,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

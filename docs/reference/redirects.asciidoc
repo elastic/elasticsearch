@@ -1943,7 +1943,7 @@ Refer to <<get-ip-location-database-api>>.
 
 Refer to <<delete-ip-location-database-api>>.
 
-[role="exolude",id="knn-search-api"]
+[role="exclude",id="knn-search-api"]
 === Delete _knn_search API
 
 Refer to <<search-api-knn>>.

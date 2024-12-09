@@ -7,11 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.index.query;
+package org.elasticsearch.plugins.internal.rewriter;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryRewriteInterceptor;
 
 public class MockQueryRewriteInterceptor implements QueryRewriteInterceptor {
 

@@ -15,7 +15,6 @@ import org.elasticsearch.inference.ChunkingSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 /**
  * Split text into chunks aligned on sentence boundaries.
@@ -35,16 +34,6 @@ public class SentenceBoundaryChunker implements Chunker {
     public SentenceBoundaryChunker() {
         sentenceIterator = BreakIterator.getSentenceInstance(Locale.ROOT);
         wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-
-    }
-
-    /**
-     * Utility method for testing.
-     * Use the chunk functions that return offsets where possible
-     */
-    List<String> textChunks(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
-        var chunkPositions = chunk(input, maxNumberWordsPerChunk, includePrecedingSentence);
-        return chunkPositions.stream().map(offset -> input.substring(offset.start(), offset.end())).collect(Collectors.toList());
     }
 
     /**

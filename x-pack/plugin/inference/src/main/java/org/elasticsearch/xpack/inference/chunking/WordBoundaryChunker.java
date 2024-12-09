@@ -57,19 +57,6 @@ public class WordBoundaryChunker implements Chunker {
     }
 
     /**
-     * Utility method for testing.
-     * Use the chunk functions that return offsets where possible
-     */
-    List<String> textChunks(String input, int chunkSize, int overlap) {
-        if (input.isEmpty()) {
-            return List.of("");
-        }
-
-        var chunkPositions = chunkPositions(input, chunkSize, overlap);
-        return chunkPositions.stream().map(p -> input.substring(p.offsets().start(), p.offsets().end())).collect(Collectors.toList());
-    }
-
-    /**
      * Break the input text into small chunks as dictated
      * by the chunking parameters
      * @param input Text to chunk

@@ -16,11 +16,14 @@ import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.NavigableMap;
+import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
-import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
@@ -60,8 +63,14 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return fromId(in.readVInt());
     }
 
+    /**
+     * Finds a {@code TransportVersion} by its id.
+     * If a transport version with the specified ID does not exist,
+     * this method creates and returns a new instance of {@code TransportVersion} with the specified ID.
+     * The new instance is not registered in {@code TransportVersion.getAllVersions}.
+     */
     public static TransportVersion fromId(int id) {
-        TransportVersion known = VersionsHolder.ALL_VERSION_IDS.get(id);
+        TransportVersion known = VersionsHolder.ALL_VERSIONS_MAP.get(id);
         if (known != null) {
             return known;
         }
@@ -103,10 +112,10 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     }
 
     /**
-     * Collection of all defined transport versions
+     * Sorted list of all defined transport versions
      */
-    public static Collection<TransportVersion> getAllVersions() {
-        return VersionsHolder.ALL_VERSION_IDS.values();
+    public static List<TransportVersion> getAllVersions() {
+        return VersionsHolder.ALL_VERSIONS;
     }
 
     public static TransportVersion fromString(String str) {
@@ -151,29 +160,28 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     }
 
     private static class VersionsHolder {
-        private static final NavigableMap<Integer, TransportVersion> ALL_VERSION_IDS = getAllVersionIds();
-        private static final TransportVersion CURRENT = findCurrent();
+        private static final List<TransportVersion> ALL_VERSIONS;
+        private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
+        private static final TransportVersion CURRENT;
 
-        private static NavigableMap<Integer, TransportVersion> getAllVersionIds() {
+        static {
             Collection<TransportVersion> extendedVersions = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
                 .map(VersionExtension::getTransportVersions)
                 .orElse(Collections.emptyList());
 
             if (extendedVersions.isEmpty()) {
-                return TransportVersions.VERSION_IDS;
+                ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
+            } else {
+                List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS.size() + extendedVersions.size());
+                allVersions.addAll(TransportVersions.DEFINED_VERSIONS);
+                allVersions.addAll(extendedVersions);
+                Collections.sort(allVersions);
+                ALL_VERSIONS = Collections.unmodifiableList(allVersions);
             }
 
-            NavigableMap<Integer, TransportVersion> result = new TreeMap<>(TransportVersions.VERSION_IDS);
-            for (TransportVersion extendedVersion : extendedVersions) {
-                result.put(extendedVersion.id(), extendedVersion);
-            }
+            ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toMap(TransportVersion::id, Function.identity()));
 
-            return Collections.unmodifiableNavigableMap(result);
-        }
-
-        // finds the pluggable current version
-        private static TransportVersion findCurrent() {
-            return ALL_VERSION_IDS.lastEntry().getValue();
+            CURRENT = ALL_VERSIONS.getLast();
         }
     }
 }

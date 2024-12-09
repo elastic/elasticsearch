@@ -14,7 +14,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
 import java.util.Collections;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -71,15 +71,11 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(
             TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
             equalTo(
-                Map.of(
-                    199,
-                    CorrectFakeVersion.V_0_00_01,
-                    2,
+                List.of(
                     CorrectFakeVersion.V_0_000_002,
-                    3,
                     CorrectFakeVersion.V_0_000_003,
-                    4,
-                    CorrectFakeVersion.V_0_000_004
+                    CorrectFakeVersion.V_0_000_004,
+                    CorrectFakeVersion.V_0_00_01
                 )
             )
         );

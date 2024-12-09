@@ -25,6 +25,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+
 public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
 
     private final ElasticInferenceServiceCompletionModel model;
@@ -47,7 +49,10 @@ public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
     @Override
     public HttpRequest createHttpRequest() {
         var httpPost = new HttpPost(uri);
-        var requestEntity = Strings.toString(new EISUnifiedChatCompletionRequestEntity(unifiedChatInput));
+        var requestEntity = Strings.toString(
+            // TODO remove the modelId() call if not used
+            new EISUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
+        );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -57,6 +62,8 @@ public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
         }
 
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        // TODO remove EIS doesn't use an API key
+        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

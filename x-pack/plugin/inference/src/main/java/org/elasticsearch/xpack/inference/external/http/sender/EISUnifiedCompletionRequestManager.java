@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.elastic.EISUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -28,15 +29,29 @@ public class EISUnifiedCompletionRequestManager extends ElasticInferenceServiceR
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
-    public static EISUnifiedCompletionRequestManager of(ElasticInferenceServiceCompletionModel model, ThreadPool threadPool) {
-        return new EISUnifiedCompletionRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
+    public static EISUnifiedCompletionRequestManager of(
+        ElasticInferenceServiceCompletionModel model,
+        ThreadPool threadPool,
+        TraceContext traceContext
+    ) {
+        return new EISUnifiedCompletionRequestManager(
+            Objects.requireNonNull(model),
+            Objects.requireNonNull(threadPool),
+            Objects.requireNonNull(traceContext)
+        );
     }
 
     private final ElasticInferenceServiceCompletionModel model;
+    private final TraceContext traceContext;
 
-    private EISUnifiedCompletionRequestManager(ElasticInferenceServiceCompletionModel model, ThreadPool threadPool) {
+    private EISUnifiedCompletionRequestManager(
+        ElasticInferenceServiceCompletionModel model,
+        ThreadPool threadPool,
+        TraceContext traceContext
+    ) {
         super(threadPool, model);
-        this.model = Objects.requireNonNull(model);
+        this.model = model;
+        this.traceContext = traceContext;
     }
 
     @Override
@@ -50,7 +65,7 @@ public class EISUnifiedCompletionRequestManager extends ElasticInferenceServiceR
         EISUnifiedChatCompletionRequest request = new EISUnifiedChatCompletionRequest(
             inferenceInputs.castTo(UnifiedChatInput.class),
             model,
-            null // TODO
+            traceContext
         );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

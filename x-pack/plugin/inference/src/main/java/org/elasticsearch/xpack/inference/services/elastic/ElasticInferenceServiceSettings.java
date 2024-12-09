@@ -34,8 +34,9 @@ public class ElasticInferenceServiceSettings {
 
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
-        elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
-
+        // TODO fix this
+        // elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
+        elasticInferenceServiceUrl = "abc";
     }
 
     public static List<Setting<?>> getSettingsDefinitions() {

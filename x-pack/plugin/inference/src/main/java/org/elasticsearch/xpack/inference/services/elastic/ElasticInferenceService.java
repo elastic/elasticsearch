@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -71,7 +72,7 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -80,6 +81,11 @@ public class ElasticInferenceService extends SenderService {
     ) {
         super(factory, serviceComponents);
         this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
     }
 
     @Override
@@ -106,9 +112,8 @@ public class ElasticInferenceService extends SenderService {
             String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
 
-        // TODO add the request manager that takes a trace context
-        var requestCreator = EISUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
-        var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
+        var requestManager = EISUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool(), currentTraceInfo);
+        var action = new SenderExecutableAction(getSender(), requestManager, errorMessage);
 
         action.execute(inputs, timeout, listener);
     }
@@ -215,6 +220,16 @@ public class ElasticInferenceService extends SenderService {
     ) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceSparseEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                eisServiceComponents,
+                context
+            );
+            case COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,

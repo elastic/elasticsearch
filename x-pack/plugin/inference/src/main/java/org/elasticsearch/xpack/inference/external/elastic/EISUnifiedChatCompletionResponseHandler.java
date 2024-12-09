@@ -24,6 +24,11 @@ public class EISUnifiedChatCompletionResponseHandler extends ElasticInferenceSer
     }
 
     @Override
+    public boolean canHandleStreamingResponses() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var openAiProcessor = new OpenAiUnifiedStreamingProcessor(); // EIS uses the unified API spec

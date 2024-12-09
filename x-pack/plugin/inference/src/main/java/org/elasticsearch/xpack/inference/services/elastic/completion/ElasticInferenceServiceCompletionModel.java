@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -20,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedCh
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -58,9 +57,10 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
+            // TODO remove this as EIS doesn't use it
+            DefaultSecretSettings.fromMap(secrets),
             elasticInferenceServiceComponents
         );
     }
@@ -82,7 +82,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
@@ -102,8 +102,14 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     }
 
     @Override
-    public ElasticInferenceServiceSparseEmbeddingsServiceSettings getServiceSettings() {
-        return (ElasticInferenceServiceSparseEmbeddingsServiceSettings) super.getServiceSettings();
+    public ElasticInferenceServiceCompletionServiceSettings getServiceSettings() {
+        return (ElasticInferenceServiceCompletionServiceSettings) super.getServiceSettings();
+    }
+
+    // TODO remove EIS doesn't use secrets
+    @Override
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public URI uri() {
@@ -125,4 +131,6 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         // return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/completion/" + modelId);
         return OpenAiUnifiedChatCompletionRequest.buildDefaultUri();
     }
+
+    // TODO create the Configuration class?
 }

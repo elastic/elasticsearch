@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -22,9 +21,9 @@ public class ElasticRerankerModel extends ElasticsearchInternalModel {
         TaskType taskType,
         String service,
         ElasticRerankerServiceSettings serviceSettings,
-        ChunkingSettings chunkingSettings
+        RerankTaskSettings taskSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
     }
 
     @Override

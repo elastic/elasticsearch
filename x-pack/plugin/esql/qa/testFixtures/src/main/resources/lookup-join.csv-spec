@@ -3,7 +3,6 @@
 // Reuses the sample dataset and commands from enrich.csv-spec
 //
 
-//TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
 basicOnTheDataNode
 required_capability: join_lookup_v4
 
@@ -324,4 +323,52 @@ count:long | type:keyword
 3          | Error
 3          | Success
 1          | Disconnected
+;
+
+nonUniqueKeyOnTheDataNode
+required_capability: join_lookup_v4
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| EVAL language_name = MV_SORT(language_name)
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | null
+10092          | 1                     | [English (UK), English (US)]
+10093          | 3                     | null
+;
+
+nonUniqueKeyOnTheCoordinator
+required_capability: join_lookup_v4
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL language_name = MV_SORT(language_name)
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | [French (CA), French (F)]
+10002          | 5                     | null
+10003          | 4                     | [German (A), German (CH), German (D)]
+;
+
+nonUniqueKeyFromRow
+required_capability: join_lookup_v4
+
+ROW language_code = 1
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL language_name = MV_SORT(language_name)
+;
+
+language_code:integer | language_name:keyword
+1                     | [English (UK), English (US)]
 ;

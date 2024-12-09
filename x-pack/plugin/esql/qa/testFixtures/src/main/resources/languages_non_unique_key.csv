@@ -1,0 +1,8 @@
+language_code:integer,language_name:keyword
+1,English (US)
+1,English (UK)
+2,French (F)
+2,French (CA)
+4,German (D)
+4,German (A)
+4,German (CH)

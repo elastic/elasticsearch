@@ -69,6 +69,7 @@ public record SemanticTextField(
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
+    public static final String CHUNKED_TEXT_FIELD = "text";
     static final String CHUNKED_OFFSET_FIELD = "offset";
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";

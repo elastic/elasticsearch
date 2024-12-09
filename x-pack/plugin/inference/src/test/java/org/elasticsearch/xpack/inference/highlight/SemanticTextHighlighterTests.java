@@ -16,8 +16,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -43,22 +46,30 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class SemanticTextHighlighterTests extends MapperServiceTestCase {
+    private static final String SEMANTIC_FIELD_E5 = "body-e5";
+    private static final String SEMANTIC_FIELD_ELSER = "body-elser";
+
     private Map<String, Object> queries;
 
     @Override
@@ -70,33 +81,92 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        queries = XContentHelper.convertToMap(
-            Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("queries.json")),
-            false,
-            XContentType.JSON
-        ).v2();
+        var input = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("queries.json"));
+        this.queries = XContentHelper.convertToMap(input, false, XContentType.JSON).v2();
     }
 
+    @SuppressWarnings("unchecked")
     public void testDenseVector() throws Exception {
         var mapperService = createDefaultMapperService();
-        float[] vector = readDenseVector(queries.get("dense_vector_1"));
-        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType("dense_field");
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
+        float[] vector = readDenseVector(queryMap.get("embeddings"));
+        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(fieldType.getEmbeddingsField().fullPath(), vector, 10, 10, null);
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
-        var sourceToParse = new SourceToParse(
-            "0",
-            Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("sample-doc.json")),
-            XContentType.JSON
-        );
+        var sourceToParse = new SourceToParse("0", readSampleDoc("sample-doc.json.gz"), XContentType.JSON);
 
-        assertHighlightOneDoc(mapperService, shardRequest, sourceToParse, "dense_field", 1, new String[] { "" });
+        String[] expectedScorePassages = ((List<String>) queryMap.get("expected_by_score")).toArray(String[]::new);
+        for (int i = 0; i < expectedScorePassages.length; i++) {
+            assertHighlightOneDoc(
+                mapperService,
+                shardRequest,
+                sourceToParse,
+                SEMANTIC_FIELD_E5,
+                i + 1,
+                HighlightBuilder.Order.SCORE,
+                Arrays.copyOfRange(expectedScorePassages, 0, i + 1)
+            );
+        }
+
+        String[] expectedOffsetPassages = ((List<String>) queryMap.get("expected_by_offset")).toArray(String[]::new);
+        assertHighlightOneDoc(
+            mapperService,
+            shardRequest,
+            sourceToParse,
+            SEMANTIC_FIELD_E5,
+            expectedOffsetPassages.length,
+            HighlightBuilder.Order.NONE,
+            expectedOffsetPassages
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSparseVector() throws Exception {
+        var mapperService = createDefaultMapperService();
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("sparse_vector_1");
+        List<WeightedToken> tokens = readSparseVector(queryMap.get("embeddings"));
+        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_ELSER);
+        SparseVectorQueryBuilder sparseQuery = new SparseVectorQueryBuilder(
+            fieldType.getEmbeddingsField().fullPath(),
+            tokens,
+            null,
+            null,
+            null,
+            null
+        );
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), sparseQuery, ScoreMode.Max);
+        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
+        var sourceToParse = new SourceToParse("0", readSampleDoc("sample-doc.json.gz"), XContentType.JSON);
+
+        String[] expectedScorePassages = ((List<String>) queryMap.get("expected_by_score")).toArray(String[]::new);
+        for (int i = 0; i < expectedScorePassages.length; i++) {
+            assertHighlightOneDoc(
+                mapperService,
+                shardRequest,
+                sourceToParse,
+                SEMANTIC_FIELD_ELSER,
+                i + 1,
+                HighlightBuilder.Order.SCORE,
+                Arrays.copyOfRange(expectedScorePassages, 0, i + 1)
+            );
+        }
+
+        String[] expectedOffsetPassages = ((List<String>) queryMap.get("expected_by_offset")).toArray(String[]::new);
+        assertHighlightOneDoc(
+            mapperService,
+            shardRequest,
+            sourceToParse,
+            SEMANTIC_FIELD_ELSER,
+            expectedOffsetPassages.length,
+            HighlightBuilder.Order.NONE,
+            expectedOffsetPassages
+        );
     }
 
     private MapperService createDefaultMapperService() throws IOException {
-        return createMapperService(
-            Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json")).utf8ToString()
-        );
+        var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
+        return createMapperService(mappings.utf8ToString());
     }
 
     private float[] readDenseVector(Object value) {
@@ -115,12 +185,28 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         throw new IllegalArgumentException("Expected list, got " + value.getClass().getSimpleName());
     }
 
+    private List<WeightedToken> readSparseVector(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            List<WeightedToken> res = new ArrayList<>();
+            for (var entry : map.entrySet()) {
+                if (entry.getValue() instanceof Number number) {
+                    res.add(new WeightedToken((String) entry.getKey(), number.floatValue()));
+                } else {
+                    throw new IllegalArgumentException("Expected number, got " + entry.getValue().getClass().getSimpleName());
+                }
+            }
+            return res;
+        }
+        throw new IllegalArgumentException("Expected map, got " + value.getClass().getSimpleName());
+    }
+
     private void assertHighlightOneDoc(
         MapperService mapperService,
         ShardSearchRequest request,
         SourceToParse source,
         String fieldName,
         int numFragments,
+        HighlightBuilder.Order order,
         String[] expectedPassages
     ) throws Exception {
         SemanticTextFieldMapper fieldMapper = (SemanticTextFieldMapper) mapperService.mappingLookup().getMapper(fieldName);
@@ -154,7 +240,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                 );
                 try {
                     var highlightContext = new HighlightBuilder().field(fieldName, 0, numFragments)
-                        .highlighterType("semantic")
+                        .order(order)
+                        .highlighterType(SemanticTextHighlighter.NAME)
                         .build(execContext);
 
                     for (var fieldContext : highlightContext.fields()) {
@@ -191,5 +278,11 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     private ShardSearchRequest createShardSearchRequest(QueryBuilder queryBuilder) {
         SearchRequest request = createSearchRequest(queryBuilder);
         return new ShardSearchRequest(OriginalIndices.NONE, request, new ShardId("index", "index", 0), 0, 1, AliasFilter.EMPTY, 1, 0, null);
+    }
+
+    private BytesReference readSampleDoc(String fileName) throws IOException {
+        try (var in = new GZIPInputStream(SemanticTextHighlighterTests.class.getResourceAsStream(fileName))) {
+            return new BytesArray(new BytesRef(in.readAllBytes()));
+        }
     }
 }

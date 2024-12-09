@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.nio.file.Path;
+import java.util.List;
+
+import static java.util.stream.Collectors.toList;
 
 public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     private final InferencePlugin inferencePlugin;
@@ -26,5 +30,10 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
             }
         };
         plugins.add(inferencePlugin);
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return this.filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getRetrievers().stream()).collect(toList());
     }
 }

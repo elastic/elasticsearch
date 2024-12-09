@@ -77,7 +77,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     FIELD_NAME,
                     queryVector,
                     VectorSimilarityFunction.COSINE,
-                    adjustedK,
                     new MatchAllDocsQuery()
                 );
 
@@ -143,7 +142,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             FIELD_NAME,
             queryVector,
             VectorSimilarityFunction.COSINE,
-            k,
             innerQuery
         );
         IndexSearcher searcher = newSearcher(reader, true, false);

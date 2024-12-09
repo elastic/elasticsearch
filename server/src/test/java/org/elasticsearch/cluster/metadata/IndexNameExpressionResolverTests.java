@@ -1587,13 +1587,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        assertEquals(Set.of("alias-0", "alias-1"), indexNameExpressionResolver.resolveExpressions(state, "alias-*"));
-        assertEquals(Set.of("test-0", "alias-0", "alias-1"), indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*"));
+        assertEquals(resolvedExpressionsSet("alias-0", "alias-1"), indexNameExpressionResolver.resolveExpressions(state, "alias-*"));
         assertEquals(
-            Set.of("test-0", "test-1", "alias-0", "alias-1"),
+            resolvedExpressionsSet("test-0", "alias-0", "alias-1"),
+            indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*")
+        );
+        assertEquals(
+            resolvedExpressionsSet("test-0", "test-1", "alias-0", "alias-1"),
             indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*")
         );
-        assertEquals(Set.of("test-1", "alias-1"), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
+        assertEquals(resolvedExpressionsSet("test-1", "alias-1"), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
     }
 
     public void testFilteringAliases() {
@@ -3279,7 +3282,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             "<.logstash-{now/M{uuuu.MM}}>"
         );
         assertThat(result.size(), equalTo(4));
-        assertThat(result, contains(resolvedExpressions("name1", dataMathIndex1, "name2", dateMathIndex2)));
+        assertThat(
+            result,
+            contains(
+                new ResolvedExpression("name1"),
+                new ResolvedExpression(dataMathIndex1),
+                new ResolvedExpression("name2"),
+                new ResolvedExpression(dateMathIndex2)
+            )
+        );
     }
 
     public void testMathExpressionSupport() {
@@ -3476,10 +3487,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .includeHidden(randomBoolean())
             .allowEmptyExpressions(lenient)
             .build();
-    }
-
-    private List<ResolvedExpression> resolvedExpressions(String... expressions) {
-        return Arrays.stream(expressions).map(ResolvedExpression::new).toList();
     }
 
     private Set<ResolvedExpression> resolvedExpressionsSet(String... expressions) {

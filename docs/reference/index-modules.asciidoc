@@ -115,8 +115,8 @@ Index mode supports the following values:
 
 `time_series`::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
 
-`logsdb`::: Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
-preview:[]
+`logsdb`::: _(https://www.elastic.co/pricing[Enterprise subscription] required)_ +
+Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 

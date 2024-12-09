@@ -408,3 +408,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
   method: testCancelRequestWhenFailingFetchingPages
   issue: https://github.com/elastic/elasticsearch/issues/118213
+- class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
+  method: testHealthNode {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118157

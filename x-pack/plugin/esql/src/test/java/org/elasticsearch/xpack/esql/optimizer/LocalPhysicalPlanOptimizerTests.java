@@ -1370,21 +1370,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     /*
-    Checks that match filters are pushed down to Lucene when using casting, for example:
-    WHERE ip:"127.0.0.1"::IP
-    WHERE date:"2024-07-01"::DATETIME
-    WHERE date:"8.17.1"::VERSION
-    */
-    public void testSingleMatchOperatorFilterPushdownWithCasting() {
-        checkMatchFunctionPushDown(
-            LocalPhysicalPlanOptimizerTests::queryValueAsCasting,
-            value -> value,
-            Match.FIELD_DATA_TYPES,
-            MATCH_OPERATOR_QUERY
-        );
-    }
-
-    /*
     Checks that match filters are pushed down to Lucene when using strings, for example:
     WHERE ip:"127.0.0.1"
     WHERE date:"2024-07-01"

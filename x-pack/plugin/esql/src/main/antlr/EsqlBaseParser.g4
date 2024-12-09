@@ -78,7 +78,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant (CAST_OP queryType=dataType)?
+    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
     ;
 
 valueExpression

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -2333,27 +2332,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | WHERE CONCAT(\"field\", 1):\"value\"",
             "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
         );
-    }
-
-    public void testMatchFunctionQueryCasting() {
-        var plan = statement("FROM test | WHERE match(field, \"value\"::IP)");
-        var filter = as(plan, Filter.class);
-        var function = (UnresolvedFunction) filter.condition();
-        assertTrue(function.children().get(0) instanceof UnresolvedAttribute);
-        var toIp = (ToIP) function.children().get(1);
-        var literal = (Literal) toIp.field();
-        assertThat(literal.value(), equalTo("value"));
-    }
-
-    public void testMatchOperatorQueryCasting() {
-        var plan = statement("FROM test | WHERE field:\"value\"::IP");
-        var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
-        var matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("field"));
-        var toIp = (ToIP) match.query();
-        var literal = (Literal) toIp.field();
-        assertThat(literal.value(), equalTo("value"));
     }
 
     public void testMatchFunctionFieldCasting() {

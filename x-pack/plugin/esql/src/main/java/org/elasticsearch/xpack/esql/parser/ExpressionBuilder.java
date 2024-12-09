@@ -926,12 +926,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        final Expression matchQueryExpression;
-        if (ctx.queryType != null) {
-            matchQueryExpression = castToType(source(ctx), ctx.matchQuery, ctx.queryType);
-        } else {
-            matchQueryExpression = expression(ctx.matchQuery);
-        }
 
         final Expression matchFieldExpression;
         if (ctx.fieldType != null) {
@@ -940,6 +934,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             matchFieldExpression = expression(ctx.fieldExp);
         }
 
-        return new Match(source(ctx), matchFieldExpression, matchQueryExpression);
+        return new Match(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
     }
 }

@@ -218,42 +218,6 @@ count(*): long  | author.keyword:keyword
 8               | William Faulkner
 ;
 
-testMatchIpField
-required_capability: match_function
-required_capability: match_additional_types
-
-from sample_data
-| where client_ip:"172.21.0.5"::IP
-| keep client_ip, message;
-
-client_ip:ip   | message:keyword
-172.21.0.5     | Disconnected
-;
-
-testMatchDateField
-required_capability: match_function
-required_capability: match_additional_types
-
-from date_nanos
-| where millis:"2023-10-23T13:55:01.543Z"::DATETIME
-| keep millis;
-
-millis:date
-2023-10-23T13:55:01.543Z
-;
-
-testMatchDateNanosField
-required_capability: match_function
-required_capability: match_additional_types
-
-from date_nanos
-| where nanos:"2023-10-23T13:55:01.543123456Z"::DATE_NANOS
-| keep nanos;
-
-nanos:date_nanos
-2023-10-23T13:55:01.543123456Z
-;
-
 testMatchBooleanField
 required_capability: match_function
 required_capability: match_additional_types
@@ -311,23 +275,11 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from ul_logs
-| where bytes_out:"12749081495402663265"::UNSIGNED_LONG
+| where bytes_out:12749081495402663265
 | keep bytes_out;
 
 bytes_out:unsigned_long
 12749081495402663265
-;
-
-testMatchVersionField
-required_capability: match_function
-required_capability: match_additional_types
-
-from apps 
-| where version:"2.1"::VERSION 
-| keep name, version;
-
-name:keyword | version:version
-bbbbb        | 2.1
 ;
 
 testMatchIpFieldAsString

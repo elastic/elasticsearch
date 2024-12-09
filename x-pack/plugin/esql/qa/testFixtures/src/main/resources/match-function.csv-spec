@@ -198,42 +198,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10043          | Yishay              | Tzvieli        
 ;
 
-testMatchIpField
-required_capability: match_function
-required_capability: match_additional_types
-
-from sample_data
-| where match(client_ip, "172.21.0.5"::IP)
-| keep client_ip, message;
-
-client_ip:ip   | message:keyword
-172.21.0.5     | Disconnected
-;
-
-testMatchDateField
-required_capability: match_function
-required_capability: match_additional_types
-
-from date_nanos
-| where match(millis, "2023-10-23T13:55:01.543Z"::DATETIME)
-| keep millis;
-
-millis:date
-2023-10-23T13:55:01.543Z
-;
-
-testMatchDateNanosField
-required_capability: match_function
-required_capability: match_additional_types
-
-from date_nanos
-| where match(nanos, "2023-10-23T13:55:01.543123456Z"::DATE_NANOS)
-| keep nanos;
-
-nanos:date_nanos
-2023-10-23T13:55:01.543123456Z
-;
-
 testMatchBooleanField
 required_capability: match_function
 required_capability: match_additional_types
@@ -291,7 +255,7 @@ required_capability: match_function
 required_capability: match_additional_types
 
 from ul_logs
-| where match(bytes_out, "12749081495402663265"::UNSIGNED_LONG)
+| where match(bytes_out, 12749081495402663265)
 | keep bytes_out;
 
 bytes_out:unsigned_long
@@ -310,7 +274,7 @@ name:keyword | version:version
 bbbbb        | 2.1
 ;
 
-testMatchIpFieldAsString
+testMatchIpField
 required_capability: match_function
 required_capability: match_additional_types
 

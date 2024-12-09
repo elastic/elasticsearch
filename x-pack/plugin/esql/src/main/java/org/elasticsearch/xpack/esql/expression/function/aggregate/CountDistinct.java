@@ -66,7 +66,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.SEMANTIC_TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -146,10 +147,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : nullSafeList(in.readOptionalNamedWriteable(Expression.class))
         );

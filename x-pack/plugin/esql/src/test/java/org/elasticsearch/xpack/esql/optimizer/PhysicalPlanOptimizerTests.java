@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -609,6 +611,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -650,6 +653,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -1170,7 +1174,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            contains(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
 
         var source = source(extract.child());
@@ -6579,6 +6595,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookup.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
+    }
+
+    public void testScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            """);
+
+        ProjectExec outerProject = as(plan, ProjectExec.class);
+        LimitExec limitExec = as(outerProject.child(), LimitExec.class);
+        ExchangeExec exchange = as(limitExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        Limit limit = as(opt, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+    }
+
+    public void testScoreTopN() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            | sort _score desc
+            """);
+
+        ProjectExec projectExec = as(plan, ProjectExec.class);
+        TopNExec topNExec = as(projectExec.child(), TopNExec.class);
+        ExchangeExec exchange = as(topNExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        TopN topN = as(opt, TopN.class);
+        List<Order> order = topN.order();
+        Order scoreOrer = order.getFirst();
+        assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
+        Expression child = scoreOrer.child();
+        assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        Filter filter = as(topN.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
     }
 
     @SuppressWarnings("SameParameterValue")

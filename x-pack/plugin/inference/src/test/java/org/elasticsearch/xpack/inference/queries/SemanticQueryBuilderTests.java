@@ -207,7 +207,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Query innerQuery = assertOuterBooleanQuery(query);
         assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
         var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
-        assertThat(((SparseVectorQueryWrapper) innerQuery).getTermsQuery(), instanceOf(BooleanQuery.class));
+        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
 
         BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));

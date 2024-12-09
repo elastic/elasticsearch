@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -483,7 +482,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
         ClusterName.CLUSTER_NAME_SETTING,
-        Client.CLIENT_TYPE_SETTING_S,
         ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
         EsExecutors.NODE_PROCESSORS_SETTING,
         ThreadContext.DEFAULT_HEADERS_SETTING,

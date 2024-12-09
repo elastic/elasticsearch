@@ -168,7 +168,6 @@ public class SearchServiceTests extends IndexShardTestCase {
         } finally {
             closeShards(indexShard);
         }
-
     }
 
     private SearchExecutionContext createSearchExecutionContext(

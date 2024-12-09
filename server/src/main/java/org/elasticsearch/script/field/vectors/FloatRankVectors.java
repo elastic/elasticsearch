@@ -17,7 +17,7 @@ import java.util.Iterator;
 
 import static org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder.getMultiMagnitudes;
 
-public class FloatMultiDenseVector implements MultiDenseVector {
+public class FloatRankVectors implements RankVectors {
 
     private final BytesRef magnitudes;
     private float[] magnitudesArray = null;
@@ -25,7 +25,7 @@ public class FloatMultiDenseVector implements MultiDenseVector {
     private final int numVectors;
     private final VectorIterator<float[]> vectorValues;
 
-    public FloatMultiDenseVector(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
+    public FloatRankVectors(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
         assert magnitudes.length == numVectors * Float.BYTES;
         this.vectorValues = decodedDocVector;
         this.magnitudes = magnitudes;

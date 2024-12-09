@@ -15,6 +15,22 @@ expected_event_ids  = [1]
 expect_shard_failures = true
 
 
+[[queries]]
+name = "eventQueryShardFailuresOptionalField"
+query = 'process where serial_event_id == 1 and ?optional_field_default_null == null or broken == 1'
+allow_partial_search_results = true
+expected_event_ids  = [1]
+expect_shard_failures = true
+
+
+[[queries]]
+name = "eventQueryShardFailuresOptionalFieldMatching"
+query = 'process where serial_event_id == 2 and ?subtype == "create" or broken == 1'
+allow_partial_search_results = true
+expected_event_ids  = [2]
+expect_shard_failures = true
+
+
 # this query doesn't touch the "broken" field, so it should not fail
 [[queries]]
 name = "sequenceQueryNoShardFailures"
@@ -76,3 +92,82 @@ allow_partial_search_results = true
 allow_partial_sequence_results = true
 expected_event_ids  = [1, 2]
 expect_shard_failures = true
+
+
+[[queries]]
+name = "sequenceQueryMissingShardsPartialResultsOptional"
+query = '''
+sequence
+  [process where ?serial_event_id == 1 or broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+allow_partial_sequence_results = true
+expected_event_ids  = [1, 2]
+expect_shard_failures = true
+
+
+[[queries]]
+name = "sequenceQueryMissingShardsPartialResultsOptional2"
+query = '''
+sequence with maxspan=100000d
+  [process where serial_event_id == 1 and ?subtype == "create" or broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+allow_partial_sequence_results = true
+expected_event_ids  = [1, 2]
+expect_shard_failures = true
+
+
+[[queries]]
+name = "sequenceQueryMissingShardsPartialResultsOptionalMissing"
+query = '''
+sequence with maxspan=100000d
+  [process where serial_event_id == 1 and ?subtype == "create"]
+ ![process where broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+allow_partial_sequence_results = true
+expected_event_ids  = [1, -1, 2]
+expect_shard_failures = true
+
+
+[[queries]]
+name = "sequenceQueryMissingShardsPartialResultsOptionalMissing2"
+query = '''
+sequence with maxspan=100000d
+  [process where serial_event_id == 1 and ?subtype == "create" or broken == 1]
+ ![process where broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+allow_partial_sequence_results = true
+expected_event_ids  = [1, -1, 2]
+expect_shard_failures = true
+
+
+[[queries]]
+name = "sampleQueryMissingShardsPartialResults"
+query = '''
+sample by event_subtype_full
+  [process where serial_event_id == 1 or broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+expected_event_ids  = [1, 2]
+expect_shard_failures = true
+
+
+[[queries]]
+name = "sampleQueryMissingShardsPartialResultsOptional"
+query = '''
+sample by event_subtype_full
+  [process where serial_event_id == 1 and ?subtype == "create" or broken == 1]
+  [process where serial_event_id == 2]
+'''
+allow_partial_search_results = true
+expected_event_ids  = [1, 2]
+expect_shard_failures = true
+

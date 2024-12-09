@@ -8,7 +8,7 @@
     "process_name": "System Idle Process",
     "serial_event_id": 10000,
     "subtype": "create",
-    "timestamp": 116444736000000000,
+    "timestamp": 117444736000000000,
     "unique_pid": 1
   }
 ]

@@ -12,13 +12,14 @@ Long passages are <<auto-text-chunking, automatically chunked>> to smaller secti
 
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.
-This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data.
-If you don't specify an inference endpoint, the <<infer-service-elser,ELSER service>> is used by default.
+This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data. 
+
+If you don’t specify an inference endpoint, the `inference_id` field defaults to `.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch service.
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for your data, or how to index it.
 The {infer} endpoint automatically determines the embedding generation, indexing, and query to use.
 
-If you use the ELSER service, you can set up `semantic_text` with the following API request:
+If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
 
 [source,console]
 ------------------------------------------------------------
@@ -34,7 +35,7 @@ PUT my-index-000001
 }
 ------------------------------------------------------------
 
-If you use a service other than ELSER, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` as the following example demonstrates:
+To use a custom {infer} endpoint instead of the default `.elser-2-elasticsearch`, you must <<put-inference-api>> and specify its `inference_id` when setting up the `semantic_text` field type.
 
 [source,console]
 ------------------------------------------------------------
@@ -53,8 +54,7 @@ PUT my-index-000002
 // TEST[skip:Requires inference endpoint]
 <1> The `inference_id` of the {infer} endpoint to use to generate embeddings.
 
-
-The recommended way to use semantic_text is by having dedicated {infer} endpoints for ingestion and search.
+The recommended way to use `semantic_text` is by having dedicated {infer} endpoints for ingestion and search.
 This ensures that search speed remains unaffected by ingestion workloads, and vice versa.
 After creating dedicated {infer} endpoints for both, you can reference them using the `inference_id` and `search_inference_id` parameters when setting up the index mapping for an index that uses the `semantic_text` field.
 
@@ -82,10 +82,11 @@ PUT my-index-000003
 
 `inference_id`::
 (Required, string)
-{infer-cap} endpoint that will be used to generate the embeddings for the field.
+{infer-cap} endpoint that will be used to generate embeddings for the field.
+By default, `.elser-2-elasticsearch` is used.
 This parameter cannot be updated.
 Use the <<put-inference-api>> to create the endpoint.
-If `search_inference_id` is specified, the {infer} endpoint defined by `inference_id` will only be used at index time.
+If `search_inference_id` is specified, the {infer} endpoint will only be used at index time.
 
 `search_inference_id`::
 (Optional, string)
@@ -208,7 +209,7 @@ PUT test-index
         "properties": {
             "infer_field": {
                 "type": "semantic_text",
-                "inference_id": "my-elser-endpoint"
+                "inference_id": ".elser-2-elasticsearch"
             },
             "source_field": {
                 "type": "text",

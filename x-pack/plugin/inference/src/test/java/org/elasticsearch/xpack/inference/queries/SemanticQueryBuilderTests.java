@@ -204,11 +204,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private void assertSparseEmbeddingLuceneQuery(Query query) {
-        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
-        Query termsQuery = ((SparseVectorQueryWrapper) query).getTermsQuery();
-        Query innerQuery = assertOuterBooleanQuery(termsQuery);
-        assertThat(innerQuery, instanceOf(BooleanQuery.class));
-        BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
+        Query innerQuery = assertOuterBooleanQuery(query);
+        assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
+        Query termsQuery = ((SparseVectorQueryWrapper) innerQuery).getTermsQuery();
+        assertThat(termsQuery, instanceOf(BooleanQuery.class));
+
+        BooleanQuery innerBooleanQuery = (BooleanQuery) termsQuery;
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
             assertThat(c.occur(), equalTo(SHOULD));

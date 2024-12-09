@@ -443,9 +443,8 @@ public class SequenceMatcher {
     }
 
     private void addRequestCircuitBreakerBytes(long bytes, String label) {
-        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
-        // bytes, it will trigger the parent circuit breaker.
-        if (bytes >= 0) {
+        // Only use the potential to circuit break if bytes are being incremented
+        if (bytes > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
         } else {
             circuitBreaker.addWithoutBreaking(bytes);

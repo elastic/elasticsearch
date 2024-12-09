@@ -721,10 +721,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertCircuitBreakerLimitWarning();
     }
 
-    public void testAllocationBucketsBreaker() {
+    public void testAllocationBucketsRealMemoryBreaker() {
         Settings clusterSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
+            // the memory used by the test should be bigger than this value
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1%")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "true")
             .build();
 
         try (
@@ -737,7 +738,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         ) {
 
             long parentLimitBytes = service.getParentLimit();
-            assertEquals(new ByteSizeValue(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
+            byte[] bytes = new byte[(int) parentLimitBytes + 1];
 
             CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
             MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
@@ -745,18 +746,19 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 breaker
             );
 
-            // make sure used bytes is greater than the total circuit breaker limit
-            breaker.addWithoutBreaking(200);
             // make sure that we check on the following call
             for (int i = 0; i < 1023; i++) {
                 multiBucketConsumer.accept(0);
             }
+
             CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
-            assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
+            assertThat(exception.getMessage(), containsString("which is larger than the limit of [" + parentLimitBytes));
+            // make sure the JVM creates this object
+            assertNotNull(bytes);
         }
 
-        assertCircuitBreakerLimitWarning();
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [1%] is below the recommended minimum of 50.0% of the heap");
     }
 
     public void testRegisterCustomCircuitBreakers_WithDuplicates() {

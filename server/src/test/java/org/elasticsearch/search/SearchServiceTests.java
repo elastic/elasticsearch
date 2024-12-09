@@ -1998,6 +1998,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                     throw new CircuitBreakingException("tripped", getDurability());
                 }
+
+                @Override
+                public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+                    throw new CircuitBreakingException("tripped", getDurability());
+                }
             }
         );
         // for partial

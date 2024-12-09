@@ -145,6 +145,34 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         );
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 Object::equals,
                 (lhsType, rhsType) -> "EqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",

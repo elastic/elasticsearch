@@ -36,11 +36,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportReindexDataStreamIndexAction extends HandledTransportAction<
+public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
     ReindexDataStreamIndexAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportReindexDataStreamIndexAction.class);
+    private static final Logger logger = LogManager.getLogger(ReindexDataStreamIndexTransportAction.class);
 
     // copied from
     // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack
@@ -81,7 +81,7 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
     private final Client client;
 
     @Inject
-    public TransportReindexDataStreamIndexAction(
+    public ReindexDataStreamIndexTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,

@@ -52,7 +52,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
         // dest index with docs
-        var destIndex = TransportReindexDataStreamIndexAction.generateDestIndexName(sourceIndex);
+        var destIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         indicesAdmin().create(new CreateIndexRequest(destIndex)).actionGet();
         indexDocs(destIndex, 10);
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
@@ -73,7 +73,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
             .actionGet();
 
-        var expectedDestIndexName = TransportReindexDataStreamIndexAction.generateDestIndexName(sourceIndex);
+        var expectedDestIndexName = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         assertEquals(expectedDestIndexName, response.getDestIndex());
     }
 

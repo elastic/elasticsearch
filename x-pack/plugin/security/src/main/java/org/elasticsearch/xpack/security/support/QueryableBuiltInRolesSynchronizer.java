@@ -200,7 +200,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 synchronizationInProgress.set(false);
             }, e -> {
                 if (isExpectedFailure(e)) {
-                    logger.trace("Failed to sync built-in roles to .security index", e);
+                    logger.info("Failed to sync built-in roles to .security index", e);
                 } else {
                     logger.warn("Failed to sync built-in roles to .security index due to unexpected exception", e);
                 }

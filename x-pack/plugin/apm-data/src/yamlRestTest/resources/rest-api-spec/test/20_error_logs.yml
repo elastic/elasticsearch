@@ -26,3 +26,26 @@ setup:
   - length: { hits.hits: 2 }
   - match: { hits.hits.0.fields: { "log.level": ["error"] } }
   - match: { hits.hits.1.fields: { "log.level": ["warn"] } }
+---
+"Test traces-apm-* setting event.ingested via ingest pipeline":
+  - do:
+      bulk:
+        index: logs-apm.error-event-ingested-testing
+        refresh: true
+        body:
+          # No event.ingested field populated, it gets added
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+
+          # event.ingested populated, it gets overwritten
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "log": {"level": "warn"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}, "event": {"ingested": "2017-06-22 22:00:00.000Z"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.error-event-ingested-testing
+        body:
+          fields: ["event.ingested"]
+  - length: { hits.hits: 2 }

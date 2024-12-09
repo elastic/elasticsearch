@@ -24,7 +24,7 @@ import java.util.Objects;
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NUM_CANDIDATES_FACTOR_FIELD = new ParseField("num_candidates_factor");
-    public static final float MIN_OVERSAMPLE = 0.0F;
+    public static final float MIN_OVERSAMPLE = 1.0F;
     private static final ConstructingObjectParser<RescoreVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rescore_vector",
         args -> new RescoreVectorBuilder((Float) args[0])
@@ -39,8 +39,8 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
     public RescoreVectorBuilder(Float numCandidatesFactor) {
         Objects.requireNonNull(numCandidatesFactor, "[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be set");
-        if (numCandidatesFactor <= MIN_OVERSAMPLE) {
-            throw new IllegalArgumentException("[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be > " + MIN_OVERSAMPLE);
+        if (numCandidatesFactor < MIN_OVERSAMPLE) {
+            throw new IllegalArgumentException("[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
         }
         this.numCandidatesFactor = numCandidatesFactor;
     }

@@ -2113,11 +2113,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             int adjustedNumCands = numCands;
             if (needsRescore(numCandsFactor)) {
-                // We shouldn't have less than k candidates (or 1 in case k is not set) to rescore
-                int minCands = k == null ? 1 : k;
                 // k <= numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
-                adjustedNumCands = Math.max(minCands, (int) Math.ceil(numCands * numCandsFactor));
-                adjustedNumCands = Math.min(adjustedNumCands, NUM_CANDS_OVERSAMPLE_LIMIT);
+                adjustedNumCands = Math.min((int) Math.ceil(numCands * numCandsFactor), NUM_CANDS_OVERSAMPLE_LIMIT);
             }
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, k, adjustedNumCands, parentFilter)

@@ -462,10 +462,6 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         // Oversampling limits for num candidates
         checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, 1000, 10000);
         checkRescoreQueryParameters(fieldType, 5000, 7500, 2.5F, 5000, 10000);
-        // Oversampling is capped at k as a minimum
-        checkRescoreQueryParameters(fieldType, 10, 100, 0.01F, 10, 10);
-        // Oversampling is capped at 1 as a minimum if k is not specified
-        checkRescoreQueryParameters(fieldType, null, 100, 0.0001F, null, 1);
     }
 
     private static void checkRescoreQueryParameters(

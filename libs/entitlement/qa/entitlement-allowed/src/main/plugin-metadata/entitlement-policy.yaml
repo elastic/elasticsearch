@@ -1,0 +1,2 @@
+elasticsearch.qa.entitlement.positive:
+  - create_class_loader

@@ -13,11 +13,13 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
@@ -27,6 +29,8 @@ import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -59,15 +63,15 @@ public class EntitlementInitialization {
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = new ElasticsearchEntitlementChecker(createPolicyManager());
+        manager = initChecker();
 
-        Map<MethodKey, CheckerMethod> methodMap = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
+        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
             "org.elasticsearch.entitlement.bridge.EntitlementChecker"
         );
 
-        var classesToTransform = methodMap.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
+        var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), classesToTransform), true);
+        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter(checkMethods), classesToTransform), true);
         // TODO: should we limit this array somehow?
         var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
         inst.retransformClasses(classesToRetransform);
@@ -84,9 +88,11 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() throws IOException {
         Map<String, Policy> pluginPolicies = createPluginPolicies(EntitlementBootstrap.bootstrapArgs().pluginData());
 
-        // TODO: What should the name be?
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy("server", List.of());
+        var serverPolicy = new Policy(
+            "server",
+            List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
+        );
         return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
     }
 
@@ -137,8 +143,34 @@ public class EntitlementInitialization {
         return Set.of(ALL_UNNAMED);
     }
 
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
+    private static ElasticsearchEntitlementChecker initChecker() throws IOException {
+        final PolicyManager policyManager = createPolicyManager();
+
+        int javaVersion = Runtime.version().feature();
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
+        }
+        Constructor<?> constructor;
+        try {
+            constructor = clazz.getConstructor(PolicyManager.class);
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+        }
+        try {
+            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(

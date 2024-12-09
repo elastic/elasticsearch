@@ -42,7 +42,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
     private static final String REMOTE_CLUSTER_2 = "cluster-b";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 

@@ -10,9 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,11 +22,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.RIGHT;
 
 public class Join extends BinaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
@@ -99,6 +97,19 @@ public class Join extends BinaryPlan {
         return lazyOutput;
     }
 
+    public List<Attribute> rightOutputFields() {
+        AttributeSet leftInputs = left().outputSet();
+
+        List<Attribute> rightOutputFields = new ArrayList<>();
+        for (Attribute attr : output()) {
+            if (leftInputs.contains(attr) == false) {
+                rightOutputFields.add(attr);
+            }
+        }
+
+        return rightOutputFields;
+    }
+
     /**
      * Combine the two lists of attributes into one.
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
@@ -108,34 +119,14 @@ public class Join extends BinaryPlan {
         List<Attribute> output;
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left
-            // output = merge(leftOutput, makeNullable(rightOutput));
-            output = merge(leftOutput, rightOutput);
-        } else if (RIGHT.equals(joinType)) {
-            // left side becomes nullable and overrides right
-            // output = merge(makeNullable(leftOutput), rightOutput);
-            output = merge(leftOutput, rightOutput);
+            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+            AttributeSet rightKeys = new AttributeSet(config.rightFields());
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }
         return output;
-    }
-
-    /**
-     * Merge the two lists of attributes into one and preserves order.
-     */
-    private static List<Attribute> merge(List<Attribute> left, List<Attribute> right) {
-        // use linked hash map to preserve order
-        Map<String, Attribute> nameToAttribute = Maps.newLinkedHashMapWithExpectedSize(left.size() + right.size());
-        for (Attribute a : left) {
-            nameToAttribute.put(a.name(), a);
-        }
-        for (Attribute a : right) {
-            // override the existing entry in place
-            nameToAttribute.compute(a.name(), (name, existing) -> a);
-        }
-
-        return new ArrayList<>(nameToAttribute.values());
     }
 
     /**
@@ -157,14 +148,6 @@ public class Join extends BinaryPlan {
             } else {
                 out.add(a);
             }
-        }
-        return out;
-    }
-
-    private static List<Attribute> makeNullable(List<Attribute> output) {
-        List<Attribute> out = new ArrayList<>(output.size());
-        for (Attribute a : output) {
-            out.add(a.withNullability(Nullability.TRUE));
         }
         return out;
     }

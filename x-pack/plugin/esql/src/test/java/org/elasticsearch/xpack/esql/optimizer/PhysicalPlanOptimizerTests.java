@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -127,6 +128,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2269,6 +2271,61 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             containsString(
                 "Need to add field extractor for [[emp_no]] but cannot detect source attributes from node [EsSourceExec[test][]]"
             )
+        );
+    }
+
+    public void testVerifierOnMissingReferences() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(
+            AggregateExec.class,
+            a -> new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                List.of(), // remove the aggs (and thus the groupings) entirely
+                a.getMode(),
+                a.intermediateAttributes(),
+                a.estimatedRowSize()
+            )
+        );
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(
+            e.getMessage(),
+            containsString("Plan [FilterExec[emp_no{f}#7 > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#7]")
+        );
+    }
+
+    public void testVerifierOnDuplicateOutputAttributes() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(AggregateExec.class, a -> {
+            List<Attribute> intermediates = new ArrayList<>(a.intermediateAttributes());
+            intermediates.add(intermediates.get(0));
+            return new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                a.aggregates(),
+                AggregatorMode.INTERMEDIATE,  // FINAL would deduplicate aggregates()
+                intermediates,
+                a.estimatedRowSize()
+            );
+        });
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(
+            e.getMessage(),
+            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#7")
         );
     }
 

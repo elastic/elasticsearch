@@ -136,8 +136,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             createInferenceEndpoint(client());
         }
 
-        if (indexExists(availableDatasetsForEs(client()).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client());
+        if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsIndexModeLookup());
         }
     }
 
@@ -220,6 +220,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsInferenceTestService() {
+        return true;
+    }
+
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 

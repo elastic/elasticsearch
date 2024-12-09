@@ -75,7 +75,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
         .withSetting("clientips_lookup-settings.json");
     private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
-    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup").withSetting("message_types_lookup-settings.json");
+    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+        .withSetting("message_types_lookup-settings.json");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
     private static final TestsDataset AGES = new TestsDataset("ages");
     private static final TestsDataset HEIGHTS = new TestsDataset("heights");
@@ -229,7 +230,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -248,26 +249,28 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static Set<TestsDataset> availableDatasetsForEs(RestClient client) throws IOException {
+    public static Set<TestsDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
         return CSV_DATASET_MAP.values()
             .stream()
             .filter(d -> d.requiresInferenceEndpoint == false || inferenceEnabled)
+            .filter(d -> supportsIndexModeLookup || d.indexName.endsWith("_lookup") == false) // TODO: use actual index settings
             .collect(Collectors.toCollection(HashSet::new));
     }
 
-    public static void loadDataSetIntoEs(RestClient client) throws IOException {
-        loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
+        loadDataSetIntoEs(client, supportsIndexModeLookup, (restClient, indexName, indexMapping, indexSettings) -> {
             ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
         });
     }
 
-    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
+    private static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, IndexCreator indexCreator)
+        throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client)) {
+        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

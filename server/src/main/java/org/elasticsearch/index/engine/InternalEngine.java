@@ -3145,7 +3145,7 @@ public class InternalEngine extends Engine {
         boolean singleConsumer,
         boolean accessStats
     ) throws IOException {
-        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, 0);
+        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, -1);
     }
 
     @Override

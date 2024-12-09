@@ -118,7 +118,7 @@ The connector will fetch file and folder data that matches the string.
 Defaults to `""` (syncs all bucket objects).
 
 [discrete#es-connectors-s3-sync-rules-advanced-examples]
-======= Advanced sync rules examples
+*Advanced sync rules examples*
 
 *Fetching files and folders recursively by prefix*
 
@@ -336,7 +336,7 @@ The connector will fetch file and folder data that matches the string.
 Defaults to `""` (syncs all bucket objects).
 
 [discrete#es-connectors-s3-client-sync-rules-advanced-examples]
-======= Advanced sync rules examples
+*Advanced sync rules examples*
 
 *Fetching files and folders recursively by prefix*
 

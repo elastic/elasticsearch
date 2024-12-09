@@ -227,7 +227,7 @@ They take the following parameters:
 Allowed values are *SOQL* and *SOSL*.
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-query-language]
-======= Fetch documents based on the query and language specified
+*Fetch documents based on the query and language specified*
 
 **Example**: Fetch documents using SOQL query
 
@@ -256,7 +256,7 @@ Allowed values are *SOQL* and *SOSL*.
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-objects]
-======= Fetch standard and custom objects using SOQL and SOSL queries
+*Fetch standard and custom objects using SOQL and SOSL queries*
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
@@ -293,7 +293,7 @@ Allowed values are *SOQL* and *SOSL*.
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-standard-custom-fields]
-======= Fetch documents with standard and custom fields
+*Fetch documents with standard and custom fields*
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
@@ -626,7 +626,7 @@ They take the following parameters:
 Allowed values are *SOQL* and *SOSL*.
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language]
-======= Fetch documents based on the query and language specified
+*Fetch documents based on the query and language specified*
 
 **Example**: Fetch documents using SOQL query
 
@@ -655,7 +655,7 @@ Allowed values are *SOQL* and *SOSL*.
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-objects]
-======= Fetch standard and custom objects using SOQL and SOSL queries
+*Fetch standard and custom objects using SOQL and SOSL queries*
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
@@ -692,7 +692,7 @@ Allowed values are *SOQL* and *SOSL*.
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields]
-======= Fetch documents with standard and custom fields
+*Fetch documents with standard and custom fields*
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 

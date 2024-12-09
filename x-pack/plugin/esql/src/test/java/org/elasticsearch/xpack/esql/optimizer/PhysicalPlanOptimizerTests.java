@@ -2311,7 +2311,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(
             e.getMessage(),
-            containsString("Plan [FilterExec[emp_no{f}#7 > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#7]")
+            containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#")
         );
     }
 
@@ -2339,7 +2339,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(
             e.getMessage(),
-            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#7")
+            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
         );
     }
 

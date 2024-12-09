@@ -12,7 +12,7 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,7 +20,7 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.Iterator;
 
-public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValuesField {
+public class FloatRankVectorsDocValuesField extends RankVectorsDocValuesField {
 
     private final BinaryDocValues input;
     private final BinaryDocValues magnitudes;
@@ -32,7 +32,7 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
     private int numVectors;
     private float[] buffer;
 
-    public FloatMultiDenseVectorDocValuesField(
+    public FloatRankVectorsDocValuesField(
         BinaryDocValues input,
         BinaryDocValues magnitudes,
         String name,
@@ -66,8 +66,8 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
     }
 
     @Override
-    public MultiDenseVectorScriptDocValues toScriptDocValues() {
-        return new MultiDenseVectorScriptDocValues(this, dims);
+    public RankVectorsScriptDocValues toScriptDocValues() {
+        return new RankVectorsScriptDocValues(this, dims);
     }
 
     @Override
@@ -76,25 +76,25 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
     }
 
     @Override
-    public MultiDenseVector get() {
+    public RankVectors get() {
         if (isEmpty()) {
-            return MultiDenseVector.EMPTY;
+            return RankVectors.EMPTY;
         }
         decodeVectorIfNecessary();
-        return new FloatMultiDenseVector(vectorValues, magnitudesValue, numVectors, dims);
+        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims);
     }
 
     @Override
-    public MultiDenseVector get(MultiDenseVector defaultValue) {
+    public RankVectors get(RankVectors defaultValue) {
         if (isEmpty()) {
             return defaultValue;
         }
         decodeVectorIfNecessary();
-        return new FloatMultiDenseVector(vectorValues, magnitudesValue, numVectors, dims);
+        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims);
     }
 
     @Override
-    public MultiDenseVector getInternal() {
+    public RankVectors getInternal() {
         return get(null);
     }
 

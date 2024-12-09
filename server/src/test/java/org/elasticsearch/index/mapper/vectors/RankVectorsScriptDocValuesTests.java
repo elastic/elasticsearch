@@ -13,10 +13,10 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.script.field.vectors.ByteMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.MultiDenseVector;
-import org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.ByteRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.RankVectors;
+import org.elasticsearch.script.field.vectors.RankVectorsDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -27,7 +27,7 @@ import java.util.Iterator;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
+public class RankVectorsScriptDocValuesTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
@@ -41,14 +41,8 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
         BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
-        MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.FLOAT, dims);
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(vectors[i].length, field.size());
@@ -71,14 +65,8 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
         BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
-        MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.BYTE,
-            dims
-        );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BYTE, dims);
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(vectors[i].length, field.size());
@@ -101,16 +89,10 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
 
-        MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
+        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.FLOAT, dims);
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
-            MultiDenseVector dv = field.get();
+            RankVectors dv = field.get();
             assertEquals(vectors[i].length, dv.size());
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
@@ -118,8 +100,8 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             assertEquals("Cannot iterate over single valued rank_vectors field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
-        MultiDenseVector dv = field.get();
-        assertEquals(dv, MultiDenseVector.EMPTY);
+        RankVectors dv = field.get();
+        assertEquals(dv, RankVectors.EMPTY);
     }
 
     public void testByteMetadataAndIterator() throws IOException {
@@ -128,16 +110,10 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = new float[][] { new float[3], new float[2] };
         BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.BYTE,
-            dims
-        );
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BYTE, dims);
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
-            MultiDenseVector dv = field.get();
+            RankVectors dv = field.get();
             assertEquals(vectors[i].length, dv.size());
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
@@ -145,8 +121,8 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
             assertEquals("Cannot iterate over single valued rank_vectors field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
-        MultiDenseVector dv = field.get();
-        assertEquals(dv, MultiDenseVector.EMPTY);
+        RankVectors dv = field.get();
+        assertEquals(dv, RankVectors.EMPTY);
     }
 
     protected float[][] fill(float[][] vectors, ElementType elementType) {
@@ -164,22 +140,16 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
         BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.FLOAT, dims);
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
         Exception e = expectThrows(IllegalArgumentException.class, scriptDocValues::getVectorValues);
-        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
+        assertEquals("A document doesn't have a value for a rank-vectors field!", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, scriptDocValues::getMagnitudes);
-        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
+        assertEquals("A document doesn't have a value for a rank-vectors field!", e.getMessage());
     }
 
     public void testByteMissingValues() throws IOException {
@@ -188,22 +158,16 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
         BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.BYTE,
-            dims
-        );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BYTE, dims);
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
         Exception e = expectThrows(IllegalArgumentException.class, scriptDocValues::getVectorValues);
-        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
+        assertEquals("A document doesn't have a value for a rank-vectors field!", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, scriptDocValues::getMagnitudes);
-        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
+        assertEquals("A document doesn't have a value for a rank-vectors field!", e.getMessage());
     }
 
     public void testFloatGetFunctionIsNotAccessible() throws IOException {
@@ -212,21 +176,15 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
         BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.FLOAT, dims);
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
         assertThat(
             e.getMessage(),
             containsString(
-                "accessing a multi-vector field's value through 'get' or 'value' is not supported,"
+                "accessing a rank-vectors field's value through 'get' or 'value' is not supported,"
                     + " use 'vectorValues' or 'magnitudes' instead."
             )
         );
@@ -238,21 +196,15 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
         BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
-        MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
-            docValues,
-            magnitudeValues,
-            "test",
-            ElementType.BYTE,
-            dims
-        );
-        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(docValues, magnitudeValues, "test", ElementType.BYTE, dims);
+        RankVectorsScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
         assertThat(
             e.getMessage(),
             containsString(
-                "accessing a multi-vector field's value through 'get' or 'value' is not supported,"
+                "accessing a rank-vectors field's value through 'get' or 'value' is not supported,"
                     + " use 'vectorValues' or 'magnitudes' instead."
             )
         );

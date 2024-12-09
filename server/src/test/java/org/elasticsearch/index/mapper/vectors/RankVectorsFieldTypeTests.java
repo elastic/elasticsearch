@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 
-public class MultiDenseVectorFieldTypeTests extends FieldTypeTestCase {
+public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     @BeforeClass
     public static void setup() {

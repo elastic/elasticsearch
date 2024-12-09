@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
@@ -18,15 +18,15 @@ import java.util.Iterator;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
-public abstract class MultiDenseVectorDocValuesField extends AbstractScriptFieldFactory<MultiDenseVector>
+public abstract class RankVectorsDocValuesField extends AbstractScriptFieldFactory<RankVectors>
     implements
-        Field<MultiDenseVector>,
+        Field<RankVectors>,
         DocValuesScriptFieldFactory,
-        MultiDenseVectorScriptDocValues.MultiDenseVectorSupplier {
+        RankVectorsScriptDocValues.RankVectorsSupplier {
     protected final String name;
     protected final ElementType elementType;
 
-    public MultiDenseVectorDocValuesField(String name, ElementType elementType) {
+    public RankVectorsDocValuesField(String name, ElementType elementType) {
         this.name = name;
         this.elementType = elementType;
     }
@@ -43,15 +43,15 @@ public abstract class MultiDenseVectorDocValuesField extends AbstractScriptField
     /**
      * Get the DenseVector for a document if one exists, DenseVector.EMPTY otherwise
      */
-    public abstract MultiDenseVector get();
+    public abstract RankVectors get();
 
-    public abstract MultiDenseVector get(MultiDenseVector defaultValue);
+    public abstract RankVectors get(RankVectors defaultValue);
 
-    public abstract MultiDenseVectorScriptDocValues toScriptDocValues();
+    public abstract RankVectorsScriptDocValues toScriptDocValues();
 
     // DenseVector fields are single valued, so Iterable does not make sense.
     @Override
-    public Iterator<MultiDenseVector> iterator() {
+    public Iterator<RankVectors> iterator() {
         throw new UnsupportedOperationException("Cannot iterate over single valued rank_vectors field, use get() instead");
     }
 }

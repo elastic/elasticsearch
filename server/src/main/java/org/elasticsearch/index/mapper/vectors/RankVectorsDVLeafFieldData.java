@@ -15,9 +15,9 @@ import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
-import org.elasticsearch.script.field.vectors.BitMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.ByteMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.BitRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.ByteRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
 
 import java.io.IOException;
 
@@ -40,9 +40,9 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
             BinaryDocValues values = DocValues.getBinary(reader, field);
             BinaryDocValues magnitudeValues = DocValues.getBinary(reader, field + RankVectorsFieldMapper.VECTOR_MAGNITUDES_SUFFIX);
             return switch (elementType) {
-                case BYTE -> new ByteMultiDenseVectorDocValuesField(values, magnitudeValues, name, elementType, dims);
-                case FLOAT -> new FloatMultiDenseVectorDocValuesField(values, magnitudeValues, name, elementType, dims);
-                case BIT -> new BitMultiDenseVectorDocValuesField(values, magnitudeValues, name, elementType, dims);
+                case BYTE -> new ByteRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
+                case FLOAT -> new FloatRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
+                case BIT -> new BitRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
             };
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for multi-vector field!", e);

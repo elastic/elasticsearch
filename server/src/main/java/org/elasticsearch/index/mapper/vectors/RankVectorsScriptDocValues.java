@@ -11,18 +11,18 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.vectors.MultiDenseVector;
+import org.elasticsearch.script.field.vectors.RankVectors;
 
 import java.util.Iterator;
 
-public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
+public class RankVectorsScriptDocValues extends ScriptDocValues<BytesRef> {
 
-    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
+    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a rank-vectors field!";
 
     private final int dims;
-    protected final MultiDenseVectorSupplier dvSupplier;
+    protected final RankVectorsSupplier dvSupplier;
 
-    public MultiDenseVectorScriptDocValues(MultiDenseVectorSupplier supplier, int dims) {
+    public RankVectorsScriptDocValues(RankVectorsSupplier supplier, int dims) {
         super(supplier);
         this.dvSupplier = supplier;
         this.dims = dims;
@@ -32,8 +32,8 @@ public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
         return dims;
     }
 
-    private MultiDenseVector getCheckedVector() {
-        MultiDenseVector vector = dvSupplier.getInternal();
+    private RankVectors getCheckedVector() {
+        RankVectors vector = dvSupplier.getInternal();
         if (vector == null) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
@@ -57,25 +57,25 @@ public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     @Override
     public BytesRef get(int index) {
         throw new UnsupportedOperationException(
-            "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValues' or 'magnitudes' instead."
+            "accessing a rank-vectors field's value through 'get' or 'value' is not supported, use 'vectorValues' or 'magnitudes' instead."
         );
     }
 
     @Override
     public int size() {
-        MultiDenseVector mdv = dvSupplier.getInternal();
+        RankVectors mdv = dvSupplier.getInternal();
         if (mdv != null) {
             return mdv.size();
         }
         return 0;
     }
 
-    public interface MultiDenseVectorSupplier extends Supplier<BytesRef> {
+    public interface RankVectorsSupplier extends Supplier<BytesRef> {
         @Override
         default BytesRef getInternal(int index) {
             throw new UnsupportedOperationException();
         }
 
-        MultiDenseVector getInternal();
+        RankVectors getInternal();
     }
 }

@@ -49,11 +49,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
         validateIds(ids);
         name = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            ownedByAuthenticatedUser = in.readOptionalBoolean();
-        } else {
-            ownedByAuthenticatedUser = false;
-        }
+        ownedByAuthenticatedUser = in.readOptionalBoolean();
     }
 
     public InvalidateApiKeyRequest(
@@ -223,9 +219,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             }
         }
         out.writeOptionalString(name);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            out.writeOptionalBoolean(ownedByAuthenticatedUser);
-        }
+        out.writeOptionalBoolean(ownedByAuthenticatedUser);
     }
 
     @Override

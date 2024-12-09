@@ -30,8 +30,6 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         this.model = Objects.requireNonNull(model);
     }
 
-    public record ModelFields(String modelId, @Nullable String user) {}
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

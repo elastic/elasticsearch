@@ -53,7 +53,7 @@ public class BasicQueryClient implements QueryClient {
         this.client = eqlSession.client();
         this.indices = cfg.indices();
         this.fetchFields = cfg.fetchFields();
-        this.allowPartialSearchResults = eqlSession.configuration().allowPartialSearchResults();
+        this.allowPartialSearchResults = cfg.allowPartialSearchResults();
     }
 
     @Override

@@ -53,6 +53,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.combineFilters;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.addShardFailures;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 /**
@@ -238,7 +239,7 @@ public class TumblingWindow implements Executable {
     private void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
         MultiSearchResponse.Item[] responses = p.getResponses();
         for (MultiSearchResponse.Item response : responses) {
-            addShardFailures(response.getResponse());
+            addShardFailures(shardFailures, response.getResponse());
         }
         int nextResponse = 0;
         for (Sequence sequence : batchToCheck) {
@@ -384,7 +385,7 @@ public class TumblingWindow implements Executable {
      * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
-        addShardFailures(r);
+        addShardFailures(shardFailures, r);
         SequenceCriterion base = criteria.get(baseStage);
         SearchHits hits = r.getHits();
 
@@ -756,7 +757,9 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
-            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[0])));
+            listener.onResponse(
+                new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[shardFailures.size()]))
+            );
             return;
         }
 
@@ -948,13 +951,4 @@ public class TumblingWindow implements Executable {
             };
         };
     }
-
-    private void addShardFailures(SearchResponse r) {
-        if (r.getShardFailures() != null) {
-            for (ShardSearchFailure shardFailure : r.getShardFailures()) {
-                shardFailures.put(shardFailure.toString(), shardFailure); // TODO find a better way to deduplicate
-            }
-        }
-    }
-
 }

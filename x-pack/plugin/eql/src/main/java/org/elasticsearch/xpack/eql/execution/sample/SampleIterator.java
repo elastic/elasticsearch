@@ -14,7 +14,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
@@ -47,6 +46,7 @@ import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.addShardFailures;
 
 public class SampleIterator implements Executable {
 
@@ -155,7 +155,7 @@ public class SampleIterator implements Executable {
 
     private void queryForCompositeAggPage(ActionListener<Payload> listener, final SampleQueryRequest request) {
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
-            addShardFailures(r);
+            addShardFailures(shardFailures, r);
             // either the fields values or the fields themselves are missing
             // or the filter applied on the eql query matches no documents
             if (r.hasAggregations() == false) {
@@ -181,14 +181,6 @@ public class SampleIterator implements Executable {
                 }
             }
         }));
-    }
-
-    private void addShardFailures(SearchResponse r) {
-        if (r.getShardFailures() != null) {
-            for (ShardSearchFailure shardFailure : r.getShardFailures()) {
-                shardFailures.put(shardFailure.toString(), shardFailure); // TODO find a better way to deduplicate
-            }
-        }
     }
 
     protected void pushToStack(Page nextPage) {
@@ -234,7 +226,7 @@ public class SampleIterator implements Executable {
         int initialSize = samples.size();
         client.multiQuery(searches, listener.delegateFailureAndWrap((delegate, r) -> {
             for (MultiSearchResponse.Item item : r) {
-                addShardFailures(item.getResponse());
+                addShardFailures(shardFailures, item.getResponse());
             }
             List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();

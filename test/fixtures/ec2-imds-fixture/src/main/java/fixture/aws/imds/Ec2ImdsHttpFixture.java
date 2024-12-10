@@ -18,23 +18,28 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 public class Ec2ImdsHttpFixture extends ExternalResource {
 
     private HttpServer server;
 
-    private final String accessKey;
-    private final String sessionToken;
+    private final Ec2ImdsVersion ec2ImdsVersion;
+    private final BiConsumer<String, String> newCredentialsConsumer;
     private final Set<String> alternativeCredentialsEndpoints;
 
-    public Ec2ImdsHttpFixture(String accessKey, String sessionToken, Set<String> alternativeCredentialsEndpoints) {
-        this.accessKey = accessKey;
-        this.sessionToken = sessionToken;
-        this.alternativeCredentialsEndpoints = alternativeCredentialsEndpoints;
+    public Ec2ImdsHttpFixture(
+        Ec2ImdsVersion ec2ImdsVersion,
+        BiConsumer<String, String> newCredentialsConsumer,
+        Set<String> alternativeCredentialsEndpoints
+    ) {
+        this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
+        this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
+        this.alternativeCredentialsEndpoints = Objects.requireNonNull(alternativeCredentialsEndpoints);
     }
 
     protected HttpHandler createHandler() {
-        return new Ec2ImdsHttpHandler(accessKey, sessionToken, alternativeCredentialsEndpoints);
+        return new Ec2ImdsHttpHandler(ec2ImdsVersion, newCredentialsConsumer, alternativeCredentialsEndpoints);
     }
 
     public String getAddress() {

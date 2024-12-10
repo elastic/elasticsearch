@@ -28,6 +28,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -102,6 +103,33 @@ public class HotThreads {
             new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect(writer);
         } catch (Exception e) {
             logger.error(() -> org.elasticsearch.common.Strings.format("failed to write local hot threads with prefix [%s]", prefix), e);
+        }
+    }
+
+    /**
+     * Capture and log the current threads on the local node. Unlike hot threads this does not sample and captures current state only.
+     * Useful for capturing stack traces for unexpectedly-slow operations in production. The resulting message might be large, so it is
+     * split per thread and logged as multiple entries.
+     *
+     * @param logger        The logger to use for the logging
+     * @param level         The log level to use for the logging.
+     * @param prefix        The prefix to emit on each chunk of the logging.
+     */
+    public static void logLocalCurrentThreads(Logger logger, Level level, String prefix) {
+        if (logger.isEnabled(level) == false) {
+            return;
+        }
+
+        try (var writer = new StringWriter()) {
+            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).detect(writer, () -> {
+                logger.log(level, "{}: {}", prefix, writer.toString());
+                writer.getBuffer().setLength(0);
+            });
+        } catch (Exception e) {
+            logger.error(
+                () -> org.elasticsearch.common.Strings.format("failed to write local current threads with prefix [%s]", prefix),
+                e
+            );
         }
     }
 
@@ -192,11 +220,12 @@ public class HotThreads {
     }
 
     public void detect(Writer writer) throws Exception {
+        detect(writer, () -> {});
+    }
+
+    public void detect(Writer writer, Runnable onNextThread) throws Exception {
         synchronized (mutex) {
-            innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
-                Thread.sleep(interval);
-                return null;
-            }, writer);
+            innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), writer, onNextThread);
         }
     }
 
@@ -245,13 +274,15 @@ public class HotThreads {
 
     ThreadInfo[][] captureThreadStacks(ThreadMXBean threadBean, long[] threadIds) throws InterruptedException {
         ThreadInfo[][] result = new ThreadInfo[threadElementsSnapshotCount][];
-        for (int j = 0; j < threadElementsSnapshotCount; j++) {
-            // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
-            // null will be set in the corresponding element in the returned array. A thread is alive if it has
-            // been started and has not yet died.
+
+        // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
+        // null will be set in the corresponding element in the returned array. A thread is alive if it has
+        // been started and has not yet died.
+        for (int j = 0; j < threadElementsSnapshotCount - 1; j++) {
             result[j] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
             Thread.sleep(threadElementsSnapshotDelay.millis());
         }
+        result[threadElementsSnapshotCount - 1] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
 
         return result;
     }
@@ -267,13 +298,8 @@ public class HotThreads {
         return (((double) time) / interval.nanos()) * 100;
     }
 
-    void innerDetect(
-        ThreadMXBean threadBean,
-        SunThreadInfo sunThreadInfo,
-        long currentThreadId,
-        SleepFunction<Long, Void> threadSleep,
-        Writer writer
-    ) throws Exception {
+    void innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId, Writer writer, Runnable onNextThread)
+        throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -297,10 +323,11 @@ public class HotThreads {
             .append(", ignoreIdleThreads=")
             .append(Boolean.toString(ignoreIdleThreads))
             .append(":\n");
+        onNextThread.run();
 
         // Capture before and after thread state with timings
         Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
-        threadSleep.apply(interval.millis());
+        Thread.sleep(interval.millis());
         Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
         latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
@@ -430,6 +457,7 @@ public class HotThreads {
                     }
                 }
             }
+            onNextThread.run();
         }
     }
 

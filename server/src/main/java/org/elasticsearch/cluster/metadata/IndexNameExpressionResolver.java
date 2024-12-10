@@ -84,6 +84,22 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * This represents a resolved expression in the form of the name of a resource in the cluster and a potential selector
+     * which defines which part of the resource the expression is targeting.
+     * @param resource the name of a resource that an expression refers to.
+     * @param selector optionally indicates which part of a resource to target during an operation.
+     */
+    public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
+        public ResolvedExpression(String indexAbstraction) {
+            this(indexAbstraction, null);
+        }
+
+        public String combined() {
+            return combineSelectorExpression(resource, selector == null ? null : (SelectorResolver.SELECTOR_SEPARATOR + selector.getKey()));
+        }
+    }
+
+    /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request.
      */
@@ -236,8 +252,8 @@ public class IndexNameExpressionResolver {
         final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.index());
 
         if (expressions.size() == 1) {
-            ResolvedExpression expression = expressions.iterator().next();
-            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expression.resource());
+            ResolvedExpression resolvedExpression = expressions.iterator().next();
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(resolvedExpression.resource());
             if (ia.getType() == Type.ALIAS) {
                 Index writeIndex = ia.getWriteIndex();
                 if (writeIndex == null) {
@@ -256,16 +272,6 @@ public class IndexNameExpressionResolver {
             throw new IllegalArgumentException(
                 "unable to return a single target as the provided expression and options got resolved to multiple targets"
             );
-        }
-    }
-
-    public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
-        public ResolvedExpression(String indexAbstraction) {
-            this(indexAbstraction, null);
-        }
-
-        public String combined() {
-            return combineSelectorExpression(resource, selector == null ? null : (SelectorResolver.SELECTOR_SEPARATOR + selector.getKey()));
         }
     }
 
@@ -479,8 +485,8 @@ public class IndexNameExpressionResolver {
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
-        for (ResolvedExpression resolvedExpression : expressions) {
-            final IndexAbstraction indexAbstraction = indicesLookup.get(resolvedExpression.resource());
+        for (ResolvedExpression expression : expressions) {
+            final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
@@ -495,7 +501,7 @@ public class IndexNameExpressionResolver {
                 }
                 if (indexAbstraction.isDataStreamRelated()) {
                     DataStream dataStream = indicesLookup.get(indexAbstraction.getWriteIndex().getName()).getParentDataStream();
-                    resolveWriteIndexForDataStreams(context, dataStream, concreteIndicesResult, resolvedExpression.selector());
+                    resolveWriteIndexForDataStreams(context, dataStream, concreteIndicesResult, expression.selector());
                 } else {
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
@@ -506,10 +512,10 @@ public class IndexNameExpressionResolver {
                     context,
                     (DataStream) indexAbstraction,
                     concreteIndicesResult,
-                    resolvedExpression.selector()
+                    expression.selector()
                 );
             } else {
-                if (resolvesToMoreThanOneIndex(indexAbstraction, context, resolvedExpression)
+                if (resolvesToMoreThanOneIndex(indexAbstraction, context, expression)
                     && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
@@ -519,7 +525,7 @@ public class IndexNameExpressionResolver {
                     throw new IllegalArgumentException(
                         indexAbstraction.getType().getDisplayName()
                             + " ["
-                            + resolvedExpression
+                            + expression.resource()
                             + "] has more than one index associated with it "
                             + Arrays.toString(indexNames)
                             + ", can't execute a single index op"
@@ -531,14 +537,14 @@ public class IndexNameExpressionResolver {
                         context,
                         (DataStream) indexAbstraction,
                         concreteIndicesResult,
-                        resolvedExpression.selector()
+                        expression.selector()
                     );
                 } else if (indexAbstraction.getType() == Type.ALIAS
                     && indexAbstraction.isDataStreamRelated()
                     && DataStream.isFailureStoreFeatureFlagEnabled()
-                    && IndexComponentSelector.FAILURES.equals(resolvedExpression.selector())) {
+                    && IndexComponentSelector.FAILURES.equals(expression.selector())) {
                         for (DataStream dataStream : getAliasDataStreams(indexAbstraction, indicesLookup)) {
-                            resolveIndicesForDataStream(context, dataStream, concreteIndicesResult, resolvedExpression.selector());
+                            resolveIndicesForDataStream(context, dataStream, concreteIndicesResult, expression.selector());
                         }
                     } else {
                         List<Index> indices = indexAbstraction.getIndices();
@@ -773,7 +779,7 @@ public class IndexNameExpressionResolver {
      * Utility method that allows to resolve an index expression to its corresponding single write index.
      *
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
-     * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
+     * @param request           The request that defines how an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
      * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
      * @return the write index obtained as a result of the index resolution
@@ -954,7 +960,6 @@ public class IndexNameExpressionResolver {
         if (isAllIndicesExpression(resolvedExpressions)) {
             return null;
         }
-
         final IndexMetadata indexMetadata = state.metadata().getIndices().get(index);
         if (indexMetadata == null) {
             // Shouldn't happen
@@ -1022,6 +1027,7 @@ public class IndexNameExpressionResolver {
                     .filter(
                         expression -> expectedSelector.equals(expression.selector()) || (selectorNullable && expression.selector() == null)
                     )
+                    .map(ResolvedExpression::resource)
                     .map(dataStreamAliases::get)
                     .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
@@ -1059,7 +1065,8 @@ public class IndexNameExpressionResolver {
             } else {
                 // faster to iterate resolvedExpressions
                 aliasCandidates = resolvedExpressions.stream()
-                    .map(expression -> indexAliases.get(expression.resource))
+                    .map(ResolvedExpression::resource)
+                    .map(indexAliases::get)
                     .filter(Objects::nonNull)
                     .toArray(AliasMetadata[]::new);
             }
@@ -1103,11 +1110,6 @@ public class IndexNameExpressionResolver {
         );
         final Collection<ResolvedExpression> resolvedExpressions = resolveExpressionsToResources(context, expressions);
 
-        // TODO: it appears that this can never be true?
-        if (isAllIndicesExpression(resolvedExpressions)) {
-            return resolveSearchRoutingAllIndices(state.metadata(), routing);
-        }
-
         Map<String, Set<String>> routings = null;
         Set<String> paramRouting = null;
         // List of indices that don't require any routing
@@ -1116,12 +1118,12 @@ public class IndexNameExpressionResolver {
             paramRouting = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
         }
 
-        for (ResolvedExpression expression : resolvedExpressions) {
-            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression.resource());
+        for (ResolvedExpression resolvedExpression : resolvedExpressions) {
+            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(resolvedExpression.resource());
             if (indexAbstraction != null && indexAbstraction.getType() == Type.ALIAS) {
                 // Determine which set of indices to resolve for the alias
                 List<Index> aliasIndices = indexAbstraction.getIndices();
-                if (context.getOptions().allowSelectors() && IndexComponentSelector.FAILURES.equals(expression.selector())) {
+                if (context.getOptions().allowSelectors() && IndexComponentSelector.FAILURES.equals(resolvedExpression.selector())) {
                     Set<DataStream> dataStreams = getAliasDataStreams(indexAbstraction, context.state.metadata().getIndicesLookup());
                     aliasIndices = new ArrayList<>(dataStreams.size());
                     for (DataStream dataStream : dataStreams) {
@@ -1157,7 +1159,7 @@ public class IndexNameExpressionResolver {
                 if (dataStream.isAllowCustomRouting() == false) {
                     continue;
                 }
-                if (shouldIncludeRegularIndices(context.getOptions(), expression.selector())) {
+                if (shouldIncludeRegularIndices(context.getOptions(), resolvedExpression.selector())) {
                     if (dataStream.getIndices() != null) {
                         for (int i = 0, n = dataStream.getIndices().size(); i < n; i++) {
                             Index index = dataStream.getIndices().get(i);
@@ -1166,7 +1168,7 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
-                if (shouldIncludeFailureIndices(context.getOptions(), expression.selector())) {
+                if (shouldIncludeFailureIndices(context.getOptions(), resolvedExpression.selector())) {
                     if (dataStream.getFailureIndices().getIndices() != null) {
                         for (Index failureIndex : dataStream.getFailureIndices().getIndices()) {
                             String concreteIndex = failureIndex.getName();
@@ -1176,9 +1178,9 @@ public class IndexNameExpressionResolver {
                 }
             } else {
                 // Index
-                assert expression.selector() == null || IndexComponentSelector.DATA.equals(expression.selector())
+                assert resolvedExpression.selector() == null || IndexComponentSelector.DATA.equals(resolvedExpression.selector())
                     : "Concrete index is being resolved with a selector other than [data] which is illegal";
-                routings = collectRoutings(routings, paramRouting, norouting, expression.resource());
+                routings = collectRoutings(routings, paramRouting, norouting, resolvedExpression.resource());
             }
 
         }
@@ -1747,7 +1749,7 @@ public class IndexNameExpressionResolver {
                                     index.getName(),
                                     context.options.allowSelectors() ? IndexComponentSelector.DATA : null
                                 )
-                            );
+                            ));
                         }
                     }
                 }
@@ -1834,11 +1836,14 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
-        private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
-            List<String> filteredIndices = new ArrayList<>(allIndices.length);
+        private static List<ResolvedExpression> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(
+            Context context,
+            String[] allIndices
+        ) {
+            List<ResolvedExpression> filteredIndices = new ArrayList<>(allIndices.length);
             for (int i = 0; i < allIndices.length; i++) {
                 if (shouldIncludeIndexAbstraction(context, allIndices[i])) {
-                    filteredIndices.add(allIndices[i]);
+                    filteredIndices.add(new ResolvedExpression(allIndices[i]));
                 }
             }
             return filteredIndices;

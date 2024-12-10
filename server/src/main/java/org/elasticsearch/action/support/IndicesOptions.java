@@ -963,12 +963,11 @@ public record IndicesOptions(
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
-        if (out.getTransportVersion()
-            .between(TransportVersions.V_8_14_0, TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY)) {
+        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
             out.writeBoolean(includeRegularIndices());
             out.writeBoolean(includeFailureIndices());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             selectorOptions.writeTo(out);
         }
     }
@@ -991,8 +990,7 @@ public record IndicesOptions(
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
         SelectorOptions selectorOptions = SelectorOptions.DEFAULT;
-        if (in.getTransportVersion()
-            .between(TransportVersions.V_8_14_0, TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
             // Reading from an older node, which will be sending two booleans that we must read out and ignore.
             var includeData = in.readBoolean();
             var includeFailures = in.readBoolean();
@@ -1004,7 +1002,7 @@ public record IndicesOptions(
                 selectorOptions = SelectorOptions.FAILURES;
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             selectorOptions = SelectorOptions.read(in);
         }
         return new IndicesOptions(

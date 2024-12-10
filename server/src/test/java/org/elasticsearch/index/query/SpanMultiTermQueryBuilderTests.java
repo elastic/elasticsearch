@@ -280,7 +280,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
     }
 
-    public void testTopNMultiTermsInterceptAndRewriteInsideSpan() throws Exception {
+    public void testTopNMultiTermsRewriteInsideSpan() throws Exception {
         Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "b").rewrite("top_terms_boost_2000"))
             .toQuery(createSearchExecutionContext());
 

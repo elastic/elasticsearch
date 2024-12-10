@@ -25,7 +25,7 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
     private final int group;
 
     PatternTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {

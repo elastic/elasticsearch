@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -70,6 +71,12 @@ public class ExchangeExec extends UnaryExec {
 
     public boolean inBetweenAggs() {
         return inBetweenAggs;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        // ExchangeExec does no input referencing, it only outputs all synthetic attributes, "sourced" from remote exchanges.
+        return AttributeSet.EMPTY;
     }
 
     @Override

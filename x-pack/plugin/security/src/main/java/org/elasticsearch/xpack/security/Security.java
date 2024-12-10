@@ -1222,7 +1222,7 @@ public class Security extends Plugin
 
     private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
         // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
-        if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
+        if (newState.migrationsVersion == 0 && newState.createdOnLatestMigrationVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
             return;
         }
@@ -1467,6 +1467,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
+        settingsList.add(SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION);
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));

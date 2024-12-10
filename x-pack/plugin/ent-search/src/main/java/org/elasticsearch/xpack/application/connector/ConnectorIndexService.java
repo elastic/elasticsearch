@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -82,13 +83,17 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
  */
 public class ConnectorIndexService {
 
+    // The client to perform any operations on user indices (alias, ...).
     private final Client client;
+    // The client to interact with the system index (internal user).
+    private final Client clientWithOrigin;
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 
@@ -131,6 +136,7 @@ public class ConnectorIndexService {
      */
     public ConnectorIndexService(Client client) {
         this.client = client;
+        this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
     }
 
     /**
@@ -238,8 +244,9 @@ public class ConnectorIndexService {
      * @param listener    The action listener to invoke on response/failure.
      */
     public void getConnector(String connectorId, Boolean isDeleted, ActionListener<ConnectorSearchResult> listener) {
+        final String indexName = isDeleted ? DELETED_CONNECTORS_INDEX_NAME : CONNECTOR_INDEX_NAME;
         try {
-            final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
+            final GetRequest getRequest = new GetRequest(indexName).id(connectorId).realtime(true);
 
             client.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
@@ -270,21 +277,35 @@ public class ConnectorIndexService {
      * @param listener             The action listener to invoke on response/failure.
      */
     public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<DeleteResponse> listener) {
-
-        final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
         try {
-            client.delete(deleteRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, deleteResponse) -> {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                    return;
-                }
-                if (shouldDeleteSyncJobs) {
-                    new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
-                } else {
-                    l.onResponse(deleteResponse);
-                }
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
+
+                IndexRequest indexSoftDeletedConnectorRequest = new IndexRequest(DELETED_CONNECTORS_INDEX_NAME).opType(
+                    DocWriteRequest.OpType.INDEX
+                )
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .id(connectorId)
+                    .source(connector.getSourceRef(), XContentType.JSON);
+
+                clientWithOrigin.index(indexSoftDeletedConnectorRequest, l.delegateFailureAndWrap((ll, indexResponse) -> {
+                    final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    client.delete(deleteRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, ll, (lll, deleteResponse) -> {
+                        if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            lll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                            return;
+                        }
+                        if (shouldDeleteSyncJobs) {
+                            new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(
+                                connectorId,
+                                lll.map(r -> deleteResponse)
+                            );
+                        } else {
+                            lll.onResponse(deleteResponse);
+                        }
+                    }));
+                }));
+
             }));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -315,12 +336,13 @@ public class ConnectorIndexService {
         ActionListener<ConnectorIndexService.ConnectorResult> listener
     ) {
         try {
+            final String indexName = isDeleted ? DELETED_CONNECTORS_INDEX_NAME : CONNECTOR_INDEX_NAME;
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery))
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
-            final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
+            final SearchRequest req = new SearchRequest(indexName).source(source);
             client.search(req, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {

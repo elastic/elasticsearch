@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 
 import java.io.IOException;
@@ -24,8 +25,13 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 
 /**
  * A skeleton service for watching and reacting to a single file changing on disk
@@ -54,7 +60,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     private final Path watchedFile;
     private final List<FileChangedListener> eventListeners;
     private WatchService watchService; // null;
-    private Thread watcherThread;
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, threadName()));
+    private volatile Future<Void> watcherTask = null; // Protected by this object's monitor
     private FileUpdateState fileUpdateState;
     private WatchKey settingsDirWatchKey;
     private WatchKey configDirWatchKey;
@@ -110,10 +117,20 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     @Override
-    protected final void doClose() {}
+    protected final void doClose() {
+        assert watching() == false : "doStop should already have been called";
+        executor.shutdown();
+    }
 
+    /**
+     * <em>Caveat</em>: This is inherently subject to TOCTOU races, so callers
+     * should be prepared for the returned value to be stale the moment it is returned.
+     * This is not a reliable way to determine whether it is safe or appropriate
+     * to take actions that depend on whether the watcher thread is active.
+     */
     public final boolean watching() {
-        return watcherThread != null;
+        var task = watcherTask;
+        return task != null && task.isDone() == false;
     }
 
     // platform independent way to tell if a file changed
@@ -137,6 +154,11 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             return;
         }
 
+        if (watcherTask != null) {
+            logger.warn("Watcher task for [{}] already started", watchedFile);
+            return;
+        }
+
         logger.info("starting file watcher ...");
 
         /*
@@ -156,6 +178,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             // it can be deleted and created later. The config directory never goes away, we only
             // register it once for watching.
             configDirWatchKey = enableDirectoryWatcher(configDirWatchKey, settingsDirPath.getParent());
+
+            Semaphore startSemaphore = new Semaphore(0);
+            watcherTask = executor.submit(() -> watcherLoop(startSemaphore));
+            startSemaphore.acquire();
         } catch (Exception e) {
             if (watchService != null) {
                 try {
@@ -170,15 +196,17 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
-
-        watcherThread = new Thread(this::watcherThread, "elasticsearch[file-watcher[" + watchedFile + "]]");
-        watcherThread.start();
     }
 
-    protected final void watcherThread() {
-        try {
-            logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
+    private String threadName() {
+        return "elasticsearch[file-watcher[" + watchedFile + "]]";
+    }
 
+    protected final Void watcherLoop(Semaphore startSemaphore) {
+        logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
+        startSemaphore.release();
+
+        try {
             Path path = watchedFile();
 
             if (Files.exists(path)) {
@@ -240,16 +268,22 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } catch (Exception e) {
             logger.error("shutting down watcher thread with exception", e);
         }
+        return null;
     }
 
     protected final synchronized void stopWatcher() {
-        if (watching()) {
+        var watcherTask = this.watcherTask;
+        if (watcherTask != null) {
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
             try (var ws = watchService) {
-                watcherThread.interrupt();
-                watcherThread.join();
+                interruptAndCancel(watcherTask);
+                try {
+                    watcherTask.get();
+                } catch (CancellationException expected) {
+                    logger.debug("Cancellation worked", expected);
+                }
 
                 // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
                 if (configDirWatchKey != null) {
@@ -258,12 +292,11 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 if (settingsDirWatchKey != null) {
                     settingsDirWatchKey.cancel();
                 }
-            } catch (IOException e) {
+            } catch (IOException | ExecutionException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {
                 logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
-                watcherThread = null;
                 settingsDirWatchKey = null;
                 configDirWatchKey = null;
                 watchService = null;
@@ -272,6 +305,14 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } else {
             logger.trace("file watch service already stopped");
         }
+    }
+
+    @SuppressForbidden(
+        reason = "The watcher thread is not from an ES pool; it's blocking on WatchService and is expecting to be interrupted"
+    )
+    private void interruptAndCancel(Future<Void> watcherTask) {
+        assert watcherTask == this.watcherTask;
+        watcherTask.cancel(true);
     }
 
     // package private for testing
@@ -333,7 +374,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     // package private for testing
     long retryDelayMillis(int failedCount) {
         assert failedCount < 31; // don't let the count overflow
-        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
+        return 100 * (1L << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
     }
 
     /**

@@ -16,55 +16,19 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Wrapper for instances of {@link AbstractQueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  */
-public class InterceptedQueryBuilderWrapper extends AbstractQueryBuilder<InterceptedQueryBuilderWrapper> {
+public class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
-    protected final AbstractQueryBuilder<?> queryBuilder;
+    protected final QueryBuilder queryBuilder;
 
     public InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
-        assert (queryBuilder instanceof AbstractQueryBuilder);
-        this.queryBuilder = (AbstractQueryBuilder<?>) queryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        queryBuilder.writeTo(out);
-    }
-
-    @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        queryBuilder.toXContent(builder, params);
-    }
-
-    @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return queryBuilder.doToQuery(context);
-    }
-
-    @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        // Ensure that we only perform interception once in a query's rewrite phase
-        QueryRewriteContext interceptedContext = queryRewriteContext.getInterceptedQueryRewriteContext();
-        var rewritten = queryBuilder.rewrite(interceptedContext);
-        if (rewritten == queryBuilder) {
-            return this;
-        }
-        return rewritten;
-    }
-
-    @Override
-    protected boolean doEquals(InterceptedQueryBuilderWrapper other) {
-        return queryBuilder.equals(other.queryBuilder);
-    }
-
-    @Override
-    protected int doHashCode() {
-        return queryBuilder.hashCode();
+        this.queryBuilder = queryBuilder;
     }
 
     @Override
@@ -78,7 +42,54 @@ public class InterceptedQueryBuilderWrapper extends AbstractQueryBuilder<Interce
     }
 
     @Override
-    public boolean isFragment() {
-        return super.isFragment();
+    public Query toQuery(SearchExecutionContext context) throws IOException {
+        return queryBuilder.toQuery(context);
+    }
+
+    @Override
+    public QueryBuilder queryName(String queryName) {
+        return queryBuilder.queryName(queryName);
+    }
+
+    @Override
+    public String queryName() {
+        return queryBuilder.queryName();
+    }
+
+    @Override
+    public float boost() {
+        return queryBuilder.boost();
+    }
+
+    @Override
+    public QueryBuilder boost(float boost) {
+        return queryBuilder.boost(boost);
+    }
+
+    @Override
+    public String getName() {
+        return queryBuilder.getName();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        queryBuilder.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return queryBuilder.toXContent(builder, params);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof InterceptedQueryBuilderWrapper == false) return false;
+        return Objects.equals(queryBuilder, ((InterceptedQueryBuilderWrapper) o).queryBuilder);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(queryBuilder);
     }
 }

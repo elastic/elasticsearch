@@ -25,6 +25,9 @@ public class EsIndex implements Writeable {
     private final Map<String, EsField> mapping;
     private final Map<String, IndexMode> indexNameWithModes;
 
+    /**
+     * Intended for tests. Returns an index with an empty index mode map.
+     */
     public EsIndex(String name, Map<String, EsField> mapping) {
         this(name, mapping, Map.of());
     }

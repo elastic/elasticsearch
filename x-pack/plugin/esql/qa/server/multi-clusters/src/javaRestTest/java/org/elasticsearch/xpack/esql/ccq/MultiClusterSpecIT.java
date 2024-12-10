@@ -280,4 +280,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsInferenceTestService() {
         return false;
     }
+
+    @Override
+    protected boolean supportsIndexModeLookup() throws IOException {
+        // CCS does not yet support JOIN_LOOKUP_V4 and clusters falsely report they have this capability
+        // return hasCapabilities(List.of(JOIN_LOOKUP_V4.capabilityName()));
+        return false;
+    }
 }

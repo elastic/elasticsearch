@@ -66,10 +66,24 @@ public final class FieldPermissionsCache {
      * or if it gets created, the instance will be cached
      */
     public FieldPermissions getFieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition) {
+        return getFieldPermissions(fieldPermissionsDefinition, true);
+    }
+
+    public void validateFieldPermissionsWithCache(
+        FieldPermissionsDefinition fieldPermissionsDefinition,
+        boolean allowLegacyExceptionFields
+    ) {
+        getFieldPermissions(fieldPermissionsDefinition, allowLegacyExceptionFields);
+    }
+
+    private FieldPermissions getFieldPermissions(
+        FieldPermissionsDefinition fieldPermissionsDefinition,
+        boolean allowLegacyExceptionFields
+    ) {
         try {
             return cache.computeIfAbsent(
                 fieldPermissionsDefinition,
-                (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key))
+                (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key, allowLegacyExceptionFields))
             );
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ElasticsearchException es) {

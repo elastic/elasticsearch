@@ -190,20 +190,36 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return a.getNumStates() * 5; // wild guess, better than 0
     }
 
-    public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
+    /**
+     * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
+     * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
+     */
+    public static Automaton initializePermittedFieldsAutomaton(
+        FieldPermissionsDefinition fieldPermissionsDefinition,
+        boolean allowLegacyExceptionFields
+    ) {
         Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
         assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
         List<Automaton> automatonList = groups.stream()
-            .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
+            .map(
+                g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields(), allowLegacyExceptionFields)
+            )
             .collect(Collectors.toList());
         return Automatons.unionAndDeterminize(automatonList);
     }
 
     /**
-     * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
-     * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
+     * Default of {@link #initializePermittedFieldsAutomaton(FieldPermissionsDefinition, boolean)} with legacy exception fields allowed.
      */
-    private static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+    public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
+        return initializePermittedFieldsAutomaton(fieldPermissionsDefinition, true);
+    }
+
+    private static Automaton buildPermittedFieldsAutomaton(
+        final String[] grantedFields,
+        final String[] deniedFields,
+        boolean allowLegacyExceptionFields
+    ) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
@@ -231,14 +247,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
         );
 
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            // We should not break existing roles, so we need to account for denied fields that cover the "_*" pattern,
-            // since this was previously supported
-            final Automaton legacyMetadataFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Automatons.unionAndDeterminize(
-                grantedFieldsAutomaton,
-                legacyMetadataFieldsAutomaton
-            );
-            if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsWithLegacyMetadataFieldsAutomaton) == false) {
+            if (false == allowLegacyExceptionFields
+                || false == deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(grantedFieldsAutomaton, deniedFieldsAutomaton)) {
                 throw new ElasticsearchSecurityException(
                     "Exceptions for field permissions must be a subset of the "
                         + "granted fields but "
@@ -262,6 +272,18 @@ public final class FieldPermissions implements Accountable, CacheKey {
             // include allowlisted metadata fields _after_ removing denied fields since we always allow access for them
             METADATA_FIELDS_ALLOWLIST_AUTOMATON
         );
+    }
+
+    private static boolean deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(
+        Automaton grantedFieldsAutomaton,
+        Automaton deniedFieldsAutomaton
+    ) {
+        final Automaton legacyMetadataFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
+        final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Automatons.unionAndDeterminize(
+            grantedFieldsAutomaton,
+            legacyMetadataFieldsAutomaton
+        );
+        return Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsWithLegacyMetadataFieldsAutomaton);
     }
 
     /**

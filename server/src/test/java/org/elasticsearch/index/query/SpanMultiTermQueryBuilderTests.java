@@ -246,7 +246,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
     }
 
-    public void testDefaultMaxInterceptAndRewriteBuilder() throws Exception {
+    public void testDefaultMaxRewriteBuilder() throws Exception {
         Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "b"))
             .toQuery(createSearchExecutionContext());
 

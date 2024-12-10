@@ -287,7 +287,7 @@ public class ConnectorIndexService {
                     .id(connectorId)
                     .source(connector.getSourceRef(), XContentType.JSON);
 
-                clientWithOrigin.index(indexSoftDeletedConnectorRequest, l.delegateFailureAndWrap((ll, indexResponse) -> {
+                clientWithOrigin.index(indexSoftDeletedConnectorRequest, l.delegateFailure((ll, indexResponse) -> {
                     final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     client.delete(deleteRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, ll, (lll, deleteResponse) -> {

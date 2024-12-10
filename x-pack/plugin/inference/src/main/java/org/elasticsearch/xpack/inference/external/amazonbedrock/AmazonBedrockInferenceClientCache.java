@@ -44,17 +44,15 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         cacheLock.readLock().lock();
         try {
             return clientsCache.compute(modelHash, (hashKey, client) -> {
-                if (client == null) {
-                    final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
-                    builtClient.setClock(clock);
-                    builtClient.resetExpiration();
-                    return builtClient;
-                } else {
-                    // for testing
-                    client.setClock(clock);
-                    client.resetExpiration();
-                    return client;
+                AmazonBedrockBaseClient clientToUse = client;
+                if (clientToUse == null) {
+                    clientToUse = creator.apply(model, timeout);
                 }
+
+                // for testing - would be nice to refactor client factory in the future to take clock as parameter
+                clientToUse.setClock(clock);
+                clientToUse.resetExpiration();
+                return clientToUse;
             });
         } finally {
             cacheLock.readLock().unlock();

@@ -1,5 +1,5 @@
 pr: 118177
-summary: Fixing bug with bedrock client caching
+summary: Fixing bedrock event executor terminated cache issue
 area: Machine Learning
 type: bug
 issues:

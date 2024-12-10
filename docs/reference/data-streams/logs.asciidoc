@@ -1,8 +1,8 @@
 [[logs-data-stream]]
 == Logs data stream
 
-IMPORTANT: The {es} `logsdb` index mode is generally available for Elastic Cloud Hosted 
-and Self-Managed customers as of version 8.17 and is enabled by default for 
+IMPORTANT: The {es} `logsdb` index mode is generally available in Elastic Cloud Hosted 
+and self-managed Elasticsearch as of version 8.17, and is enabled by default for 
 logs in https://www.elastic.co/elasticsearch/serverless[{serverless-full}]. 
 
 A logs data stream is a data stream type that stores log data more efficiently.
@@ -53,16 +53,17 @@ DELETE _index_template/my-index-template
 [[logsdb-synthetic-source]]
 === Synthetic source
 
-By default, `logsdb` mode uses <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
+If you have the required https://www.elastic.co/subscriptions[subscription], `logsdb` index mode uses <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
 field. Instead, the document source is synthesized from doc values or stored fields upon document retrieval. 
 
-Before using synthetic source, make sure to review the <<synthetic-source,restrictions and modifications>>. To prevent modifications of a particular object or field, you can <<synthetic-source-keep,minimize synthetic source modifications>>.
+Before using synthetic source, make sure to review the <<synthetic-source,restrictions>>. 
 
 When working with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
 are preserved for <<synthetic-source,synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,
 which retains both duplicate values and the order of entries. However, the exact structure of
 array elements and objects is not necessarily retained. Preserving duplicates and ordering can be critical for some log fields, such as DNS A records, HTTP headers, and log entries that represent sequential or repeated events. 
 
+If you don't have the required https://www.elastic.co/subscriptions[subscription], `logsdb` mode uses the original `_source` field.
 
 [discrete]
 [[logsdb-sort-settings]]
@@ -83,7 +84,8 @@ The `min` mode sorts indices by the minimum value of multi-value fields.
 Missing values are sorted to appear `_first`.
 
 You can override these default sort settings. For example, to sort on different fields
-and change the order, manually configure `index.sort.field` and `index.sort.order`.
+and change the order, manually configure `index.sort.field` and `index.sort.order`. For more details, see
+<<index-modules-index-sorting>>.
 
 When using the default sort settings, the `host.name` field is automatically injected into the index mappings as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and
 retrieved based on the `host.name` and `@timestamp` fields.
@@ -92,13 +94,8 @@ NOTE: If `subobjects` is set to `true` (default), the `host` field is mapped as 
 named `host` with a `name` child field of type `keyword`. If `subobjects` is set to `false`,
 a single `host.name` field is mapped as a `keyword` field.
 
-After an index is created, the sort settings cannot be modified. To use different sort settings,
-create a new index. For data streams, you can update the templates used by the data stream, and then 
+To apply different sort settings, update the data stream's component templates, and then 
 perform or wait for an index <<data-streams-rollover,rollover>>.
-
-Keep in mind that sort
-settings can influence indexing throughput and query latency, and may affect compression efficiency. For more details, see
-<<index-modules-index-sorting>>.
 
 NOTE: For <<data-streams, data streams>>, the `@timestamp` field is automatically injected if it's not already present. If you apply custom sort settings, the `@timestamp` field is injected into the mappings but is not
 automatically added to the list of sort fields.
@@ -141,7 +138,7 @@ segment-level keyword dictionary. This compression is used when multiple consecu
 [[logsdb-ignored-settings]]
 === `ignore` settings
 
-`logsdb` index mode uses `ignore` settings to optimize performance. You can override these settings as needed.
+The `logsdb` index mode uses the following `ignore` settings. You can override these settings as needed.
 
 [discrete]
 [[logsdb-ignore-malformed]]
@@ -187,7 +184,7 @@ reconstructing the original value.
 
 [discrete]
 [[logsdb-settings-summary]]
-=== Full settings reference
+=== Settings reference
 
 The `logsdb` index mode uses the following settings: 
 

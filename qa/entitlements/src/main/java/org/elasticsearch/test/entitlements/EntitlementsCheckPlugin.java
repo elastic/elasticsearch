@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -42,6 +41,6 @@ public class EntitlementsCheckPlugin extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Collections.singletonList(new RestEntitlementsCheckSystemExitAction());
+        return List.of(new RestEntitlementsCheckSystemExitAction(), new RestEntitlementsCheckClassLoaderAction());
     }
 }

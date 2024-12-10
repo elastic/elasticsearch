@@ -27,13 +27,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -147,7 +145,6 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
             reindexRequest.getSearchRequest().allowPartialSearchResults(false);
             reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-            reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
             reindexRequest.setDestIndex(config.getDest().getIndex());
 
             // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id

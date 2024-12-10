@@ -112,16 +112,28 @@ public interface InferenceService extends Closeable {
     );
 
     /**
-     * Chunk long text according to {@code chunkingOptions} or the
-     * model defaults if {@code chunkingOptions} contains unset
-     * values.
+     * Perform completion inference on the model using the unified schema.
+     *
+     * @param model        The model
+     * @param request Parameters for the request
+     * @param timeout      The timeout for the request
+     * @param listener     Inference result listener
+     */
+    void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
+     * Chunk long text.
      *
      * @param model           The model
      * @param query           Inference query, mainly for re-ranking
      * @param input           Inference input
      * @param taskSettings    Settings in the request to override the model's defaults
      * @param inputType       For search, ingest etc
-     * @param chunkingOptions The window and span options to apply
      * @param timeout         The timeout for the request
      * @param listener        Chunked Inference result listener
      */
@@ -131,7 +143,6 @@ public interface InferenceService extends Closeable {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );

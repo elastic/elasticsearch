@@ -527,7 +527,13 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     public void testEncodeDecodeExactScalingFactor() {
         double v = randomValue();
-        assertThat(encodeDecode(1 / v, v), equalTo(1 / v));
+        double expected = 1 / v;
+        // We don't produce infinities while decoding. See #testDecodeHandlingInfinity().
+        if (Double.isInfinite(expected)) {
+            var sign = expected == Double.POSITIVE_INFINITY ? 1 : -1;
+            expected = sign * Double.MAX_VALUE;
+        }
+        assertThat(encodeDecode(1 / v, v), equalTo(expected));
     }
 
     /**

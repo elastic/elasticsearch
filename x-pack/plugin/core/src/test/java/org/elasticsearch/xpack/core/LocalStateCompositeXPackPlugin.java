@@ -268,8 +268,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     settingsFilter,
                     indexNameExpressionResolver,
                     nodesInCluster,
-                    clusterSupportsFeature,
-                    new ThreadContext(Settings.EMPTY)
+                    clusterSupportsFeature
                 )
             )
         );

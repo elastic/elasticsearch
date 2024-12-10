@@ -256,6 +256,7 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -825,6 +826,9 @@ public class ActionModule extends AbstractModule {
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
         Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
+            if (handler instanceof BaseRestHandler baseRestHandler) {
+                baseRestHandler.setThreadContext(threadPool.getThreadContext());
+            }
             if (restFilter.test(handler)) {
                 if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
                     catActions.add(catAction);
@@ -934,21 +938,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkAction(settings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(
-            new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, threadPool.getThreadContext())
-        );
+        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature));
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(
-            new RestMultiSearchAction(
-                settings,
-                restController.getSearchUsageHolder(),
-                clusterSupportsFeature,
-                threadPool.getThreadContext()
-            )
-        );
+        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -1026,8 +1021,7 @@ public class ActionModule extends AbstractModule {
                 settingsFilter,
                 indexNameExpressionResolver,
                 nodesInCluster,
-                clusterSupportsFeature,
-                threadPool.getThreadContext()
+                clusterSupportsFeature
             )) {
                 registerHandler.accept(handler);
             }

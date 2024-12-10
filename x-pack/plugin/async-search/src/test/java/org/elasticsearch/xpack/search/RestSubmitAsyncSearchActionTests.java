@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
@@ -32,11 +31,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        RestSubmitAsyncSearchAction action = new RestSubmitAsyncSearchAction(
-            new UsageService().getSearchUsageHolder(),
-            nf -> false,
-            new ThreadContext(Settings.EMPTY)
-        );
+        RestSubmitAsyncSearchAction action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
     }
 

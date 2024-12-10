@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -55,11 +54,10 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature,
-        ThreadContext context
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, context),
+            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
             new RestDeleteAsyncSearchAction()

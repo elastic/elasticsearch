@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -143,7 +144,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
         final ProjectState projectState = getProjectState();
-        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indices());
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            projectState.metadata(),
+            request.indices()
+        );
         final AliasFilter aliasFilter = searchService.buildAliasFilter(projectState, shard.getIndexName(), indicesAndAliases);
         return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }

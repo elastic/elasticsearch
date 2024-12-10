@@ -45,6 +45,7 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -230,6 +231,7 @@ public class SecurityTests extends ESTestCase {
             nodeMetadata,
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
+            mock(IndicesService.class),
             mock(PersistentTasksService.class)
         );
     }

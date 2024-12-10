@@ -72,7 +72,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
                     false
                 );
                 case LIST_BLOBS -> blobStore.listBlobsByPrefix(purpose, randomIdentifier(), randomIdentifier());
-                case BLOB_BATCH -> blobStore.deleteBlobsIgnoringIfNotExists(
+                case BLOB_BATCH -> blobStore.deleteBlobs(
                     purpose,
                     List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator()
                 );
@@ -113,7 +113,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
             os.flush();
         });
         // BLOB_BATCH
-        blobStore.deleteBlobsIgnoringIfNotExists(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
+        blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
@@ -148,10 +148,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
                 os.flush();
             });
             // BLOB_BATCH
-            blobStore.deleteBlobsIgnoringIfNotExists(
-                purpose,
-                List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator()
-            );
+            blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
         }
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();

@@ -282,18 +282,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Bad Data Stream Name}
-  issue: https://github.com/elastic/elasticsearch/issues/118272
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Unsupported Mode}
-  issue: https://github.com/elastic/elasticsearch/issues/118273
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
-  issue: https://github.com/elastic/elasticsearch/issues/118274
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/118306
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
@@ -303,6 +291,21 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/118350
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  method: testSearcherId
+  issue: https://github.com/elastic/elasticsearch/issues/118374
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/10_info/Info}
+  issue: https://github.com/elastic/elasticsearch/issues/118394
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/11_nodes/Additional disk information}
+  issue: https://github.com/elastic/elasticsearch/issues/118395
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/11_nodes/Test cat nodes output with full_id set}
+  issue: https://github.com/elastic/elasticsearch/issues/118396
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/11_nodes/Test cat nodes output}
+  issue: https://github.com/elastic/elasticsearch/issues/118397
 
 # Examples:
 #

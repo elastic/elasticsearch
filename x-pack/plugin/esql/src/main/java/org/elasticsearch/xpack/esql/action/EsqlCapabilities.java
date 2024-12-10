@@ -215,6 +215,11 @@ public class EsqlCapabilities {
         SPATIAL_CENTROID_NO_RECORDS,
 
         /**
+         * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
+         */
+        ST_ENVELOPE,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -339,6 +344,11 @@ public class EsqlCapabilities {
          * Support for date nanos type in binary comparisons
          */
         DATE_NANOS_BINARY_COMPARISON(),
+
+        /**
+         * Support for mixed comparisons between nanosecond and millisecond dates
+         */
+        DATE_NANOS_COMPARE_TO_MILLIS(),
 
         /**
          * Support Least and Greatest functions on Date Nanos type
@@ -545,7 +555,12 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot());
+        METADATA_SCORE(Build.current().isSnapshot()),
+
+        /**
+         * Term function
+         */
+        TERM_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

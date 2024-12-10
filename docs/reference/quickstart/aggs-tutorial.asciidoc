@@ -1921,7 +1921,7 @@ GET kibana_sample_data_ecommerce/_search
   }
 }
 ----
-// TEST[skip:Using Kibana sample data
+// TEST[skip:Using Kibana sample data]
 <1> `daily_sales`: Results from our daily sales date histogram
 <2> `buckets`: Array of time-based buckets
 <3> `key_as_string`: Date for this bucket (in ISO format since no format specified)

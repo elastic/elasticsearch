@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -35,6 +36,7 @@ public class RestKnnSearchAction extends BaseRestHandler {
     public RestKnnSearchAction() {}
 
     @Override
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE)
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, "{index}/_knn_search").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_8).build(),

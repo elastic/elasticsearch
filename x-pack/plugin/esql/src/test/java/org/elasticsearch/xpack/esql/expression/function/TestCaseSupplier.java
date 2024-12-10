@@ -278,6 +278,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
+            if (DataType.isRepresentable(expectedType) == false) {
+                testCase = testCase.withoutEvaluator();
+            }
             return testCase;
         });
     }
@@ -1438,7 +1441,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
-                data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type))
+                true
             );
         }
 
@@ -1791,9 +1794,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         @Override
         public String toString() {
             if (type == DataType.UNSIGNED_LONG && data instanceof Long longData) {
-                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
+                return type + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
             }
-            return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
+            return type.toString() + "(" + (data == null ? "null" : getValue().toString()) + ")";
         }
 
         /**

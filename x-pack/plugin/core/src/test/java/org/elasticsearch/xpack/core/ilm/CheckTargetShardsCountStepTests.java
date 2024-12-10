@@ -76,7 +76,7 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
 
         ClusterStateWaitStep.Result result = checkTargetShardsCountStep.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInformationContext();
         assertThat(
             info.getMessage(),
             is(

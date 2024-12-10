@@ -289,6 +289,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (source.isEmpty()) {
             // If no source is provided we return empty mappings
             return mapping(EMPTY_MAPPINGS);
+        } else if (source.size() == 1 && source.containsKey("properties")) {
+            // return empty mapping if source is only "empty" properties
+            return mapping(EMPTY_MAPPINGS);
         } else if (source.size() != 1 || source.containsKey(type) == false) {
             // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);

@@ -369,7 +369,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         final Index concreteSecurityIndex = resolveSecurityIndexMetadata(clusterService.state().metadata()).getIndex();
         markRolesAsSyncedTaskQueue.submitTask(
             "mark built-in roles as synced task",
-            new MarkRolesAsSyncedTask(ActionListener.wrap(response -> {
+            new MarkRolesAsSyncedTask(listener.delegateFailureAndWrap((l, response) -> {
                 if (newRolesDigests.equals(response) == false) {
                     logger.trace(
                         () -> Strings.format(
@@ -379,13 +379,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                             response
                         )
                     );
-                    listener.onFailure(
+                    l.onFailure(
                         new ElasticsearchException("Failed to mark built-in roles as synced. The expected roles digests have changed.")
                     );
                 } else {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 }
-            }, listener::onFailure), concreteSecurityIndex.getName(), expectedRolesDigests, newRolesDigests),
+            }), concreteSecurityIndex.getName(), expectedRolesDigests, newRolesDigests),
             null
         );
     }

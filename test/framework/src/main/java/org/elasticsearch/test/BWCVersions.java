@@ -15,14 +15,13 @@ import org.elasticsearch.TransportVersions;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
-
 public final class BWCVersions {
     private BWCVersions() {}
 
     public static List<TransportVersion> getAllBWCVersions() {
-        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersions.MINIMUM_COMPATIBLE);
-        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
+        List<TransportVersion> allVersions = TransportVersion.getAllVersions();
+        int minCompatVersion = Collections.binarySearch(allVersions, TransportVersions.MINIMUM_COMPATIBLE);
+        return allVersions.subList(minCompatVersion, allVersions.size());
     }
 
     public static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();

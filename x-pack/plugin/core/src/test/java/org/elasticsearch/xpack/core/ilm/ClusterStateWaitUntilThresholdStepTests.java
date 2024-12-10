@@ -71,7 +71,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterState.EMPTY_STATE
         );
         assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.getInformationContext(), nullValue());
     }
 
     public void testIsConditionMetForUnderlyingStep() {
@@ -96,7 +96,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
             assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.getInformationContext(), nullValue());
         }
 
         {
@@ -121,9 +121,9 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
 
             assertThat(result.isComplete(), is(false));
-            assertThat(result.getInfomationContext(), notNullValue());
+            assertThat(result.getInformationContext(), notNullValue());
             WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-                .getInfomationContext();
+                .getInformationContext();
             assertThat(
                 info.getMessage(),
                 equalTo(
@@ -155,7 +155,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
             assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.getInformationContext(), nullValue());
             assertThat(underTest.getNextStepKey(), is(not(nextKeyOnThresholdBreach)));
             assertThat(underTest.getNextStepKey(), is(stepToExecute.getNextStepKey()));
         }
@@ -185,8 +185,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
 
             assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), notNullValue());
-            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+            assertThat(result.getInformationContext(), notNullValue());
+            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInformationContext();
             assertThat(
                 info.getMessage(),
                 equalTo(

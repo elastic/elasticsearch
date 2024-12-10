@@ -26,6 +26,13 @@
           }
         }
       ]
+    },
+    "params": {
+      "deleted": {
+        "type": "boolean",
+        "default": false,
+        "description": "A flag indicating whether to return connectors that have been soft-deleted."
+      }
     }
   }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -101,6 +102,8 @@ public class ConnectorIndexService {
     private static final int DELETED_CONNECTORS_INDEX_VERSION = 1;
     private static final String DELETED_CONNECTORS_MAPPING_VERSION_VARIABLE = "connectors-deleted.version";
     private static final String DELETED_CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "connectors-deleted.managed.index.version";
+
+    public static final NodeFeature CONNECTOR_SOFT_DELETES_FEATURE = new NodeFeature("connector_soft_deletes");
 
     /**
      * Returns the {@link SystemIndexDescriptor} for the Deleted {@link Connector} system index.

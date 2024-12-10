@@ -44,7 +44,6 @@ DELETE _index_template/template_*
 * If the {es} {security-features} are enabled, you must have the
 `manage_index_templates` or `manage` <<privileges-list-cluster,cluster
 privilege>> to use this API.
-* The `logsDB` index mode requires an https://www.elastic.co/pricing[Enterprise subscription].
 
 [[put-index-template-api-desc]]
 ==== {api-description-title}
@@ -117,7 +116,7 @@ See <<create-index-template,create an index template>>.
 `index_mode`::
 (Optional, string) Type of data stream to create. Valid values are `null`
 (standard data stream), `time_series` (<<tsds,time series data stream>>) and `logsdb` 
-(<<logs-data-stream,logs data stream>>, which requires an https://www.elastic.co/pricing[Enterprise subscription]).
+(<<logs-data-stream,logs data stream>>).
 +
 The template's `index_mode` sets the `index.mode` of the backing index.
 =====

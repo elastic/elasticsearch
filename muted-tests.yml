@@ -157,9 +157,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/117295
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testRetryPointInTime
-  issue: https://github.com/elastic/elasticsearch/issues/117116
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
@@ -189,9 +186,6 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testSupportedStream
-  issue: https://github.com/elastic/elasticsearch/issues/117745
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {scoring.QstrWithFieldAndScoringSortedEval}
   issue: https://github.com/elastic/elasticsearch/issues/117751
@@ -248,12 +242,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test41AutoconfigurationNotTriggeredWhenNodeCannotContainData
   issue: https://github.com/elastic/elasticsearch/issues/118110
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.LookupMessageFromIndexKeepReordered SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118150
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.LookupMessageFromIndexKeepReordered ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118151
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
@@ -281,9 +269,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testUnifiedCompletionInference
-  issue: https://github.com/elastic/elasticsearch/issues/118210
 - class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/118215
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
@@ -297,6 +282,24 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/10_reindex/Test Reindex With Bad Data Stream Name}
+  issue: https://github.com/elastic/elasticsearch/issues/118272
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/10_reindex/Test Reindex With Unsupported Mode}
+  issue: https://github.com/elastic/elasticsearch/issues/118273
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
+  issue: https://github.com/elastic/elasticsearch/issues/118274
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/118306
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/118214
+- class: org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT
+  method: testTopNThenEnrichRemote
+  issue: https://github.com/elastic/elasticsearch/issues/118307
 
 # Examples:
 #

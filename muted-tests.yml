@@ -274,9 +274,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/118224
 - class: org.elasticsearch.packaging.test.ArchiveTests

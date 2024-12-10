@@ -150,7 +150,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     delegate.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
                 } else {
-                    new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(clusterState.nodes().get(node));
                     },
@@ -164,7 +164,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         delegate.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
-                    ).start();
+                    );
                 }
             })
         );

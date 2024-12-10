@@ -11,10 +11,10 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(':libs:entitlement')
-  implementation 'org.ow2.asm:asm:9.7'
+  implementation 'org.ow2.asm:asm:9.7.1'
   testImplementation project(":test:framework")
   testImplementation project(":libs:entitlement:bridge")
-  testImplementation 'org.ow2.asm:asm-util:9.7'
+  testImplementation 'org.ow2.asm:asm-util:9.7.1'
 }
 
 tasks.named('test').configure {

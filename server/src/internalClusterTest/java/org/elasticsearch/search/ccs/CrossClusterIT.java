@@ -86,7 +86,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CrossClusterIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 

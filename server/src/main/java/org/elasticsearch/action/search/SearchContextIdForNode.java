@@ -37,7 +37,7 @@ public final class SearchContextIdForNode implements Writeable {
     }
 
     SearchContextIdForNode(StreamInput in) throws IOException {
-        boolean allowNull = in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT);
+        boolean allowNull = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
         this.node = allowNull ? in.readOptionalString() : in.readString();
         this.clusterAlias = in.readOptionalString();
         this.searchContextId = allowNull ? in.readOptionalWriteable(ShardSearchContextId::new) : new ShardSearchContextId(in);
@@ -45,7 +45,7 @@ public final class SearchContextIdForNode implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean allowNull = out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT);
+        boolean allowNull = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
         if (allowNull) {
             out.writeOptionalString(node);
         } else {
@@ -53,7 +53,7 @@ public final class SearchContextIdForNode implements Writeable {
                 // We should never set a null node if the cluster is not fully upgraded to a version that can handle it.
                 throw new IOException(
                     "Cannot write null node value to a node in version "
-                        + out.getTransportVersion()
+                        + out.getTransportVersion().toReleaseVersion()
                         + ". The target node must be specified to retrieve the ShardSearchContextId."
                 );
             }
@@ -67,7 +67,7 @@ public final class SearchContextIdForNode implements Writeable {
                 // We should never set a null search context id if the cluster is not fully upgraded to a version that can handle it.
                 throw new IOException(
                     "Cannot write null search context ID to a node in version "
-                        + out.getTransportVersion()
+                        + out.getTransportVersion().toReleaseVersion()
                         + ". A valid search context ID is required to identify the shard's search context in this version."
                 );
             }

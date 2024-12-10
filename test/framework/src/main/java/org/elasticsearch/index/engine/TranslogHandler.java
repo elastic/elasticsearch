@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;

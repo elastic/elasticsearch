@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -26,13 +28,26 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
      * {@link org.elasticsearch.xpack.esql.common.Failure Failure}s to the {@link Failures} object.
      */
     public void checkPlan(P p, Failures failures) {
-        AttributeSet refs = p.references();
-        AttributeSet input = p.inputSet();
-        AttributeSet missing = refs.subtract(input);
-        // TODO: for Joins, we should probably check if the required fields from the left child are actually in the left child, not
-        // just any child (and analogously for the right child).
-        if (missing.isEmpty() == false) {
-            failures.add(fail(p, "Plan [{}] optimized incorrectly due to missing references {}", p.nodeString(), missing));
+        if (p instanceof BinaryPlan binaryPlan) {
+            checkMissing(p, binaryPlan.leftReferences(), binaryPlan.left().outputSet(), "missing references from left hand side", failures);
+            checkMissing(
+                p,
+                binaryPlan.rightReferences(),
+                binaryPlan.right().outputSet(),
+                "missing references from right hand side",
+                failures
+            );
+        } else if (p instanceof BinaryExec binaryExec) {
+            checkMissing(p, binaryExec.leftReferences(), binaryExec.left().outputSet(), "missing references from left hand side", failures);
+            checkMissing(
+                p,
+                binaryExec.rightReferences(),
+                binaryExec.right().outputSet(),
+                "missing references from right hand side",
+                failures
+            );
+        } else {
+            checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
         Set<String> outputAttributeNames = new HashSet<>();
@@ -43,6 +58,13 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
                 );
             }
+        }
+    }
+
+    private void checkMissing(P plan, AttributeSet references, AttributeSet input, String detailErrorMessage, Failures failures) {
+        AttributeSet missing = references.subtract(input);
+        if (missing.isEmpty() == false) {
+            failures.add(fail(plan, "Plan [{}] optimized incorrectly due to {} [{}]", plan.nodeString(), detailErrorMessage, missing));
         }
     }
 }

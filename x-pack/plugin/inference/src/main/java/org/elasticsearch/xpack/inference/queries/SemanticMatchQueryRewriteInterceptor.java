@@ -12,13 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
 import java.util.ArrayList;
@@ -64,7 +58,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
                         createSemanticSubQuery(inferenceIndexName, matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value())
                     );
                 }
-                boolQueryBuilder.should(createMatchSubQuery(nonInferenceIndices, matchQueryBuilder.fieldName(), matchQueryBuilder.value()));
+                boolQueryBuilder.should(createMatchSubQuery(nonInferenceIndices, matchQueryBuilder));
                 rewritten = boolQueryBuilder;
             } else {
                 rewritten = new SemanticQueryBuilder(matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value(), false);
@@ -87,9 +81,9 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
         return boolQueryBuilder;
     }
 
-    private QueryBuilder createMatchSubQuery(List<String> indices, String fieldName, Object value) {
+    private QueryBuilder createMatchSubQuery(List<String> indices, MatchQueryBuilder matchQueryBuilder) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new InterceptedQueryBuilderWrapper(new MatchQueryBuilder(fieldName, value)));
+        boolQueryBuilder.must(new InterceptedQueryBuilderWrapper(matchQueryBuilder));
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }

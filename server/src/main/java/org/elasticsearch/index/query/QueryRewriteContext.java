@@ -440,4 +440,28 @@ public class QueryRewriteContext {
         return queryRewriteInterceptor;
     }
 
+    public QueryRewriteContext getInterceptorRemovedContext() {
+        if (queryRewriteInterceptor == null) {
+            return this;
+        }
+        return new QueryRewriteContext(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            mappingLookup,
+            runtimeMappings,
+            indexSettings,
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            writeableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService,
+            resolvedIndices,
+            pit,
+            null
+        );
+    }
+
 }

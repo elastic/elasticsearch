@@ -21,6 +21,7 @@ import java.util.Objects;
 /**
  * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
+ * TODO can this be moved to package protected?
  */
 public class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
@@ -33,6 +34,16 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
         } else {
             this.queryBuilder = queryBuilder;
         }
+    }
+
+    @Override
+    public QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteContext interceptorRemovedContext = queryRewriteContext.getInterceptorRemovedContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(interceptorRemovedContext);
+        if (rewritten != queryBuilder) {
+            return new InterceptedQueryBuilderWrapper(rewritten);
+        }
+        return this;
     }
 
     @Override

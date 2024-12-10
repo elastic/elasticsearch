@@ -39,6 +39,6 @@ public class EntitlementAllowedPlugin extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckClassLoaderAction());
+        return List.of(new RestEntitlementsCheckAction());
     }
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.entitlements.EntitlementAllowedPlugin;
-import org.elasticsearch.test.entitlements.RestEntitlementsCheckClassLoaderAction;
+import org.elasticsearch.test.entitlements.RestEntitlementsCheckAction;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -41,6 +41,6 @@ public class EntitlementAllowedNonModularPlugin extends EntitlementAllowedPlugin
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckClassLoaderAction());
+        return List.of(new RestEntitlementsCheckAction());
     }
 }

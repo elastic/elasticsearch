@@ -34,7 +34,9 @@ public class EntitlementsAllowedIT extends ESRestTestCase {
     }
 
     public void testCheckCreateURLClassLoaderWithPolicyPass() throws IOException {
-        Response result = client().performRequest(new Request("GET", "/_entitlement/positive/_check_create_url_classloader"));
+        var request = new Request("GET", "/_entitlement/positive/_check");
+        request.addParameter("action", "create_classloader");
+        Response result = client().performRequest(request);
         assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
     }
 }

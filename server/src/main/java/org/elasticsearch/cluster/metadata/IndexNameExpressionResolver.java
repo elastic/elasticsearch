@@ -840,7 +840,6 @@ public class IndexNameExpressionResolver {
         boolean skipIdentity,
         Set<ResolvedExpression> resolvedExpressions
     ) {
-        // TODO: This conditional seems to never be true in production code? We resolve expressions first which will always expand _all
         if (isAllIndicesExpression(resolvedExpressions)) {
             return null;
         }
@@ -857,7 +856,6 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            // TODO: This conditional also seems to never be true in production code? Data stream names are always expanded to their indices
             if (skipIdentity == false && resolvedExpressions.contains(new ResolvedExpression(dataStream.getName()))) {
                 // skip the filters when the request targets the data stream name
                 return null;

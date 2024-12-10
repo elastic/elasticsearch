@@ -470,5 +470,5 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return new SearchableSnapshotMetadata(indexName, repo, snapshotName, partial);
     }
 
-    record SearchableSnapshotMetadata(String sourceIndex, String repositoryName, String snapshotName, boolean partial) {};
+    record SearchableSnapshotMetadata(String sourceIndex, String repositoryName, String snapshotName, boolean partial) {}
 }

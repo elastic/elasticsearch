@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -33,6 +35,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -59,6 +63,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringValidati
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -76,6 +81,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -85,6 +91,40 @@ public class ConnectorIndexService {
     private final Client client;
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
+
+    public static String DELETED_CONNECTORS_INDEX_NAME = ".connectors-deleted";
+    private static final int DELETED_CONNECTORS_INDEX_VERSION = 1;
+    private static final String DELETED_CONNECTORS_MAPPING_VERSION_VARIABLE = "connectors-deleted.version";
+    private static final String DELETED_CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "connectors-deleted.managed.index.version";
+
+    /**
+     * Returns the {@link SystemIndexDescriptor} for the Deleted {@link Connector} system index.
+     *
+     * @return The {@link SystemIndexDescriptor} for the Deleted {@link Connector} system index.
+     */
+    public static SystemIndexDescriptor getConnectorsDeletedSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+
+        String templateSource = TemplateUtils.loadTemplate(
+            "/connectors-deleted.json",
+            Version.CURRENT.toString(),
+            DELETED_CONNECTORS_MAPPING_VERSION_VARIABLE,
+            Map.of(DELETED_CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(DELETED_CONNECTORS_INDEX_VERSION))
+        );
+        request.source(templateSource, XContentType.JSON);
+
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(DELETED_CONNECTORS_INDEX_NAME + "*")
+            .setPrimaryIndex(DELETED_CONNECTORS_INDEX_NAME + "-" + DELETED_CONNECTORS_INDEX_VERSION)
+            .setDescription("Index storing deleted connectors")
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setAliasName(DELETED_CONNECTORS_INDEX_NAME)
+            .setOrigin(CONNECTORS_ORIGIN)
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
+            .build();
+    }
 
     /**
      * @param client A client for executing actions on the connector index

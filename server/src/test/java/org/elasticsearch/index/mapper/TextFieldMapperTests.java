@@ -292,7 +292,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(RoutingPathHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
             if (timeSeriesIndexMode) {
                 b.field("@timestamp", "2000-10-10T23:40:53.384Z");

@@ -270,7 +270,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_DOC_VALUE_FORMAT;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -1000,7 +999,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.DENSE_VECTOR.getWriteableName(), in -> DocValueFormat.DENSE_VECTOR);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
         registerValueFormat(DocValueFormat.TIME_SERIES_ID.getWriteableName(), in -> DocValueFormat.TIME_SERIES_ID);
-        registerValueFormat(TS_ROUTING_HASH_DOC_VALUE_FORMAT.getWriteableName(), in -> TS_ROUTING_HASH_DOC_VALUE_FORMAT);
+        registerValueFormat(DocValueFormat.LOGS_ID.getWriteableName(), in -> DocValueFormat.LOGS_ID);
     }
 
     /**

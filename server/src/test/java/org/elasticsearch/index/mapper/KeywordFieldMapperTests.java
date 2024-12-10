@@ -387,7 +387,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field", "1234", "45678");
             b.field("@timestamp", Instant.now());
-        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
@@ -395,7 +395,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+        }), IndexMode.STANDARD);
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field", "1234", "45678");

@@ -185,7 +185,7 @@ import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
+import static org.elasticsearch.cluster.metadata.DataStream.TIME_LEAF_READERS_SORTER;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -3529,7 +3529,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
-            isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
+            isTimeBasedIndex ? TIME_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
             routingEntry().isPromotableToPrimary(),

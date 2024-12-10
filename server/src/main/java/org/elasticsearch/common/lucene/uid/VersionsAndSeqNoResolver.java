@@ -149,7 +149,7 @@ public final class VersionsAndSeqNoResolver {
      * A special variant of loading docid and version in case of time series indices.
      * <p>
      * Makes use of the fact that timestamp is part of the id, the existence of @timestamp field and
-     * that segments are sorted by {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER}.
+     * that segments are sorted by {@link org.elasticsearch.cluster.metadata.DataStream#TIME_LEAF_READERS_SORTER}.
      * This allows this method to know whether there is no document with the specified id without loading the docid for
      * the specified id.
      *

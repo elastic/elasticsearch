@@ -13,29 +13,28 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
+import java.util.Base64;
 import java.util.Locale;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
- * {@code _tsid} and {@code @timestamp}.
+ * {@code _logs_id} and {@code @timestamp}.
  */
-public class TsidExtractingIdFieldMapper extends IdFieldMapper {
+public class LogsIdExtractingIdFieldMapper extends IdFieldMapper {
     /**
      * Maximum length of the {@code _tsid} in the {@link #documentDescription}.
      */
-    static final int DESCRIPTION_TSID_LIMIT = 1000;
+    static final int DESCRIPTION_LIMIT = 1000;
 
-    public static final TsidExtractingIdFieldMapper INSTANCE = new TsidExtractingIdFieldMapper();
+    public static final LogsIdExtractingIdFieldMapper INSTANCE = new LogsIdExtractingIdFieldMapper();
 
-    private TsidExtractingIdFieldMapper() {
+    private LogsIdExtractingIdFieldMapper() {
         super(new AbstractIdFieldType() {
             @Override
             public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
@@ -46,28 +45,18 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
+    public static void createField(DocumentParserContext context, BytesRef logsId) {
+        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        if (timestampField == null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
+        long timestamp = timestampField.numericValue().longValue();
         String id;
-        if (routingBuilder != null) {
-            byte[] suffix = new byte[16];
-            id = createId(context.hasDynamicMappers(), routingBuilder, tsid, timestamp, suffix);
-            /*
-             * Make sure that _id from extracting the tsid matches that _id
-             * from extracting the _source. This should be true for all valid
-             * documents with valid mappings. *But* some invalid mappings
-             * will not parse the field but be rejected later by the dynamic
-             * mappings machinery. So if there are any dynamic mappings
-             * at all we just skip the assertion because we can't be sure
-             * it always must pass.
-             */
-            IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
-            assert context.getDynamicMappers().isEmpty() == false
-                || context.getDynamicRuntimeFields().isEmpty() == false
-                || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
-        } else if (context.sourceToParse().routing() != null) {
+        if (context.sourceToParse().routing() != null) {
             int routingHash = RoutingPathHashFieldMapper.decode(context.sourceToParse().routing());
-            id = createId(routingHash, tsid, timestamp);
+            id = createId(routingHash, logsId, timestamp);
         } else {
             if (context.sourceToParse().id() == null) {
                 throw new IllegalArgumentException(
@@ -83,7 +72,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
+                    "_id must be unset or set to [%s] but was [%s] because [%s] is in logs mode",
                     id,
                     context.sourceToParse().id(),
                     context.indexSettings().getIndexMetadata().getIndex().getName()
@@ -91,7 +80,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             );
         }
         context.id(id);
-
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
     }
@@ -105,30 +93,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongLE(hash.h1, bytes, 4);
         ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
 
-        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
-    }
-
-    public static String createId(
-        boolean dynamicMappersExists,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
-        BytesRef tsid,
-        long timestamp,
-        byte[] suffix
-    ) {
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
-        ByteUtils.writeLongLE(hash.h1, suffix, 0);
-        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
-
-        String id = routingBuilder.createId(suffix, dynamicMappersExists ? () -> 0 : () -> {
-            throw new IllegalStateException(
-                "Didn't find any fields to include in the routing which would be fine if there are"
-                    + " dynamic mapping waiting but we couldn't find any of those either!"
-            );
-        });
-        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
-        return id;
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     @Override
@@ -140,10 +105,10 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
          * include them in the description. If not, all we know is
          * "a time series document".
          */
-        StringBuilder description = new StringBuilder("a time series document");
+        StringBuilder description = new StringBuilder("a logs document");
         IndexableField tsidField = context.doc().getField(TimeSeriesIdFieldMapper.NAME);
         if (tsidField != null) {
-            description.append(" with tsid ").append(tsidDescription(tsidField));
+            description.append(" with logs_id ").append(logsIdDescription(tsidField));
         }
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampField != null) {
@@ -155,18 +120,18 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     @Override
     public String documentDescription(ParsedDocument parsedDocument) {
-        IndexableField tsidField = parsedDocument.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
+        IndexableField logsIdField = parsedDocument.rootDoc().getField(LogsIdFieldMapper.NAME);
         long timestamp = parsedDocument.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue();
         String timestampStr = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(timestamp);
-        return "[" + parsedDocument.id() + "][" + tsidDescription(tsidField) + "@" + timestampStr + "]";
+        return "[" + parsedDocument.id() + "][" + logsIdDescription(logsIdField) + "@" + timestampStr + "]";
     }
 
-    private static String tsidDescription(IndexableField tsidField) {
-        String tsid = RoutingPathFields.encode(tsidField.binaryValue()).toString();
-        if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
-            return tsid;
+    private static String logsIdDescription(IndexableField field) {
+        String encoded = RoutingPathFields.encode(field.binaryValue()).toString();
+        if (encoded.length() <= DESCRIPTION_LIMIT) {
+            return encoded;
         }
-        return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
+        return encoded.substring(0, DESCRIPTION_LIMIT) + "...}";
     }
 
     @Override

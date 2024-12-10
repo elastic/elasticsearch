@@ -96,7 +96,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            if (format == DocValueFormat.TIME_SERIES_ID) {
+            if (format == DocValueFormat.TIME_SERIES_ID || format == DocValueFormat.LOGS_ID) {
                 return builder.field(CommonFields.KEY.getPreferredName(), format.format(termBytes));
             }
             return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());

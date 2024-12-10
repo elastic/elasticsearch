@@ -23,11 +23,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCase {
+public class RoutingPathHashFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected String fieldName() {
-        return TimeSeriesRoutingHashFieldMapper.NAME;
+        return RoutingPathHashFieldMapper.NAME;
     }
 
     @Override
@@ -57,7 +57,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         return docMapper.parse(source(null, b -> {
             f.accept(b);
             b.field("@timestamp", "2021-10-01");
-        }, TimeSeriesRoutingHashFieldMapper.encode(hash)));
+        }, RoutingPathHashFieldMapper.encode(hash)));
     }
 
     private static ParsedDocument parseDocument(String id, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
@@ -70,8 +70,8 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
     }
 
     private static int getRoutingHash(ParsedDocument document) {
-        BytesRef value = document.rootDoc().getBinaryValue(TimeSeriesRoutingHashFieldMapper.NAME);
-        return TimeSeriesRoutingHashFieldMapper.decode(Uid.decodeId(value.bytes));
+        BytesRef value = document.rootDoc().getBinaryValue(RoutingPathHashFieldMapper.NAME);
+        return RoutingPathHashFieldMapper.decode(Uid.decodeId(value.bytes));
     }
 
     @SuppressWarnings("unchecked")
@@ -92,7 +92,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         }));
 
         int hash = randomInt();
-        ParsedDocument doc = parseDocument(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, docMapper, b -> b.field("a", "value"));
+        ParsedDocument doc = parseDocument(RoutingPathHashFieldMapper.DUMMY_ENCODED_VALUE, docMapper, b -> b.field("a", "value"));
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
         assertEquals(0, getRoutingHash(doc));
     }
@@ -102,7 +102,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
             mapping(b -> {})
         ).documentMapper();
-        assertThat(docMapper.metadataMapper(TimeSeriesRoutingHashFieldMapper.class), is(nullValue()));
+        assertThat(docMapper.metadataMapper(RoutingPathHashFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));
         assertThat(doc.rootDoc().getBinaryValue("_ts_routing_hash"), is(nullValue()));

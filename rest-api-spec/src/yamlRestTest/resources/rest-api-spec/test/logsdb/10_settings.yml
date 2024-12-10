@@ -186,7 +186,7 @@ missing sort field:
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[host_name]" }
+  - match: { error.reason: "unknown index sort field:[host_name] required by [index.mode=logsdb]" }
 
 ---
 non-default sort settings:
@@ -474,7 +474,7 @@ override sort field using nested field type:
   - is_false: error
 
 ---
-routing path not allowed in logs mode:
+routing path allowed in logs mode:
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
@@ -484,7 +484,6 @@ routing path not allowed in logs mode:
       reason: "Support for 'logsdb' index mode capability required"
 
   - do:
-      catch: bad_request
       indices.create:
         index: test
         body:
@@ -509,9 +508,13 @@ routing path not allowed in logs mode:
               message:
                 type: text
 
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[index.routing_path] requires [index.mode=time_series]" }
+  - do:
+      indices.get_settings:
+        index: test
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logsdb" }
+  - match: { test.settings.index.routing_path: [ "host.name", "agent_id"] }
 
 ---
 start time not allowed in logs mode:

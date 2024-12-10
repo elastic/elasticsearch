@@ -429,21 +429,33 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     public void testRecoverySourceWithLogs() throws IOException {
         {
-            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                .build();
+            MapperService mapperService = createMapperService(settings, fieldMapping(b -> { b.field("type", "keyword"); }));
             DocumentMapper docMapper = mapperService.documentMapper();
-            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            assertThat(
+                doc.rootDoc().getField("_recovery_source").binaryValue(),
+                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
+            );
         }
         {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
                 .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+                b.field("type", "keyword");
+                b.field("time_series_dimension", true);
+            }));
             DocumentMapper docMapper = mapperService.documentMapper();
-            ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
+            ParsedDocument doc = docMapper.parse(
+                source("123", b -> b.field("@timestamp", "2012-02-13").field("field", randomAlphaOfLength(5)), null)
+            );
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
     }
@@ -610,23 +622,45 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testRecoverySourceWithLogsCustom() throws IOException {
-        XContentBuilder mappings = topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject());
+        String mappings = """
+                {
+                    "_doc" : {
+                        "_source" : {
+                            "mode" : "synthetic"
+                        },
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            """;
         {
-            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                .build();
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
-            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            assertThat(
+                doc.rootDoc().getField("_recovery_source").binaryValue(),
+                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
+            );
         }
         {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
                 .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .build();
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
-            ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
+            ParsedDocument doc = docMapper.parse(
+                source("123", b -> b.field("@timestamp", "2012-02-13").field("field", randomAlphaOfLength(5)), null)
+            );
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
     }

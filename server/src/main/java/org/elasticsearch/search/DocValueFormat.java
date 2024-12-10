@@ -804,4 +804,48 @@ public interface DocValueFormat extends NamedWriteable {
             }
         }
     };
+
+    DocValueFormat LOGS_ID = new LogsIdDocValueFormat();
+
+    /**
+     * DocValues format for logs id.
+     */
+    class LogsIdDocValueFormat implements DocValueFormat {
+        private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
+
+        private LogsIdDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "logs_id";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "logs_id";
+        }
+
+        /**
+         * @param value The logs id as a {@link BytesRef}
+         * @return the Base 64 encoded id
+         */
+        @Override
+        public Object format(BytesRef value) {
+            return TimeSeriesIdFieldMapper.encodeTsid(value);
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            if (value instanceof BytesRef valueAsBytesRef) {
+                return valueAsBytesRef;
+            }
+            if (value instanceof String valueAsString) {
+                return new BytesRef(BASE64_DECODER.decode(valueAsString));
+            }
+            throw new IllegalArgumentException("Cannot parse logs_id object [" + value + "]");
+        }
+    };
 }

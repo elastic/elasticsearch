@@ -83,7 +83,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field", randomNumber(), randomNumber(), randomNumber());
             b.field("@timestamp", Instant.now());
-        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
@@ -91,7 +91,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+        }), IndexMode.STANDARD);
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field", randomNumber(), randomNumber(), randomNumber());

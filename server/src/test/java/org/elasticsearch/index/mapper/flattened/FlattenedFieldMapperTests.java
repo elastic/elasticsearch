@@ -31,8 +31,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -210,7 +210,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field.key1", "value1", "value2");
             b.field("@timestamp", Instant.now());
-        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
@@ -218,7 +218,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
-        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+        }), IndexMode.STANDARD);
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field.key1", "value1", "value2");

@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -274,7 +275,7 @@ public abstract class DocumentParserContext {
     }
 
     public final String routing() {
-        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+        return mappingParserContext.getIndexSettings().usesRoutingPath() ? null : sourceToParse.routing();
     }
 
     /**
@@ -823,6 +824,37 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
+    }
+
+    /**
+     * Identify the fields that match the routing path, for indexes in logs mode. These fields are equivalent to TSDB dimensions.
+     */
+    public final void getRoutingFieldsForLogsMode() {
+        if (indexSettings().getMode() == IndexMode.LOGSDB
+            && indexSettings().getIndexRouting() instanceof IndexRouting.ExtractFromSource dimensionRouting) {
+            for (var mapper : mappingLookup().fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper && dimensionRouting.matchesField(fieldMapper.fullPath())) {
+                    String name = fieldMapper.fullPath();
+                    var field = rootDoc().getField(name);
+                    if (field != null) {
+                        var binaryValue = field.binaryValue();
+                        if (binaryValue != null) {
+                            getRoutingFields().addString(name, binaryValue);
+                        } else {
+                            var stringValue = field.stringValue();
+                            if (stringValue != null) {
+                                getRoutingFields().addString(name, stringValue);
+                            } else {
+                                var numericValueValue = field.numericValue();
+                                if (numericValueValue != null) {
+                                    getRoutingFields().addLong(name, numericValueValue.longValue());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

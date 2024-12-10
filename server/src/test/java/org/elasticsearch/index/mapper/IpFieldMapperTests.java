@@ -262,7 +262,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field", "192.168.1.1", "192.168.1.1");
             b.field("@timestamp", Instant.now());
-        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
@@ -270,7 +270,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+        }), IndexMode.STANDARD);
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.array("field", "192.168.1.1", "192.168.1.1");

@@ -408,3 +408,36 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
   method: testCancelRequestWhenFailingFetchingPages
   issue: https://github.com/elastic/elasticsearch/issues/118213
+- class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
+  method: testHealthNode {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118157
+- class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
+  method: testHealthNode {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/118158
+- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
+  method: testOpenAiEmbeddings {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118156
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  method: testElser {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118127
+- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
+  method: testOpenAiCompletions {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118162
+- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
+  method: testOpenAiCompletions {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/118163
+- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
+  method: testOpenAiEmbeddings {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/118204
+- class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
+  method: testNonExistentDataStream
+  issue: https://github.com/elastic/elasticsearch/issues/118275
+- class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
+  method: testAlreadyUpToDateDataStream
+  issue: https://github.com/elastic/elasticsearch/issues/118276
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultRerank
+  issue: https://github.com/elastic/elasticsearch/issues/118184
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  method: testHFEmbeddings {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118197

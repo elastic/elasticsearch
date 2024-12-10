@@ -346,6 +346,11 @@ public class EsqlCapabilities {
         DATE_NANOS_BINARY_COMPARISON(),
 
         /**
+         * Support for mixed comparisons between nanosecond and millisecond dates
+         */
+        DATE_NANOS_COMPARE_TO_MILLIS(),
+
+        /**
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),
@@ -550,7 +555,17 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot());
+        METADATA_SCORE(Build.current().isSnapshot()),
+
+        /**
+         * Term function
+         */
+        TERM_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES;
 
         private final boolean enabled;
 

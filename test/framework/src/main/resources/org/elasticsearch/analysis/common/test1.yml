@@ -45,7 +45,6 @@ index :
         position_increment_gap: 256
       custom7 :
         type : standard
-        version: 3.6
       czechAnalyzerWithStemmer :
         tokenizer : standard
         filter : [lowercase, stop, czech_stem]

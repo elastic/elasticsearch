@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,8 +43,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -98,7 +97,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
-    private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -142,17 +140,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
 
-        // we compute the shard index based on the natural order of the shards
+        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        Map<SearchShardIterator, Integer> shardMap = new HashMap<>();
-        List<SearchShardIterator> searchIterators = new ArrayList<>(iterators);
-        CollectionUtil.timSort(searchIterators);
-        for (int i = 0; i < searchIterators.size(); i++) {
-            shardMap.put(searchIterators.get(i), i);
-        }
-        this.shardIndexMap = Collections.unmodifiableMap(shardMap);
-        this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
+        Arrays.sort(shardIterators);
 
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
@@ -235,6 +227,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);
+        }
+        final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
+        for (int i = 0; i < shardIterators.length; i++) {
+            shardIndexMap.put(shardIterators[i], i);
         }
         if (shardsIts.size() > 0) {
             doCheckNoMissingShards(getName(), request, shardsIts);

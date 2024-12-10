@@ -122,11 +122,19 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
 
     @Override
     public String toString(String field) {
-        return "KnnRescoreVectorQuery{" + "fieldName='" + fieldName + '\'' +
-            ", floatTarget=" + floatTarget[0] + "..." +
-            ", vectorSimilarityFunction=" + vectorSimilarityFunction +
-            ", k=" + k +
-            ", vectorQuery=" + innerQuery +
-            '}';
+        return "KnnRescoreVectorQuery{"
+            + "fieldName='"
+            + fieldName
+            + '\''
+            + ", floatTarget="
+            + floatTarget[0]
+            + "..."
+            + ", vectorSimilarityFunction="
+            + vectorSimilarityFunction
+            + ", k="
+            + k
+            + ", vectorQuery="
+            + innerQuery
+            + '}';
     }
 }

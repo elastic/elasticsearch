@@ -95,7 +95,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            null
         );
     }
 

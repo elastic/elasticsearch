@@ -282,9 +282,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/118306
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214

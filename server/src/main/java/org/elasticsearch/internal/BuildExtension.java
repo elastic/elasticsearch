@@ -11,9 +11,11 @@ package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.BuildVersion;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Allows plugging in current build info.
@@ -58,4 +60,9 @@ public interface BuildExtension {
      * Reads a {@link BuildVersion} from the given stream
      */
     BuildVersion fromStream(StreamInput in) throws IOException;
+
+    /**
+     * Calculates the oldest and youngest build versions from the provided {@code versions}
+     */
+    Tuple<BuildVersion, BuildVersion> calculateMinMaxVersions(Collection<BuildVersion> versions);
 }

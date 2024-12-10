@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -68,6 +69,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
+    private final BuildVersion maxBuildVersion;
+    private final BuildVersion minBuildVersion;
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
 
@@ -84,6 +87,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
         Version minNodeVersion,
+        BuildVersion maxBuildVersion,
+        BuildVersion minBuildVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
         Map<String, Set<String>> tiersToNodeIds
@@ -101,6 +106,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
+        this.minBuildVersion = minBuildVersion;
+        this.maxBuildVersion = maxBuildVersion;
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
@@ -120,6 +127,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             minNonClientNodeVersion,
             maxNodeVersion,
             minNodeVersion,
+            maxBuildVersion,
+            minBuildVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
             tiersToNodeIds
@@ -380,6 +389,24 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public Version getMaxNodeVersion() {
         return maxNodeVersion;
+    }
+
+    /**
+     * Returns the build version of the node with the newest version in the cluster
+     *
+     * @return the youngest version in the cluster
+     */
+    public BuildVersion getMaxBuildVersion() {
+        return maxBuildVersion;
+    }
+
+    /**
+     * Returns the build version of the node with the oldest version in the cluster
+     *
+     * @return the oldest version in the cluster
+     */
+    public BuildVersion getMinBuildVersion() {
+        return minBuildVersion;
     }
 
     /**
@@ -854,10 +881,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
+            Set<BuildVersion> versions = new HashSet<>();
             IndexVersion maxDataNodeCompatibleIndexVersion = null;
             IndexVersion minSupportedIndexVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 DiscoveryNode discoNode = nodeEntry.getValue();
+                versions.add(discoNode.getBuildVersion());
                 Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
                     minNonClientNodeVersion = min(minNonClientNodeVersion, version);
@@ -886,6 +915,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             }
 
             var dataNodes = filteredNodes(nodes, DiscoveryNode::canContainData);
+            var buildVersions = BuildVersion.calculateMinMaxVersions(versions);
             return new DiscoveryNodes(
                 newNodeLeftGeneration,
                 Map.copyOf(nodes),
@@ -897,6 +927,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
+                buildVersions.v2(),
+                buildVersions.v1(),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
                 Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
                 computeTiersToNodesMap(dataNodes)

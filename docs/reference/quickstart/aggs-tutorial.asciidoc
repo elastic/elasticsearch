@@ -19,243 +19,21 @@ You'll learn how to:
 
 You'll need:
 
-* A <<elasticsearch-intro-deploy,running {es} cluster>>, together with {kib} to use the Dev Tools API Console.
-** If you don't already have a cluster, run the following command in your terminal to set up a <<run-elasticsearch-locally,local dev environment>>:
+. A running instance of <<elasticsearch-intro-deploy,{es}>>, together with {kib}.
+** Run the following command in your terminal to set up a <<run-elasticsearch-locally,local dev environment>>:
 +
 [source,sh]
 ----
 curl -fsSL https://elastic.co/start-local | sh
 ----
 // NOTCONSOLE
-* To load the {kibana-ref}/get-started.html#gs-get-data-into-kibana[Kibana sample eCommerce data]
-
-////
-[source,console]
-----
-PUT kibana_sample_data_ecommerce
-{
-  "mappings": {
-    "properties": {
-      "category": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
-      },
-      "currency": {
-        "type": "keyword"
-      },
-      "customer_birth_date": {
-        "type": "date"
-      },
-      "customer_first_name": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword",
-            "ignore_above": 256
-          }
-        }
-      },
-      "customer_full_name": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword",
-            "ignore_above": 256
-          }
-        }
-      },
-      "customer_gender": {
-        "type": "keyword"
-      },
-      "customer_id": {
-        "type": "keyword"
-      },
-      "customer_last_name": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword",
-            "ignore_above": 256
-          }
-        }
-      },
-      "customer_phone": {
-        "type": "keyword"
-      },
-      "day_of_week": {
-        "type": "keyword"
-      },
-      "day_of_week_i": {
-        "type": "integer"
-      },
-      "email": {
-        "type": "keyword"
-      },
-      "event": {
-        "properties": {
-          "dataset": {
-            "type": "keyword"
-          }
-        }
-      },
-      "geoip": {
-        "properties": {
-          "city_name": {
-            "type": "keyword"
-          },
-          "continent_name": {
-            "type": "keyword"
-          },
-          "country_iso_code": {
-            "type": "keyword"
-          },
-          "location": {
-            "type": "geo_point"
-          },
-          "region_name": {
-            "type": "keyword"
-          }
-        }
-      },
-      "manufacturer": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
-      },
-      "order_date": {
-        "type": "date"
-      },
-      "order_id": {
-        "type": "keyword"
-      },
-      "products": {
-        "properties": {
-          "_id": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "ignore_above": 256
-              }
-            }
-          },
-          "base_price": {
-            "type": "half_float"
-          },
-          "base_unit_price": {
-            "type": "half_float"
-          },
-          "category": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword"
-              }
-            }
-          },
-          "created_on": {
-            "type": "date"
-          },
-          "discount_amount": {
-            "type": "half_float"
-          },
-          "discount_percentage": {
-            "type": "half_float"
-          },
-          "manufacturer": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword"
-              }
-            }
-          },
-          "min_price": {
-            "type": "half_float"
-          },
-          "price": {
-            "type": "half_float"
-          },
-          "product_id": {
-            "type": "long"
-          },
-          "product_name": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword"
-              }
-            },
-            "analyzer": "english"
-          },
-          "quantity": {
-            "type": "integer"
-          },
-          "sku": {
-            "type": "keyword"
-          },
-          "tax_amount": {
-            "type": "half_float"
-          },
-          "taxful_price": {
-            "type": "half_float"
-          },
-          "taxless_price": {
-            "type": "half_float"
-          },
-          "unit_discount_amount": {
-            "type": "half_float"
-          }
-        }
-      },
-      "sku": {
-        "type": "keyword"
-      },
-      "taxful_total_price": {
-        "type": "half_float"
-      },
-      "taxless_total_price": {
-        "type": "half_float"
-      },
-      "total_quantity": {
-        "type": "integer"
-      },
-      "total_unique_products": {
-        "type": "integer"
-      },
-      "type": {
-        "type": "keyword"
-      },
-      "user": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-----
-// TESTSETUP
-
-[source,console]
-----
-POST kibana_sample_data_ecommerce/_bulk
-{ "index": {} }
-{ "category": "Men's Clothing", "order_date": "2024-11-14T00:00:00.000Z", "customer_id": "1", "taxful_total_price": 75.0, "total_quantity": 2, "products": [{"category": "Men's Clothing", "price": 75.0, "quantity": 2}] }
-{ "index": {} }
-{ "category": "Women's Clothing", "order_date": "2024-11-14T00:00:00.000Z", "customer_id": "2", "taxful_total_price": 65.0, "total_quantity": 1, "products": [{"category": "Women's Clothing", "price": 65.0, "quantity": 1}] }
-{ "index": {} }
-{ "category": "Women's Shoes", "order_date": "2024-11-15T00:00:00.000Z", "customer_id": "3", "taxful_total_price": 120.0, "total_quantity": 1, "products": [{"category": "Women's Shoes", "price": 120.0, "quantity": 1}] }
-----
-// TEST
-
-////
-
+. The {kibana-ref}/get-started.html#gs-get-data-into-kibana[sample eCommerce data] loaded into {es}. To load sample data follow these steps in your UI:
+* Open the *Integrations* pages by searching in the global search field.
+* Search for `sample data` in the **Integrations** search field.
+* Open the *Sample data* page.
+* Select the *Other sample data sets* collapsible.
+* Add the *Sample eCommerce orders* data set.
+This will create and populate an index called `kibana_sample_data_ecommerce`.
 
 [discrete]
 [[aggregations-tutorial-basic-metrics]]
@@ -283,14 +61,14 @@ GET kibana_sample_data_ecommerce/_search
  }
 }
 ----
-// TEST[continued]
+// TEST[skip:Using Kibana sample data]
 <1> Set `size` to 0 to avoid returning matched documents in the response and return only the aggregation results
 <2> A meaningful name that describes what this metric represents
 <3> Configures an `avg` aggregation, which calculates a simple arithmetic mean
 
 .Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -317,16 +95,12 @@ GET kibana_sample_data_ecommerce/_search
   }
 }
 ----
-// TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
-// TESTRESPONSE[s/"total": 1/"total": "$body._shards.total"/]
-// TESTRESPONSE[s/"successful": 1/"successful": "$body._shards.successful"/]
-// TESTRESPONSE[s/"value":4675/"value": "$body.hits.total.value"/]
-// TESTRESPONSE[s/"value":75.05542864304813/"value": "$body.aggregations.avg_order_value.value"/]
+// TEST[skip:Using Kibana sample data]
 <1> Total number of orders in the dataset
 <2> `hits` is empty because we set `size` to 0
 <3> Results appear under the name we specified in the request
 <4> The average order value is calculated dynamically from all the orders in the dataset
-====
+==============
 
 [discrete]
 [[aggregations-tutorial-order-stats]]
@@ -354,7 +128,7 @@ GET kibana_sample_data_ecommerce/_search
 
 .Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -375,7 +149,7 @@ GET kibana_sample_data_ecommerce/_search
 <3> `"max"`: Highest individual order value in the dataset
 <4> `"avg"`: Average value per order across all orders
 <5> `"sum"`: Total revenue from all orders combined
-====
+==============
 
 [TIP]
 ====
@@ -419,7 +193,7 @@ GET kibana_sample_data_ecommerce/_search
 
 .Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -475,7 +249,7 @@ GET kibana_sample_data_ecommerce/_search
 <3> Array of category buckets, ordered by count.
 <4> Category name.
 <5> Number of orders in this category.
-====
+==============
 
 [discrete]
 [[aggregations-tutorial-daily-sales]]
@@ -509,11 +283,11 @@ GET kibana_sample_data_ecommerce/_search
 
 .Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
-  "took": 7,
+  "took": 2,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -530,107 +304,37 @@ GET kibana_sample_data_ecommerce/_search
     "hits": []
   },
   "aggregations": {
-    "daily_orders": {
-      "buckets": [
+    "daily_orders": { <1>
+      "buckets": [ <2>
         {
-          "key_as_string": "2024-11-14",
-          "key": 1731542400000,
-          "doc_count": 146
-        },
-        {
-          "key_as_string": "2024-11-15",
-          "key": 1731628800000,
-          "doc_count": 153
-        },
-        {
-          "key_as_string": "2024-11-16",
-          "key": 1731715200000,
-          "doc_count": 143
-        },
-        {
-          "key_as_string": "2024-11-17",
-          "key": 1731801600000,
-          "doc_count": 140
-        },
-        {
-          "key_as_string": "2024-11-18",
-          "key": 1731888000000,
-          "doc_count": 139
-        },
-        {
-          "key_as_string": "2024-11-19",
-          "key": 1731974400000,
-          "doc_count": 157
-        },
-        {
-          "key_as_string": "2024-11-20",
-          "key": 1732060800000,
-          "doc_count": 145
-        },
-        {
-          "key_as_string": "2024-11-21",
-          "key": 1732147200000,
-          "doc_count": 152
-        },
-        {
-          "key_as_string": "2024-11-22",
-          "key": 1732233600000,
-          "doc_count": 163
-        },
-        {
-          "key_as_string": "2024-11-23",
-          "key": 1732320000000,
-          "doc_count": 141
-        },
-        {
-          "key_as_string": "2024-11-24",
-          "key": 1732406400000,
-          "doc_count": 151
-        },
-        {
-          "key_as_string": "2024-11-25",
-          "key": 1732492800000,
-          "doc_count": 143
-        },
-        {
-          "key_as_string": "2024-11-26",
-          "key": 1732579200000,
-          "doc_count": 143
-        },
-        {
-          "key_as_string": "2024-11-27",
-          "key": 1732665600000,
-          "doc_count": 142
-        },
-        {
-          "key_as_string": "2024-11-28",
-          "key": 1732752000000,
-          "doc_count": 161
+          "key_as_string": "2024-11-28", <3>
+          "key": 1732752000000, <4>
+          "doc_count": 146 <5>
         },
         {
           "key_as_string": "2024-11-29",
           "key": 1732838400000,
-          "doc_count": 144
+          "doc_count": 153
         },
         {
           "key_as_string": "2024-11-30",
           "key": 1732924800000,
-          "doc_count": 157
+          "doc_count": 143
         },
         {
           "key_as_string": "2024-12-01",
           "key": 1733011200000,
-          "doc_count": 158
+          "doc_count": 140
         },
         {
           "key_as_string": "2024-12-02",
           "key": 1733097600000,
-          "doc_count": 144
+          "doc_count": 139
         },
         {
           "key_as_string": "2024-12-03",
           "key": 1733184000000,
-          "doc_count": 151
+          "doc_count": 157
         },
         {
           "key_as_string": "2024-12-04",
@@ -640,51 +344,121 @@ GET kibana_sample_data_ecommerce/_search
         {
           "key_as_string": "2024-12-05",
           "key": 1733356800000,
-          "doc_count": 157
+          "doc_count": 152
         },
         {
           "key_as_string": "2024-12-06",
           "key": 1733443200000,
-          "doc_count": 158
+          "doc_count": 163
         },
         {
           "key_as_string": "2024-12-07",
           "key": 1733529600000,
-          "doc_count": 153
+          "doc_count": 141
         },
         {
           "key_as_string": "2024-12-08",
           "key": 1733616000000,
-          "doc_count": 165
+          "doc_count": 151
         },
         {
           "key_as_string": "2024-12-09",
           "key": 1733702400000,
-          "doc_count": 153
+          "doc_count": 143
         },
         {
           "key_as_string": "2024-12-10",
           "key": 1733788800000,
-          "doc_count": 158
+          "doc_count": 143
         },
         {
           "key_as_string": "2024-12-11",
           "key": 1733875200000,
-          "doc_count": 160
+          "doc_count": 142
         },
         {
           "key_as_string": "2024-12-12",
           "key": 1733961600000,
-          "doc_count": 159
+          "doc_count": 161
         },
         {
           "key_as_string": "2024-12-13",
           "key": 1734048000000,
-          "doc_count": 152
+          "doc_count": 144
         },
         {
           "key_as_string": "2024-12-14",
           "key": 1734134400000,
+          "doc_count": 157
+        },
+        {
+          "key_as_string": "2024-12-15",
+          "key": 1734220800000,
+          "doc_count": 158
+        },
+        {
+          "key_as_string": "2024-12-16",
+          "key": 1734307200000,
+          "doc_count": 144
+        },
+        {
+          "key_as_string": "2024-12-17",
+          "key": 1734393600000,
+          "doc_count": 151
+        },
+        {
+          "key_as_string": "2024-12-18",
+          "key": 1734480000000,
+          "doc_count": 145
+        },
+        {
+          "key_as_string": "2024-12-19",
+          "key": 1734566400000,
+          "doc_count": 157
+        },
+        {
+          "key_as_string": "2024-12-20",
+          "key": 1734652800000,
+          "doc_count": 158
+        },
+        {
+          "key_as_string": "2024-12-21",
+          "key": 1734739200000,
+          "doc_count": 153
+        },
+        {
+          "key_as_string": "2024-12-22",
+          "key": 1734825600000,
+          "doc_count": 165
+        },
+        {
+          "key_as_string": "2024-12-23",
+          "key": 1734912000000,
+          "doc_count": 153
+        },
+        {
+          "key_as_string": "2024-12-24",
+          "key": 1734998400000,
+          "doc_count": 158
+        },
+        {
+          "key_as_string": "2024-12-25",
+          "key": 1735084800000,
+          "doc_count": 160
+        },
+        {
+          "key_as_string": "2024-12-26",
+          "key": 1735171200000,
+          "doc_count": 159
+        },
+        {
+          "key_as_string": "2024-12-27",
+          "key": 1735257600000,
+          "doc_count": 152
+        },
+        {
+          "key_as_string": "2024-12-28",
+          "key": 1735344000000,
           "doc_count": 142
         }
       ]
@@ -693,6 +467,12 @@ GET kibana_sample_data_ecommerce/_search
 }
 ----
 // TEST[skip:Using Kibana sample data]
+<1> Results of our named aggregation "daily_orders"
+<2> Time-based buckets from date_histogram aggregation
+<3> `key_as_string` is the human-readable date for this bucket
+<4> `key` is the same date represented as the Unix timestamp for this bucket
+<5> `doc_count` counts the number of documents that fall into this time bucket
+==============
 
 [discrete]
 [[aggregations-tutorial-combined-analysis]]
@@ -748,7 +528,7 @@ GET kibana_sample_data_ecommerce/_search
 
 .Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -784,7 +564,7 @@ GET kibana_sample_data_ecommerce/_search
 <3> Total revenue for this category
 <4> Average order value for this category
 <5> Total quantity of items sold
-====
+==============
 
 [discrete]
 [[aggregations-tutorial-daily-metrics]]
@@ -832,7 +612,7 @@ GET kibana_sample_data_ecommerce/_search
 
 .Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -859,13 +639,13 @@ GET kibana_sample_data_ecommerce/_search
           "key_as_string": "2024-11-14",
           "key": 1731542400000,
           "doc_count": 146,
-          "unique_customers": {
+          "unique_customers": { <1>
             "value": 42
           },
-          "revenue": {
+          "revenue": { <2>
             "value": 10578.53125
           },
-          "avg_basket_size": {
+          "avg_basket_size": { <3>
             "value": 2.1780821917808217
           }
         },
@@ -1295,6 +1075,7 @@ GET kibana_sample_data_ecommerce/_search
 }
 ----
 // TEST[skip:Using Kibana sample data]
+==============
 
 [discrete]
 [[aggregations-tutorial-trends]]
@@ -1347,9 +1128,9 @@ GET kibana_sample_data_ecommerce/_search
 <5> Use a 3-day window — use different window sizes to see trends at different time scales.
 <6> Use the built-in unweighted average function in the `moving_fn` aggregation.
 
-.Example response (truncated)
+.Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -1724,7 +1505,7 @@ GET kibana_sample_data_ecommerce/_search
 <3> Raw daily revenue before smoothing
 <4> First day has no smoothed value as it needs previous days for the calculation
 <5> Moving average starts from second day, using a 3-day window
-====
+==============
 
 [TIP]
 ====
@@ -1769,9 +1550,9 @@ GET kibana_sample_data_ecommerce/_search
 <2> `cumulative_sum` adds up values across buckets
 <3> Reference the revenue we want to accumulate
 
-.Example respons
+.Example response
 [%collapsible]
-====
+==============
 [source,console-result]
 ----
 {
@@ -1792,16 +1573,16 @@ GET kibana_sample_data_ecommerce/_search
     "hits": []
   },
   "aggregations": {
-    "daily_sales": {
-      "buckets": [
+    "daily_sales": { <1>
+      "buckets": [ <2>
         {
-          "key_as_string": "2024-11-14T00:00:00.000Z",
+          "key_as_string": "2024-11-14T00:00:00.000Z", <3>
           "key": 1731542400000,
           "doc_count": 146,
-          "revenue": {
+          "revenue": { <4>
             "value": 10578.53125
           },
-          "cumulative_revenue": {
+          "cumulative_revenue": { <5>
             "value": 10578.53125
           }
         },
@@ -2141,8 +1922,12 @@ GET kibana_sample_data_ecommerce/_search
 }
 ----
 // TEST[skip:Using Kibana sample data
-====
-
+<1> `daily_sales`: Results from our daily sales date histogram
+<2> `buckets`: Array of time-based buckets
+<3> `key_as_string`: Date for this bucket (in ISO format since no format specified)
+<4> `revenue`: Daily revenue for this date
+<5> `cumulative_revenue`: Running total of revenue up to this date
+==============
 
 [discrete]
 [[aggregations-tutorial-next-steps]]

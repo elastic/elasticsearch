@@ -1,7 +1,6 @@
-module elasticsearch.qa.entitlement.negative {
+module org.elasticsearch.entitlement.qa.denied {
     requires org.elasticsearch.server;
     requires org.elasticsearch.base;
     requires org.apache.logging.log4j;
-
-    exports org.elasticsearch.test.entitlements;
+    requires org.elasticsearch.entitlement.qa.common;
 }

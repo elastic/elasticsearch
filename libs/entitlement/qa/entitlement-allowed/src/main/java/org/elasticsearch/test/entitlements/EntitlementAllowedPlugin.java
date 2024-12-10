@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -39,6 +40,6 @@ public class EntitlementAllowedPlugin extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckAction());
+        return List.of(new RestEntitlementsCheckAction("allowed"));
     }
 }

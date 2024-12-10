@@ -34,7 +34,7 @@ public class EntitlementsAllowedNonModularIT extends ESRestTestCase {
     }
 
     public void testCheckCreateURLClassLoaderWithPolicyPass() throws IOException {
-        var request = new Request("GET", "/_entitlement/positive/_check");
+        var request = new Request("GET", "/_entitlement/allowed_nonmodular/_check");
         request.addParameter("action", "create_classloader");
         Response result = client().performRequest(request);
         assertThat(result.getStatusLine().getStatusCode(), equalTo(200));

@@ -7,9 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.qa.allowed {
+module org.elasticsearch.entitlement.qa.common {
     requires org.elasticsearch.server;
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
-    requires org.elasticsearch.entitlement.qa.common;
+
+    exports org.elasticsearch.entitlement.qa.common;
 }

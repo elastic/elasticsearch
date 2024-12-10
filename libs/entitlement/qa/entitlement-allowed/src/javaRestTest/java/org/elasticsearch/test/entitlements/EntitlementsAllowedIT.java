@@ -28,13 +28,26 @@ public class EntitlementsAllowedIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .build();
 
+    // private final String actionName;
+    //
+    // public EntitlementsAllowedIT(@Name("actionName") String actionName) {
+    // this.actionName = actionName;
+    // }
+    //
+    // @ParametersFactory
+    // public static Iterable<Object[]> data() {
+    // return RestEntitlementsCheckAction.getServerAndPluginsCheckActions().stream()
+    // .map(s -> new Object[] { s })
+    // .toList();
+    // }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
     public void testCheckCreateURLClassLoaderWithPolicyPass() throws IOException {
-        var request = new Request("GET", "/_entitlement/positive/_check");
+        var request = new Request("GET", "/_entitlement/allowed/_check");
         request.addParameter("action", "create_classloader");
         Response result = client().performRequest(request);
         assertThat(result.getStatusLine().getStatusCode(), equalTo(200));

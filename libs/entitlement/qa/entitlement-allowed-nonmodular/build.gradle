@@ -19,7 +19,7 @@ esplugin {
 }
 
 dependencies {
-  implementation project(':libs:entitlement:qa:entitlement-allowed')
+  implementation project(':libs:entitlement:qa:common')
   clusterPlugins project(':libs:entitlement:qa:entitlement-allowed-nonmodular')
 }
 

@@ -34,14 +34,18 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
 
     public void testCheckSystemExitThrows() {
         var exception = expectThrows(IOException.class, () -> {
-            client().performRequest(new Request("GET", "/_entitlement/negative/_check_system_exit"));
+            var request = new Request("GET", "/_entitlement/denied/_check");
+            request.addParameter("action", "system_exit");
+            client().performRequest(request);
         });
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 
     public void testCheckCreateURLClassLoaderWithoutPolicyThrows() {
         var exception = expectThrows(IOException.class, () -> {
-            client().performRequest(new Request("GET", "/_entitlement/negative/_check_create_url_classloader"));
+            var request = new Request("GET", "/_entitlement/denied/_check");
+            request.addParameter("action", "create_classloader");
+            client().performRequest(request);
         });
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }

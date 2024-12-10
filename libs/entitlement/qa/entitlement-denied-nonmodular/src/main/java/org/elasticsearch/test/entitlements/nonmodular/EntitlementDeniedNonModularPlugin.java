@@ -15,14 +15,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.test.entitlements.RestEntitlementsCheckClassLoaderAction;
-import org.elasticsearch.test.entitlements.RestEntitlementsCheckSystemExitAction;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -31,7 +29,6 @@ import java.util.function.Supplier;
 public class EntitlementDeniedNonModularPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    @SuppressForbidden(reason = "Specifically testing System.exit")
     public List<RestHandler> getRestHandlers(
         final Settings settings,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -43,6 +40,6 @@ public class EntitlementDeniedNonModularPlugin extends Plugin implements ActionP
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckSystemExitAction(), new RestEntitlementsCheckClassLoaderAction());
+        return List.of(new RestEntitlementsCheckAction("denied_nonmodular"));
     }
 }

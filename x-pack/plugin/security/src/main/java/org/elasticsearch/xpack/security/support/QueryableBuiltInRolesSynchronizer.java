@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -272,9 +273,11 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void doSyncBuiltinRoles(Map<String, String> indexedRolesDigests, QueryableBuiltInRoles roles, ActionListener<Void> listener) {
-        final Collection<RoleDescriptor> rolesToUpsert = rolesToUpsert(roles, indexedRolesDigests);
+        final Set<RoleDescriptor> rolesToUpsert = rolesToUpsert(roles, indexedRolesDigests);
+        final Set<String> rolesToDelete = rolesToDelete(roles, indexedRolesDigests);
+        assert Sets.intersection(rolesToUpsert.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()), rolesToDelete).isEmpty()
+            : "The roles to upsert and delete should not have any common roles";
         indexRoles(rolesToUpsert, ActionListener.wrap(onResponse -> {
-            final Set<String> rolesToDelete = rolesToDelete(roles, indexedRolesDigests);
             if (rolesToDelete.isEmpty()) {
                 markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), listener);
             } else {
@@ -287,7 +290,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         return indexedRolesDigests == null ? Set.of() : Sets.difference(indexedRolesDigests.keySet(), roles.rolesDigest().keySet());
     }
 
-    private static Collection<RoleDescriptor> rolesToUpsert(QueryableBuiltInRoles roles, Map<String, String> indexedRolesDigests) {
+    private static Set<RoleDescriptor> rolesToUpsert(QueryableBuiltInRoles roles, Map<String, String> indexedRolesDigests) {
         final Set<RoleDescriptor> rolesToUpsert = new HashSet<>();
         for (var role : roles.roleDescriptors()) {
             final String roleDigest = roles.rolesDigest().get(role.getName());

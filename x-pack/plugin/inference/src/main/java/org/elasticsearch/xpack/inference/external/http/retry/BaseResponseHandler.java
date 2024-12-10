@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public abstract class BaseResponseHandler implements ResponseHandler {
 
@@ -54,6 +57,27 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     @Override
     public String getRequestType() {
         return requestType;
+    }
+
+    @Override
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) {
+        checkForFailureStatusCode(request, result);
+        checkForEmptyBody(throttlerManager, logger, request, result);
+
+        // When the response is streamed the status code could be 200 but the error object will be set
+        // so we need to check for that specifically
+        checkForErrorObject(request, result);
+    }
+
+    protected abstract void checkForFailureStatusCode(Request request, HttpResult result);
+
+    private void checkForErrorObject(Request request, HttpResult result) {
+        var errorEntity = errorParseFunction.apply(result);
+
+        if (errorEntity.errorStructureFound()) {
+            // we don't really know what happened because the status code was 200 so we'll just retry
+            throw new RetryException(true, buildError(SERVER_ERROR_OBJECT, request, result, errorEntity));
+        }
     }
 
     protected Exception buildError(String message, Request request, HttpResult result) {

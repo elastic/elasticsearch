@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.huggingface;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -15,21 +14,11 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceErrorResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class HuggingFaceResponseHandler extends BaseResponseHandler {
 
     public HuggingFaceResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, HuggingFaceErrorResponseEntity::fromResponse);
-    }
-
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
     }
 
     /**
@@ -40,7 +29,8 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
      * @param result the http response and body
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }

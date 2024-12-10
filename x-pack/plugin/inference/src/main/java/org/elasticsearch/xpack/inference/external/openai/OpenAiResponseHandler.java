@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -20,11 +19,9 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -51,16 +48,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
 
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
-        // When the response is streamed the status code could be 200 but the error object will be set
-        // so we need to check for that specifically
-        checkForErrorObject(request, result);
-    }
-
     /**
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
@@ -69,7 +56,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -113,15 +101,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         return false;
-    }
-
-    private void checkForErrorObject(Request request, HttpResult result) throws RetryException {
-        var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
-
-        if (errorEntity.errorStructureFound()) {
-            // we don't really know what happened because the status code was 200 so we'll just retry
-            throw new RetryException(true, buildError(SERVER_ERROR_OBJECT, request, result, errorEntity));
-        }
     }
 
     static String buildRateLimitErrorMessage(HttpResult result) {

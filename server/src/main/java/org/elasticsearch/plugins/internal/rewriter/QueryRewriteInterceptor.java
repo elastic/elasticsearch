@@ -21,14 +21,14 @@ import java.util.Map;
 public interface QueryRewriteInterceptor {
 
     /**
-     * Returns a rewritten query if modifications are required; otherwise,
+     * Intercepts and returns a rewritten query if modifications are required; otherwise,
      * returns the same provided {@link QueryBuilder} instance unchanged.
      *
      * @param context the {@link QueryRewriteContext} providing the context for the rewrite operation
      * @param queryBuilder the original {@link QueryBuilder} to potentially rewrite
      * @return the rewritten {@link QueryBuilder}, or the original instance if no rewrite was needed
      */
-    QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
+    QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
 
     /**
      * Implementing classes should override this with the name of the query that is being
@@ -53,10 +53,10 @@ public interface QueryRewriteInterceptor {
         }
 
         @Override
-        public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+        public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
             QueryRewriteInterceptor interceptor = interceptors.get(queryBuilder.getName());
             if (interceptor != null && queryBuilder instanceof InterceptedQueryBuilderWrapper == false) {
-                return interceptor.rewrite(context, queryBuilder);
+                return interceptor.interceptAndRewrite(context, queryBuilder);
             }
             return queryBuilder;
         }

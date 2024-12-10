@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 public class MockQueryRewriteInterceptor implements QueryRewriteInterceptor {
 
     @Override
-    public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+    public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
         return queryBuilder;
     }
 }

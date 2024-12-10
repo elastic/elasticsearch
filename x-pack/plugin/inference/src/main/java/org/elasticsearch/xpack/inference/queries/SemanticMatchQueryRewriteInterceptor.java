@@ -34,7 +34,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
     public SemanticMatchQueryRewriteInterceptor() {}
 
     @Override
-    public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+    public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
         QueryBuilder rewritten = queryBuilder;

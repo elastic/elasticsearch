@@ -281,7 +281,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
         if (queryRewriteInterceptor != null) {
-            var rewritten = queryRewriteInterceptor.rewrite(queryRewriteContext, this);
+            var rewritten = queryRewriteInterceptor.interceptAndRewrite(queryRewriteContext, this);
             if (rewritten != this) {
                 return rewritten;
             }

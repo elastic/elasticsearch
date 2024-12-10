@@ -246,7 +246,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
     }
 
-    public void testDefaultMaxRewriteBuilder() throws Exception {
+    public void testDefaultMaxInterceptAndRewriteBuilder() throws Exception {
         Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "b"))
             .toQuery(createSearchExecutionContext());
 
@@ -280,7 +280,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
     }
 
-    public void testTopNMultiTermsRewriteInsideSpan() throws Exception {
+    public void testTopNMultiTermsInterceptAndRewriteInsideSpan() throws Exception {
         Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "b").rewrite("top_terms_boost_2000"))
             .toQuery(createSearchExecutionContext());
 

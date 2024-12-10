@@ -49,8 +49,7 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
     @ParametersFactory
     public static Iterable<Object[]> data() {
         return Stream.of("denied", "denied_nonmodular")
-            .flatMap(path -> RestEntitlementsCheckAction.getAllCheckActions().stream()
-                .map(action -> new Object[] { path, action }))
+            .flatMap(path -> RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { path, action }))
             .toList();
     }
 

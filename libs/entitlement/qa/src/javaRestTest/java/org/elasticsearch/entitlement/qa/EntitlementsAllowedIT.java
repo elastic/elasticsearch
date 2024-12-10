@@ -14,9 +14,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -44,10 +44,11 @@ public class EntitlementsAllowedIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-     return Stream.of("allowed", "allowed_nonmodular")
-         .flatMap(path -> RestEntitlementsCheckAction.getServerAndPluginsCheckActions().stream()
-             .map(action -> new Object[] { path, action }))
-         .toList();
+        return Stream.of("allowed", "allowed_nonmodular")
+            .flatMap(
+                path -> RestEntitlementsCheckAction.getServerAndPluginsCheckActions().stream().map(action -> new Object[] { path, action })
+            )
+            .toList();
     }
 
     @Override

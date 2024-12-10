@@ -788,7 +788,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             privileges.add(parseIndex(roleName, parser, allow2xFormat, allowLegacyFieldSecurityExceptFields));
         }
-        return privileges.toArray(new IndicesPrivileges[privileges.size()]);
+        return privileges.toArray(new IndicesPrivileges[0]);
     }
 
     private static IndicesPrivileges parseIndex(

@@ -37,7 +37,7 @@ PUT _index_template/my-index-template
 
 After the index template is created, new indices that use the template will be configured as a logs data stream. You can start indexing data and <<use-a-data-stream,using the data stream>>.
 
-You can also set the index mode and adjust other template settings in <<index-mgmt,Stack Management in {kib}>>.
+You can also set the index mode and adjust other template settings in <<index-mgmt,the Elastic UI>>.
 
 ////
 [source,console]

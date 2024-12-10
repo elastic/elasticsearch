@@ -24,13 +24,11 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -43,7 +41,6 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -52,7 +49,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * This class holds the configuration details of a data frame transform
@@ -410,20 +406,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
 
         return deprecations;
-    }
-
-    private List<String> getRolesFromHeaders() throws IOException {
-        if (headers == null) {
-            return Collections.emptyList();
-        }
-
-        var encodedAuthenticationHeader = ClientHelper.filterSecurityHeaders(headers).getOrDefault(AUTHENTICATION_KEY, "");
-        if (encodedAuthenticationHeader.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        var decodedAuthenticationHeader = AuthenticationContextSerializer.decode(encodedAuthenticationHeader);
-        return Arrays.asList(decodedAuthenticationHeader.getEffectiveSubject().getUser().roles());
     }
 
     @Override

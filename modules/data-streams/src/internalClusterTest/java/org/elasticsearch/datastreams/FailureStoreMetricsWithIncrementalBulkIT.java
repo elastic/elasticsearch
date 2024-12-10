@@ -21,6 +21,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -165,8 +166,8 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(DATA_STREAM_NAME + "*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
-                .template(new Template(null, new CompressedXContent("""
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(Template.builder().mappings(new CompressedXContent("""
                     {
                       "dynamic": false,
                       "properties": {
@@ -177,7 +178,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
                             "type": "long"
                         }
                       }
-                    }"""), null))
+                    }""")).dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
                 .build()
         );
         assertAcked(safeGet(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request)));

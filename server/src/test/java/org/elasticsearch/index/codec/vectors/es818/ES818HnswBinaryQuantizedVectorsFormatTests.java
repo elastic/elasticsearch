@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es816;
+package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
@@ -46,7 +46,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -58,7 +58,7 @@ public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         return new Lucene912Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES816HnswBinaryQuantizedRWVectorsFormat();
+                return new ES818HnswBinaryQuantizedVectorsFormat();
             }
         };
     }
@@ -67,13 +67,13 @@ public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES816HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
+                return new ES818HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
             }
         };
         String expectedPattern =
-            "ES816HnswBinaryQuantizedVectorsFormat(name=ES816HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
-                + " flatVectorFormat=ES816BinaryQuantizedVectorsFormat(name=ES816BinaryQuantizedVectorsFormat,"
-                + " flatVectorScorer=ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=%s())))";
+            "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
+                + " flatVectorFormat=ES818BinaryQuantizedVectorsFormat(name=ES818BinaryQuantizedVectorsFormat,"
+                + " flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=%s())))";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
@@ -95,24 +95,28 @@ public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     while (vectorValues.nextDoc() != NO_MORE_DOCS) {
                         assertArrayEquals(vector, vectorValues.vectorValue(), 0.00001f);
                     }
-                    TopDocs td = r.searchNearestVectors("f", randomVector(vector.length), 1, null, Integer.MAX_VALUE);
+                    float[] randomVector = randomVector(vector.length);
+                    float trueScore = similarityFunction.compare(vector, randomVector);
+                    TopDocs td = r.searchNearestVectors("f", randomVector, 1, null, Integer.MAX_VALUE);
                     assertEquals(1, td.totalHits.value);
                     assertTrue(td.scoreDocs[0].score >= 0);
+                    // When it's the only vector in a segment, the score should be very close to the true score
+                    assertEquals(trueScore, td.scoreDocs[0].score, 0.01f);
                 }
             }
         }
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES816HnswBinaryQuantizedVectorsFormat(-1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES816HnswBinaryQuantizedVectorsFormat(0, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES816HnswBinaryQuantizedVectorsFormat(20, 0));
-        expectThrows(IllegalArgumentException.class, () -> new ES816HnswBinaryQuantizedVectorsFormat(20, -1));
-        expectThrows(IllegalArgumentException.class, () -> new ES816HnswBinaryQuantizedVectorsFormat(512 + 1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES816HnswBinaryQuantizedVectorsFormat(20, 3201));
+        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(-1, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(0, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 0));
+        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, -1));
+        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(512 + 1, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 3201));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES816HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
+            () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
         );
     }
 

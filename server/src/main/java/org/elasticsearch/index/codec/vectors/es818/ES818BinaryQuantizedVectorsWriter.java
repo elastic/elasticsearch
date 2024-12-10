@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es816;
+package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -41,7 +41,6 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
@@ -60,24 +59,23 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
-import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
-import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat.BINARIZED_VECTOR_COMPONENT;
-import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.BINARIZED_VECTOR_COMPONENT;
+import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
-    private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ES816BinaryQuantizedVectorsWriter.class);
+public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
+    private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ES818BinaryQuantizedVectorsWriter.class);
 
     private final SegmentWriteState segmentWriteState;
     private final List<FieldWriter> fields = new ArrayList<>();
     private final IndexOutput meta, binarizedVectorData;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final ES816BinaryFlatVectorsScorer vectorsScorer;
+    private final ES818BinaryFlatVectorsScorer vectorsScorer;
     private boolean finished;
 
     /**
@@ -85,8 +83,8 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      *
      * @param vectorsScorer the scorer to use for scoring vectors
      */
-    protected ES816BinaryQuantizedVectorsWriter(
-        ES816BinaryFlatVectorsScorer vectorsScorer,
+    protected ES818BinaryQuantizedVectorsWriter(
+        ES818BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
         SegmentWriteState state
     ) throws IOException {
@@ -96,13 +94,13 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ES816BinaryQuantizedVectorsFormat.META_EXTENSION
+            ES818BinaryQuantizedVectorsFormat.META_EXTENSION
         );
 
         String binarizedVectorDataFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION
+            ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION
         );
         this.rawVectorDelegate = rawVectorDelegate;
         boolean success = false;
@@ -112,15 +110,15 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
 
             CodecUtil.writeIndexHeader(
                 meta,
-                ES816BinaryQuantizedVectorsFormat.META_CODEC_NAME,
-                ES816BinaryQuantizedVectorsFormat.VERSION_CURRENT,
+                ES818BinaryQuantizedVectorsFormat.META_CODEC_NAME,
+                ES818BinaryQuantizedVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
             CodecUtil.writeIndexHeader(
                 binarizedVectorData,
-                ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                ES816BinaryQuantizedVectorsFormat.VERSION_CURRENT,
+                ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                ES818BinaryQuantizedVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -132,6 +130,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
     }
 
+    @Override
     public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
         FlatFieldVectorsWriter<?> rawVectorDelegate = this.rawVectorDelegate.addField(fieldInfo);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
@@ -151,7 +150,6 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             if (VectorSimilarityFunction.COSINE == field.fieldInfo.getVectorSimilarityFunction()) {
                 field.normalizeVectors();
             }
-
             final float[] clusterCenter;
             int vectorCount = field.flatFieldVectorsWriter.getVectors().size();
             clusterCenter = new float[field.dimensionSums.length];
@@ -166,12 +164,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
                 segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
             }
-            int descritizedDimension = BQVectorUtils.discretize(field.fieldInfo.getVectorDimension(), 64);
-            BinaryQuantizer quantizer = new BinaryQuantizer(
-                field.fieldInfo.getVectorDimension(),
-                descritizedDimension,
-                field.fieldInfo.getVectorSimilarityFunction()
-            );
+            OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(field.fieldInfo.getVectorSimilarityFunction());
             if (sortMap == null) {
                 writeField(field, clusterCenter, maxDoc, quantizer);
             } else {
@@ -181,7 +174,8 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    private void writeField(FieldWriter fieldData, float[] clusterCenter, int maxDoc, BinaryQuantizer quantizer) throws IOException {
+    private void writeField(FieldWriter fieldData, float[] clusterCenter, int maxDoc, OptimizedScalarQuantizer quantizer)
+        throws IOException {
         // write vector values
         long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
         writeBinarizedVectors(fieldData, clusterCenter, quantizer);
@@ -199,19 +193,26 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         );
     }
 
-    private void writeBinarizedVectors(FieldWriter fieldData, float[] clusterCenter, BinaryQuantizer scalarQuantizer) throws IOException {
-        byte[] vector = new byte[BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64) / 8];
-        int correctionsCount = scalarQuantizer.getSimilarity() != EUCLIDEAN ? 3 : 2;
-        final ByteBuffer correctionsBuffer = ByteBuffer.allocate(Float.BYTES * correctionsCount).order(ByteOrder.LITTLE_ENDIAN);
+    private void writeBinarizedVectors(FieldWriter fieldData, float[] clusterCenter, OptimizedScalarQuantizer scalarQuantizer)
+        throws IOException {
+        int discreteDims = BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64);
+        byte[] quantizationScratch = new byte[discreteDims];
+        byte[] vector = new byte[discreteDims / 8];
         for (int i = 0; i < fieldData.getVectors().size(); i++) {
             float[] v = fieldData.getVectors().get(i);
-            float[] corrections = scalarQuantizer.quantizeForIndex(v, vector, clusterCenter);
+            OptimizedScalarQuantizer.QuantizationResult corrections = scalarQuantizer.scalarQuantize(
+                v,
+                quantizationScratch,
+                (byte) 1,
+                clusterCenter
+            );
+            BQVectorUtils.packAsBinary(quantizationScratch, vector);
             binarizedVectorData.writeBytes(vector, vector.length);
-            for (int j = 0; j < corrections.length; j++) {
-                correctionsBuffer.putFloat(corrections[j]);
-            }
-            binarizedVectorData.writeBytes(correctionsBuffer.array(), correctionsBuffer.array().length);
-            correctionsBuffer.rewind();
+            binarizedVectorData.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
+            binarizedVectorData.writeInt(Float.floatToIntBits(corrections.upperInterval()));
+            binarizedVectorData.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
+            assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
+            binarizedVectorData.writeShort((short) corrections.quantizedComponentSum());
         }
     }
 
@@ -220,7 +221,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         float[] clusterCenter,
         int maxDoc,
         Sorter.DocMap sortMap,
-        BinaryQuantizer scalarQuantizer
+        OptimizedScalarQuantizer scalarQuantizer
     ) throws IOException {
         final int[] ordMap = new int[fieldData.getDocsWithFieldSet().cardinality()]; // new ord to old ord
 
@@ -236,20 +237,30 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, quantizedVectorLength, clusterCenter, centroidDp, newDocsWithField);
     }
 
-    private void writeSortedBinarizedVectors(FieldWriter fieldData, float[] clusterCenter, int[] ordMap, BinaryQuantizer scalarQuantizer)
-        throws IOException {
-        byte[] vector = new byte[BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64) / 8];
-        int correctionsCount = scalarQuantizer.getSimilarity() != EUCLIDEAN ? 3 : 2;
-        final ByteBuffer correctionsBuffer = ByteBuffer.allocate(Float.BYTES * correctionsCount).order(ByteOrder.LITTLE_ENDIAN);
+    private void writeSortedBinarizedVectors(
+        FieldWriter fieldData,
+        float[] clusterCenter,
+        int[] ordMap,
+        OptimizedScalarQuantizer scalarQuantizer
+    ) throws IOException {
+        int discreteDims = BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64);
+        byte[] quantizationScratch = new byte[discreteDims];
+        byte[] vector = new byte[discreteDims / 8];
         for (int ordinal : ordMap) {
             float[] v = fieldData.getVectors().get(ordinal);
-            float[] corrections = scalarQuantizer.quantizeForIndex(v, vector, clusterCenter);
+            OptimizedScalarQuantizer.QuantizationResult corrections = scalarQuantizer.scalarQuantize(
+                v,
+                quantizationScratch,
+                (byte) 1,
+                clusterCenter
+            );
+            BQVectorUtils.packAsBinary(quantizationScratch, vector);
             binarizedVectorData.writeBytes(vector, vector.length);
-            for (int i = 0; i < corrections.length; i++) {
-                correctionsBuffer.putFloat(corrections[i]);
-            }
-            binarizedVectorData.writeBytes(correctionsBuffer.array(), correctionsBuffer.array().length);
-            correctionsBuffer.rewind();
+            binarizedVectorData.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
+            binarizedVectorData.writeInt(Float.floatToIntBits(corrections.upperInterval()));
+            binarizedVectorData.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
+            assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
+            binarizedVectorData.writeShort((short) corrections.quantizedComponentSum());
         }
     }
 
@@ -315,14 +326,13 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
                 segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
             }
-            int descritizedDimension = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);
             FloatVectorValues floatVectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
             if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
                 floatVectorValues = new NormalizedFloatVectorValues(floatVectorValues);
             }
             BinarizedFloatVectorValues binarizedVectorValues = new BinarizedFloatVectorValues(
                 floatVectorValues,
-                new BinaryQuantizer(fieldInfo.getVectorDimension(), descritizedDimension, fieldInfo.getVectorSimilarityFunction()),
+                new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction()),
                 centroid
             );
             long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
@@ -348,46 +358,39 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         IndexOutput binarizedQueryData,
         FloatVectorValues floatVectorValues,
         float[] centroid,
-        BinaryQuantizer binaryQuantizer
+        OptimizedScalarQuantizer binaryQuantizer
     ) throws IOException {
+        int discretizedDimension = BQVectorUtils.discretize(floatVectorValues.dimension(), 64);
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        byte[] toIndex = new byte[BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8];
-        byte[] toQuery = new byte[(BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8) * BQSpaceUtils.B_QUERY];
-        int queryCorrectionCount = binaryQuantizer.getSimilarity() != EUCLIDEAN ? 5 : 3;
-        final ByteBuffer queryCorrectionsBuffer = ByteBuffer.allocate(Float.BYTES * queryCorrectionCount + Short.BYTES)
-            .order(ByteOrder.LITTLE_ENDIAN);
+        byte[][] quantizationScratch = new byte[2][floatVectorValues.dimension()];
+        byte[] toIndex = new byte[discretizedDimension / 8];
+        byte[] toQuery = new byte[(discretizedDimension / 8) * BQSpaceUtils.B_QUERY];
         for (int docV = floatVectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = floatVectorValues.nextDoc()) {
             // write index vector
-            BinaryQuantizer.QueryAndIndexResults r = binaryQuantizer.quantizeQueryAndIndex(
+            OptimizedScalarQuantizer.QuantizationResult[] r = binaryQuantizer.multiScalarQuantize(
                 floatVectorValues.vectorValue(),
-                toIndex,
-                toQuery,
+                quantizationScratch,
+                new byte[] { 1, 4 },
                 centroid
             );
+            // pack and store document bit vector
+            BQVectorUtils.packAsBinary(quantizationScratch[0], toIndex);
             binarizedVectorData.writeBytes(toIndex, toIndex.length);
-            float[] corrections = r.indexFeatures();
-            for (int i = 0; i < corrections.length; i++) {
-                binarizedVectorData.writeInt(Float.floatToIntBits(corrections[i]));
-            }
+            binarizedVectorData.writeInt(Float.floatToIntBits(r[0].lowerInterval()));
+            binarizedVectorData.writeInt(Float.floatToIntBits(r[0].upperInterval()));
+            binarizedVectorData.writeInt(Float.floatToIntBits(r[0].additionalCorrection()));
+            assert r[0].quantizedComponentSum() >= 0 && r[0].quantizedComponentSum() <= 0xffff;
+            binarizedVectorData.writeShort((short) r[0].quantizedComponentSum());
             docsWithField.add(docV);
 
-            // write query vector
+            // pack and store the 4bit query vector
+            BQSpaceUtils.transposeHalfByte(quantizationScratch[1], toQuery);
             binarizedQueryData.writeBytes(toQuery, toQuery.length);
-            BinaryQuantizer.QueryFactors factors = r.queryFeatures();
-            queryCorrectionsBuffer.putFloat(factors.distToC());
-            queryCorrectionsBuffer.putFloat(factors.lower());
-            queryCorrectionsBuffer.putFloat(factors.width());
-
-            if (binaryQuantizer.getSimilarity() != EUCLIDEAN) {
-                queryCorrectionsBuffer.putFloat(factors.normVmC());
-                queryCorrectionsBuffer.putFloat(factors.vDotC());
-            }
-            // ensure we are positive and fit within an unsigned short value.
-            assert factors.quantizedSum() >= 0 && factors.quantizedSum() <= 0xffff;
-            queryCorrectionsBuffer.putShort((short) factors.quantizedSum());
-
-            binarizedQueryData.writeBytes(queryCorrectionsBuffer.array(), queryCorrectionsBuffer.array().length);
-            queryCorrectionsBuffer.rewind();
+            binarizedQueryData.writeInt(Float.floatToIntBits(r[1].lowerInterval()));
+            binarizedQueryData.writeInt(Float.floatToIntBits(r[1].upperInterval()));
+            binarizedQueryData.writeInt(Float.floatToIntBits(r[1].additionalCorrection()));
+            assert r[1].quantizedComponentSum() >= 0 && r[1].quantizedComponentSum() <= 0xffff;
+            binarizedQueryData.writeShort((short) r[1].quantizedComponentSum());
         }
         return docsWithField;
     }
@@ -399,10 +402,12 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             // write vector
             byte[] binaryValue = binarizedByteVectorValues.vectorValue();
             output.writeBytes(binaryValue, binaryValue.length);
-            float[] corrections = binarizedByteVectorValues.getCorrectiveTerms();
-            for (int i = 0; i < corrections.length; i++) {
-                output.writeInt(Float.floatToIntBits(corrections[i]));
-            }
+            OptimizedScalarQuantizer.QuantizationResult corrections = binarizedByteVectorValues.getCorrectiveTerms();
+            output.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
+            output.writeInt(Float.floatToIntBits(corrections.upperInterval()));
+            output.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
+            assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
+            output.writeShort((short) corrections.quantizedComponentSum());
             docsWithField.add(docV);
         }
         return docsWithField;
@@ -449,12 +454,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         IndexInput binarizedDataInput = null;
         IndexInput binarizedScoreDataInput = null;
         boolean success = false;
-        int descritizedDimension = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);
-        BinaryQuantizer quantizer = new BinaryQuantizer(
-            fieldInfo.getVectorDimension(),
-            descritizedDimension,
-            fieldInfo.getVectorSimilarityFunction()
-        );
+        OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         try {
             FloatVectorValues floatVectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
             if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
@@ -506,8 +506,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 new OffHeapBinarizedQueryVectorValues(
                     finalBinarizedScoreDataInput,
                     fieldInfo.getVectorDimension(),
-                    docsWithField.cardinality(),
-                    fieldInfo.getVectorSimilarityFunction()
+                    docsWithField.cardinality()
                 ),
                 vectorValues
             );
@@ -545,7 +544,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
             vectorsReader = candidateReader.getFieldReader(fieldName);
         }
-        if (vectorsReader instanceof ES816BinaryQuantizedVectorsReader reader) {
+        if (vectorsReader instanceof ES818BinaryQuantizedVectorsReader reader) {
             return reader.getCentroid(fieldName);
         }
         return null;
@@ -601,13 +600,13 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 continue;
             }
             for (int doc = vectorValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = vectorValues.nextDoc()) {
+                ++count;
                 float[] vector = vectorValues.vectorValue();
                 // TODO Panama sum
                 for (int j = 0; j < vector.length; j++) {
                     centroid[j] += vector[j];
                 }
             }
-            count += vectorValues.size();
         }
         if (count == 0) {
             return count;
@@ -706,7 +705,6 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         public long ramBytesUsed() {
             long size = SHALLOW_SIZE;
             size += flatFieldVectorsWriter.ramBytesUsed();
-            size += RamUsageEstimator.sizeOf(dimensionSums);
             size += magnitudes.ramBytesUsed();
             return size;
         }
@@ -721,77 +719,38 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         protected final ByteBuffer byteBuffer;
         private final int byteSize;
         protected final float[] correctiveValues;
-        private int sumQuantizationValues;
         private int lastOrd = -1;
-        private final int correctiveValuesSize;
-        private final VectorSimilarityFunction vectorSimilarityFunction;
+        private int quantizedComponentSum;
 
-        OffHeapBinarizedQueryVectorValues(IndexInput data, int dimension, int size, VectorSimilarityFunction vectorSimilarityFunction) {
+        OffHeapBinarizedQueryVectorValues(IndexInput data, int dimension, int size) {
             this.slice = data;
             this.dimension = dimension;
             this.size = size;
-            this.vectorSimilarityFunction = vectorSimilarityFunction;
-            this.correctiveValuesSize = vectorSimilarityFunction != EUCLIDEAN ? 5 : 3;
             // 4x the quantized binary dimensions
             int binaryDimensions = (BQVectorUtils.discretize(dimension, 64) / 8) * BQSpaceUtils.B_QUERY;
             this.byteBuffer = ByteBuffer.allocate(binaryDimensions);
             this.binaryValue = byteBuffer.array();
-            this.correctiveValues = new float[correctiveValuesSize];
-            this.byteSize = binaryDimensions + Float.BYTES * correctiveValuesSize + Short.BYTES;
+            // + 1 for the quantized sum
+            this.correctiveValues = new float[3];
+            this.byteSize = binaryDimensions + Float.BYTES * 3 + Short.BYTES;
         }
 
-        public float getCentroidDistance(int targetOrd) throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
-                return correctiveValues[0];
+                return new OptimizedScalarQuantizer.QuantizationResult(
+                    correctiveValues[0],
+                    correctiveValues[1],
+                    correctiveValues[2],
+                    quantizedComponentSum
+                );
             }
-            readCorrectiveValues(targetOrd);
-            return correctiveValues[0];
-        }
-
-        public float getLower(int targetOrd) throws IOException {
-            if (lastOrd == targetOrd) {
-                return correctiveValues[1];
-            }
-            readCorrectiveValues(targetOrd);
-            return correctiveValues[1];
-        }
-
-        public float getWidth(int targetOrd) throws IOException {
-            if (lastOrd == targetOrd) {
-                return correctiveValues[2];
-            }
-            readCorrectiveValues(targetOrd);
-            return correctiveValues[2];
-        }
-
-        public float getNormVmC(int targetOrd) throws IOException {
-            if (lastOrd == targetOrd) {
-                return correctiveValues[3];
-            }
-            readCorrectiveValues(targetOrd);
-            return correctiveValues[3];
-        }
-
-        public float getVDotC(int targetOrd) throws IOException {
-            if (lastOrd == targetOrd) {
-                return correctiveValues[4];
-            }
-            readCorrectiveValues(targetOrd);
-            return correctiveValues[4];
-        }
-
-        private void readCorrectiveValues(int targetOrd) throws IOException {
-            // load values
             vectorValue(targetOrd);
-        }
-
-        public int sumQuantizedValues(int targetOrd) throws IOException {
-            if (lastOrd == targetOrd) {
-                return sumQuantizationValues;
-            }
-            // load values
-            vectorValue(targetOrd);
-            return sumQuantizationValues;
+            return new OptimizedScalarQuantizer.QuantizationResult(
+                correctiveValues[0],
+                correctiveValues[1],
+                correctiveValues[2],
+                quantizedComponentSum
+            );
         }
 
         public int size() {
@@ -803,7 +762,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         public OffHeapBinarizedQueryVectorValues copy() throws IOException {
-            return new OffHeapBinarizedQueryVectorValues(slice.clone(), dimension, size, vectorSimilarityFunction);
+            return new OffHeapBinarizedQueryVectorValues(slice.clone(), dimension, size);
         }
 
         public IndexInput getSlice() {
@@ -816,31 +775,33 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             }
             slice.seek((long) targetOrd * byteSize);
             slice.readBytes(binaryValue, 0, binaryValue.length);
-            slice.readFloats(correctiveValues, 0, correctiveValuesSize);
-            sumQuantizationValues = Short.toUnsignedInt(slice.readShort());
+            slice.readFloats(correctiveValues, 0, 3);
+            quantizedComponentSum = Short.toUnsignedInt(slice.readShort());
             lastOrd = targetOrd;
             return binaryValue;
         }
     }
 
     static class BinarizedFloatVectorValues extends BinarizedByteVectorValues {
-        private float[] corrections;
+        private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final byte[] binarized;
+        private final byte[] initQuantized;
         private final float[] centroid;
         private final FloatVectorValues values;
-        private final BinaryQuantizer quantizer;
+        private final OptimizedScalarQuantizer quantizer;
         private int lastDoc;
 
-        BinarizedFloatVectorValues(FloatVectorValues delegate, BinaryQuantizer quantizer, float[] centroid) {
+        BinarizedFloatVectorValues(FloatVectorValues delegate, OptimizedScalarQuantizer quantizer, float[] centroid) {
             this.values = delegate;
             this.quantizer = quantizer;
             this.binarized = new byte[BQVectorUtils.discretize(delegate.dimension(), 64) / 8];
+            this.initQuantized = new byte[delegate.dimension()];
             this.centroid = centroid;
             lastDoc = -1;
         }
 
         @Override
-        public float[] getCorrectiveTerms() {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms() {
             return corrections;
         }
 
@@ -855,6 +816,16 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
+        public OptimizedScalarQuantizer getQuantizer() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public float[] getCentroid() throws IOException {
+            return centroid;
+        }
+
+        @Override
         public int size() {
             return values.size();
         }
@@ -862,6 +833,17 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         @Override
         public int docID() {
             return values.docID();
+        }
+
+        @Override
+        public VectorScorer scorer(float[] target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        private void binarize() throws IOException {
+            if (lastDoc == docID()) return;
+            corrections = quantizer.scalarQuantize(values.vectorValue(), initQuantized, (byte) 1, centroid);
+            BQVectorUtils.packAsBinary(initQuantized, binarized);
         }
 
         @Override
@@ -882,16 +864,6 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             }
             lastDoc = doc;
             return doc;
-        }
-
-        @Override
-        public VectorScorer scorer(float[] target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        private void binarize() throws IOException {
-            if (lastDoc == docID()) return;
-            corrections = quantizer.quantizeForIndex(values.vectorValue(), binarized, centroid);
         }
     }
 

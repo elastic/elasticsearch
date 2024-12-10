@@ -71,6 +71,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.MockQueryRewriteInterceptor;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
@@ -629,7 +631,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 scriptService,
                 createMockResolvedIndices(),
-                null
+                null,
+                createMockQueryRewriteInterceptor()
             );
         }
 
@@ -669,6 +672,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
                 Map.of(index, indexMetadata)
             );
+        }
+
+        private QueryRewriteInterceptor createMockQueryRewriteInterceptor() {
+            return new MockQueryRewriteInterceptor();
         }
     }
 }

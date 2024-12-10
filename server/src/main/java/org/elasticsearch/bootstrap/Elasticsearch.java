@@ -34,6 +34,7 @@ import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -115,7 +116,7 @@ class Elasticsearch {
              * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
              * This forces such policies to take effect immediately.
              */
-            if (useEntitlements == false) {
+            if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
                 org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
                     @Override
                     public void checkPermission(Permission perm) {
@@ -224,7 +225,7 @@ class Elasticsearch {
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
 
             EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
-        } else {
+        } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
@@ -232,6 +233,8 @@ class Elasticsearch {
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
                 args.pidFile()
             );
+        } else {
+            LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
     }
 

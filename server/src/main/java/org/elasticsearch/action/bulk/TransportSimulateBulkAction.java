@@ -369,17 +369,21 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 0
             );
         });
-        List<LuceneDocument> luceneDocuments = result.parsedDoc().docs();
         final Collection<String> ignoredFields;
-        if (luceneDocuments != null && luceneDocuments.size() == 1) {
-            ignoredFields = luceneDocuments.getFirst()
-                .getFields()
-                .stream()
-                .filter(field -> field.name().equals(IgnoredFieldMapper.NAME) && field instanceof StringField)
-                .map(IndexableField::stringValue)
-                .toList();
-        } else {
+        if (result == null) {
             ignoredFields = List.of();
+        } else {
+            List<LuceneDocument> luceneDocuments = result.parsedDoc().docs();
+            if (luceneDocuments != null && luceneDocuments.size() == 1) {
+                ignoredFields = luceneDocuments.getFirst()
+                    .getFields()
+                    .stream()
+                    .filter(field -> field.name().equals(IgnoredFieldMapper.NAME) && field instanceof StringField)
+                    .map(IndexableField::stringValue)
+                    .toList();
+            } else {
+                ignoredFields = List.of();
+            }
         }
         return ignoredFields;
     }

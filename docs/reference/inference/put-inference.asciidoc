@@ -162,6 +162,12 @@ creating the {infer} model, you cannot change the associated API key. If you
 want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
+`dimensions`:::
+(Optional, integer)
+The number of dimensions the resulting output embeddings should have.
+Only supported in `text-embedding-3` and later models.
+If not set the OpenAI defined default for the model is used.
+
 `model_id`:::
 (Required, string)
 The name of the model to use for the {infer} task. Refer to the
@@ -399,8 +405,8 @@ been
 [[inference-example-openai]]
 ===== OpenAI service
 
-The following example shows how to create an {infer} endpoint called
-`openai_embeddings` to perform a `text_embedding` task type.
+The following example shows how to create an {infer} endpoint called `openai-embeddings` to perform a `text_embedding` task type.
+The embeddings created by requests to this endpoint will have 128 dimensions.
 
 [source,console]
 ------------------------------------------------------------
@@ -409,7 +415,8 @@ PUT _inference/text_embedding/openai_embeddings
     "service": "openai",
     "service_settings": {
         "api_key": "<api_key>",
-        "model_id": "text-embedding-ada-002"
+        "model_id": "text-embedding-3-small",
+        "dimensions": 128
     }
 }
 ------------------------------------------------------------

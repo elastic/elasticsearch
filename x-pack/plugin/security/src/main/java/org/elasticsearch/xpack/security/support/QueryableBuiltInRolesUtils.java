@@ -9,13 +9,21 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.Map;
+
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
  * Utility class which provides helper method for calculating the hash of a role descriptor.
@@ -31,13 +39,16 @@ public final class QueryableBuiltInRolesUtils {
      */
     public static String calculateHash(final RoleDescriptor roleDescriptor) {
         final MessageDigest hash = MessageDigests.sha256();
-        try (BytesStreamOutput out = new BytesStreamOutput();) {
-            try {
-                roleDescriptor.writeTo(out);
-            } catch (IOException e) {
-                throw new IllegalStateException("failed to serialize role descriptor", e);
-            }
-            hash.update(BytesReference.toBytes(out.bytes()));
+        try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
+            roleDescriptor.toXContent(jsonBuilder, EMPTY_PARAMS);
+            final Map<String, Object> flattenMap = Maps.flatten(
+                XContentHelper.convertToMap(BytesReference.bytes(jsonBuilder), true, XContentType.JSON).v2(),
+                false,
+                true
+            );
+            hash.update(flattenMap.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new IllegalStateException("failed to compute digest for [" + roleDescriptor.getName() + "] role", e);
         }
         // HEX vs Base64 encoding is a trade-off between readability and space efficiency
         // opting for Base64 here to reduce the size of the cluster state

@@ -179,9 +179,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             this.securityIndexDeleted = true;
             logger.trace("Security index has been deleted, skipping built-in roles synchronization");
             return;
-        } else if (isSecurityIndexCreated(event)) {
+        } else if (isSecurityIndexCreatedOrRecovered(event)) {
             this.securityIndexDeleted = false;
-            logger.trace("Security index has been created, attempting to sync built-in roles");
+            logger.trace("Security index has been created/recovered, attempting to sync built-in roles");
         }
         if (shouldSyncBuiltInRoles(state)) {
             final QueryableBuiltInRoles roles = rolesProvider.getRoles();
@@ -344,7 +344,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         return previousSecurityIndexMetadata != null && currentSecurityIndexMetadata == null;
     }
 
-    private boolean isSecurityIndexCreated(ClusterChangedEvent event) {
+    private boolean isSecurityIndexCreatedOrRecovered(ClusterChangedEvent event) {
         final IndexMetadata previousSecurityIndexMetadata = resolveSecurityIndexMetadata(event.previousState().metadata());
         final IndexMetadata currentSecurityIndexMetadata = resolveSecurityIndexMetadata(event.state().metadata());
         return previousSecurityIndexMetadata == null && currentSecurityIndexMetadata != null;

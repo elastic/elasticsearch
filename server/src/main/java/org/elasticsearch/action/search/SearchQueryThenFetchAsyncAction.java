@@ -67,6 +67,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -112,9 +113,9 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
     private final Map<SearchShardIterator, Integer> shardIndexMap;
-    private final int expectedTotalOps;
-    private final AtomicInteger totalOps = new AtomicInteger();
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
+
+    private final Set<ShardId> outstandingShards = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
@@ -170,12 +171,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         }
         this.shardIndexMap = Collections.unmodifiableMap(shardMap);
         this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
-
-        // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
-        // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
-        // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
-        // we process hence we add one for the non active partition here.
-        this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -501,6 +496,13 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     @Override
     public void run() throws IOException {
+        // TODO: stupid
+        for (int i = 0; i < shardsIts.size(); i++) {
+            outstandingShards.add(shardsIts.get(i).shardId());
+        }
+        for (SearchShardIterator toSkipShardsIt : toSkipShardsIts) {
+            outstandingShards.add(toSkipShardsIt.shardId());
+        }
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);
@@ -571,45 +573,55 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                         var s = request.shards.get(i);
                                         int shardIdx = s.shardIndex;
                                         if (response.results[i] instanceof Exception e) {
-                                            onShardFailure(shardIdx, new SearchShardTarget(nodeId, s.shardId(), null), e);
+                                            onShardFailure(
+                                                shardIdx,
+                                                new SearchShardTarget(nodeId, s.shardId(), null),
+                                                shardIterators[shardIdx],
+                                                e
+                                            );
                                             failedShards++;
                                         } else if (response.results[i] instanceof QuerySearchResult q) {
                                             q.setShardIndex(shardIdx);
-                                            q.setSearchShardTarget(new SearchShardTarget(nodeId, s.shardId(), null));
-                                            totalOps.addAndGet(shardIterators[s.shardIndex].remaining());
+                                            var shardId = s.shardId();
+                                            q.setSearchShardTarget(new SearchShardTarget(nodeId, shardId, null));
                                         }
                                     }
                                     final int successfulShards = request.shards.size() - failedShards;
                                     if (successfulShards > 0) {
                                         hasShardResponse.set(true);
-                                    }
-                                    if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                        queryPhaseResultConsumer.reduce(response.results, response.topDocsStats, response.mergeResult);
-                                    } else {
-                                        if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
-                                            /*
-                                              TODO: do this
-                                              var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
-                                            countOnlyQueryPhaseResultConsumer.reduce(
-                                                false,
-                                                false,
-                                                reducedTotalHits.value(),
-                                                reducedTotalHits.relation()
-                                            );
-                                             */
-                                            for (Object result : response.results) {
-                                                if (result instanceof SearchPhaseResult searchPhaseResult) {
-                                                    countOnlyQueryPhaseResultConsumer.consumeResult(searchPhaseResult, () -> {});
+                                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                                            queryPhaseResultConsumer.reduce(response.results, response.topDocsStats, response.mergeResult);
+                                        } else {
+                                            if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
+                                                /*
+                                                  TODO: do this
+                                                  var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
+                                                countOnlyQueryPhaseResultConsumer.reduce(
+                                                    false,
+                                                    false,
+                                                    reducedTotalHits.value(),
+                                                    reducedTotalHits.relation()
+                                                );
+                                                 */
+                                                for (Object result : response.results) {
+                                                    if (result instanceof SearchPhaseResult searchPhaseResult) {
+                                                        countOnlyQueryPhaseResultConsumer.consumeResult(searchPhaseResult, () -> {});
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                    successfulOps.addAndGet(successfulShards);
-                                    final int total = totalOps.addAndGet(successfulShards + failedShards);
-                                    if (total == expectedTotalOps) {
-                                        onPhaseDone();
-                                    } else if (total > expectedTotalOps) {
-                                        throw new AssertionError();
+                                        successfulOps.addAndGet(successfulShards);
+                                        for (Object result : response.results) {
+                                            if (result instanceof SearchPhaseResult searchPhaseResult) {
+                                                boolean removed = outstandingShards.remove(
+                                                    searchPhaseResult.getSearchShardTarget().getShardId()
+                                                );
+                                                assert removed;
+                                            }
+                                        }
+                                        if (outstandingShards.isEmpty()) {
+                                            onPhaseDone();
+                                        }
                                     }
                                 }
 
@@ -718,23 +730,19 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             }
             onShardGroupFailure(shardIndex, shard, e);
         }
-        final int totalOps = this.totalOps.incrementAndGet();
-        if (totalOps == expectedTotalOps) {
-            onPhaseDone();
-        } else if (totalOps > expectedTotalOps) {
-            throw new AssertionError(
-                "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(
-                    getName(),
-                    "Shard failures",
-                    null,
-                    AbstractSearchAsyncAction.buildShardFailures(shardFailures)
-                )
-            );
+        if (lastShard == false) {
+            performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
-            if (lastShard == false) {
-                performPhaseOnShard(shardIndex, shardIt, nextShard);
-            }
+            final ShardId shardId = shardIt.shardId();
+            finishShardAndMaybePhase(shardId);
+        }
+    }
+
+    private void finishShardAndMaybePhase(ShardId shardId) {
+        boolean removed = outstandingShards.remove(shardId);
+        assert removed : "unknown shardId " + shardId;
+        if (outstandingShards.isEmpty()) {
+            onPhaseDone();
         }
     }
 
@@ -782,7 +790,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-        results.consumeShardFailure(shardIndex);
     }
 
     void skipShard(SearchShardIterator iterator) {
@@ -793,30 +800,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     }
 
     private void successfulShardExecution(SearchShardIterator shardsIt) {
-        final int remainingOpsOnIterator;
-        if (shardsIt.skip()) {
-            // It's possible that we're skipping a shard that's unavailable
-            // but its range was available in the IndexMetadata, in that
-            // case the shardsIt.remaining() would be 0, expectedTotalOps
-            // accounts for unavailable shards too.
-            remainingOpsOnIterator = Math.max(shardsIt.remaining(), 1);
-        } else {
-            remainingOpsOnIterator = shardsIt.remaining() + 1;
-        }
-        final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
-        if (xTotalOps == expectedTotalOps) {
-            onPhaseDone();
-        } else if (xTotalOps > expectedTotalOps) {
-            throw new AssertionError(
-                "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(
-                    getName(),
-                    "Shard failures",
-                    null,
-                    AbstractSearchAsyncAction.buildShardFailures(shardFailures)
-                )
-            );
-        }
+        finishShardAndMaybePhase(shardsIt.shardId());
     }
 
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
@@ -1078,7 +1062,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             shardToQuery.contextId,
             shardToQuery.originalIndices,
             AliasFilter.EMPTY,
-            shardToQuery.contextId == null ? null : TimeValue.MAX_VALUE,
+            null,
             shardToQuery.boost,
             request,
             2,
@@ -1096,7 +1080,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             @Override
             public void onFailure(Exception e) {
                 failures.put(shardToQuery.shardIndex, e);
-                queryPhaseResultConsumer.consumeShardFailure(req.shardRequestIndex());
                 onDone.run();
                 maybeNext();
             }

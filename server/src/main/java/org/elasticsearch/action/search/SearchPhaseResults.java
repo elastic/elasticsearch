@@ -49,8 +49,6 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> implements R
      */
     abstract boolean hasResult(int shardIndex);
 
-    void consumeShardFailure(int shardIndex) {}
-
     AtomicArray<Result> getAtomicArray() {
         throw new UnsupportedOperationException();
     }

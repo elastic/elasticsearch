@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioComp
 import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -64,6 +65,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class GoogleAiStudioService extends SenderService {
@@ -282,9 +284,8 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         if (model instanceof GoogleAiStudioCompletionModel completionModel) {
             var requestManager = new GoogleAiStudioCompletionRequestManager(completionModel, getServiceComponents().threadPool());
-            var docsOnly = DocumentsOnlyInput.of(inputs);
             var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-                completionModel.uri(docsOnly.stream()),
+                completionModel.uri(inputs.stream()),
                 "Google AI Studio completion"
             );
             var action = new SingleInputSenderExecutableAction(
@@ -306,6 +307,16 @@ public class GoogleAiStudioService extends SenderService {
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
     @Override

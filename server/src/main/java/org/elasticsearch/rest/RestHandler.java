@@ -41,6 +41,15 @@ public interface RestHandler {
     }
 
     /**
+     * Indicates if the RestHandler supports content processing as a stream of
+     * {@link org.elasticsearch.common.bytes.ReleasableBytesReference} chunks.
+     * See {@link org.elasticsearch.http.HttpBody.Stream}.
+     */
+    default boolean supportContentStream() {
+        return false;
+    }
+
+    /**
      * Indicates if the RestHandler supports bulk content. A bulk request contains multiple objects
      * delineated by {@link XContent#bulkSeparator()}. If a handler returns true this will affect
      * the types of content that can be sent to this endpoint.

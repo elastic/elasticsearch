@@ -39,8 +39,6 @@ import org.elasticsearch.xpack.migrate.action.GetReindexDataStreamStatusTranspor
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportAction;
-import org.elasticsearch.xpack.migrate.action.SwapDataStreamIndexAction;
-import org.elasticsearch.xpack.migrate.action.SwapDataStreamIndexTransportAction;
 import org.elasticsearch.xpack.migrate.action.TransportReindexDataStreamIndexAction;
 import org.elasticsearch.xpack.migrate.rest.RestCancelReindexDataStreamAction;
 import org.elasticsearch.xpack.migrate.rest.RestGetReindexDataStreamStatusAction;
@@ -89,7 +87,6 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
             actions.add(new ActionHandler<>(GetReindexDataStreamStatusAction.INSTANCE, GetReindexDataStreamStatusTransportAction.class));
             actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
             actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, TransportReindexDataStreamIndexAction.class));
-            actions.add(new ActionHandler<>(SwapDataStreamIndexAction.INSTANCE, SwapDataStreamIndexTransportAction.class));
         }
         return actions;
     }

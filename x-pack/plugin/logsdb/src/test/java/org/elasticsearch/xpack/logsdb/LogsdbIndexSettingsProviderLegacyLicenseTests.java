@@ -25,15 +25,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceIndexSettingsProviderTests.getLogsdbIndexModeSettingsProvider;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createGoldOrPlatinumLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
+public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
 
-    private SyntheticSourceIndexSettingsProvider provider;
+    private LogsdbIndexModeSettingsProvider provider;
 
     @Before
     public void setup() throws Exception {
@@ -50,10 +49,9 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
-        provider = new SyntheticSourceIndexSettingsProvider(
-            syntheticSourceLicenseService,
+        provider = new LogsdbIndexModeSettingsProvider(syntheticSourceLicenseService, Settings.EMPTY);
+        provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            getLogsdbIndexModeSettingsProvider(false),
             IndexVersion::current
         );
     }
@@ -112,10 +110,9 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
-        provider = new SyntheticSourceIndexSettingsProvider(
-            syntheticSourceLicenseService,
+        provider = new LogsdbIndexModeSettingsProvider(syntheticSourceLicenseService, Settings.EMPTY);
+        provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            getLogsdbIndexModeSettingsProvider(false),
             IndexVersion::current
         );
 

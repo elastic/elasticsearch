@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -52,8 +53,14 @@ public abstract class BaseRestHandler implements RestHandler {
         true,
         Property.NodeScope
     );
+    private static final String ERROR_TRACE_DEFAULT = String.valueOf(RestController.ERROR_TRACE_DEFAULT);
 
     private final LongAdder usageCount = new LongAdder();
+    private ThreadContext threadContext;
+
+    public void setThreadContext(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
 
     public final long getUsageCount() {
         return usageCount.sum();
@@ -270,4 +277,10 @@ public abstract class BaseRestHandler implements RestHandler {
         return responseParams();
     }
 
+    protected void setErrorTraceTransportHeader(RestRequest r) {
+        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
+        if (threadContext != null) {
+            threadContext.putHeader("error_trace", r.param("error_trace", ERROR_TRACE_DEFAULT));
+        }
+    }
 }

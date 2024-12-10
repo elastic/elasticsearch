@@ -17,6 +17,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -270,6 +271,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
+    private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
 
     private final ThreadPool threadPool;
 
@@ -504,7 +506,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         keepAliveReaper.cancel();
     }
 
+    // Wraps the listener to avoid sending StackTrace if error_trace is set to false
+    <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener) {
+        String header = threadPool.getThreadContext().getHeaderOrDefault("error_trace", "true");
+        if (header.equals("false")) {
+            return listener.delegateResponse((l, e) -> {
+                ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
+                    err.setStackTrace(EMPTY_STACK_TRACE_ARRAY);
+                    return false;
+                });
+                l.onFailure(e);
+            });
+        }
+        return listener;
+    }
+
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
+        listener = maybeWrapListenerForStackTrace(listener);
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
@@ -542,6 +560,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
+        listener = maybeWrapListenerForStackTrace(listener);
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
@@ -733,6 +752,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
+        listener = maybeWrapListenerForStackTrace(listener);
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
@@ -778,6 +798,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         ActionListener<ScrollQuerySearchResult> listener
     ) {
+        listener = maybeWrapListenerForStackTrace(listener);
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
         final Releasable markAsUsed;
         try {
@@ -814,6 +835,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * when the object is no longer needed.
      */
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
+        listener = maybeWrapListenerForStackTrace(listener);
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
@@ -850,6 +872,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }, wrapFailureListener(l, readerContext, markAsUsed));
         }));
+    }
+
+    ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     private Executor getExecutor(IndexShard indexShard) {

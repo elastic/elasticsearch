@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
@@ -34,6 +35,7 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchR
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final String TYPED_KEYS_PARAM = "typed_keys";
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+    private static final String ERROR_TRACE_DEFAULT = String.valueOf(RestController.ERROR_TRACE_DEFAULT);
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
@@ -55,6 +57,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        setErrorTraceTransportHeader(request);
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
         // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll

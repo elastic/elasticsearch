@@ -456,12 +456,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Total results is k, internal k is multiplied by oversample
-        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, 10, 500);
+        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, null, 500, 10);
         // If numCands < k, update numCands to k
-        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, 10, 50);
+        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, null, 50, 10);
         // Oversampling limits for num candidates
-        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, 1000, 10000);
-        checkRescoreQueryParameters(fieldType, 5000, 7500, 2.5F, 5000, 10000);
+        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, null, 10000, 1000);
+        checkRescoreQueryParameters(fieldType, 5000, 7500, 2.5F, null, 10000, 5000);
     }
 
     private static void checkRescoreQueryParameters(
@@ -470,7 +470,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         int candidates,
         float numCandsFactor,
         Integer expectedK,
-        int expectedCandidates
+        int expectedCandidates,
+        int expectedResults
     ) {
         Query query = fieldType.createKnnQuery(
             VectorData.fromFloats(new float[] { 1, 4, 10 }),
@@ -483,7 +484,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
         ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) rescoreQuery.innerQuery();
-        assertThat("Unexpected total results", esKnnQuery.kParam(), equalTo(expectedK));
+        assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
+        assertThat("Unexpected k parameter", esKnnQuery.kParam(), equalTo(expectedK));
         assertThat("Unexpected candidates", esKnnQuery.getK(), equalTo(expectedCandidates));
     }
 }

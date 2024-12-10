@@ -2111,27 +2111,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
+            Integer adjustedK = k;
             int adjustedNumCands = numCands;
             if (needsRescore(numCandsFactor)) {
-                // k <= numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
+                // Get all candidates, get top k as part of rescoring
+                adjustedK = null;
+                // numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
                 adjustedNumCands = Math.min((int) Math.ceil(numCands * numCandsFactor), NUM_CANDS_OVERSAMPLE_LIMIT);
             }
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, k, adjustedNumCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, k, adjustedNumCands, filter);
-            if (similarityThreshold != null) {
-                knnQuery = new VectorSimilarityQuery(
-                    knnQuery,
-                    similarityThreshold,
-                    similarity.score(similarityThreshold, elementType, dims)
-                );
-            }
+                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
+                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
             if (needsRescore(numCandsFactor)) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),
                     queryVector,
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
+                    k,
                     knnQuery
+                );
+            }
+            if (similarityThreshold != null) {
+                knnQuery = new VectorSimilarityQuery(
+                    knnQuery,
+                    similarityThreshold,
+                    similarity.score(similarityThreshold, elementType, dims)
                 );
             }
             return knnQuery;

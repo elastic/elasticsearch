@@ -171,23 +171,18 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        if (queryBuilder.getVectorSimilarity() != null) {
+            assertTrue(query instanceof VectorSimilarityQuery);
+            assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
+            query = ((VectorSimilarityQuery) query).getInnerKnnQuery();
+        }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
             query = rescoreQuery.innerQuery();
         }
-        if (queryBuilder.getVectorSimilarity() != null) {
-            assertTrue(query instanceof VectorSimilarityQuery);
-            Query knnQuery = ((VectorSimilarityQuery) query).getInnerKnnQuery();
-            assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
-            switch (elementType()) {
-                case FLOAT -> assertTrue(knnQuery instanceof ESKnnFloatVectorQuery);
-                case BYTE -> assertTrue(knnQuery instanceof ESKnnByteVectorQuery);
-            }
-        } else {
-            switch (elementType()) {
-                case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);
-                case BYTE -> assertTrue(query instanceof ESKnnByteVectorQuery);
-            }
+        switch (elementType()) {
+            case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);
+            case BYTE -> assertTrue(query instanceof ESKnnByteVectorQuery);
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();

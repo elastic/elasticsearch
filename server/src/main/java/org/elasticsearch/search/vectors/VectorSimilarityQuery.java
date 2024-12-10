@@ -29,7 +29,8 @@ import java.util.Objects;
 import static org.elasticsearch.common.Strings.format;
 
 /**
- * This query provides a simple post-filter for the provided Query. The query is assumed to be a Knn(Float|Byte)VectorQuery.
+ * This query provides a simple post-filter for the provided Query to limit the results of the inner query to those that have a similarity
+ * above a certain threshold
  */
 public class VectorSimilarityQuery extends Query implements QueryProfilerProvider {
     private final float similarity;

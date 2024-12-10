@@ -85,6 +85,17 @@ public interface CircuitBreaker {
     void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 
     /**
+     * Check the real memory circuit breaker. It is a NOOP if
+     * {@link org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService#USE_REAL_MEMORY_USAGE_SETTING} is set to false,
+     * otherwise it trips if the current memory usage cannot be lowered below the limit. This method is a temporary solution
+     * and should not be used, use a counter based breaker instead.
+     *
+     * @param label thing requesting to check the rela memory circuit breaker that is included in
+     *              the exception if the breaker is tripped
+     */
+    void checkRealMemoryUsage(String label) throws CircuitBreakingException;
+
+    /**
      * Add bytes to the circuit breaker without tripping.
      */
     void addWithoutBreaking(long bytes);

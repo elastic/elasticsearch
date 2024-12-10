@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -113,6 +114,7 @@ public class MultiBucketConsumerService {
         }
 
         @Override
+        @SuppressForbidden(reason = "Lack of memory accounting when reducing InternalAggregations")
         public void accept(int value) {
             if (value != 0) {
                 count += value;
@@ -131,7 +133,7 @@ public class MultiBucketConsumerService {
             // check parent circuit breaker every 1024 calls
             callCount++;
             if ((callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+                breaker.checkRealMemoryUsage("allocated_buckets");
             }
         }
 
@@ -155,10 +157,11 @@ public class MultiBucketConsumerService {
         }
 
         @Override
+        @SuppressForbidden(reason = "Lack of memory accounting when reducing InternalAggregations")
         public void accept(int value) {
             // check parent circuit breaker every 1024 calls
             if ((++callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+                breaker.checkRealMemoryUsage("allocated_buckets");
             }
         }
     }

@@ -41,6 +41,11 @@ public class CountingCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
+    public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+        throw new UnsupportedOperationException("checkRealMemoryUsage is not supported by CountingCircuitBreaker");
+    }
+
+    @Override
     public void addWithoutBreaking(long bytes) {
         incMemoryRequestCountIfPositive(bytes);
         delegate.addWithoutBreaking(bytes);

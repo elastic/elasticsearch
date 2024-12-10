@@ -177,6 +177,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     protected void setLicenseState(XPackLicenseState licenseState) {
         this.licenseState = licenseState;
+        super.setLicenseState(licenseState);
     }
 
     @Override
@@ -623,7 +624,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @SuppressWarnings("unchecked")
-    private <T> List<T> filterPlugins(Class<T> type) {
+    protected <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
     }
 

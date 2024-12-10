@@ -18,6 +18,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
@@ -93,9 +94,8 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsIndexModeLookup() {
-        // TODO: base this on the available features or minimum node version
-        return false;
+    protected boolean supportsIndexModeLookup() throws IOException {
+        return hasCapabilities(List.of("join_lookup_v4"));
     }
 
     @Override

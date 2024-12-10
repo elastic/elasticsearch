@@ -164,7 +164,7 @@ Review the following topics to design your security strategy:
 | https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-securing-stack.html
 
 | {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]
-| {ece-ref}/ece-security.html[Secure your clusters]
+| {ece-ref}/ece-securing-ece.html[Secure your clusters]
 
 | *<<elasticsearch-deployment-options,Manual on-premise>>*
 | 
@@ -186,7 +186,7 @@ These pages provide information about securing your Elastic Cloud Enterprise ins
 | {serverless-docs}/general-manage-organization.html[Manage users and roles]<br>{cloud}/ec-saml-sso.html[Configure Elastic Cloud SAML single sign-on]
 
 | {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]
-| {ece-ref}/ece-security.html[Securing your installation]
+| {ece-ref}/ece-securing-ece.html[Securing your installation]
 
 |===
 

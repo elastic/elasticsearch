@@ -1749,7 +1749,7 @@ public class IndexNameExpressionResolver {
                                     index.getName(),
                                     context.options.allowSelectors() ? IndexComponentSelector.DATA : null
                                 )
-                            ));
+                            );
                         }
                     }
                 }
@@ -1836,14 +1836,14 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
-        private static List<ResolvedExpression> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(
+        private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(
             Context context,
             String[] allIndices
         ) {
-            List<ResolvedExpression> filteredIndices = new ArrayList<>(allIndices.length);
+            List<String> filteredIndices = new ArrayList<>(allIndices.length);
             for (int i = 0; i < allIndices.length; i++) {
                 if (shouldIncludeIndexAbstraction(context, allIndices[i])) {
-                    filteredIndices.add(new ResolvedExpression(allIndices[i]));
+                    filteredIndices.add(allIndices[i]);
                 }
             }
             return filteredIndices;

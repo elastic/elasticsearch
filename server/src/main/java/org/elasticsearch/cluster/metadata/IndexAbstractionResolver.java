@@ -82,7 +82,7 @@ public class IndexAbstractionResolver {
                             indexNameExpressionResolver,
                             includeDataStreams
                         )) {
-                        // Resolve any ::* suffixes on the expression. We need to resolve them all to their final
+                        // Resolve any ::* suffixes on the expression. We need to resolve them all to their final valid selectors
                         resolveSelectorsAndCombine(authorizedIndex, selectorString, indicesOptions, resolvedIndices, metadata);
                     }
                 }
@@ -127,24 +127,23 @@ public class IndexAbstractionResolver {
             // We can't determine which selectors are valid for a nonexistent abstraction, so simply propagate them as if they supported
             // all of them so we don't drop anything.
             boolean acceptsAllSelectors = abstraction == null || abstraction.isDataStreamRelated();
+
+            // Supply default if needed
             if (selectorString == null) {
-                // We need to add the default selectors to this expression
-                for (IndexComponentSelector defaultSelector : indicesOptions.selectorOptions().defaultSelectors()) {
-                    if (IndexComponentSelector.FAILURES.equals(defaultSelector) == false || acceptsAllSelectors) {
-                        // Always accept data, only put failures on the expression if the abstraction supports it.
-                        collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, defaultSelector.getKey()));
-                    }
-                }
-            } else if (Regex.isMatchAllPattern(selectorString)) {
-                // We need to resolve to all selectors for this expression
-                for (IndexComponentSelector selector : IndexComponentSelector.values()) {
-                    if (IndexComponentSelector.FAILURES.equals(selector) == false || acceptsAllSelectors) {
-                        // Always accept data, only put failures on the expression if the abstraction supports it.
-                        collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selector.getKey()));
-                    }
+                selectorString = indicesOptions.selectorOptions().defaultSelector().getKey();
+            }
+
+            if (Regex.isMatchAllPattern(selectorString)) {
+                // Always accept data
+                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.DATA.getKey()));
+                // Only put failures on the expression if the abstraction supports it.
+                if (acceptsAllSelectors) {
+                    collect.add(
+                        IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey())
+                    );
                 }
             } else {
-                // A concrete selector is added directly, it's validity for this kind of abstraction is tested later
+                // A non-wildcard selector is always passed along as-is, it's validity for this kind of abstraction is tested later
                 collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
             }
         } else {

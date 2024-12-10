@@ -426,25 +426,27 @@ public final class IndicesPermission {
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return 1;
             } else if (selector != null) {
-                return 1 + switch (selector) {
-                    case DATA -> indexAbstraction.getIndices().size();
-                    case FAILURES -> {
-                        if (IndexAbstraction.Type.ALIAS.equals(indexAbstraction.getType())) {
-                            Set<DataStream> aliasDataStreams = new HashSet<>();
-                            int failureIndices = 0;
-                            for (Index index : indexAbstraction.getIndices()) {
-                                DataStream parentDataStream = lookup.get(index.getName()).getParentDataStream();
-                                if (parentDataStream != null && aliasDataStreams.add(parentDataStream)) {
-                                    failureIndices += parentDataStream.getFailureIndices().getIndices().size();
-                                }
+                int size = 1;
+                if (selector.shouldIncludeData()) {
+                    size += indexAbstraction.getIndices().size();
+                }
+                if (selector.shouldIncludeFailures()) {
+                    if (IndexAbstraction.Type.ALIAS.equals(indexAbstraction.getType())) {
+                        Set<DataStream> aliasDataStreams = new HashSet<>();
+                        int failureIndices = 0;
+                        for (Index index : indexAbstraction.getIndices()) {
+                            DataStream parentDataStream = lookup.get(index.getName()).getParentDataStream();
+                            if (parentDataStream != null && aliasDataStreams.add(parentDataStream)) {
+                                failureIndices += parentDataStream.getFailureIndices().getIndices().size();
                             }
-                            yield failureIndices;
-                        } else {
-                            DataStream parentDataStream = (DataStream) indexAbstraction;
-                            yield parentDataStream.getFailureIndices().getIndices().size();
                         }
+                        size += failureIndices;
+                    } else {
+                        DataStream parentDataStream = (DataStream) indexAbstraction;
+                        size += parentDataStream.getFailureIndices().getIndices().size();
                     }
-                };
+                }
+                return size;
             } else {
                 return 1 + indexAbstraction.getIndices().size();
             }

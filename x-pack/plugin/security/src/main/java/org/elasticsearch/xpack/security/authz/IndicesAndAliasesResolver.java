@@ -95,7 +95,7 @@ class IndicesAndAliasesResolver {
      * <br><br>
      * <p>
      * If the provided <code>request</code> is of a type that {@link IndicesOptions#allowSelectors() allows selectors}, then the index
-     * names will be updated to include any {@link IndicesOptions.SelectorOptions#defaultSelectors() default selectors} that should be
+     * names will be updated to include any {@link IndicesOptions.SelectorOptions#defaultSelector() default selectors} that should be
      * returned. If a wildcard selector is present on the index name then the wildcard will be resolved to
      * {@link IndexComponentSelector#values() all applicable concrete selector names} for a given index abstraction. Selectors that are
      * not applicable for an index abstraction (such as the <code>::failures</code> selector on non-data streams) are not returned when

@@ -2249,9 +2249,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     .build()
             )
             .selectorOptions(
-                IndicesOptions.SelectorOptions.builder()
-                    .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
-                    .build()
+                new IndicesOptions.SelectorOptions(IndexComponentSelector.ALL_APPLICABLE)
             )
             .build();
         {

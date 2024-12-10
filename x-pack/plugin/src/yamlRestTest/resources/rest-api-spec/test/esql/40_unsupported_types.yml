@@ -515,6 +515,14 @@ semantic_text declared in mapping:
           parameters: [ ]
           capabilities: [ semantic_text_type ]
       reason: "support for semantic_text type"
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       indices.create:
         index: test_semantic_text

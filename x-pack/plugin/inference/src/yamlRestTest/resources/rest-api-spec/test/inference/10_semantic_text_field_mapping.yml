@@ -18,6 +18,15 @@ setup:
 
 ---
 "Indexes sparse vector document":
+  - requires:
+      test_runner_features: [capabilities]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [inference_metadata_fields]
 
   # Checks mapping is not updated until first doc arrives
   - do:
@@ -65,10 +74,17 @@ setup:
 
 ---
 "Field caps with sparse embedding":
-
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: field_caps support for semantic_text added in 8.16.0
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       field_caps:
@@ -141,6 +157,15 @@ setup:
 
 ---
 "Indexes dense vector document":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   # Checks mapping is not updated until first doc arrives
   - do:
@@ -183,10 +208,17 @@ setup:
 
 ---
 "Field caps with text embedding":
-
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: field_caps support for semantic_text added in 8.16.0
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       field_caps:

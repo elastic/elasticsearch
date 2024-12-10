@@ -28,7 +28,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -75,8 +75,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -292,12 +292,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
-            // ignore original text value
-            context.parser().skipChildren();
+        final XContentParser parser = context.parser();
+        final XContentLocation xContentLocation = parser.getTokenLocation();
+
+        if (InferenceMetadataFieldsMapper.isEnabled(context.indexSettings().getIndexVersionCreated())) {
+            // Detect if field value is an object, which we don't support parsing
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                throw new DocumentParsingException(
+                    xContentLocation,
+                    "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support object values"
+                );
+            }
+
+            // ignore the rest of the field value
+            parser.skipChildren();
             return;
         }
-        XContentLocation xContentLocation = context.parser().getTokenLocation();
+
         final SemanticTextField field = parseSemanticTextField(context);
         if (field != null) {
             parseCreateFieldFromContext(context, field, xContentLocation);
@@ -387,7 +398,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     embeddingsField.parse(subContext);
                 }
 
-                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (InferenceMetadataFieldsMapper.isEnabled(indexSettings.getIndexVersionCreated())) {
                     try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
                         builder.startObject();
                         builder.field("field", entry.getKey());
@@ -527,7 +538,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (InferenceMetadataFieldsMapper.isEnabled(indexVersionCreated)) {
                 return SourceValueFetcher.toString(name(), context, null);
             } else {
                 // Redirect the fetcher to load the original values of the field
@@ -674,7 +685,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            String name = indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) ? name() : name().concat(".text");
+            String name = InferenceMetadataFieldsMapper.isEnabled(indexVersionCreated) ? name() : name().concat(".text");
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
@@ -729,7 +740,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 if (it.docID() < previousParent) {
                     it.advance(previousParent);
                 }
-                Map<String, List<SemanticTextField.Chunk>> chunkMap = new HashMap<>();
+                Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
                 while (it.docID() < doc) {
                     if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
                         throw new IllegalStateException(
@@ -828,7 +839,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (modelSettings != null) {
             chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings));
         }
-        if (indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+        if (InferenceMetadataFieldsMapper.isEnabled(indexVersionCreated)) {
             chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
         } else {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);

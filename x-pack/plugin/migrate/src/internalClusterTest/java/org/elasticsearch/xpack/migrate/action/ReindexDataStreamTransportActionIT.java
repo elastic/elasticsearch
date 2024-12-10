@@ -99,6 +99,17 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         assertThat(task.getStatus().pending(), equalTo(0));
         assertThat(task.getStatus().inProgress(), equalTo(0));
         assertThat(task.getStatus().errors().size(), equalTo(0));
+
+        CancelReindexDataStreamAction.Response cancelResponse = client().execute(
+            CancelReindexDataStreamAction.INSTANCE,
+            new CancelReindexDataStreamAction.Request(dataStreamName)
+        ).actionGet();
+        assertNotNull(cancelResponse);
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(CancelReindexDataStreamAction.INSTANCE, new CancelReindexDataStreamAction.Request(dataStreamName))
+                .actionGet()
+        );
     }
 
     private void createDataStream(String dataStreamName) {

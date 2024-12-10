@@ -139,7 +139,7 @@ Specifies the user issuing the request, which can be used for abuse detection.
 [[inference-example-openai]]
 ==== OpenAI service example
 
-The following example shows how to create an {infer} endpoint called `openai-embeddings` to perform a `text_embedding` task type.
+The following example shows how to create an {infer} endpoint called `openai-embeddings` to perform a `text_embedding` task type. The embeddings created by requests to this endpoint will have 128 dimensions.
 
 [source,console]
 ------------------------------------------------------------

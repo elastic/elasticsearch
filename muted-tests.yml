@@ -186,9 +186,6 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testSupportedStream
-  issue: https://github.com/elastic/elasticsearch/issues/117745
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {scoring.QstrWithFieldAndScoringSortedEval}
   issue: https://github.com/elastic/elasticsearch/issues/117751
@@ -245,12 +242,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test41AutoconfigurationNotTriggeredWhenNodeCannotContainData
   issue: https://github.com/elastic/elasticsearch/issues/118110
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.LookupMessageFromIndexKeepReordered SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118150
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.LookupMessageFromIndexKeepReordered ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118151
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
@@ -278,9 +269,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testUnifiedCompletionInference
-  issue: https://github.com/elastic/elasticsearch/issues/118210
 - class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/118215
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
@@ -294,6 +282,18 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/118214
+- class: org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT
+  method: testTopNThenEnrichRemote
+  issue: https://github.com/elastic/elasticsearch/issues/118307
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
+  method: testEsqlRcs1UnavailableRemoteScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/118350
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  method: testSearcherId
+  issue: https://github.com/elastic/elasticsearch/issues/118374
 
 # Examples:
 #

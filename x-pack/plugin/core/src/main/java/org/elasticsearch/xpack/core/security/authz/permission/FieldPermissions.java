@@ -248,16 +248,18 @@ public final class FieldPermissions implements Accountable, CacheKey {
                 );
             }
             logger.warn(
-                "Exceptions for field permissions cover fields starting with [_] that are not explicitly granted. "
-                    + "This is supported for backwards compatibility only, and will be removed in a future version. "
-                    + "Note that you cannot exclude any of {} since these are minimally required metadata fields.",
+                "Exceptions for field permissions cover fields starting with [_] that are not a subset of the granted fields. "
+                    + "This is supported for backwards compatibility only. "
+                    + "To avoid counter-intuitive FLS behavior, ensure that the [except] field is a subset of the [grant] field by either "
+                    + "adding the missing _-prefixed fields to the [grant] field, or by removing them from the [except] field."
+                    + "Note that you cannot exclude any of [{}] since these are minimally required metadata fields.",
                 Strings.collectionToCommaDelimitedString(new TreeSet<>(METADATA_FIELDS_ALLOWLIST))
             );
         }
 
         return Automatons.unionAndDeterminize(
             Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton),
-            // include allowlisted metadata fields after removing denied fields since we always allow them
+            // include allowlisted metadata fields _after_ removing denied fields since we always allow access for them
             METADATA_FIELDS_ALLOWLIST_AUTOMATON
         );
     }

@@ -12,20 +12,14 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
-public class BitMultiDenseVectorDocValuesField extends ByteMultiDenseVectorDocValuesField {
+public class BitRankVectorsDocValuesField extends ByteRankVectorsDocValuesField {
 
-    public BitMultiDenseVectorDocValuesField(
-        BinaryDocValues input,
-        BinaryDocValues magnitudes,
-        String name,
-        ElementType elementType,
-        int dims
-    ) {
+    public BitRankVectorsDocValuesField(BinaryDocValues input, BinaryDocValues magnitudes, String name, ElementType elementType, int dims) {
         super(input, magnitudes, name, elementType, dims / 8);
     }
 
     @Override
-    protected MultiDenseVector getVector() {
-        return new BitMultiDenseVector(vectorValue, magnitudesValue, numVecs, dims);
+    protected RankVectors getVector() {
+        return new BitRankVectors(vectorValue, magnitudesValue, numVecs, dims);
     }
 }

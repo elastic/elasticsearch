@@ -279,6 +279,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
+    private static final String LOWER_ALPHA_CHARACTERS = "abcdefghijklmnopqrstuvwxyz";
+    private static final String UPPER_ALPHA_CHARACTERS = LOWER_ALPHA_CHARACTERS.toUpperCase(Locale.ROOT);
+    private static final String DIGIT_CHARACTERS = "0123456789";
+    private static final String ALPHANUMERIC_CHARACTERS = LOWER_ALPHA_CHARACTERS + UPPER_ALPHA_CHARACTERS + DIGIT_CHARACTERS;
+
     static {
         Random random = initTestSeed();
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -1200,6 +1205,21 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    /**
+     * Generate a random string containing only alphanumeric characters.
+     * @param length the length of the string to generate
+     * @return the generated string
+     */
+    public static String randomAlphanumericOfLength(int length) {
+        StringBuilder sb = new StringBuilder();
+        Random random = random();
+        for (int i = 0; i < length; i++) {
+            sb.append(ALPHANUMERIC_CHARACTERS.charAt(random.nextInt(ALPHANUMERIC_CHARACTERS.length())));
+        }
+
+        return sb.toString();
     }
 
     public static SecureString randomSecureStringOfLength(int codeUnits) {

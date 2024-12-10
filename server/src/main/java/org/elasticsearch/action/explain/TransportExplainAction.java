@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -113,7 +114,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ProjectState state, InternalRequest request) {
-        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state.metadata(), request.request().index());
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            state.metadata(),
+            request.request().index()
+        );
         @FixForMultiProject
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);

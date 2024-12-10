@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -131,9 +132,12 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
-                final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+                final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+
                     project.metadata(),
+
                     searchRequest.indices()
+
                 );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     project,

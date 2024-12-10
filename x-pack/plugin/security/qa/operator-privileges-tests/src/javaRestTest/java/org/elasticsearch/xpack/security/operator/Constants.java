@@ -639,6 +639,7 @@ public class Constants {
         "internal:index/metadata/migration_version/update",
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex_cancel" : null,
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

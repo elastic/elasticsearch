@@ -145,7 +145,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
             boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
             if (indexingComplete) {
-                logger.trace(index + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
+                logger.trace("{} has lifecycle complete set, skipping {}", index, WaitForRolloverReadyStep.NAME);
                 // If this index is still the write index for this alias, skipping rollover and continuing with the policy almost certainly
                 // isn't what we want, as something likely still expects to be writing to this index.
                 // If the alias doesn't point to this index, that's okay as that will be the result if this index is using a

@@ -50,7 +50,7 @@ public class RolloverStep extends AsyncActionStep {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
+            logger.trace("{} has lifecycle complete set, skipping {}", indexMetadata.getIndex(), RolloverStep.NAME);
             listener.onResponse(null);
             return;
         }

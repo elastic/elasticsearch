@@ -300,12 +300,11 @@ class EsqlSessionCCSUtils {
     }
 
     /**
-     * Checks the index expression the presence of remote clusters. If found, it will ensure that the caller
-     * has installed a valid Enterprise (or Trial) license on this (coordinator) node of the querying cluster.
-     * MP TODO: test this with a cluster pattern that does NOT match anything - what happens?
-     * @param indices
-     * @param indicesGrouper
-     * @param licenseState
+     * Checks the index expression for the presence of remote clusters. If found, it will ensure that the caller
+     * has a valid Enterprise (or Trial) license on the querying cluster.
+     * @param indices index expression requested by user
+     * @param indicesGrouper grouper of index expressions by cluster alias
+     * @param licenseState license state on the querying cluster
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void checkForCcsLicense(

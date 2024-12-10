@@ -38,7 +38,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static Analyzer expandedDefaultAnalyzer() {
-        return analyzer(analyzerExpandedDefaultMapping());
+        return analyzer(expandedDefaultIndexResolution());
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution) {
@@ -47,18 +47,33 @@ public final class AnalyzerTestUtils {
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
             verifier
         );
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
-        return new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()), verifier);
+        return new Analyzer(
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
+            verifier
+        );
     }
 
     public static Analyzer analyzer(Verifier verifier) {
         return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), analyzerDefaultMapping(), defaultEnrichResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                analyzerDefaultMapping(),
+                defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
             verifier
         );
     }
@@ -98,8 +113,12 @@ public final class AnalyzerTestUtils {
         return loadMapping("mapping-basic.json", "test");
     }
 
-    public static IndexResolution analyzerExpandedDefaultMapping() {
+    public static IndexResolution expandedDefaultIndexResolution() {
         return loadMapping("mapping-default.json", "test");
+    }
+
+    public static IndexResolution defaultLookupResolution() {
+        return loadMapping("mapping-languages.json", "languages_lookup");
     }
 
     public static EnrichResolution defaultEnrichResolution() {

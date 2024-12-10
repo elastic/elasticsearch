@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
@@ -123,6 +124,20 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      */
     public String functionType() {
         return "function";
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), queryBuilder);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
     }
 
     @SuppressWarnings("rawtypes")

@@ -239,12 +239,12 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

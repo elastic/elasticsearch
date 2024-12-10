@@ -90,12 +90,12 @@ public class QueryString extends FullTextFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryString(source(), newChildren.get(0));
+        return new QueryString(source(), newChildren.get(0), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryString::new, query());
+        return NodeInfo.create(this, QueryString::new, query(), queryBuilder());
     }
 
     @SuppressWarnings("rawtypes")

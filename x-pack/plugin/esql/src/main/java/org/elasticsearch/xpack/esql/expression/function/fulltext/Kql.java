@@ -79,12 +79,12 @@ public class Kql extends FullTextFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Kql(source(), newChildren.get(0));
+        return new Kql(source(), newChildren.get(0), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Kql::new, query());
+        return NodeInfo.create(this, Kql::new, query(), queryBuilder());
     }
 
     @SuppressWarnings("rawtypes")

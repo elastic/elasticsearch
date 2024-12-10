@@ -116,12 +116,12 @@ public class Term extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Term(source(), newChildren.get(0), newChildren.get(1));
+        return new Term(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Term::new, field, query());
+        return NodeInfo.create(this, Term::new, field, query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

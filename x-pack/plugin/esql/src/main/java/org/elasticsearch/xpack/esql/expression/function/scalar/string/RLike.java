@@ -94,6 +94,11 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
+    public Boolean fold() {
+        return (Boolean) EvaluatorMapper.super.fold();
+    }
+
+    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
     }

@@ -100,6 +100,11 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     }
 
     @Override
+    public Boolean fold() {
+        return (Boolean) EvaluatorMapper.super.fold();
+    }
+
+    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return AutomataMatch.toEvaluator(
             source(),

@@ -215,8 +215,11 @@ setup:
 ---
 "kNN search in _knn_search endpoint":
   - skip:
-      features: [ "allowed_warnings" ]
+      features: [ "allowed_warnings", "headers" ]
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
@@ -240,8 +243,11 @@ setup:
   - requires:
       cluster_features: "gte_v8.2.0"
       reason: 'kNN with filtering added in 8.2'
-      test_runner_features: [ "allowed_warnings" ]
+      test_runner_features: [ "allowed_warnings", "headers" ]
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
@@ -262,6 +268,9 @@ setup:
   - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:

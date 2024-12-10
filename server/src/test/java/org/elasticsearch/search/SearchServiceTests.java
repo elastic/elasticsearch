@@ -292,6 +292,12 @@ public class SearchServiceTests extends IndexShardTestCase {
             SearchExecutionContext getSearchExecutionContext(Engine.Searcher searcher) {
                 return searchExecutionContext;
             }
+
+            @Override
+            IndexService getIndexService() {
+                // it's ok to return null because the three above methods are overridden
+                return null;
+            }
         };
     }
 }

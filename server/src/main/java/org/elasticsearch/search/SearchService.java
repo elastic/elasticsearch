@@ -147,6 +147,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -549,11 +550,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // check if we can shortcut the query phase entirely.
             if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
-                IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 ShardSearchRequest clone = new ShardSearchRequest(orig);
                 CanMatchContext canMatchContext = new CanMatchContext(
                     clone,
-                    indexService,
+                    indicesService::indexServiceSafe,
                     this::findReaderContext,
                     defaultKeepAlive,
                     maxKeepAlive
@@ -1649,10 +1649,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * won't match any documents on the current shard. Exceptions are handled within the method, and never re-thrown.
      */
     public CanMatchShardResponse canMatch(ShardSearchRequest request) {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         CanMatchContext canMatchContext = new CanMatchContext(
             request,
-            indexService,
+            indicesService::indexServiceSafe,
             this::findReaderContext,
             defaultKeepAlive,
             maxKeepAlive
@@ -1662,20 +1661,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     static class CanMatchContext {
         private final ShardSearchRequest request;
-        private final IndexService indexService;
+        private final Function<Index, IndexService> indexServiceLookup;
         private final BiFunction<ShardSearchContextId, TransportRequest, ReaderContext> findReaderContext;
         private final long defaultKeepAlive;
         private final long maxKeepAlive;
 
+        private IndexService indexService;
+
         CanMatchContext(
             ShardSearchRequest request,
-            IndexService indexService,
+            Function<Index, IndexService> indexServiceLookup,
             BiFunction<ShardSearchContextId, TransportRequest, ReaderContext> findReaderContext,
             long defaultKeepAlive,
             long maxKeepAlive
         ) {
             this.request = request;
-            this.indexService = indexService;
+            this.indexServiceLookup = indexServiceLookup;
             this.findReaderContext = findReaderContext;
             this.defaultKeepAlive = defaultKeepAlive;
             this.maxKeepAlive = maxKeepAlive;
@@ -1694,7 +1695,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         SearchExecutionContext getSearchExecutionContext(Engine.Searcher searcher) {
-            return indexService.newSearchExecutionContext(
+            return getIndexService().newSearchExecutionContext(
                 request.shardId().id(),
                 0,
                 searcher,
@@ -1705,7 +1706,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         IndexShard getShard() {
-            return indexService.getShard(request.shardId().getId());
+            return getIndexService().getShard(request.shardId().getId());
+        }
+
+        IndexService getIndexService() {
+            if (this.indexService == null) {
+                this.indexService = indexServiceLookup.apply(request.shardId().getIndex());
+            }
+            return this.indexService;
         }
     }
 
@@ -1737,7 +1745,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     if (queryStillMatchesAfterRewrite(
                         canMatchContext.request,
-                        canMatchContext.getQueryRewriteContext(canMatchContext.indexService)
+                        canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
                     ) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
@@ -1753,7 +1761,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } else {
                 if (queryStillMatchesAfterRewrite(
                     canMatchContext.request,
-                    canMatchContext.getQueryRewriteContext(canMatchContext.indexService)
+                    canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
                 ) == false) {
                     return new CanMatchShardResponse(false, null);
                 }

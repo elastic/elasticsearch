@@ -36,11 +36,6 @@ public final class PhysicalVerifier {
         Failures depFailures = new Failures();
 
         plan.forEachDown(p -> {
-            if (p instanceof AggregateExec agg) {
-                var exclude = Expressions.references(agg.ordinalAttributes());
-                DEPENDENCY_CHECK.checkPlan(p, exclude, depFailures);
-                return;
-            }
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {

@@ -26,13 +26,9 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
      * {@link org.elasticsearch.xpack.esql.common.Failure Failure}s to the {@link Failures} object.
      */
     public void checkPlan(P p, Failures failures) {
-        checkPlan(p, AttributeSet.EMPTY, failures);
-    }
-
-    public void checkPlan(P p, AttributeSet exclude, Failures failures) {
         AttributeSet refs = p.references();
         AttributeSet input = p.inputSet();
-        AttributeSet missing = refs.subtract(input).subtract(exclude);
+        AttributeSet missing = refs.subtract(input);
         // TODO: for Joins, we should probably check if the required fields from the left child are actually in the left child, not
         // just any child (and analogously for the right child).
         if (missing.isEmpty() == false) {

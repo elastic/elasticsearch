@@ -249,6 +249,50 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(true));
     }
 
+    public void testLegacyExcludeForUnderscoredFields() {
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "abc" }))
+            ).run("abc"),
+            is(false)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_abc" }))
+            ).run("abc"),
+            is(true)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
+            ).run("_abc"),
+            is(false)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
+            ).run("_id"),
+            is(true)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
+            ).run("_id"),
+            is(true)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
+            ).run("_abc"),
+            is(false)
+        );
+    }
+
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
     }

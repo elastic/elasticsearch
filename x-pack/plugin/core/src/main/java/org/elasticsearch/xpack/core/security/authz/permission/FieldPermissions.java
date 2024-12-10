@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -47,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -58,6 +61,7 @@ import java.util.stream.Collectors;
  * 2. it must not match the patterns in deniedFieldsArray
  */
 public final class FieldPermissions implements Accountable, CacheKey {
+    private static final Logger logger = LogManager.getLogger(FieldPermissions.class);
 
     public static final FieldPermissions DEFAULT = new FieldPermissions();
 
@@ -199,7 +203,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
      * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
      */
-    public static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+    private static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
@@ -214,7 +218,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             deniedFieldsAutomaton = Automatons.patterns(deniedFields);
         }
 
-        // short-circuit if we know that all fields are allowed
+        // short-circuit if all fields are allowed
         if (grantedFieldsAutomaton == Automatons.MATCH_ALL && deniedFieldsAutomaton == Automatons.EMPTY) {
             return Automatons.MATCH_ALL;
         }
@@ -227,14 +231,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
         );
 
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            // We should not break existing roles completely, so we need to account for denied fields that cover the "_*" pattern,
+            // We should not break existing roles, so we need to account for denied fields that cover the "_*" pattern,
             // since this was previously supported
             final Automaton legacyMetadataFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Operations.removeDeadStates(
-                Operations.determinize(
-                    Operations.union(grantedFieldsAutomaton, legacyMetadataFieldsAutomaton),
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-                )
+            final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Automatons.unionAndDeterminize(
+                grantedFieldsAutomaton,
+                legacyMetadataFieldsAutomaton
             );
             if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsWithLegacyMetadataFieldsAutomaton) == false) {
                 throw new ElasticsearchSecurityException(
@@ -245,18 +247,18 @@ public final class FieldPermissions implements Accountable, CacheKey {
                         + Strings.arrayToCommaDelimitedString(grantedFields)
                 );
             }
-            // log something?
+            logger.warn(
+                "Exceptions for field permissions cover fields starting with [_] that are not explicitly granted. "
+                    + "This is supported for backwards compatibility only, and will be removed in a future version. "
+                    + "Note that you cannot exclude any of {} since these are minimally required metadata fields.",
+                Strings.collectionToCommaDelimitedString(new TreeSet<>(METADATA_FIELDS_ALLOWLIST))
+            );
         }
 
-        return Operations.removeDeadStates(
-            Operations.determinize(
-                Operations.union(
-                    Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton),
-                    // add in allowlisted metadata fields after removing denied fields since we always allow them
-                    METADATA_FIELDS_ALLOWLIST_AUTOMATON
-                ),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            )
+        return Automatons.unionAndDeterminize(
+            Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton),
+            // include allowlisted metadata fields after removing denied fields since we always allow them
+            METADATA_FIELDS_ALLOWLIST_AUTOMATON
         );
     }
 

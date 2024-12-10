@@ -12,12 +12,12 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 
 import java.io.IOException;
 import java.util.Iterator;
 
-public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValuesField {
+public class ByteRankVectorsDocValuesField extends RankVectorsDocValuesField {
 
     protected final BinaryDocValues input;
     private final BinaryDocValues magnitudes;
@@ -29,7 +29,7 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
     protected BytesRef magnitudesValue;
     private byte[] buffer;
 
-    public ByteMultiDenseVectorDocValuesField(
+    public ByteRankVectorsDocValuesField(
         BinaryDocValues input,
         BinaryDocValues magnitudes,
         String name,
@@ -63,25 +63,25 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
     }
 
     @Override
-    public MultiDenseVectorScriptDocValues toScriptDocValues() {
-        return new MultiDenseVectorScriptDocValues(this, dims);
+    public RankVectorsScriptDocValues toScriptDocValues() {
+        return new RankVectorsScriptDocValues(this, dims);
     }
 
-    protected MultiDenseVector getVector() {
-        return new ByteMultiDenseVector(vectorValue, magnitudesValue, numVecs, dims);
+    protected RankVectors getVector() {
+        return new ByteRankVectors(vectorValue, magnitudesValue, numVecs, dims);
     }
 
     @Override
-    public MultiDenseVector get() {
+    public RankVectors get() {
         if (isEmpty()) {
-            return MultiDenseVector.EMPTY;
+            return RankVectors.EMPTY;
         }
         decodeVectorIfNecessary();
         return getVector();
     }
 
     @Override
-    public MultiDenseVector get(MultiDenseVector defaultValue) {
+    public RankVectors get(RankVectors defaultValue) {
         if (isEmpty()) {
             return defaultValue;
         }
@@ -90,7 +90,7 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
     }
 
     @Override
-    public MultiDenseVector getInternal() {
+    public RankVectors getInternal() {
         return get(null);
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -94,7 +95,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             request.indices()
         );
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
-        Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(project.metadata(), request.indices());
+        Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(project.metadata(), request.indices());
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(project, index, indicesAndAliases);
             final String[] aliases = indexNameExpressionResolver.indexAliases(

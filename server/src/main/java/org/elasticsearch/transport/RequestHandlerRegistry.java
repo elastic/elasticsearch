@@ -36,7 +36,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
     @SuppressWarnings("unused") // only accessed via #STATS_TRACKER_HANDLE, lazy initialized because instances consume non-trivial heap
-    private volatile TransportActionStatsTracker statsTracker;
+    private TransportActionStatsTracker statsTracker;
 
     private static final VarHandle STATS_TRACKER_HANDLE;
 

@@ -288,11 +288,6 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
-            assertPurpose(purpose);
-        }
-
-        @Override
         public void close() {}
 
         public void setMaxWriteConcurrency(int concurrency) {

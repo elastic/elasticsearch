@@ -11,14 +11,14 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests;
-import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimDotProduct;
-import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimInvHamming;
-import org.elasticsearch.script.field.vectors.BitMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.ByteMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValuesTests;
+import org.elasticsearch.script.RankVectorsScoreScriptUtils.MaxSimDotProduct;
+import org.elasticsearch.script.RankVectorsScoreScriptUtils.MaxSimInvHamming;
+import org.elasticsearch.script.field.vectors.BitRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.ByteRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.RankVectorsDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -31,11 +31,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
+public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     public void testFloatMultiVectorClassBindings() throws IOException {
@@ -53,23 +53,23 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         List<List<Number>> queryVector = List.of(Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f));
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList(0.5, 111.3));
 
-        List<MultiDenseVectorDocValuesField> fields = List.of(
-            new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
-                MultiDenseVectorScriptDocValuesTests.wrap(docMagnitudes),
+        List<RankVectorsDocValuesField> fields = List.of(
+            new FloatRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
+                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
                 "test",
                 ElementType.FLOAT,
                 dims
             ),
-            new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
-                MultiDenseVectorScriptDocValuesTests.wrap(docMagnitudes),
+            new FloatRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
+                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
                 "test",
                 ElementType.FLOAT,
                 dims
             )
         );
-        for (MultiDenseVectorDocValuesField field : fields) {
+        for (RankVectorsDocValuesField field : fields) {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
@@ -88,7 +88,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
             // Check each function rejects query vectors with the wrong dimension
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new MultiVectorScoreScriptUtils.MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
+                () -> new RankVectorsScoreScriptUtils.MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
             );
             assertThat(
                 e.getMessage(),
@@ -120,16 +120,16 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
         List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 1, 125, -12, 2, 4 }));
 
-        List<MultiDenseVectorDocValuesField> fields = List.of(
-            new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
-                MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
+        List<RankVectorsDocValuesField> fields = List.of(
+            new ByteRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
+                RankVectorsScriptDocValuesTests.wrap(magnitudes),
                 "test",
                 ElementType.BYTE,
                 dims
             )
         );
-        for (MultiDenseVectorDocValuesField field : fields) {
+        for (RankVectorsDocValuesField field : fields) {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
@@ -174,16 +174,16 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
         List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 124 }));
 
-        List<MultiDenseVectorDocValuesField> fields = List.of(
-            new BitMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT),
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { { 5 } }),
+        List<RankVectorsDocValuesField> fields = List.of(
+            new BitRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT),
+                RankVectorsScriptDocValuesTests.wrap(new float[][] { { 5 } }),
                 "test",
                 ElementType.BIT,
                 dims
             )
         );
-        for (MultiDenseVectorDocValuesField field : fields) {
+        for (RankVectorsDocValuesField field : fields) {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
@@ -240,23 +240,23 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         float[][] floatVector = new float[][] { { 1f, 125f, -12f, 2f, 4f } };
         byte[][] byteVector = new byte[][] { { (byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4 } };
 
-        List<MultiDenseVectorDocValuesField> fields = List.of(
-            new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.FLOAT),
-                MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
+        List<RankVectorsDocValuesField> fields = List.of(
+            new FloatRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.FLOAT),
+                RankVectorsScriptDocValuesTests.wrap(magnitudes),
                 "field1",
                 ElementType.FLOAT,
                 dims
             ),
-            new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
-                MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
+            new ByteRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
+                RankVectorsScriptDocValuesTests.wrap(magnitudes),
                 "field3",
                 ElementType.BYTE,
                 dims
             )
         );
-        for (MultiDenseVectorDocValuesField field : fields) {
+        for (RankVectorsDocValuesField field : fields) {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
@@ -296,17 +296,17 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         List<List<Number>> lessThanVector = List.of(List.of(-129));
         List<List<Number>> decimalVector = List.of(List.of(0.5));
 
-        List<MultiDenseVectorDocValuesField> fields = List.of(
-            new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE),
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { { 1 } }),
+        List<RankVectorsDocValuesField> fields = List.of(
+            new ByteRankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE),
+                RankVectorsScriptDocValuesTests.wrap(new float[][] { { 1 } }),
                 "test",
                 ElementType.BYTE,
                 dims
             )
         );
 
-        for (MultiDenseVectorDocValuesField field : fields) {
+        for (RankVectorsDocValuesField field : fields) {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);

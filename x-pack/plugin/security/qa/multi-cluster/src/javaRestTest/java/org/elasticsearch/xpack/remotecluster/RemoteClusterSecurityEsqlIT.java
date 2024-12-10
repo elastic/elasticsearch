@@ -37,7 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTestCase {
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
@@ -347,7 +347,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         populateData();
 
         Map<String, Object> esqlCcsLicenseFeatureUsage = fetchEsqlCcsFeatureUsageFromNode(client());
-        assertThat(esqlCcsLicenseFeatureUsage.isEmpty(), is(true));
+
+        Object ccsLastUsedTimestampAtStartOfTest = null;
+        if (esqlCcsLicenseFeatureUsage.isEmpty() == false) {
+            // some test runs will have a usage value already, so capture that to compare at end of test
+            ccsLastUsedTimestampAtStartOfTest = esqlCcsLicenseFeatureUsage.get("last_used");
+        }
 
         // query remote cluster only
         Request request = esqlRequest("""
@@ -398,6 +403,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertThat(esqlCcsLicenseFeatureUsage.size(), equalTo(5));
         Object lastUsed = esqlCcsLicenseFeatureUsage.get("last_used");
         assertNotNull("lastUsed should not be null", lastUsed);
+        if (ccsLastUsedTimestampAtStartOfTest != null) {
+            assertThat(lastUsed.toString(), not(equalTo(ccsLastUsedTimestampAtStartOfTest.toString())));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1675,7 +1683,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     private static Map<String, Object> fetchEsqlCcsFeatureUsageFromNode(RestClient client) throws IOException {
-        final Set<String> result = new HashSet<>();
         Request request = new Request(HttpGet.METHOD_NAME, "_license/feature_usage");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         Response response = client.performRequest(request);

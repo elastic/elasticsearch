@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.migrate.task;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -22,7 +25,6 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
-import org.elasticsearch.xpack.migrate.action.SwapDataStreamIndexAction;
 
 import java.util.List;
 import java.util.Map;
@@ -119,11 +121,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ExecuteWithHeadersClient reindexClient
     ) {
         reindexClient.execute(
-            SwapDataStreamIndexAction.INSTANCE,
-            new SwapDataStreamIndexAction.Request(dataStream, oldIndex, newIndex),
+            ModifyDataStreamsAction.INSTANCE,
+            new ModifyDataStreamsAction.Request(
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
+            ),
             new ActionListener<>() {
                 @Override
-                public void onResponse(SwapDataStreamIndexAction.Response response) {
+                public void onResponse(AcknowledgedResponse response) {
                     listener.onResponse(null);
                 }
 

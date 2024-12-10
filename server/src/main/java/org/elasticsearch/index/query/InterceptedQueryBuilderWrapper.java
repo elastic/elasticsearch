@@ -25,9 +25,10 @@ public class InterceptedQueryBuilderWrapper extends AbstractQueryBuilder<Interce
 
     protected final AbstractQueryBuilder<?> queryBuilder;
 
-    public InterceptedQueryBuilderWrapper(AbstractQueryBuilder<?> queryBuilder) {
+    public InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
-        this.queryBuilder = queryBuilder;
+        assert (queryBuilder instanceof AbstractQueryBuilder);
+        this.queryBuilder = (AbstractQueryBuilder<?>) queryBuilder;
     }
 
     @Override

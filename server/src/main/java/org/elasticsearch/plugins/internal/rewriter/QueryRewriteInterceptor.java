@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**

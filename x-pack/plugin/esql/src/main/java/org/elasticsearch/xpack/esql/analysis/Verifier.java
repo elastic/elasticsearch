@@ -382,6 +382,18 @@ public class Verifier {
                     );
                 }
             })));
+        agg.aggregates().forEach(a -> a.forEachDown(FilteredExpression.class, fe -> fe.filter().forEachDown(Attribute.class, attribute -> {
+            var categorize = categorizeByAttribute.get(attribute);
+            if (categorize != null) {
+                failures.add(
+                    fail(
+                        attribute,
+                        "cannot reference CATEGORIZE grouping function [{}] within an aggregation filter",
+                        attribute.sourceText()
+                    )
+                );
+            }
+        })));
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
@@ -421,7 +433,8 @@ public class Verifier {
                 Expression filter = fe.filter();
                 failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
             }
-            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
+            Expression f = fe.filter();
+            // check the filter has to be a boolean term, similar as checkFilterConditionType
             if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
                 failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
             }
@@ -432,9 +445,10 @@ public class Verifier {
                         fail(af, "cannot use aggregate function [{}] in aggregate WHERE clause [{}]", af.sourceText(), fe.sourceText())
                     );
                 }
-                // check the bucketing function against the group
+                // check the grouping function against the group
                 else if (c instanceof GroupingFunction gf) {
-                    if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                    if (c instanceof Categorize
+                        || Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
                         failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }

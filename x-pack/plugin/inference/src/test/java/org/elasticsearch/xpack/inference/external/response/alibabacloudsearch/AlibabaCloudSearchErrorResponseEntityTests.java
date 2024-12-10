@@ -26,7 +26,7 @@ public class AlibabaCloudSearchErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        AlibabaCloudSearchErrorResponseEntity errorMessage = AlibabaCloudSearchErrorResponseEntity.fromResponse(
+        var errorMessage = AlibabaCloudSearchErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorMessage);

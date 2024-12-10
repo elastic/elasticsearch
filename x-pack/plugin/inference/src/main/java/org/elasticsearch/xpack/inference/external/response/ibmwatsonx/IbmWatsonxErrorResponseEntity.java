@@ -12,25 +12,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import java.util.Map;
+import java.util.Objects;
 
-public class IbmWatsonxErrorResponseEntity implements ErrorMessage {
-
-    private final String errorMessage;
+public class IbmWatsonxErrorResponseEntity extends ErrorResponse {
 
     private IbmWatsonxErrorResponseEntity(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    @Override
-    public String getErrorMessage() {
-        return errorMessage;
+        super(errorMessage);
     }
 
     @SuppressWarnings("unchecked")
-    public static IbmWatsonxErrorResponseEntity fromResponse(HttpResult response) {
+    public static ErrorResponse fromResponse(HttpResult response) {
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
@@ -39,14 +33,12 @@ public class IbmWatsonxErrorResponseEntity implements ErrorMessage {
             var error = (Map<String, Object>) responseMap.get("error");
             if (error != null) {
                 var message = (String) error.get("message");
-                if (message != null) {
-                    return new IbmWatsonxErrorResponseEntity(message);
-                }
+                return new IbmWatsonxErrorResponseEntity(Objects.requireNonNullElse(message, ""));
             }
         } catch (Exception e) {
             // swallow the error
         }
 
-        return null;
+        return ErrorResponse.UNDEFINED_ERROR;
     }
 }

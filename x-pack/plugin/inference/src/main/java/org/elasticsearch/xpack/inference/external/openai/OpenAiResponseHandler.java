@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -47,7 +47,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     private final boolean canHandleStreamingResponses;
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
-        super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
+        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
         this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
 
@@ -56,6 +56,9 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
+        // When the response is streamed the status code could be 200 but the error object will be set
+        // so we need to check for that specifically
+        checkForErrorObject(request, result);
     }
 
     /**
@@ -104,12 +107,21 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         if (statusCode == 400) {
-            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+            var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
 
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }
 
         return false;
+    }
+
+    private void checkForErrorObject(Request request, HttpResult result) throws RetryException {
+        var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
+
+        if (errorEntity.errorStructureFound()) {
+            // we don't really know what happened because the status code was 200 so we'll just retry
+            throw new RetryException(true, buildError(SERVER_ERROR_OBJECT, request, result, errorEntity));
+        }
     }
 
     static String buildRateLimitErrorMessage(HttpResult result) {

@@ -72,7 +72,7 @@ Refer to <<es-connectors-framework>> for details.
 
 The following diagram provides a high-level overview of the Elastic connectors offering and some key facts.
 
-image::connectors-overview.png[align="center",width="100%"]
+image::connectors-overview.svg[align="center",width="100%"]
 
 [discrete#es-connectors-overview-available-connectors]
 == Available connectors and feature support

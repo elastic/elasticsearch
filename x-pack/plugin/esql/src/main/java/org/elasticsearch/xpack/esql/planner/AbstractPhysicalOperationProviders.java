@@ -297,9 +297,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     // coordinator/exchange phase
                     else if (mode == AggregatorMode.FINAL || mode == AggregatorMode.INTERMEDIATE) {
                         if (grouping) {
-                            sourceAttr = aggregateMapper.mapGrouping(aggregateFunction);
+                            sourceAttr = aggregateMapper.mapGrouping(ne);
                         } else {
-                            sourceAttr = aggregateMapper.mapNonGrouping(aggregateFunction);
+                            sourceAttr = aggregateMapper.mapNonGrouping(ne);
                         }
                     } else {
                         throw new EsqlIllegalArgumentException("illegal aggregation mode");

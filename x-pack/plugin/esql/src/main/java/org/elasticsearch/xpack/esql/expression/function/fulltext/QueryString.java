@@ -32,7 +32,8 @@ public class QueryString extends FullTextFunction {
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Performs a query string query. Returns true if the provided query string matches the row.",
+        description = "Performs a <<query-dsl-query-string-query,query string query>>. "
+            + "Returns true if the provided query string matches the row.",
         examples = { @Example(file = "qstr-function", tag = "qstr-with-field") }
     )
     public QueryString(

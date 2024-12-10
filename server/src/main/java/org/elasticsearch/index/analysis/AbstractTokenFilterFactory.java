@@ -9,15 +9,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.settings.Settings;
-
 public abstract class AbstractTokenFilterFactory implements TokenFilterFactory {
 
     private final String name;
 
-    public AbstractTokenFilterFactory(String name, Settings settings) {
+    public AbstractTokenFilterFactory(String name) {
         this.name = name;
-        Analysis.checkForDeprecatedVersion(name, settings);
     }
 
     @Override

@@ -22,7 +22,7 @@ public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Hun
     private final HungarianAnalyzer analyzer;
 
     HungarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new HungarianAnalyzer(
             Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

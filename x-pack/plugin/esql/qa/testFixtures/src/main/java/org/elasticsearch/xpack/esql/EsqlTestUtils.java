@@ -121,6 +121,7 @@ import static org.elasticsearch.test.ESTestCase.randomIp;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -728,7 +729,8 @@ public final class EsqlTestUtils {
             case BYTE -> randomByte();
             case SHORT -> randomShort();
             case INTEGER, COUNTER_INTEGER -> randomInt();
-            case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
+            case LONG, COUNTER_LONG -> randomLong();
+            case UNSIGNED_LONG -> randomNonNegativeLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
             case DATE_NANOS -> randomLongBetween(0, Long.MAX_VALUE);

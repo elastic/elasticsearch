@@ -899,12 +899,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     * Returns a transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire. N.B. If
+     * true, the failure store will be used regardless of whether the metadata indicates that the failure store is enabled.
      */
     public boolean isWriteToFailureStore() {
         return writeToFailureStore;
     }
 
+    /**
+     * Sets a transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire. N.B. If
+     * true, the failure store will be used regardless of whether the metadata indicates that the failure store is enabled. It is the
+     * caller's responsibility to ensure that this is correct.
+     */
     public IndexRequest setWriteToFailureStore(boolean writeToFailureStore) {
         this.writeToFailureStore = writeToFailureStore;
         return this;

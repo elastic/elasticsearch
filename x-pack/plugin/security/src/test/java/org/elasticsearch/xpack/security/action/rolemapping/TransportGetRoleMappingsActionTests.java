@@ -18,8 +18,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -64,8 +64,8 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        ClusterStateRoleMapper clusterStateRoleMapper = mock();
-        action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store, clusterStateRoleMapper);
+        ProjectStateRoleMapper projectStateRoleMapper = mock();
+        action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store, projectStateRoleMapper);
 
         nativeNamesRef = new AtomicReference<>(null);
         clusterStateNamesRef = new AtomicReference<>(null);
@@ -77,7 +77,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             assert args.length == 1;
             clusterStateNamesRef.set((Set<String>) args[0]);
             return clusterStateMappings;
-        }).when(clusterStateRoleMapper).getMappings(anySet());
+        }).when(projectStateRoleMapper).getMappings(anySet());
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();

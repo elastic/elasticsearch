@@ -1,0 +1,9 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation "com.nimbusds:nimbus-jose-jwt:9.37.3"
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}

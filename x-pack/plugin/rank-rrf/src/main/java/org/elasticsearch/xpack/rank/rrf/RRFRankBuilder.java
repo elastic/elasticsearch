@@ -215,6 +215,7 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getQueryVectorBuilder(),
                 knnSearchBuilder.k(),
                 knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getRescoreVectorBuilder(),
                 knnSearchBuilder.getSimilarity()
             );
             knnRetriever.retrieverName(knnSearchBuilder.queryName());

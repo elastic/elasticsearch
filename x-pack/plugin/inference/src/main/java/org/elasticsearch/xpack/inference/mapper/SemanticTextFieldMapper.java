@@ -560,7 +560,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             k = Math.max(k, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

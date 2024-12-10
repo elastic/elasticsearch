@@ -32,8 +32,8 @@ PUT _index_template/my-index-template
 ----
 // TEST
 
-<1> Index mode setting
-<2> Index template priority: By default, Elasticsearch ships with a `logs-*-*` index template with a priority of 100. To make sure your index template takes priority over the default `logs-*-*` template, set its `priority` to a number higher than 100. For more information, see <<avoid-index-pattern-collisions,Avoid index pattern collisions>>.
+<1> The index mode setting.
+<2> The index template priority. By default, Elasticsearch ships with a `logs-*-*` index template with a priority of 100. To make sure your index template takes priority over the default `logs-*-*` template, set its `priority` to a number higher than 100. For more information, see <<avoid-index-pattern-collisions,Avoid index pattern collisions>>.
 
 After the index template is created, new indices that use the template will be configured as a logs data stream. You can start indexing data and <<use-a-data-stream,using the data stream>>.
 

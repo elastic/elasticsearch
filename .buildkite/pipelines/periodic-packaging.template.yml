@@ -7,19 +7,14 @@ steps:
         matrix:
           setup:
             image:
-              - debian-11
               - debian-12
               - opensuse-leap-15
-              - oraclelinux-7
               - oraclelinux-8
-              - sles-12
               - sles-15
-              - ubuntu-1804
               - ubuntu-2004
               - ubuntu-2204
               - rocky-8
               - rocky-9
-              - rhel-7
               - rhel-8
               - rhel-9
               - almalinux-8

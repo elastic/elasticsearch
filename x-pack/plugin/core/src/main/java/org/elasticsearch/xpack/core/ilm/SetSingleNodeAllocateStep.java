@@ -120,7 +120,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
                 listener.onFailure(
-                    new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto" + " prior to shrink")
+                    new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto prior to shrink")
                 );
             }
         } else {

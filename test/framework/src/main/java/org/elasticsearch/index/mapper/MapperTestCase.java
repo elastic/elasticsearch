@@ -94,8 +94,6 @@ import static org.mockito.Mockito.when;
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
 
-    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersions.V_7_10_0;
-
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     /**

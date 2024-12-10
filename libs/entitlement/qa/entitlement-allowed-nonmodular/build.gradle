@@ -8,9 +8,6 @@
  */
 
 apply plugin: 'elasticsearch.base-internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
-// Necessary to use tests in Serverless
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   name 'entitlement-allowed-nonmodular'
@@ -20,7 +17,6 @@ esplugin {
 
 dependencies {
   implementation project(':libs:entitlement:qa:common')
-  clusterPlugins project(':libs:entitlement:qa:entitlement-allowed-nonmodular')
 }
 
 tasks.named("javadoc").configure {

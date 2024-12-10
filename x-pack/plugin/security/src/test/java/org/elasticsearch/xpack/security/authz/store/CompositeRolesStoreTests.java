@@ -190,7 +190,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
         TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
     );
 
     private Executor mockRoleBuildingExecutor;

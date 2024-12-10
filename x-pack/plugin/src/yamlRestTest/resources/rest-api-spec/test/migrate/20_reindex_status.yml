@@ -32,25 +32,39 @@ setup:
         name: my-data-stream
   - is_true: acknowledged
 
-# Uncomment once the cancel API is in place
-#  - do:
-#      migrate.reindex:
-#        body: |
-#          {
-#            "mode": "upgrade",
-#            "source": {
-#              "index": "my-data-stream"
-#            }
-#          }
-#  - match: { acknowledged: true }
-#
-#  - do:
-#      migrate.get_reindex_status:
-#        index: "my-data-stream"
-#  - match: { complete: true }
-#  - match: { total_indices: 1 }
-#  - match: { total_indices_requiring_upgrade: 0 }
-#  - match: { successes: 0 }
-#  - match: { in_progress: 0 }
-#  - match: { pending: 0 }
-#  - match: { errors: [] }
+  - do:
+      migrate.reindex:
+        body: |
+          {
+            "mode": "upgrade",
+            "source": {
+              "index": "my-data-stream"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      migrate.get_reindex_status:
+        index: "my-data-stream"
+  - match: { complete: true }
+  - match: { total_indices: 1 }
+  - match: { total_indices_requiring_upgrade: 0 }
+  - match: { successes: 0 }
+  - match: { in_progress: 0 }
+  - match: { pending: 0 }
+  - match: { errors: [] }
+
+  - do:
+      migrate.cancel_reindex:
+        index: "my-data-stream"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /resource_not_found_exception/
+      migrate.cancel_reindex:
+        index: "my-data-stream"
+
+  - do:
+      catch: /resource_not_found_exception/
+      migrate.get_reindex_status:
+        index: "my-data-stream"

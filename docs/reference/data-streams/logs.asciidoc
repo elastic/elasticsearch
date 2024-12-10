@@ -185,7 +185,7 @@ reconstructing the original value.
 
 [discrete]
 [[logsdb-settings-summary]]
-=== LogsDB settings summary
+=== Full settings reference
 
 The `logsdb` index mode uses the following settings: 
 

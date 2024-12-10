@@ -283,6 +283,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsIndexModeLookup() throws IOException {
-        return hasCapabilities(List.of("join_lookup_v4"));
+        // return hasCapabilities(List.of("join_lookup_v4"));
+        return false;
     }
 }

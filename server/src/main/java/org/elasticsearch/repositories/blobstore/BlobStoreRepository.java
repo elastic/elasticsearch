@@ -3485,7 +3485,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // the ensureNotAborted() call above did not throw. The remaining options don't make sense, if they ever happen.
                 logger.error(
                     () -> Strings.format(
-                        "Shard snapshot found an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
+                        "Shard snapshot found an unexpected state. ShardId [%s], SnapshotID [%s], Stage [%s]",
                         shardId,
                         snapshotId,
                         shardSnapshotStage

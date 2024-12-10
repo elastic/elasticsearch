@@ -1396,7 +1396,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         Collection<DataType> fieldDataTypes,
         String queryFormat
     ) {
-        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
             var queryValue = randomQueryValue(fieldDataType);

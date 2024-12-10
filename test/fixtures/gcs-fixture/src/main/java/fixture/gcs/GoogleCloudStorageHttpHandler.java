@@ -13,12 +13,8 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
@@ -42,11 +38,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
+import static fixture.gcs.MockGcsBlobStore.failAndThrow;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.core.Strings.format;
@@ -216,9 +212,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 final String blobName = params.get("name");
-                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final String uploadId = UUIDs.randomBase64UUID();
-                mockGcsBlobStore.updateBlob(blobName, ifGenerationMatch, BytesArray.EMPTY, uploadId);
+                final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(blobName);
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -231,10 +225,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             + "/o?"
                             + "uploadType=resumable"
                             + "&upload_id="
-                            + uploadId
-                            + "&test_blob_name="
-                            + blobName
-                    ); // not a Google Storage parameter, but it allows to pass the blob name
+                            + resumableUpload.uploadId()
+                    );
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
@@ -243,30 +235,23 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
-                final String blobName = params.get("test_blob_name");
-                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(blobName, ifGenerationMatch);
-                final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-                final Integer limit = getContentRangeLimit(range);
+                final String range = requireHeader(exchange, "Content-Range");
+                final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(range);
+                if (contentRange == null) {
+                    throw failAndThrow("Invalid Content-Range: " + range);
+                }
 
-                MockGcsBlobStore.BlobVersion updatedBlob = mockGcsBlobStore.updateResumableBlob(
-                    blobName,
+                final HttpHeaderParser.Range appliedRange = mockGcsBlobStore.updateResumableUpload(
                     params.get("upload_id"),
-                    CompositeBytesReference.of(blob.contents(), requestBody)
+                    contentRange,
+                    requestBody
                 );
 
-                if (limit == null) {
-                    if ("bytes */*".equals(range) == false) {
-                        final int start = getContentRangeStart(range);
-                        final int end = getContentRangeEnd(range);
-                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d-%d", start, end));
-                    }
+                if (appliedRange.end() != contentRange.end()) {
+                    exchange.getResponseHeaders().add("Range", range);
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                 } else {
-                    if (limit > updatedBlob.contents().length()) {
-                        throw new AssertionError("Requesting more bytes than available for blob");
-                    }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
             } else {
@@ -384,35 +369,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         return true;
     }
 
-    private static final Pattern PATTERN_CONTENT_RANGE = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)");
-    private static final Pattern PATTERN_CONTENT_RANGE_BYTES = Pattern.compile("([0-9]*)-([0-9]*)");
-
-    private static Integer parse(final Pattern pattern, final String contentRange, final BiFunction<String, String, Integer> fn) {
-        final Matcher matcher = pattern.matcher(contentRange);
-        if (matcher.matches() == false || matcher.groupCount() != 2) {
-            throw new IllegalArgumentException("Unable to parse content range header");
+    private static String requireHeader(HttpExchange exchange, String headerName) {
+        final String headerValue = exchange.getRequestHeaders().getFirst(headerName);
+        if (headerValue != null) {
+            return headerValue;
         }
-        return fn.apply(matcher.group(1), matcher.group(2));
-    }
-
-    public static Integer getContentRangeLimit(final String contentRange) {
-        return parse(PATTERN_CONTENT_RANGE, contentRange, (bytes, limit) -> "*".equals(limit) ? null : Integer.parseInt(limit));
-    }
-
-    public static int getContentRangeStart(final String contentRange) {
-        return parse(
-            PATTERN_CONTENT_RANGE,
-            contentRange,
-            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes, (start, end) -> Integer.parseInt(start))
-        );
-    }
-
-    public static int getContentRangeEnd(final String contentRange) {
-        return parse(
-            PATTERN_CONTENT_RANGE,
-            contentRange,
-            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes, (start, end) -> Integer.parseInt(end))
-        );
+        throw failAndThrow("Missing required header: " + headerName);
     }
 
     private static Long parseOptionalLongParameter(HttpExchange exchange, String parameterName) {
@@ -422,7 +384,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             try {
                 return Long.parseLong(params.get(parameterName));
             } catch (NumberFormatException e) {
-                ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Invalid long parameter: " + parameterName));
+                throw failAndThrow("Invalid long parameter: " + parameterName);
             }
         }
         return null;

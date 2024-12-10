@@ -10,19 +10,25 @@
 package fixture.gcs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class MockGcsBlobStore {
 
     private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
 
-    record BlobVersion(String path, long generation, BytesReference contents, String uploadId) {}
+    record BlobVersion(String path, long generation, BytesReference contents) {}
+
+    record ResumableUpload(String uploadId, String path, BytesReference contents) {}
 
     BlobVersion getBlob(String path, Long ifGenerationMatch) {
         final BlobVersion blob = blobs.get(path);
@@ -42,10 +48,6 @@ public class MockGcsBlobStore {
     }
 
     BlobVersion updateBlob(String path, Long ifGenerationMatch, BytesReference contents) {
-        return updateBlob(path, ifGenerationMatch, contents, null);
-    }
-
-    BlobVersion updateBlob(String path, Long ifGenerationMatch, BytesReference contents, String uploadId) {
         return blobs.compute(path, (name, existing) -> {
             if (existing != null) {
                 if (ifGenerationMatch != null) {
@@ -61,7 +63,7 @@ public class MockGcsBlobStore {
                         );
                     }
                 }
-                return new BlobVersion(path, existing.generation + 1, contents, uploadId);
+                return new BlobVersion(path, existing.generation + 1, contents);
             } else {
                 if (ifGenerationMatch != null && ifGenerationMatch != 0) {
                     throw new GcsRestException(
@@ -69,22 +71,59 @@ public class MockGcsBlobStore {
                         "Blob does not exist, expected generation " + ifGenerationMatch
                     );
                 }
-                return new BlobVersion(path, 1, contents, uploadId);
+                return new BlobVersion(path, 1, contents);
             }
         });
     }
 
-    BlobVersion updateResumableBlob(String path, String uploadId, BytesReference newContents) {
-        final BlobVersion blob = blobs.get(path);
-        if (blob == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Tried to update a non-existent resumable: " + path));
-        }
-        if (Objects.equals(blob.uploadId, uploadId) == false) {
-            ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Got a mismatched upload ID for resumable upload: " + path));
-        }
-        final BlobVersion updatedBlob = new BlobVersion(path, blob.generation, newContents, blob.uploadId);
-        blobs.put(path, updatedBlob);
-        return updatedBlob;
+    ResumableUpload createResumableUpload(String path) {
+        final String uploadId = UUIDs.randomBase64UUID();
+        final ResumableUpload value = new ResumableUpload(uploadId, path, BytesArray.EMPTY);
+        resumableUploads.put(uploadId, value);
+        return value;
+    }
+
+    /**
+     * Update a resumable blob
+     *
+     * @see <a href="https://cloud.google.com/storage/docs/resumable-uploads">GCS Resumable Uploads</a>
+     * @param uploadId The upload ID
+     * @param contentRange The range being submitted
+     * @param requestBody The data for that range
+     * @return The range that is now persisted
+     */
+    HttpHeaderParser.Range updateResumableUpload(String uploadId, HttpHeaderParser.ContentRange contentRange, BytesReference requestBody) {
+        resumableUploads.compute(uploadId, (uid, existing) -> {
+            if (existing == null) {
+                throw failAndThrow("Attempted to update a non-existent resumable: " + uid);
+            }
+            if (contentRange.start() >= contentRange.end()) {
+                throw failAndThrow("Invalid content range " + contentRange);
+            }
+            if (contentRange.start() > existing.contents.length()) {
+                throw failAndThrow(
+                    "Attempted to append after the end of the current content: size="
+                        + existing.contents.length()
+                        + ", start="
+                        + contentRange.start()
+                );
+            }
+            if (contentRange.end() <= existing.contents.length()) {
+                throw failAndThrow("Attempted to upload no new data");
+            }
+            final int offset = Math.toIntExact(existing.contents.length() - contentRange.start());
+            final BytesReference updatedContent = CompositeBytesReference.of(
+                existing.contents,
+                requestBody.slice(offset, requestBody.length())
+            );
+            // We just received the last chunk, update the blob and remove the resumable upload from the map
+            if (updatedContent.length() == contentRange.size()) {
+                updateBlob(existing.path(), null, updatedContent);
+                return null;
+            }
+            return new ResumableUpload(existing.uploadId, existing.path, updatedContent);
+        });
+        return new HttpHeaderParser.Range(0, contentRange.end());
     }
 
     void deleteBlob(String path) {
@@ -114,5 +153,16 @@ public class MockGcsBlobStore {
         public RestStatus getStatus() {
             return status;
         }
+    }
+
+    /**
+     * Fail the test with an assertion error and throw an exception in-line
+     *
+     * @param message The message to use on the {@link Throwable}s
+     * @return nothing, but claim to return an exception to help with static analysis
+     */
+    public static RuntimeException failAndThrow(String message) {
+        ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message));
+        throw new IllegalStateException(message);
     }
 }

@@ -64,7 +64,7 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
     private void checkMissing(P plan, AttributeSet references, AttributeSet input, String detailErrorMessage, Failures failures) {
         AttributeSet missing = references.subtract(input);
         if (missing.isEmpty() == false) {
-            failures.add(fail(plan, "Plan [{}] optimized incorrectly due to {} [{}]", plan.nodeString(), detailErrorMessage, missing));
+            failures.add(fail(plan, "Plan [{}] optimized incorrectly due to {} {}", plan.nodeString(), detailErrorMessage, missing));
         }
     }
 }

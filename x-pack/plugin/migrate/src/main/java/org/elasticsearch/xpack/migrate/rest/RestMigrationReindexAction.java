@@ -25,8 +25,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.DataStream.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 
 public class RestMigrationReindexAction extends BaseRestHandler {
     public static final String MIGRATION_REINDEX_CAPABILITY = "migration_reindex";

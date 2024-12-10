@@ -61,7 +61,6 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
     private final BedrockRuntimeAsyncClient internalClient;
     private final ThreadPool threadPool;
-    private volatile Instant expiryTimestamp;
 
     public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
         try {

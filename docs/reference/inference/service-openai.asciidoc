@@ -80,7 +80,8 @@ include::inference-shared.asciidoc[tag=api-key-admonition]
 (Optional, integer)
 The number of dimensions the resulting output embeddings should have.
 Only supported in `text-embedding-3` and later models.
-If not set the OpenAI defined default for the model is used
+If not set the OpenAI defined default for the model is used.
+
 `model_id`:::
 (Required, string)
 The name of the model to use for the {infer} task.
@@ -139,7 +140,8 @@ Specifies the user issuing the request, which can be used for abuse detection.
 [[inference-example-openai]]
 ==== OpenAI service example
 
-The following example shows how to create an {infer} endpoint called `openai-embeddings` to perform a `text_embedding` task type. The embeddings created by requests to this endpoint will have 128 dimensions.
+The following example shows how to create an {infer} endpoint called `openai-embeddings` to perform a `text_embedding` task type.
+The embeddings created by requests to this endpoint will have 128 dimensions.
 
 [source,console]
 ------------------------------------------------------------

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.features;
 
+import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -38,9 +41,7 @@ public class FeatureService {
      * as the local node's supported feature set
      */
     public FeatureService(List<? extends FeatureSpecification> specs) {
-
-        var featureData = FeatureData.createFromSpecifications(specs);
-        nodeFeatures = featureData.getNodeFeatures();
+        this.nodeFeatures = FeatureData.createFromSpecifications(specs).getNodeFeatures();
 
         logger.info("Registered local node features {}", nodeFeatures.keySet().stream().sorted().toList());
     }
@@ -54,10 +55,24 @@ public class FeatureService {
     }
 
     /**
+     * Returns {@code true} if {@code node} can have assumed features.
+     */
+    public boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+        return ClusterFeatures.featuresCanBeAssumedForNode(node);
+    }
+
+    /**
+    * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
+    */
+    public boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+        return ClusterFeatures.featuresCanBeAssumedForNodes(nodes);
+    }
+
+    /**
      * Returns {@code true} if all nodes in {@code state} support feature {@code feature}.
      */
     @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-        return state.clusterFeatures().clusterHasFeature(feature);
+        return state.clusterFeatures().clusterHasFeature(state.nodes(), feature);
     }
 }

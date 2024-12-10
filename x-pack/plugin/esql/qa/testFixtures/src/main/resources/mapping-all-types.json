@@ -17,6 +17,9 @@
         "date": {
             "type": "date"
         },
+        "date_nanos": {
+            "type": "date_nanos"
+        },
         "double": {
             "type": "double"
         },

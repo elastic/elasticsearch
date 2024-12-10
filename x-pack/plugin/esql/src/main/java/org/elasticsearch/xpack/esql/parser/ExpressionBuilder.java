@@ -627,13 +627,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
-        Source source = source(ctx);
-        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        return castToType(source(ctx), ctx.primaryExpression(), ctx.dataType());
+    }
+
+    private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
+        DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);
         var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
         if (converterToFactory == null) {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
-        Expression expr = expression(ctx.primaryExpression());
+        Expression expr = expression(parseTree);
         return converterToFactory.apply(source, expr);
     }
 
@@ -919,6 +922,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
+
+        final Expression matchFieldExpression;
+        if (ctx.fieldType != null) {
+            matchFieldExpression = castToType(source(ctx), ctx.fieldExp, ctx.fieldType);
+        } else {
+            matchFieldExpression = expression(ctx.fieldExp);
+        }
+
+        return new Match(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
     }
 }

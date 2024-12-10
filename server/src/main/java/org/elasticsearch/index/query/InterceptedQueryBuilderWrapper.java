@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Wrapper for instances of {@link AbstractQueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
+ * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  */
 public class InterceptedQueryBuilderWrapper implements QueryBuilder {
@@ -28,7 +28,11 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     public InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
-        this.queryBuilder = queryBuilder;
+        if (queryBuilder instanceof InterceptedQueryBuilderWrapper) {
+            this.queryBuilder = ((InterceptedQueryBuilderWrapper) queryBuilder).queryBuilder;
+        } else {
+            this.queryBuilder = queryBuilder;
+        }
     }
 
     @Override

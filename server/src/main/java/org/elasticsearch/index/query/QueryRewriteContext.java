@@ -161,37 +161,6 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} instance that is stripped of any
-     * configured interceptors, guaranteeing that downstream rewrites don't try to
-     * re-intercept the query.
-     */
-    public QueryRewriteContext getInterceptedQueryRewriteContext() {
-
-        if (queryRewriteInterceptor == null) {
-            return this;
-        }
-
-        return new QueryRewriteContext(
-            parserConfiguration,
-            client,
-            nowInMillis,
-            mapperService,
-            mappingLookup,
-            runtimeMappings,
-            indexSettings,
-            fullyQualifiedIndex,
-            indexNameMatcher,
-            writeableRegistry,
-            valuesSourceRegistry,
-            allowExpensiveQueries,
-            scriptService,
-            resolvedIndices,
-            pit,
-            null
-        );
-    }
-
-    /**
      * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
      *
      * Used by WrapperQueryBuilder

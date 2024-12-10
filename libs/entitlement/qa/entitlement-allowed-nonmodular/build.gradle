@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.base-internal-es-plugin'
 esplugin {
   name 'entitlement-allowed-nonmodular'
   description 'A non-modular test module that invokes entitlement checks that are supposed to be granted'
-  classname 'org.elasticsearch.test.entitlements.nonmodular.EntitlementAllowedNonModularPlugin'
+  classname 'org.elasticsearch.entitlement.qa.nonmodular.EntitlementAllowedNonModularPlugin'
 }
 
 dependencies {

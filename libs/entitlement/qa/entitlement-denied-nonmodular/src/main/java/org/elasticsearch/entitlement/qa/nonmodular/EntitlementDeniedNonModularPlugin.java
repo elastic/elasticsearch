@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.test.entitlements;
+package org.elasticsearch.entitlement.qa.nonmodular;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EntitlementDeniedPlugin extends Plugin implements ActionPlugin {
+public class EntitlementDeniedNonModularPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -40,6 +40,6 @@ public class EntitlementDeniedPlugin extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckAction("denied"));
+        return List.of(new RestEntitlementsCheckAction("denied_nonmodular"));
     }
 }

@@ -24,7 +24,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
         this.minGram = settings.getAsInt("min_gram", 1);
         this.maxGram = settings.getAsInt("max_gram", 2);

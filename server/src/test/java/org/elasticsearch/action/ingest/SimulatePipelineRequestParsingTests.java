@@ -38,7 +38,6 @@ import static org.elasticsearch.ingest.IngestDocument.Metadata.IF_PRIMARY_TERM;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.IF_SEQ_NO;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.INDEX;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.ROUTING;
-import static org.elasticsearch.ingest.IngestDocument.Metadata.TYPE;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -268,100 +267,5 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService, RestApiVersion.current())
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
-    }
-
-    public void testIngestPipelineWithDocumentsWithType() throws Exception {
-        int numDocs = randomIntBetween(1, 10);
-
-        Map<String, Object> requestContent = new HashMap<>();
-        List<Map<String, Object>> docs = new ArrayList<>();
-        List<Map<String, Object>> expectedDocs = new ArrayList<>();
-        requestContent.put(Fields.DOCS, docs);
-        for (int i = 0; i < numDocs; i++) {
-            Map<String, Object> doc = new HashMap<>();
-            Map<String, Object> expectedDoc = new HashMap<>();
-            List<Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE);
-            for (Metadata field : fields) {
-                if (field == VERSION) {
-                    Long value = randomLong();
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
-                } else if (field == VERSION_TYPE) {
-                    String value = VersionType.toString(randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE));
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
-                } else if (field == TYPE) {
-                    String value = randomAlphaOfLengthBetween(1, 10);
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
-                } else {
-                    if (randomBoolean()) {
-                        String value = randomAlphaOfLengthBetween(1, 10);
-                        doc.put(field.getFieldName(), value);
-                        expectedDoc.put(field.getFieldName(), value);
-                    } else {
-                        Integer value = randomIntBetween(1, 1000000);
-                        doc.put(field.getFieldName(), value);
-                        expectedDoc.put(field.getFieldName(), String.valueOf(value));
-                    }
-                }
-            }
-            String fieldName = randomAlphaOfLengthBetween(1, 10);
-            String fieldValue = randomAlphaOfLengthBetween(1, 10);
-            doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
-            docs.add(doc);
-            expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
-            expectedDocs.add(expectedDoc);
-        }
-        Map<String, Object> pipelineConfig = new HashMap<>();
-        List<Map<String, Object>> processors = new ArrayList<>();
-        int numProcessors = randomIntBetween(1, 10);
-        for (int i = 0; i < numProcessors; i++) {
-            Map<String, Object> processorConfig = new HashMap<>();
-            List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
-            int numOnFailureProcessors = randomIntBetween(0, 1);
-            for (int j = 0; j < numOnFailureProcessors; j++) {
-                onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
-            }
-            if (numOnFailureProcessors > 0) {
-                processorConfig.put("on_failure", onFailureProcessors);
-            }
-            processors.add(Collections.singletonMap("mock_processor", processorConfig));
-        }
-        pipelineConfig.put("processors", processors);
-        List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
-        int numOnFailureProcessors = randomIntBetween(0, 1);
-        for (int i = 0; i < numOnFailureProcessors; i++) {
-            onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
-        }
-        if (numOnFailureProcessors > 0) {
-            pipelineConfig.put("on_failure", onFailureProcessors);
-        }
-        requestContent.put(Fields.PIPELINE, pipelineConfig);
-        SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parse(
-            requestContent,
-            false,
-            ingestService,
-            RestApiVersion.V_7
-        );
-        assertThat(actualRequest.verbose(), equalTo(false));
-        assertThat(actualRequest.documents().size(), equalTo(numDocs));
-        Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
-        for (IngestDocument ingestDocument : actualRequest.documents()) {
-            Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
-            assertThat(metadata.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadata.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
-            assertThat(metadata.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
-            assertThat(metadata.get(VERSION.getFieldName()), equalTo(expectedDocument.get(VERSION.getFieldName())));
-            assertThat(metadata.get(VERSION_TYPE.getFieldName()), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
-            assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
-        }
-        assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
-        assertThat(actualRequest.pipeline().getDescription(), nullValue());
-        assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(numProcessors));
-
-        assertCriticalWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
-
     }
 }

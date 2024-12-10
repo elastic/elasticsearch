@@ -280,4 +280,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsInferenceTestService() {
         return false;
     }
+
+    @Override
+    protected boolean supportsIndexModeLookup() {
+        return false;
+    }
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -19,11 +19,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.IntFunction;
 
-public class MultiDenseVectorTests extends ESTestCase {
+public class RankVectorsTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+        assumeTrue("Requires rank-vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
     }
 
     public void testByteUnsupported() {
@@ -38,7 +38,7 @@ public class MultiDenseVectorTests extends ESTestCase {
             }
         }
 
-        MultiDenseVector knn = newByteVector(docVector);
+        RankVectors knn = newByteVector(docVector);
         UnsupportedOperationException e;
 
         e = expectThrows(UnsupportedOperationException.class, () -> knn.maxSimDotProduct(queryVector));
@@ -57,20 +57,20 @@ public class MultiDenseVectorTests extends ESTestCase {
             }
         }
 
-        MultiDenseVector knn = newFloatVector(docVector);
+        RankVectors knn = newFloatVector(docVector);
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> knn.maxSimDotProduct(queryVector));
         assertEquals(e.getMessage(), "use [float maxSimDotProduct(float[][] queryVector)] instead");
     }
 
-    static MultiDenseVector newFloatVector(float[][] vector) {
+    static RankVectors newFloatVector(float[][] vector) {
         BytesRef magnitudes = magnitudes(vector.length, i -> (float) Math.sqrt(VectorUtil.dotProduct(vector[i], vector[i])));
-        return new FloatMultiDenseVector(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length);
+        return new FloatRankVectors(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length);
     }
 
-    static MultiDenseVector newByteVector(byte[][] vector) {
+    static RankVectors newByteVector(byte[][] vector) {
         BytesRef magnitudes = magnitudes(vector.length, i -> (float) Math.sqrt(VectorUtil.dotProduct(vector[i], vector[i])));
-        return new ByteMultiDenseVector(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length);
+        return new ByteRankVectors(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length);
     }
 
     static BytesRef magnitudes(int count, IntFunction<Float> magnitude) {

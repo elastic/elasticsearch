@@ -22,7 +22,7 @@ public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Russi
     private final RussianAnalyzer analyzer;
 
     RussianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new RussianAnalyzer(
             Analysis.parseStopWords(env, settings, RussianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

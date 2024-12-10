@@ -370,6 +370,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
+                task.getProgressListener().notifySearchStart(SearchResponse.Clusters.EMPTY);
                 executeLocalSearch(
                     task,
                     timeProvider,
@@ -419,6 +420,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         true,
                         remoteClusterService::isSkipUnavailable
                     );
+                    task.getProgressListener().notifySearchStart(clusters);
                     if (resolvedIndices.getLocalIndices() == null) {
                         // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
                         task.getProgressListener()
@@ -453,6 +455,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         false,
                         remoteClusterService::isSkipUnavailable
                     );
+
+                    task.getProgressListener().notifySearchStart(clusters);
 
                     // TODO: pass parentTaskId
                     collectSearchShards(

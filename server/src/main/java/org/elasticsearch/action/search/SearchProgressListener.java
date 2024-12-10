@@ -35,6 +35,12 @@ public abstract class SearchProgressListener {
     private List<SearchShard> shards;
 
     /**
+     * Executed before the search begins
+     * @param clusters The statistics for the clusters included in the search.
+     */
+    protected void onSearchStart(Clusters clusters) {}
+
+    /**
      * Executed when shards are ready to be queried.
      *
      * @param shards The list of shards to query.
@@ -129,6 +135,10 @@ public abstract class SearchProgressListener {
      * @param searchResponse SearchResponse from cluster 'clusterAlias'
      */
     protected void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {}
+
+    final void notifySearchStart(Clusters clusters) {
+        onSearchStart(clusters);
+    }
 
     final void notifyListShards(
         List<SearchShard> shards,

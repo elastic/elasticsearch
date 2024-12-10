@@ -75,13 +75,13 @@ public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
 
     @Override
     public Request truncate() {
-        // No truncation for OpenAI chat completions
+        // No truncation
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // No truncation for OpenAI chat completions
+        // No truncation
         return null;
     }
 

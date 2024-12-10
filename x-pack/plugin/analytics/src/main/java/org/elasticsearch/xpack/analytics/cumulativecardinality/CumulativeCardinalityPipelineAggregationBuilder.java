@@ -133,6 +133,6 @@ public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPip
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 }

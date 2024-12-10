@@ -93,7 +93,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 
     public record Entry(String repository, long repositoryStateId) implements Writeable, RepositoryOperation {

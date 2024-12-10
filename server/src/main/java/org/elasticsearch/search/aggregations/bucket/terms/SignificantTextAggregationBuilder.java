@@ -377,6 +377,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_3_0;
+        return TransportVersions.ZERO;
     }
 }

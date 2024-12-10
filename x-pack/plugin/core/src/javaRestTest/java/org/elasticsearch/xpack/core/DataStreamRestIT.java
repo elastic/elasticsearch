@@ -109,7 +109,19 @@ public class DataStreamRestIT extends ESRestTestCase {
     private void putFailureStoreTemplate() {
         try {
             Request request = new Request("PUT", "/_index_template/fs-template");
-            request.setJsonEntity("{\"index_patterns\": [\"fs*\"], \"data_stream\": {\"failure_store\": true}}");
+            request.setJsonEntity("""
+                  {
+                  "index_patterns": ["fs*"],
+                  "data_stream": {},
+                  "template": {
+                    "data_stream_options": {
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
+                  }
+                }
+                """);
             assertAcknowledged(client().performRequest(request));
         } catch (Exception e) {
             fail("failed to insert index template with failure store enabled - got: " + e);

@@ -418,7 +418,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertFalse(actualResult.isComplete());
-        assertNull(actualResult.getInfomationContext());
+        assertNull(actualResult.getInformationContext());
     }
 
     public void testStepCompletableIfAllShardsActive() {
@@ -576,7 +576,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
             assertFalse(actualResult.isComplete());
             assertThat(
-                Strings.toString(actualResult.getInfomationContext()),
+                Strings.toString(actualResult.getInformationContext()),
                 containsString("node with id [node1] is currently marked as shutting down")
             );
             assertFalse(step.isCompletable());
@@ -626,7 +626,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .build();
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+        assertEquals(expectedResult.getInformationContext(), actualResult.getInformationContext());
     }
 
     public static UnassignedInfo randomUnassignedInfo(String message) {

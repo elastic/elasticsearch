@@ -10,13 +10,16 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 
 import java.io.IOException;
@@ -27,6 +30,10 @@ import java.util.List;
  */
 public class Kql extends FullTextFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::new);
+
+    public Kql(Source source, Expression queryString, QueryBuilder queryBuilder) {
+        super(source, queryString, List.of(queryString), queryBuilder);
+    }
 
     @FunctionInfo(
         returnType = "boolean",
@@ -42,7 +49,7 @@ public class Kql extends FullTextFunction {
             description = "Query string in KQL query string format."
         ) Expression queryString
     ) {
-        super(source, queryString, List.of(queryString));
+        super(source, queryString, List.of(queryString), null);
     }
 
     private Kql(StreamInput in) throws IOException {
@@ -70,4 +77,14 @@ public class Kql extends FullTextFunction {
         return NodeInfo.create(this, Kql::new, query());
     }
 
+    @SuppressWarnings("rawtypes")
+    @Override
+    protected ExpressionTranslator translator() {
+        return new EsqlExpressionTranslators.KqlFunctionTranslator();
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Kql(source(), query(), queryBuilder);
+    }
 }

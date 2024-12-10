@@ -8,10 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -26,13 +32,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function {
+public abstract class FullTextFunction extends Function implements TranslationAware {
 
     private final Expression query;
+    private final QueryBuilder queryBuilder;
 
-    protected FullTextFunction(Source source, Expression query, List<Expression> children) {
+    protected FullTextFunction(Source source, Expression query, List<Expression> children, QueryBuilder queryBuilder) {
         super(source, children);
         this.query = query;
+        this.queryBuilder = queryBuilder;
     }
 
     @Override
@@ -116,4 +124,23 @@ public abstract class FullTextFunction extends Function {
     public String functionType() {
         return "function";
     }
+
+    @SuppressWarnings("rawtypes")
+    public Query asQuery(TranslatorHandler translatorHandler) {
+        if (queryBuilder != null) {
+            return new TranslationAwareExpressionQuery(source(), queryBuilder);
+        }
+
+        ExpressionTranslator translator = translator();
+        return translator.translate(this, translatorHandler);
+    }
+
+    public QueryBuilder queryBuilder() {
+        return queryBuilder;
+    }
+
+    @SuppressWarnings("rawtypes")
+    protected abstract ExpressionTranslator translator();
+
+    public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 }

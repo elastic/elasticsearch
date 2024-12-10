@@ -11,12 +11,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -89,6 +92,11 @@ public class Match extends FullTextFunction implements Validatable {
         VERSION
     );
 
+    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
+        this.field = field;
+    }
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -109,8 +117,7 @@ public class Match extends FullTextFunction implements Validatable {
             description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, List.of(field, matchQuery));
-        this.field = field;
+        this(source, field, matchQuery, null);
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
@@ -243,6 +250,17 @@ public class Match extends FullTextFunction implements Validatable {
     @Override
     public String functionType() {
         return isOperator() ? "operator" : super.functionType();
+    }
+
+    @SuppressWarnings("rawtypes")
+    @Override
+    protected ExpressionTranslator translator() {
+        return new EsqlExpressionTranslators.MatchFunctionTranslator();
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Match(source(), field, query(), queryBuilder);
     }
 
     @Override

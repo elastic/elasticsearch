@@ -21,29 +21,28 @@ import java.util.Objects;
 /**
  * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
- * TODO can this be moved to package protected?
  */
-public class InterceptedQueryBuilderWrapper implements QueryBuilder {
+class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     protected final QueryBuilder queryBuilder;
 
-    public InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
+    InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
-        if (queryBuilder instanceof InterceptedQueryBuilderWrapper) {
-            this.queryBuilder = ((InterceptedQueryBuilderWrapper) queryBuilder).queryBuilder;
-        } else {
-            this.queryBuilder = queryBuilder;
-        }
+        this.queryBuilder = queryBuilder;
     }
 
     @Override
     public QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryRewriteContext interceptorRemovedContext = queryRewriteContext.getInterceptorRemovedContext();
-        QueryBuilder rewritten = queryBuilder.rewrite(interceptorRemovedContext);
-        if (rewritten != queryBuilder) {
-            return new InterceptedQueryBuilderWrapper(rewritten);
+        QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
+        try {
+            QueryBuilder rewritten = queryBuilder.rewrite(queryRewriteContext);
+            if (rewritten != queryBuilder) {
+                return new InterceptedQueryBuilderWrapper(rewritten);
+            }
+            return this;
+        } finally {
+            queryRewriteContext.setQueryRewriteInterceptor(queryRewriteInterceptor);
         }
-        return this;
     }
 
     @Override

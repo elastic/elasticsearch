@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,24 +37,46 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.operator.OperatorTestCase.runDriver;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CategorizeBlockHashTests extends BlockHashTestCase {
 
+    private AnalysisRegistry analysisRegistry;
+
+    @Before
+    private void initAnalysisRegistry() throws IOException {
+        analysisRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(
+                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+            ),
+            List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+    }
+
     public void testCategorizeRaw() {
         final Page page;
-        final int positions = 7;
+        boolean withNull = randomBoolean();
+        final int positions = 7 + (withNull ? 1 : 0);
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
             builder.appendBytesRef(new BytesRef("Connection error"));
@@ -61,46 +85,130 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             builder.appendBytesRef(new BytesRef("Disconnected"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
+            if (withNull) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(""));
+                }
+            }
             page = new Page(builder.build());
         }
 
-        try (BlockHash hash = new CategorizeRawBlockHash(0, blockFactory, true)) {
-            hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    assertEquals(groupIds.getPositionCount(), positions);
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+            for (int i = randomInt(2); i < 3; i++) {
+                hash.add(page, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        assertEquals(groupIds.getPositionCount(), positions);
 
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(1, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
-                    assertEquals(0, groupIds.getInt(5));
-                    assertEquals(0, groupIds.getInt(6));
-                }
+                        assertEquals(1, groupIds.getInt(0));
+                        assertEquals(2, groupIds.getInt(1));
+                        assertEquals(2, groupIds.getInt(2));
+                        assertEquals(2, groupIds.getInt(3));
+                        assertEquals(3, groupIds.getInt(4));
+                        assertEquals(1, groupIds.getInt(5));
+                        assertEquals(1, groupIds.getInt(6));
+                        if (withNull) {
+                            assertEquals(0, groupIds.getInt(7));
+                        }
+                    }
 
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
-                }
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        add(positionOffset, groupIds.asBlock());
+                    }
 
-                @Override
-                public void close() {
-                    fail("hashes should not close AddInput");
-                }
-            });
+                    @Override
+                    public void close() {
+                        fail("hashes should not close AddInput");
+                    }
+                });
+
+                assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+            }
         } finally {
             page.releaseBlocks();
         }
 
-        // TODO: randomize and try multiple pages.
-        // TODO: assert the state of the BlockHash after adding pages. Including the categorizer state.
-        // TODO: also test the lookup method and other stuff.
+        // TODO: randomize values? May give wrong results
+        // TODO: assert the categorizer state after adding pages.
+    }
+
+    public void testCategorizeRawMultivalue() {
+        final Page page;
+        boolean withNull = randomBoolean();
+        final int positions = 3 + (withNull ? 1 : 0);
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.endPositionEntry();
+            builder.appendBytesRef(new BytesRef("Disconnected"));
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
+            builder.endPositionEntry();
+            if (withNull) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(""));
+                }
+            }
+            page = new Page(builder.build());
+        }
+
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+            for (int i = randomInt(2); i < 3; i++) {
+                hash.add(page, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        assertEquals(groupIds.getPositionCount(), positions);
+
+                        assertThat(groupIds.getFirstValueIndex(0), equalTo(0));
+                        assertThat(groupIds.getValueCount(0), equalTo(4));
+                        assertThat(groupIds.getFirstValueIndex(1), equalTo(4));
+                        assertThat(groupIds.getValueCount(1), equalTo(1));
+                        assertThat(groupIds.getFirstValueIndex(2), equalTo(5));
+                        assertThat(groupIds.getValueCount(2), equalTo(2));
+
+                        assertEquals(1, groupIds.getInt(0));
+                        assertEquals(2, groupIds.getInt(1));
+                        assertEquals(2, groupIds.getInt(2));
+                        assertEquals(2, groupIds.getInt(3));
+                        assertEquals(3, groupIds.getInt(4));
+                        assertEquals(1, groupIds.getInt(5));
+                        assertEquals(1, groupIds.getInt(6));
+                        if (withNull) {
+                            assertEquals(0, groupIds.getInt(7));
+                        }
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        add(positionOffset, groupIds.asBlock());
+                    }
+
+                    @Override
+                    public void close() {
+                        fail("hashes should not close AddInput");
+                    }
+                });
+
+                assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+            }
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     public void testCategorizeIntermediate() {
         Page page1;
-        int positions1 = 7;
+        boolean withNull = randomBoolean();
+        int positions1 = 7 + (withNull ? 1 : 0);
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions1)) {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
             builder.appendBytesRef(new BytesRef("Connection error"));
@@ -109,6 +217,13 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             builder.appendBytesRef(new BytesRef("Connection error"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.4"));
+            if (withNull) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(""));
+                }
+            }
             page1 = new Page(builder.build());
         }
         Page page2;
@@ -126,20 +241,23 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         // Fill intermediatePages with the intermediate state from the raw hashes
         try (
-            BlockHash rawHash1 = new CategorizeRawBlockHash(0, blockFactory, true);
-            BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true)
+            BlockHash rawHash1 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
+            BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions1);
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(1, groupIds.getInt(2));
-                    assertEquals(0, groupIds.getInt(3));
-                    assertEquals(1, groupIds.getInt(4));
-                    assertEquals(0, groupIds.getInt(5));
-                    assertEquals(0, groupIds.getInt(6));
+                    assertEquals(1, groupIds.getInt(0));
+                    assertEquals(2, groupIds.getInt(1));
+                    assertEquals(2, groupIds.getInt(2));
+                    assertEquals(1, groupIds.getInt(3));
+                    assertEquals(2, groupIds.getInt(4));
+                    assertEquals(1, groupIds.getInt(5));
+                    assertEquals(1, groupIds.getInt(6));
+                    if (withNull) {
+                        assertEquals(0, groupIds.getInt(7));
+                    }
                 }
 
                 @Override
@@ -158,11 +276,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions2);
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(0, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
+                    assertEquals(1, groupIds.getInt(0));
+                    assertEquals(2, groupIds.getInt(1));
+                    assertEquals(1, groupIds.getInt(2));
+                    assertEquals(2, groupIds.getInt(3));
+                    assertEquals(3, groupIds.getInt(4));
                 }
 
                 @Override
@@ -181,15 +299,19 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page2.releaseBlocks();
         }
 
-        try (BlockHash intermediateHash = new CategorizedIntermediateBlockHash(0, blockFactory, true)) {
+        try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, null)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
-                    Set<Integer> values = IntStream.range(0, groupIds.getPositionCount())
+                    List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                         .map(groupIds::getInt)
                         .boxed()
-                        .collect(Collectors.toSet());
-                    assertEquals(values, Set.of(0, 1));
+                        .collect(Collectors.toList());
+                    if (withNull) {
+                        assertEquals(List.of(0, 1, 2), values);
+                    } else {
+                        assertEquals(List.of(1, 2), values);
+                    }
                 }
 
                 @Override
@@ -203,28 +325,39 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
             });
 
-            intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    Set<Integer> values = IntStream.range(0, groupIds.getPositionCount())
-                        .map(groupIds::getInt)
-                        .boxed()
-                        .collect(Collectors.toSet());
-                    // The category IDs {0, 1, 2} should map to groups {0, 2, 3}, because
-                    // 0 matches an existing category (Connected to ...), and the others are new.
-                    assertEquals(values, Set.of(0, 2, 3));
-                }
+            for (int i = randomInt(2); i < 3; i++) {
+                intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
+                            .map(groupIds::getInt)
+                            .boxed()
+                            .collect(Collectors.toList());
+                        // The category IDs {1, 2, 3} should map to groups {1, 3, 4}, because
+                        // 1 matches an existing category (Connected to ...), and the others are new.
+                        assertEquals(List.of(3, 1, 4), values);
+                    }
 
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
-                }
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        add(positionOffset, groupIds.asBlock());
+                    }
 
-                @Override
-                public void close() {
-                    fail("hashes should not close AddInput");
-                }
-            });
+                    @Override
+                    public void close() {
+                        fail("hashes should not close AddInput");
+                    }
+                });
+
+                assertHashState(
+                    intermediateHash,
+                    withNull,
+                    ".*?Connected.+?to.*?",
+                    ".*?Connection.+?error.*?",
+                    ".*?Disconnected.*?",
+                    ".*?System.+?shutdown.*?"
+                );
+            }
         } finally {
             intermediatePage1.releaseBlocks();
             intermediatePage2.releaseBlocks();
@@ -241,14 +374,16 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(10);
                 LongVector.Builder countsBuilder = driverContext.blockFactory().newLongVectorBuilder(10)
             ) {
-                textsBuilder.appendBytesRef(new BytesRef("a"));
-                textsBuilder.appendBytesRef(new BytesRef("b"));
+                // Note that just using "a" or "aaa" doesn't work, because the ml_standard
+                // tokenizer drops numbers, including hexadecimal ones.
+                textsBuilder.appendBytesRef(new BytesRef("aaazz"));
+                textsBuilder.appendBytesRef(new BytesRef("bbbzz"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye jan"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye nik"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye tom"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello jan"));
-                textsBuilder.appendBytesRef(new BytesRef("c"));
-                textsBuilder.appendBytesRef(new BytesRef("d"));
+                textsBuilder.appendBytesRef(new BytesRef("ccczz"));
+                textsBuilder.appendBytesRef(new BytesRef("dddzz"));
                 countsBuilder.appendLong(1);
                 countsBuilder.appendLong(2);
                 countsBuilder.appendLong(800);
@@ -267,10 +402,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             ) {
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello nik"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello nik"));
-                textsBuilder.appendBytesRef(new BytesRef("c"));
+                textsBuilder.appendBytesRef(new BytesRef("ccczz"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye chris"));
-                textsBuilder.appendBytesRef(new BytesRef("d"));
-                textsBuilder.appendBytesRef(new BytesRef("e"));
+                textsBuilder.appendBytesRef(new BytesRef("dddzz"));
+                textsBuilder.appendBytesRef(new BytesRef("eeezz"));
                 countsBuilder.appendLong(9);
                 countsBuilder.appendLong(90);
                 countsBuilder.appendLong(3);
@@ -294,7 +429,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
                     ),
-                    16 * 1024
+                    16 * 1024,
+                    analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add),
@@ -313,7 +449,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
                     ),
-                    16 * 1024
+                    16 * 1024,
+                    analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add),
@@ -334,7 +471,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new SumLongAggregatorFunctionSupplier(List.of(1, 2)).groupingAggregatorFactory(AggregatorMode.FINAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(3, 4)).groupingAggregatorFactory(AggregatorMode.FINAL)
                     ),
-                    16 * 1024
+                    16 * 1024,
+                    analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add),
@@ -359,15 +497,15 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             sums,
             equalTo(
                 Map.of(
-                    ".*?a.*?",
+                    ".*?aaazz.*?",
                     1L,
-                    ".*?b.*?",
+                    ".*?bbbzz.*?",
                     2L,
-                    ".*?c.*?",
+                    ".*?ccczz.*?",
                     33L,
-                    ".*?d.*?",
+                    ".*?dddzz.*?",
                     44L,
-                    ".*?e.*?",
+                    ".*?eeezz.*?",
                     5L,
                     ".*?words.+?words.+?words.+?goodbye.*?",
                     8888L,
@@ -380,15 +518,15 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             maxs,
             equalTo(
                 Map.of(
-                    ".*?a.*?",
+                    ".*?aaazz.*?",
                     1L,
-                    ".*?b.*?",
+                    ".*?bbbzz.*?",
                     2L,
-                    ".*?c.*?",
+                    ".*?ccczz.*?",
                     30L,
-                    ".*?d.*?",
+                    ".*?dddzz.*?",
                     40L,
-                    ".*?e.*?",
+                    ".*?eeezz.*?",
                     5L,
                     ".*?words.+?words.+?words.+?goodbye.*?",
                     8000L,
@@ -402,5 +540,50 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
     private BlockHash.GroupSpec makeGroupSpec() {
         return new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true);
+    }
+
+    private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {
+        // Check the keys
+        Block[] blocks = null;
+        try {
+            blocks = hash.getKeys();
+            assertThat(blocks, arrayWithSize(1));
+
+            var keysBlock = (BytesRefBlock) blocks[0];
+            assertThat(keysBlock.getPositionCount(), equalTo(expectedKeys.length + (withNull ? 1 : 0)));
+
+            if (withNull) {
+                assertTrue(keysBlock.isNull(0));
+            }
+
+            for (int i = 0; i < expectedKeys.length; i++) {
+                int position = i + (withNull ? 1 : 0);
+                String key = keysBlock.getBytesRef(position, new BytesRef()).utf8ToString();
+                assertThat(key, equalTo(expectedKeys[i]));
+            }
+        } finally {
+            if (blocks != null) {
+                Releasables.close(blocks);
+            }
+        }
+
+        // Check the nonEmpty() result
+        try (IntVector nonEmptyKeys = hash.nonEmpty()) {
+            int oneIfNull = withNull ? 1 : 0;
+            assertThat(nonEmptyKeys.getPositionCount(), equalTo(expectedKeys.length + oneIfNull));
+
+            for (int i = 0; i < expectedKeys.length + oneIfNull; i++) {
+                assertThat(nonEmptyKeys.getInt(i), equalTo(i + 1 - oneIfNull));
+            }
+        }
+
+        // Check seenGroupIds()
+        try (var seenGroupIds = hash.seenGroupIds(blockFactory.bigArrays())) {
+            assertThat(seenGroupIds.get(0), equalTo(withNull));
+
+            for (int i = 1; i <= expectedKeys.length; i++) {
+                assertThat(seenGroupIds.get(i), equalTo(true));
+            }
+        }
     }
 }

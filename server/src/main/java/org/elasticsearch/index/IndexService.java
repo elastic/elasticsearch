@@ -85,6 +85,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecoratorSupplier;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -130,6 +131,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Engine.IndexCommitListener indexCommitListener;
     private final IndexCache indexCache;
     private final MapperService mapperService;
+    private final XContentMeteringParserDecoratorSupplier parserDecoratorSupplier;
     private final XContentParserConfiguration parserConfiguration;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
@@ -184,6 +186,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
+        XContentMeteringParserDecoratorSupplier parserDecoratorSupplier,
         IndicesFieldDataCache indicesFieldDataCache,
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
@@ -211,6 +214,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.indexAnalyzers = indexAnalyzers;
+        this.parserDecoratorSupplier = parserDecoratorSupplier;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
@@ -561,7 +565,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 snapshotCommitSupplier,
                 System::nanoTime,
                 indexCommitListener,
-                mapperMetrics
+                mapperMetrics,
+                parserDecoratorSupplier
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

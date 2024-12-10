@@ -86,6 +86,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecoratorSupplier;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -239,7 +240,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -267,7 +269,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
 
         final IndexService indexService = newIndexService(module);
@@ -293,7 +296,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -647,7 +651,8 @@ public class IndexModuleTests extends ESTestCase {
             recoveryStateFactories,
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
 
         final IndexService indexService = newIndexService(module);
@@ -670,7 +675,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -773,7 +779,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
     }
 

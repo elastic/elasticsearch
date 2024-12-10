@@ -821,6 +821,7 @@ class NodeConstruction {
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
             .searchOperationListeners(searchOperationListeners)
+            .parserDecoratorSupplier(documentParsingProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);

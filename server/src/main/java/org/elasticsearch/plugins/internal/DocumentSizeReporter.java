@@ -9,10 +9,12 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.engine.Engine;
 
 /**
  * An interface to allow performing an action when parsing and indexing has been completed
+ *
+ * TODO: Should this be dropped in favor of {@link org.elasticsearch.index.shard.IndexingOperationListener}?
  */
 public interface DocumentSizeReporter {
     /**
@@ -22,12 +24,14 @@ public interface DocumentSizeReporter {
     };
 
     /**
-     * An action to be performed upon finished indexing.
+     * An action to be performed upon finished parsing.
+     * Note: Corresponds to {@link org.elasticsearch.index.shard.IndexingOperationListener#preIndex}
      */
-    default void onParsingCompleted(ParsedDocument parsedDocument) {}
+    default void onParsingCompleted(Engine.Index index) {}
 
     /**
      * An action to be performed upon finished indexing.
+     * Note: Corresponds to {@link org.elasticsearch.index.shard.IndexingOperationListener#postIndex}
      */
-    default void onIndexingCompleted(ParsedDocument parsedDocument) {}
+    default void onIndexingCompleted(Engine.Index index) {}
 }

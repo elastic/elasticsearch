@@ -24,11 +24,15 @@ import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -52,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 
 /**
@@ -67,15 +72,26 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSeman
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     protected static final int DEFAULT_BATCH_SIZE = 512;
 
+    private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
     private final int batchSize;
 
-    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry) {
-        this(inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
+    public ShardBulkInferenceActionFilter(
+        ClusterService clusterService,  // TODO: Pass metadata instead?
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry
+    ) {
+        this(clusterService, inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
     }
 
-    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry, int batchSize) {
+    public ShardBulkInferenceActionFilter(
+        ClusterService clusterService,
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry,
+        int batchSize
+    ) {
+        this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.batchSize = batchSize;
@@ -111,7 +127,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         BulkShardRequest bulkShardRequest,
         Runnable onCompletion
     ) {
-        new AsyncBulkShardInferenceAction(fieldInferenceMap, bulkShardRequest, onCompletion).run();
+        var index = clusterService.state().getMetadata().index(bulkShardRequest.index());
+        new AsyncBulkShardInferenceAction(index.getCreationVersion(), fieldInferenceMap, bulkShardRequest, onCompletion).run();
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
@@ -164,16 +181,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private class AsyncBulkShardInferenceAction implements Runnable {
+        private final IndexVersion indexCreatedVersion;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
         private AsyncBulkShardInferenceAction(
+            IndexVersion indexCreatedVersion,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion
         ) {
+            this.indexCreatedVersion = indexCreatedVersion;
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
@@ -368,6 +388,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
+            final Map<String, Object> inferenceFieldsMap = new HashMap<>();
+            final boolean addMetadataField = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled();
             var newDocMap = indexRequest.sourceAsMap();
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
@@ -387,7 +410,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType()
                 );
-                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
+                if (addMetadataField) {
+                    inferenceFieldsMap.put(fieldName, result);
+                } else {
+                    SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
+                }
+            }
+            if (addMetadataField) {
+                newDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceFieldsMap);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }
@@ -436,11 +466,31 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
-                        // Inference has already been computed, or there is no inference required.
-                        continue;
+
+                    if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                        && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+                        var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                        if (originalFieldValue == null && entry.getSourceFields().length == 1) {
+                            // No inference required
+                            continue;
+                        }
+
+                        var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                            InferenceMetadataFieldsMapper.NAME + "." + field,
+                            docMap
+                        );
+                        if (inferenceMetadataFieldsValue != null) {
+                            // Inference has already been computed
+                            continue;
+                        }
+                    } else {
+                        var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                        if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                            // Inference has already been computed, or there is no inference required.
+                            continue;
+                        }
                     }
+
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
                         boolean isOriginalFieldInput = sourceField.equals(field);

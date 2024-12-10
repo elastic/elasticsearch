@@ -145,6 +145,12 @@ Here's a summary of why we use these Graph API permissions:
 * *Groups.Read.All* is used to fetch groups for document-level permissions
 * *User.Read.All* is used to fetch user information for document-level permissions
 
+[NOTE]
+====
+When using the `Comma-separated list of sites` configuration field, ensure the sites specified match those granted `Sites.Selected` permission in SharePoint.
+If the `Comma-separated list of sites` field is set to `*` or the `Enumerate all sites` toggle is enabled, the connector will attempt to access all sites. This requires broader permissions, which are not supported with `Sites.Selected`.
+====
+
 Due to the way the Graph API is designed, these permissions are "all or nothing" - it's currently impossible to limit access to these resources.
 ****
 
@@ -605,6 +611,12 @@ Here's a summary of why we use these Graph API permissions:
 * *Files.Read.All* is used to fetch Site Drives and files in these drives
 * *Groups.Read.All* is used to fetch groups for document-level permissions
 * *User.Read.All* is used to fetch user information for document-level permissions
+
+[NOTE]
+====
+When using the `Comma-separated list of sites` configuration field, ensure the sites specified match those granted `Sites.Selected` permission in SharePoint.
+If the `Comma-separated list of sites` field is set to `*` or the `Enumerate all sites` toggle is enabled, the connector will attempt to access all sites. This requires broader permissions, which are not supported with `Sites.Selected`.
+====
 
 Due to the way the Graph API is designed, these permissions are "all or nothing" - it's currently impossible to limit access to these resources.
 ****

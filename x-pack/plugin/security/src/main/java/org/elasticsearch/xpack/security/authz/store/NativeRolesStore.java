@@ -268,7 +268,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
         if (enabled == false) {
-            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            listener.onResponse(QueryRoleResult.EMPTY);
             return;
         }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);

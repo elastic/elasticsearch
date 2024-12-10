@@ -107,7 +107,7 @@ public class SingleValueQuery extends Query {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 if (in instanceof PlanStreamInput psi) {
                     this.source = Source.readFrom(psi);
                 } else {
@@ -128,7 +128,7 @@ public class SingleValueQuery extends Query {
         protected void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 source.writeTo(out);
             } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 writeOldSource(out, source);

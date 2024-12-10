@@ -151,14 +151,14 @@ public class In extends EsqlScalarFunction {
     public boolean foldable() {
         // QL's In fold()s to null, if value() is null, but isn't foldable() unless all children are
         // TODO: update this null check in QL too?
-        return Expressions.isNull(value)
+        return Expressions.isGuaranteedNull(value)
             || Expressions.foldable(children())
-            || (Expressions.foldable(list) && list.stream().allMatch(Expressions::isNull));
+            || (Expressions.foldable(list) && list.stream().allMatch(Expressions::isGuaranteedNull));
     }
 
     @Override
     public Object fold() {
-        if (Expressions.isNull(value) || list.stream().allMatch(Expressions::isNull)) {
+        if (Expressions.isGuaranteedNull(value) || list.stream().allMatch(Expressions::isGuaranteedNull)) {
             return null;
         }
         return super.fold();

@@ -34,7 +34,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
     private final FingerprintAnalyzer analyzer;
 
     FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
 
         char separator = parseSeparator(settings);
         int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);

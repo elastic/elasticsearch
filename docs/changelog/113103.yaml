@@ -1,6 +1,0 @@
-pr: 113103
-summary: "ESQL: Align year diffing to the rest of the units in DATE_DIFF: chronological"
-area: ES|QL
-type: bug
-issues:
- - 112482

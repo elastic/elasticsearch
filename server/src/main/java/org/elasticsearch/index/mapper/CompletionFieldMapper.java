@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -342,10 +341,6 @@ public class CompletionFieldMapper extends FieldMapper {
     @Override
     public CompletionFieldType fieldType() {
         return (CompletionFieldType) super.fieldType();
-    }
-
-    static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion912");
     }
 
     @Override

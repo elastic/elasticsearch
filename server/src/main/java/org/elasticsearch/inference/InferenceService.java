@@ -75,6 +75,14 @@ public interface InferenceService extends Closeable {
     InferenceServiceConfiguration getConfiguration();
 
     /**
+     * Whether this service should be hidden from the API. Should be used for services
+     * that are not ready to be used.
+     */
+    default Boolean hideFromConfigurationApi() {
+        return Boolean.FALSE;
+    }
+
+    /**
      * The task types supported by the service
      * @return Set of supported.
      */
@@ -104,16 +112,28 @@ public interface InferenceService extends Closeable {
     );
 
     /**
-     * Chunk long text according to {@code chunkingOptions} or the
-     * model defaults if {@code chunkingOptions} contains unset
-     * values.
+     * Perform completion inference on the model using the unified schema.
+     *
+     * @param model        The model
+     * @param request Parameters for the request
+     * @param timeout      The timeout for the request
+     * @param listener     Inference result listener
+     */
+    void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
+     * Chunk long text.
      *
      * @param model           The model
      * @param query           Inference query, mainly for re-ranking
      * @param input           Inference input
      * @param taskSettings    Settings in the request to override the model's defaults
      * @param inputType       For search, ingest etc
-     * @param chunkingOptions The window and span options to apply
      * @param timeout         The timeout for the request
      * @param listener        Chunked Inference result listener
      */
@@ -123,7 +143,6 @@ public interface InferenceService extends Closeable {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
@@ -131,9 +150,10 @@ public interface InferenceService extends Closeable {
     /**
      * Start or prepare the model for use.
      * @param model The model
+     * @param timeout Start timeout
      * @param listener The listener
      */
-    void start(Model model, ActionListener<Boolean> listener);
+    void start(Model model, TimeValue timeout, ActionListener<Boolean> listener);
 
     /**
      * Stop the model deployment.
@@ -142,17 +162,6 @@ public interface InferenceService extends Closeable {
      * @param listener The listener
      */
     default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    /**
-     * Put the model definition (if applicable)
-     * The main purpose of this function is to download ELSER
-     * The default action does nothing except acknowledge the request (true).
-     * @param modelVariant The configuration of the model variant to be downloaded
-     * @param listener The listener
-     */
-    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

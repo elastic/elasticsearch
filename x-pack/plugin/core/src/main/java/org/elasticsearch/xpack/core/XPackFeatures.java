@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -31,10 +29,5 @@ public class XPackFeatures implements FeatureSpecification {
             LOGSDB_TELEMETRY,
             LOGSDB_TELMETRY_STATS
         );
-    }
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(HealthApiUsageTransportAction.SUPPORTS_HEALTH_STATS, Version.V_8_7_0);
     }
 }

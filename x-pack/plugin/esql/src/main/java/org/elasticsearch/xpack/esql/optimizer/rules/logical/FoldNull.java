@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
@@ -29,7 +30,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
         // perform this early to prevent the rule from converting the null filter into nullifying the whole expression
         // P.S. this could be done inside the Aggregate but this place better centralizes the logic
         if (e instanceof AggregateFunction agg) {
-            if (Expressions.isNull(agg.filter())) {
+            if (Expressions.isGuaranteedNull(agg.filter())) {
                 return agg.withFilter(Literal.of(agg.filter(), false));
             }
         }
@@ -37,12 +38,14 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
         if (result != e) {
             return result;
         } else if (e instanceof In in) {
-            if (Expressions.isNull(in.value())) {
+            if (Expressions.isGuaranteedNull(in.value())) {
                 return Literal.of(in, null);
             }
-        } else if (e instanceof Alias == false
-            && e.nullable() == Nullability.TRUE
-            && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+        } else if (e instanceof Alias == false && e.nullable() == Nullability.TRUE
+        // Categorize function stays as a STATS grouping (It isn't moved to an early EVAL like other groupings),
+        // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
+            && e instanceof Categorize == false
+            && Expressions.anyMatch(e.children(), Expressions::isGuaranteedNull)) {
                 return Literal.of(e, null);
             }
         return e;

@@ -31,7 +31,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
@@ -47,6 +46,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
@@ -63,6 +63,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -81,11 +83,11 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -125,6 +127,7 @@ public class LocalExecutionPlanner {
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
+    private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
@@ -138,6 +141,7 @@ public class LocalExecutionPlanner {
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.sessionId = sessionId;
@@ -149,6 +153,7 @@ public class LocalExecutionPlanner {
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
+        this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
     }
@@ -213,8 +218,6 @@ public class LocalExecutionPlanner {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
-        } else if (node instanceof RowExec row) {
-            return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
@@ -225,8 +228,10 @@ public class LocalExecutionPlanner {
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
-        } else if (node instanceof HashJoinExec lookup) {
-            return planHashJoin(lookup, context);
+        } else if (node instanceof HashJoinExec join) {
+            return planHashJoin(join, context);
+        } else if (node instanceof LookupJoinExec join) {
+            return planLookupJoin(join, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -353,11 +358,10 @@ public class LocalExecutionPlanner {
                 case VERSION -> TopNEncoder.VERSION;
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
-                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE ->
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
-                case SOURCE -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
@@ -489,7 +493,8 @@ public class LocalExecutionPlanner {
                 enrichIndex,
                 enrich.matchType(),
                 enrich.policyMatchField(),
-                enrich.enrichFields()
+                enrich.enrichFields(),
+                enrich.source()
             ),
             layout
         );
@@ -558,15 +563,49 @@ public class LocalExecutionPlanner {
         return source.with(new ProjectOperatorFactory(projection), layout);
     }
 
-    private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
-        return EvalMapper.toEvaluator(exp, layout);
+    private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(join.left(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        for (Attribute f : join.addedFields()) {
+            layoutBuilder.append(f);
+        }
+        Layout layout = layoutBuilder.build();
+
+        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
+        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+            throw new IllegalArgumentException("can't plan [" + join + "]");
+        }
+        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
+        for (Attribute m : join.leftFields()) {
+            Layout.ChannelAndType t = source.layout.get(m.id());
+            if (t == null) {
+                throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
+            }
+            matchFields.add(t);
+        }
+        if (matchFields.size() != 1) {
+            throw new IllegalArgumentException("can't plan [" + join + "]");
+        }
+
+        return source.with(
+            new LookupFromIndexOperator.Factory(
+                sessionId,
+                parentTask,
+                context.queryPragmas().enrichMaxWorkers(),
+                matchFields.getFirst().channel(),
+                lookupFromIndexService,
+                matchFields.getFirst().type(),
+                localSourceExec.index().name(),
+                join.leftFields().getFirst().name(),
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
+                join.source()
+            ),
+            layout
+        );
     }
 
-    private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
-        List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(row.output());
-        return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
+    private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
+        return EvalMapper.toEvaluator(exp, layout);
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

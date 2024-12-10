@@ -726,7 +726,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             putRequest.getSource(),
             putRequest.getXContentType()
         );
-        List<?> processors = (List<?>) pipelineConfiguration.getConfigAsMap().get("processors");
+        List<?> processors = (List<?>) pipelineConfiguration.getConfig().get("processors");
         assertThat(processors, hasSize(1));
         Map<?, ?> setProcessor = (Map<?, ?>) ((Map<?, ?>) processors.get(0)).get("set");
         assertNotNull(setProcessor.get("field"));

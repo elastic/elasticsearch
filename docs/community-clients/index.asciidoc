@@ -205,10 +205,6 @@ client].
 
 Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client].
 
-* https://github.com/printercu/elastics-rb[elastics]:
-  Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
-  **- Last commit more than a year ago**
-
 * https://github.com/toptal/chewy[chewy]:
   An ODM and wrapper for the official Elasticsearch client.
 
@@ -217,6 +213,13 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
 
 * https://github.com/artsy/estella[Estella]:
   Make your Ruby models searchable.
+
+* https://github.com/mrkamel/search_flip[SearchFlip]:
+  Full-Featured Elasticsearch Ruby Client with a Chainable DSL.
+
+* https://github.com/printercu/elastics-rb[elastics]:
+  Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
+  **- Last commit more than a year ago**
 
 [[rust]]
 == Rust

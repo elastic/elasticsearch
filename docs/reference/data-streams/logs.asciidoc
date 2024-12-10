@@ -32,12 +32,12 @@ PUT _index_template/my-index-template
 ----
 // TEST
 
-<1> Index mode setting
-<2> Index template priority: By default, Elasticsearch ships with a `logs-*-*` index template with a priority of 100. To make sure your index template takes priority over the default `logs-*-*` template, set its `priority` to a number higher than 100. For more information, see <<avoid-index-pattern-collisions,Avoid index pattern collisions>>.
+<1> The index mode setting.
+<2> The index template priority. By default, Elasticsearch ships with a `logs-*-*` index template with a priority of 100. To make sure your index template takes priority over the default `logs-*-*` template, set its `priority` to a number higher than 100. For more information, see <<avoid-index-pattern-collisions,Avoid index pattern collisions>>.
 
 After the index template is created, new indices that use the template will be configured as a logs data stream. You can start indexing data and <<use-a-data-stream,using the data stream>>.
 
-You can also set the index mode and adjust other template settings in <<index-mgmt,Stack Management in {kib}>>.
+You can also set the index mode and adjust other template settings in <<index-mgmt,the Elastic UI>>.
 
 ////
 [source,console]
@@ -56,7 +56,7 @@ DELETE _index_template/my-index-template
 By default, `logsdb` mode uses <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
 field. Instead, the document source is synthesized from doc values or stored fields upon document retrieval. 
 
-Before using synthetic source, make sure to review the <<synthetic-source,restriction and modifications>>. To prevent modifications of a particular object or field, you can <<synthetic-source-keep,minimize synthetic source modifications>>.
+Before using synthetic source, make sure to review the <<synthetic-source,restrictions and modifications>>. To prevent modifications of a particular object or field, you can <<synthetic-source-keep,minimize synthetic source modifications>>.
 
 When working with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
 are preserved for <<synthetic-source,synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,
@@ -93,7 +93,7 @@ named `host` with a `name` child field of type `keyword`. If `subobjects` is set
 a single `host.name` field is mapped as a `keyword` field.
 
 After an index is created, the sort settings cannot be modified. To use different sort settings,
-create a new index. For data streams, you can update the relevant component templates and then 
+create a new index. For data streams, you can update the templates used by the data stream, and then 
 perform or wait for an index <<data-streams-rollover,rollover>>.
 
 Keep in mind that sort

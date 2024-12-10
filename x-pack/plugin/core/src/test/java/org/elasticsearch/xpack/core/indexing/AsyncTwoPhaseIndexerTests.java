@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -33,10 +34,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
@@ -63,9 +66,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             Integer initialPosition,
             CountDownLatch latch,
             boolean stoppedBeforeFinished,
-            boolean noIndices
+            boolean noIndices,
+            EventHook eventHook
         ) {
-            super(threadPool, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats(), eventHook);
             this.latch = latch;
             this.stoppedBeforeFinished = stoppedBeforeFinished;
             this.noIndices = noIndices;
@@ -194,9 +198,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             AtomicReference<IndexerState> initialState,
             Integer initialPosition,
             float maxDocsPerSecond,
-            CountDownLatch latch
+            CountDownLatch latch,
+            EventHook eventHook
         ) {
-            super(threadPool, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats(), eventHook);
             startTime = System.nanoTime();
             this.latch = latch;
             this.maxDocsPerSecond = maxDocsPerSecond;
@@ -330,17 +335,18 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     private class MockIndexerThrowsFirstSearch extends AsyncTwoPhaseIndexer<Integer, MockJobStats> {
+        private static final RuntimeException SEARCH_ERROR = new RuntimeException("Failed to build search request");
 
         // test the execution order
         private int step;
 
         protected MockIndexerThrowsFirstSearch(
             ThreadPool threadPool,
-            String executorName,
             AtomicReference<IndexerState> initialState,
-            Integer initialPosition
+            Integer initialPosition,
+            EventHook eventHook
         ) {
-            super(threadPool, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats(), eventHook);
         }
 
         @Override
@@ -363,7 +369,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
-            throw new RuntimeException("Failed to build search request");
+            throw SEARCH_ERROR;
         }
 
         @Override
@@ -372,7 +378,9 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doSaveState(IndexerState state, Integer position, Runnable next) {}
+        protected void doSaveState(IndexerState state, Integer position, Runnable next) {
+            next.run();
+        }
 
         @Override
         protected void onFailure(Exception exc) {
@@ -424,11 +432,12 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     public void testStateMachine() throws Exception {
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        var state = new AtomicReference<>(IndexerState.STOPPED);
+        var threadPool = new TestThreadPool(getTestName());
         try {
-            CountDownLatch countDownLatch = new CountDownLatch(1);
-            MockIndexer indexer = new MockIndexer(threadPool, state, 2, countDownLatch, false, false);
+            var countDownLatch = new CountDownLatch(1);
+            var eventHook = new TestEventHook();
+            var indexer = new MockIndexer(threadPool, state, 2, countDownLatch, false, false, eventHook);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -445,33 +454,39 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
+            eventHook.assertThatEventsAreCalledOnceWithNoErrors();
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testStateMachineBrokenSearch() throws Exception {
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        var state = new AtomicReference<>(IndexerState.STOPPED);
+        var threadPool = new TestThreadPool(getTestName());
 
         try {
-            MockIndexerThrowsFirstSearch indexer = new MockIndexerThrowsFirstSearch(threadPool, ThreadPool.Names.GENERIC, state, 2);
+            var eventHook = new TestEventHook();
+            var indexer = new MockIndexerThrowsFirstSearch(threadPool, state, 2, eventHook);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertBusy(() -> assertTrue(isFinished.get()), 10000, TimeUnit.SECONDS);
             assertThat(indexer.getStep(), equalTo(2));
+            assertThat("Start event was not called.", eventHook.onStartCalled.get(), equalTo(1));
+            assertThat("Finish event was not called.", eventHook.onFinishCalled.get(), equalTo(1));
+            assertThat(eventHook.onError.get(), equalTo(MockIndexerThrowsFirstSearch.SEARCH_ERROR));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testZeroIndicesWhileIndexing() throws Exception {
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        var state = new AtomicReference<>(IndexerState.STOPPED);
+        var threadPool = new TestThreadPool(getTestName());
         try {
-            CountDownLatch countDownLatch = new CountDownLatch(1);
-            MockIndexer indexer = new MockIndexer(threadPool, state, 2, countDownLatch, false, true);
+            var eventHook = new TestEventHook();
+            var countDownLatch = new CountDownLatch(1);
+            var indexer = new MockIndexer(threadPool, state, 2, countDownLatch, false, true, eventHook);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -488,17 +503,19 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
+            eventHook.assertThatEventsAreCalledOnceWithNoErrors();
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testStop_WhileIndexing() throws Exception {
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        var state = new AtomicReference<>(IndexerState.STOPPED);
+        var threadPool = new TestThreadPool(getTestName());
         try {
-            CountDownLatch countDownLatch = new CountDownLatch(1);
-            MockIndexer indexer = new MockIndexer(threadPool, state, 2, countDownLatch, true, false);
+            var eventHook = new TestEventHook();
+            var countDownLatch = new CountDownLatch(1);
+            var indexer = new MockIndexer(threadPool, state, 2, countDownLatch, true, false, eventHook);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -509,6 +526,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getPosition(), equalTo(2));
             assertBusy(() -> assertTrue(isStopped.get()));
             assertFalse(isFinished.get());
+            eventHook.assertThatEventsAreCalledOnceWithNoErrors();
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
@@ -539,16 +557,18 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     public void doTestFiveRuns(float docsPerSecond, Collection<TimeValue> expectedDelays) throws Exception {
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final MockThreadPool threadPool = new MockThreadPool(getTestName());
+        var state = new AtomicReference<>(IndexerState.STOPPED);
+        var threadPool = new MockThreadPool(getTestName());
         try {
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns(threadPool, state, 2, docsPerSecond, null);
+            var eventHook = new TestEventHook();
+            var indexer = new MockIndexerFiveRuns(threadPool, state, 2, docsPerSecond, null, eventHook);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertBusy(() -> assertTrue(isFinished.get()));
             indexer.assertCounters();
             threadPool.assertCountersAndDelay(expectedDelays);
+            eventHook.assertThatEventsAreCalledOnceWithNoErrors();
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
@@ -572,12 +592,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     public void doTestFiveRunsRethrottle(float docsPerSecond, float docsPerSecondRethrottle, Collection<TimeValue> expectedDelays)
         throws Exception {
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        var state = new AtomicReference<>(IndexerState.STOPPED);
 
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
         try {
-            CountDownLatch latch = new CountDownLatch(1);
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns(threadPool, state, 2, docsPerSecond, latch);
+            var eventHook = new TestEventHook();
+            var latch = new CountDownLatch(1);
+            var indexer = new MockIndexerFiveRuns(threadPool, state, 2, docsPerSecond, latch, eventHook);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -590,6 +611,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertBusy(() -> assertTrue(isFinished.get()));
             indexer.assertCounters();
             threadPool.assertCountersAndDelay(expectedDelays);
+            eventHook.assertThatEventsAreCalledOnceWithNoErrors();
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
@@ -629,11 +651,31 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     }
 
     private static Collection<TimeValue> timeValueCollectionFromMilliseconds(Long... milliseconds) {
-        List<TimeValue> timeValues = new ArrayList<>();
-        for (Long m : milliseconds) {
-            timeValues.add(TimeValue.timeValueMillis(m));
+        return Arrays.stream(milliseconds).map(TimeValue::timeValueMillis).toList();
+    }
+
+    private static class TestEventHook implements AsyncTwoPhaseIndexer.EventHook {
+        private final AtomicInteger onStartCalled = new AtomicInteger(0);
+        private final AtomicInteger onFinishCalled = new AtomicInteger(0);
+        private final AtomicReference<Throwable> onError = new AtomicReference<>();
+
+        @Override
+        public void onEvent(Event event) {
+            switch (event) {
+                case START -> onStartCalled.incrementAndGet();
+                case FINISH -> onFinishCalled.incrementAndGet();
+            }
         }
 
-        return timeValues;
+        @Override
+        public void onError(Throwable t) {
+            onError.set(t);
+        }
+
+        public void assertThatEventsAreCalledOnceWithNoErrors() {
+            assertThat("Start event was not called.", onStartCalled.get(), equalTo(1));
+            assertThat("Finish event was not called.", onFinishCalled.get(), equalTo(1));
+            assertThat("No exceptions should be thrown.", onError.get(), nullValue());
+        }
     }
 }

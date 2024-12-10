@@ -57,6 +57,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private final AtomicReference<JobPosition> position;
     private final ThreadPool threadPool;
     private final Object lock;
+    private final EventHook eventHook;
     private final AtomicBoolean isJobFinishing;
 
     // throttling implementation
@@ -99,9 +100,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         ThreadPool threadPool,
         AtomicReference<IndexerState> initialState,
         JobPosition initialPosition,
-        JobStats jobStats
+        JobStats jobStats,
+        EventHook eventHook
     ) {
-        this(threadPool, initialState, initialPosition, jobStats, new Object());
+        this(threadPool, initialState, initialPosition, jobStats, eventHook, new Object());
     }
 
     protected AsyncTwoPhaseIndexer(
@@ -109,6 +111,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         AtomicReference<IndexerState> initialState,
         JobPosition initialPosition,
         JobStats jobStats,
+        EventHook eventHook,
         Object lock
     ) {
         this.threadPool = threadPool;
@@ -116,6 +119,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
         this.lock = lock;
+        this.eventHook = eventHook;
         this.isJobFinishing = new AtomicBoolean(false);
     }
 
@@ -230,6 +234,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
                     stats.incrementNumInvocations(1);
                     if (startJob()) {
+                        eventHook.safeOnEvent(EventHook.Event.START);
                         // fire off the search. Note this is async, the method will return from here
                         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                             onStart(now, ActionListener.wrap(r -> {
@@ -282,6 +287,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         isJobFinishing.set(true);
         doSaveState(finishAndSetState(), position.get(), () -> {
             afterFinishOrFailure();
+            eventHook.safeOnEvent(EventHook.Event.FINISH);
             isJobFinishing.set(false);
         });
     }
@@ -461,6 +467,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
+        eventHook.safeOnError(exc);
         finishJob();
     }
 
@@ -705,6 +712,46 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return TimeValue.ZERO;
         }
         return executionDelay;
+    }
+
+    /**
+     * Listener API for events happening within the {@link AsyncTwoPhaseIndexer}. Events are denoted by the {@link EventHook.Event} enum.
+     * onEvent is invoked synchronously when the event happens.
+     * onError is invoked via {@link #onFailure(Exception)} and is not associated with any other event.
+     * EventHook implementations are expected to never throw exceptions, RuntimeException or otherwise, as doing so can unintentionally
+     * cancel the AsyncTwoPhaseIndexer or break the Search's {@link ScheduledRunnable}. All exceptions will be ignored.
+     */
+    public interface EventHook {
+        enum Event {
+            START,
+            FINISH
+        }
+
+        private void safeOnEvent(Event event) {
+            try {
+                onEvent(event);
+            } catch (Exception e) {
+                logger.atDebug().withThrowable(e).log("Ignoring error from event handler for event {}", event);
+            }
+        }
+
+        private void safeOnError(Throwable t) {
+            try {
+                onError(t);
+            } catch (Exception e) {
+                logger.atDebug().withThrowable(e).log("Ignoring error from event handler for throwable {}", t::getMessage);
+            }
+        }
+
+        void onEvent(Event event);
+
+        void onError(Throwable t);
+
+        EventHook NOOP = new EventHook() {
+            public void onEvent(Event e) {}
+
+            public void onError(Throwable t) {}
+        };
     }
 
 }

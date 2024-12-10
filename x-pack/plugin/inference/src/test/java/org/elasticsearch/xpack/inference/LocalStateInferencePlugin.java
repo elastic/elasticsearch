@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -27,6 +28,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
+            }
+
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
             }
         };
         plugins.add(inferencePlugin);

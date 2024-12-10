@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene100.Lucene100Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -56,7 +56,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
 
     @Override
     protected Codec getCodec() {
-        return new Lucene100Codec() {
+        return new Lucene101Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new ES818HnswBinaryQuantizedVectorsFormat();

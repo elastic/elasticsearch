@@ -621,7 +621,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
                 assertThat(internalRequest.getClass().getName(), indicesRequest.indices(), equalTo(originalRequest.indices()));
                 assertThat(indicesRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
             }
-        }
+        }erlang otp
     }
 
     private static void assertIndicesSubset(List<String> indices, String... actions) {

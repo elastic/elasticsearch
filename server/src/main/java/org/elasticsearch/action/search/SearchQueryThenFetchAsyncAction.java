@@ -62,12 +62,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -346,6 +341,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             this.results = results;
             this.mergeResult = mergeResult;
             this.topDocsStats = topDocsStats;
+            assert Arrays.stream(results).noneMatch(Objects::isNull) : Arrays.asList(results);
         }
 
         @Override

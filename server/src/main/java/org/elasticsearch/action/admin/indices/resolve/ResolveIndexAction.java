@@ -603,7 +603,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().getProject().getIndicesLookup().get(indexAbstraction);
+            IndexAbstraction ia = clusterState.metadata().getProject().getIndicesLookup().get(indexAbstraction.resource());
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {

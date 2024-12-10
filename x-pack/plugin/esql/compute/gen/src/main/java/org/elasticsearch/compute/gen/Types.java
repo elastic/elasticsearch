@@ -139,19 +139,19 @@ public class Types {
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
     static ClassName blockType(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
+        if (elementType.equals(TypeName.BOOLEAN) || elementType.equals(BOOLEAN_BLOCK)) {
             return BOOLEAN_BLOCK;
         }
-        if (elementType.equals(BYTES_REF)) {
+        if (elementType.equals(BYTES_REF) || elementType.equals(BYTES_REF_BLOCK)) {
             return BYTES_REF_BLOCK;
         }
-        if (elementType.equals(TypeName.INT)) {
+        if (elementType.equals(TypeName.INT) || elementType.equals(INT_BLOCK)) {
             return INT_BLOCK;
         }
-        if (elementType.equals(TypeName.LONG)) {
+        if (elementType.equals(TypeName.LONG) || elementType.equals(LONG_BLOCK)) {
             return LONG_BLOCK;
         }
-        if (elementType.equals(TypeName.DOUBLE)) {
+        if (elementType.equals(TypeName.DOUBLE) || elementType.equals(DOUBLE_BLOCK)) {
             return DOUBLE_BLOCK;
         }
         throw new IllegalArgumentException("unknown block type for [" + elementType + "]");

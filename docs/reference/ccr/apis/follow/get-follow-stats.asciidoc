@@ -74,9 +74,12 @@ following tasks associated with each shard for the specified indices.
 [%collapsible%open]
 ====
 `fatal_exception`::
-(object) An object representing a fatal exception that cancelled the following
-task. In this situation, the following task must be resumed manually with the
-<<ccr-post-resume-follow,resume follower API>>.
+(object) An object representing a fatal exception that stopped the task in charge
+of replicating operations. In this situation, the following task must be paused manually
+with the <<ccr-post-pause-follow,pause follower API>> and then resumed with the
+<<ccr-post-resume-follow,resume follower API>>. If the index has been stopped by a fatal
+exception during a period long enough for the retention leases to expire,
+the <<ccr-recreate-follower-index,follower index must be recreated>>.
 
 `index`::
 (string) The name of the follower index.

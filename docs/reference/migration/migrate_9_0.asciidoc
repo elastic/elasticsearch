@@ -258,6 +258,7 @@ The `data_frame_transforms_admin` and `data_frame_transforms_user` {transform} r
 *Impact* +
 Users must update any existing {transforms} that use deprecated {transform} roles (`data_frame_transforms_admin` or `data_frame_transforms_user`) to use the new equivalent {transform} roles (`transform_admin` or `transform_user`).
 To update the {transform} roles:
+
 1. Switch to a user with the `transform_admin` role (to replace `data_frame_transforms_admin`) or the `transform_user` role (to replace `data_frame_transforms_user`).
 2. Call the <<update-transform, update {transforms} API>> with that user.
 ====

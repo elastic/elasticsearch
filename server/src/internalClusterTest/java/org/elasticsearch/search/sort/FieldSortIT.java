@@ -200,7 +200,6 @@ public class FieldSortIT extends ESIntegTestCase {
                         response -> {
                             for (int j = 0; j < response.getHits().getHits().length; j++) {
                                 assertThat(
-                                    response.toString() + "\n vs. \n" + allDocsResponse.toString(),
                                     response.getHits().getHits()[j].getId(),
                                     equalTo(allDocsResponse.getHits().getHits()[j].getId())
                                 );

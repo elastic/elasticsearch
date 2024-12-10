@@ -113,7 +113,7 @@ Index mode supports the following values:
 
 `standard`::: Standard indexing with default settings.
 
-`time_series`::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
+<<tsds,`time_series`>>::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
 
 <<logs-data-stream,`logsdb`>>::: Index mode optimized for storage of logs. By default, this setting uses <<synthetic-source,synthetic `_source`>> and sorts on the `hostname` and `timestamp` fields. You can override the defaults to <<index-modules-index-sorting,sort>> on different fields.
 

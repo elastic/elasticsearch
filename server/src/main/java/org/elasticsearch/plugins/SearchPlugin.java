@@ -129,6 +129,10 @@ public interface SearchPlugin {
         return emptyList();
     }
 
+    /**
+     * @return Applicable {@link QueryRewriteInterceptor}s configured for this plugin.
+     * Note: This is internal to Elasticsearch's API and not extensible by external plugins.
+     */
     default List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return emptyList();
     }

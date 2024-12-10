@@ -27,6 +27,7 @@ restResources {
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
 }
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")

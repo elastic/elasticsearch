@@ -12,6 +12,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -125,7 +126,6 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final boolean isWithinLeaf = context.path().isWithinLeafObject();
-        final String[] originalPath = context.path().getPath();
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
@@ -138,7 +138,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
                 // Set the path to that of semantic text field so the parser acts as if we are parsing the semantic text field value
                 // directly. We can safely split on all "." chars because semantic text fields cannot be used when subobjects == false.
                 String[] fieldNameParts = fieldName.split("\\.");
-                context.path().setPath(fieldNameParts);
+                setPath(context.path(), fieldNameParts);
 
                 var parent = context.parent().findParentMapper(fieldName);
                 if (parent == null) {
@@ -160,7 +160,17 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
             }
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
-            context.path().setPath(originalPath);
+            setPath(context.path(), new String[] { InferenceMetadataFieldsMapper.NAME });
+        }
+    }
+
+    private static void setPath(ContentPath contentPath, String[] newPath) {
+        while (contentPath.length() > 0) {
+            contentPath.remove();
+        }
+
+        for (String pathPart : newPath) {
+            contentPath.add(pathPart);
         }
     }
 }

@@ -23,7 +23,7 @@ public class GetConnectorActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected GetConnectorAction.Request createTestInstance() {
-        return new GetConnectorAction.Request(randomAlphaOfLengthBetween(1, 10));
+        return new GetConnectorAction.Request(randomAlphaOfLengthBetween(1, 10), randomBoolean());
     }
 
     @Override
@@ -38,6 +38,6 @@ public class GetConnectorActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected GetConnectorAction.Request mutateInstanceForVersion(GetConnectorAction.Request instance, TransportVersion version) {
-        return new GetConnectorAction.Request(instance.getConnectorId());
+        return new GetConnectorAction.Request(instance.getConnectorId(), instance.getDeleted());
     }
 }

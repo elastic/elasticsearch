@@ -126,7 +126,7 @@ public class IndexShardSnapshotStatus {
         this.processedSize = processedSize;
         this.incrementalSize = incrementalSize;
         this.failure = failure;
-        this.statusDescription = statusDescription;
+        updateStatusDescription(statusDescription);
     }
 
     public synchronized Copy moveToStarted(

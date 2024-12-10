@@ -11,13 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.eql.EqlSpecTestCase;
+import org.elasticsearch.test.eql.EqlSpecFailingShardsTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class EqlSpecIT extends EqlSpecTestCase {
+public class EqlSpecFailingShardsIT extends EqlSpecFailingShardsTestCase {
 
     @ClassRule
     public static final ElasticsearchCluster cluster = EqlTestCluster.CLUSTER;
@@ -27,7 +27,7 @@ public class EqlSpecIT extends EqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public EqlSpecIT(
+    public EqlSpecFailingShardsIT(
         String query,
         String name,
         List<long[]> eventIds,

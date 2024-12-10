@@ -79,9 +79,9 @@ public class AsyncOperatorTests extends ESTestCase {
         if (randomBoolean()) {
             localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
             BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory, () -> false, () -> {});
         } else {
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory, () -> false, () -> {});
         }
         int positions = randomIntBetween(0, 10_000);
         List<Long> ids = new ArrayList<>(positions);
@@ -179,7 +179,7 @@ public class AsyncOperatorTests extends ESTestCase {
 
     public void testStatus() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, () -> false, () -> {});
         TestOp operator = new TestOp(driverContext, 2);
         assertTrue(operator.isBlocked().listener().isDone());
         assertTrue(operator.needsInput());
@@ -223,9 +223,9 @@ public class AsyncOperatorTests extends ESTestCase {
         if (randomBoolean()) {
             localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
             BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory, () -> false, () -> {});
         } else {
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory, () -> false, () -> {});
         }
         final SequenceLongBlockSourceOperator sourceOperator = new SequenceLongBlockSourceOperator(
             driverContext.blockFactory(),
@@ -283,7 +283,7 @@ public class AsyncOperatorTests extends ESTestCase {
         int iters = iterations(10, 10_000);
         BlockFactory blockFactory = blockFactory();
         for (int i = 0; i < iters; i++) {
-            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, () -> false, () -> {});
             CyclicBarrier barrier = new CyclicBarrier(2);
             AsyncOperator asyncOperator = new AsyncOperator(driverContext, between(1, 10)) {
                 @Override

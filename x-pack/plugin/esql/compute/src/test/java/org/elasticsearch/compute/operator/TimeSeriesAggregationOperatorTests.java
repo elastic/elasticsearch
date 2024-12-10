@@ -55,7 +55,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
      */
     protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, () -> false, () -> {});
     }
 
     public void testBasicRate() throws Exception {

@@ -165,7 +165,9 @@ public class EvalMapperTests extends ESTestCase {
     static DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            TestBlockFactory.getNonBreakingInstance()
+            TestBlockFactory.getNonBreakingInstance(),
+            () -> false,
+            () -> {}
         );
     }
 }

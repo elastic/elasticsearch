@@ -17,10 +17,10 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
+import static org.elasticsearch.action.support.IndexComponentSelector.ALL_APPLICABLE;
 import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
@@ -56,7 +56,7 @@ public class SelectorResolverTests extends ESTestCase {
         );
 
         // Allow selectors TRUE and default selectors of both $data and $failures (example, a management/monitoring API)
-        Context bothSelectors = getContext(getOptionsForSelectors(DATA, FAILURES));
+        Context bothSelectors = getContext(getOptionsForSelectors(ALL_APPLICABLE));
 
         assertThat(
             resolve(bothSelectors, "testXXX"),
@@ -140,7 +140,7 @@ public class SelectorResolverTests extends ESTestCase {
                 )
             )
         );
-        Context bothSelectors = getContext(getOptionsForSelectors(DATA, FAILURES));
+        Context bothSelectors = getContext(getOptionsForSelectors(ALL_APPLICABLE));
         assertThat(
             resolveAll(bothSelectors, "*", "testYYY::failures", "testZZZ::*"),
             is(
@@ -163,28 +163,28 @@ public class SelectorResolverTests extends ESTestCase {
 
     public void testResolveMatchAllToSelectors() {
         Context dataSelector = getContext(getOptionsForSelectors(DATA));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "*"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "*::data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "*::failures"), is(EnumSet.of(FAILURES)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "_all"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "_all::data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "_all::failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelector(dataSelector, "*"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelector(dataSelector, "*::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelector(dataSelector, "*::failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelector(dataSelector, "_all"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelector(dataSelector, "_all::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelector(dataSelector, "_all::failures"), is(EnumSet.of(FAILURES)));
 
-        Context bothSelector = getContext(getOptionsForSelectors(DATA, FAILURES));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "*"), is(EnumSet.of(DATA, FAILURES)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "*::data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "*::failures"), is(EnumSet.of(FAILURES)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "_all"), is(EnumSet.of(DATA, FAILURES)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "_all::data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "_all::failures"), is(EnumSet.of(FAILURES)));
+        Context bothSelector = getContext(getOptionsForSelectors(ALL_APPLICABLE));
+        assertThat(resolveMatchAllToSelector(bothSelector, "*"), is(EnumSet.of(DATA, FAILURES)));
+        assertThat(resolveMatchAllToSelector(bothSelector, "*::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelector(bothSelector, "*::failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelector(bothSelector, "_all"), is(EnumSet.of(DATA, FAILURES)));
+        assertThat(resolveMatchAllToSelector(bothSelector, "_all::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelector(bothSelector, "_all::failures"), is(EnumSet.of(FAILURES)));
 
         Context noneSelector = getContext(getDisabledSelectorOptions());
-        assertThat(resolveMatchAllToSelectors(noneSelector, "*"), is(EnumSet.noneOf(IndexComponentSelector.class)));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "*::data"));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "*::failures"));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "_all"), is(EnumSet.noneOf(IndexComponentSelector.class)));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "_all::data"));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "_all::failures"));
+        assertThat(resolveMatchAllToSelector(noneSelector, "*"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "*::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "*::failures"));
+        assertThat(resolveMatchAllToSelector(noneSelector, "_all"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "_all::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "_all::failures"));
     }
 
     public void testCombineExpressionWithSelector() {
@@ -242,9 +242,9 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.splitSelectorExpression("::*"), is(equalTo(new Tuple<>("", "*"))));
     }
 
-    private static IndicesOptions getOptionsForSelectors(IndexComponentSelector... selectors) {
+    private static IndicesOptions getOptionsForSelectors(IndexComponentSelector selector) {
         return IndicesOptions.builder()
-            .selectorOptions(IndicesOptions.SelectorOptions.builder().setDefaultSelectors(EnumSet.copyOf(Arrays.asList(selectors))))
+            .selectorOptions(new IndicesOptions.SelectorOptions(selector))
             .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(true))
             .build();
     }
@@ -257,15 +257,15 @@ public class SelectorResolverTests extends ESTestCase {
         return new Context(mock(ClusterState.class), indicesOptions, SystemIndices.SystemIndexAccessLevel.NONE);
     }
 
-    private static List<ResolvedExpression> resolve(Context context, String expression) {
-        return SelectorResolver.resolve(context, expression).toList();
+    private static ResolvedExpression resolve(Context context, String expression) {
+        return SelectorResolver.parseExpression(context, expression);
     }
 
     private static List<ResolvedExpression> resolveAll(Context context, String... expressions) {
-        return SelectorResolver.resolve(context, List.of(expressions));
+        return SelectorResolver.parseAll(context, List.of(expressions));
     }
 
-    private static EnumSet<IndexComponentSelector> resolveMatchAllToSelectors(Context context, String matchAll) {
-        return SelectorResolver.resolveMatchAllToSelectors(context, matchAll);
+    private static IndexComponentSelector resolveMatchAllToSelector(Context context, String matchAll) {
+        return SelectorResolver.parseMatchAllToSelector(context, matchAll);
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -3307,7 +3308,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Predicates.never(),
             Predicates.never()
         );
-        Collection<String> result = IndexNameExpressionResolver.resolveExpressionsToResources(
+        Collection<ResolvedExpression> result = IndexNameExpressionResolver.resolveExpressionsToResources(
             context,
             "name1",
             "<.marvel-{now/d}>",
@@ -3315,7 +3316,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             "<.logstash-{now/M{uuuu.MM}}>"
         );
         assertThat(result.size(), equalTo(4));
-        assertThat(result, contains("name1", dataMathIndex1, "name2", dateMathIndex2));
+        assertThat(
+            result,
+            contains(
+                new ResolvedExpression("name1"),
+                new ResolvedExpression(dataMathIndex1),
+                new ResolvedExpression("name2"),
+                new ResolvedExpression(dateMathIndex2)
+            )
+        );
     }
 
     public void testMathExpressionSupport() {

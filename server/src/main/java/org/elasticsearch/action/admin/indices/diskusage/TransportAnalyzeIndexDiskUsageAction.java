@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -214,13 +213,8 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(
-        ClusterState clusterState,
-        AnalyzeIndexDiskUsageRequest request,
-        String[] concreteIndices
-    ) {
-        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
+    protected List<ShardIterator> shards(ClusterState clusterState, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
+        final List<ShardIterator> groups = clusterService.operationRouting().searchShards(clusterState, concreteIndices, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {

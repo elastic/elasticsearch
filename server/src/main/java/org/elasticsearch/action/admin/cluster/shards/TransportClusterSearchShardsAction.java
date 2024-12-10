@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,6 +32,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -99,7 +99,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         }
 
         Set<String> nodeIds = new HashSet<>();
-        GroupShardsIterator<ShardIterator> groupShardsIterator = clusterService.operationRouting()
+        List<ShardIterator> groupShardsIterator = clusterService.operationRouting()
             .searchShards(clusterState, concreteIndices, routingMap, request.preference());
         ShardRouting shard;
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];

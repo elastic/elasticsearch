@@ -19,8 +19,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.junit.ClassRule;
 
@@ -43,6 +47,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
+        .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)
         .build();
 
     @Override
@@ -341,10 +346,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return callAsync(endpoint, input);
     }
 
+    protected Deque<ServerSentEvent> unifiedCompletionInferOnMockService(String modelId, TaskType taskType, List<String> input)
+        throws Exception {
+        var endpoint = Strings.format("_inference/%s/%s/_unified", taskType, modelId);
+        return callAsyncUnified(endpoint, input, "user");
+    }
+
     private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input) throws Exception {
-        var responseConsumer = new AsyncInferenceResponseConsumer();
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input));
+
+        return execAsyncCall(request);
+    }
+
+    private Deque<ServerSentEvent> execAsyncCall(Request request) throws Exception {
+        var responseConsumer = new AsyncInferenceResponseConsumer();
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
         var latch = new CountDownLatch(1);
         client().performRequestAsync(request, new ResponseListener() {
@@ -360,6 +376,22 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         });
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         return responseConsumer.events();
+    }
+
+    private Deque<ServerSentEvent> callAsyncUnified(String endpoint, List<String> input, String role) throws Exception {
+        var request = new Request("POST", endpoint);
+
+        request.setJsonEntity(createUnifiedJsonBody(input, role));
+        return execAsyncCall(request);
+    }
+
+    private String createUnifiedJsonBody(List<String> input, String role) throws IOException {
+        var messages = input.stream().map(i -> Map.of("content", i, "role", role)).toList();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        builder.field("messages", messages);
+        builder.endObject();
+        return org.elasticsearch.common.Strings.toString(builder);
     }
 
     protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input) throws IOException {

@@ -1,0 +1,6 @@
+pr: 117201
+summary: "Use `field_caps` native nested fields filtering"
+area: ES|QL
+type: bug
+issues:
+ - 117054

@@ -39,9 +39,9 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -197,11 +197,7 @@ public final class CsvAssert {
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
                 if (row >= actualValues.size()) {
-                    if (dataFailures.isEmpty()) {
-                        fail("Expected more data but no more entries found after [" + row + "]");
-                    } else {
-                        dataFailure(dataFailures, "Expected more data but no more entries found after [" + row + "]\n");
-                    }
+                    dataFailure("Expected more data but no more entries found after [" + row + "]", dataFailures, expected, actualValues);
                 }
 
                 if (logger != null) {
@@ -250,13 +246,17 @@ public final class CsvAssert {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
-                        dataFailure(dataFailures);
+                        dataFailure("", dataFailures, expected, actualValues);
                     }
                 }
 
-                var delta = actualRow.size() - expectedRow.size();
-                if (delta > 0) {
-                    fail("Plan has extra columns, returned [" + actualRow.size() + "], expected [" + expectedRow.size() + "]");
+                if (actualRow.size() != expectedRow.size()) {
+                    dataFailure(
+                        "Plan has extra columns, returned [" + actualRow.size() + "], expected [" + expectedRow.size() + "]",
+                        dataFailures,
+                        expected,
+                        actualValues
+                    );
                 }
             } catch (AssertionError ae) {
                 if (logger != null && row + 1 < actualValues.size()) {
@@ -267,21 +267,59 @@ public final class CsvAssert {
             }
         }
         if (dataFailures.isEmpty() == false) {
-            dataFailure(dataFailures);
+            dataFailure("", dataFailures, expected, actualValues);
         }
         if (expectedValues.size() < actualValues.size()) {
-            fail(
-                "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
-            );
+            dataFailure("Elasticsearch still has data after [" + expectedValues.size() + "] entries", dataFailures, expected, actualValues);
         }
     }
 
-    private static void dataFailure(List<DataFailure> dataFailures) {
-        dataFailure(dataFailures, "");
+    private static void dataFailure(
+        String description,
+        List<DataFailure> dataFailures,
+        ExpectedResults expectedValues,
+        List<List<Object>> actualValues
+    ) {
+        var expected = pipeTable("Expected:", expectedValues.columnNames(), expectedValues.values(), 25);
+        var actual = pipeTable("Actual:", expectedValues.columnNames(), actualValues, 25);
+        fail(description + System.lineSeparator() + describeFailures(dataFailures) + actual + expected);
     }
 
-    private static void dataFailure(List<DataFailure> dataFailures, String prefixError) {
-        fail(prefixError + "Data mismatch:\n" + dataFailures.stream().map(f -> {
+    private static String pipeTable(String description, List<String> headers, List<List<Object>> values, int maxRows) {
+        int[] width = new int[headers.size()];
+        for (int i = 0; i < width.length; i++) {
+            width[i] = headers.get(i).length();
+            for (List<Object> row : values) {
+                width[i] = Math.max(width[i], String.valueOf(row.get(i)).length());
+            }
+        }
+
+        var result = new StringBuilder().append(System.lineSeparator()).append(description).append(System.lineSeparator());
+        for (int c = 0; c < width.length; c++) {
+            appendValue(result, headers.get(c), width[c]);
+        }
+        result.append('|').append(System.lineSeparator());
+        for (int r = 0; r < Math.min(maxRows, values.size()); r++) {
+            for (int c = 0; c < width.length; c++) {
+                appendValue(result, values.get(r).get(c), width[c]);
+            }
+            result.append('|').append(System.lineSeparator());
+        }
+        if (values.size() > maxRows) {
+            result.append("...").append(System.lineSeparator());
+        }
+        return result.toString();
+    }
+
+    private static void appendValue(StringBuilder result, Object value, int width) {
+        result.append('|').append(value);
+        for (int i = 0; i < width - String.valueOf(value).length(); i++) {
+            result.append(' ');
+        }
+    }
+
+    private static String describeFailures(List<DataFailure> dataFailures) {
+        return "Data mismatch:" + System.lineSeparator() + dataFailures.stream().map(f -> {
             Description description = new StringDescription();
             ListMatcher expected;
             if (f.expected instanceof List<?> e) {
@@ -299,7 +337,7 @@ public final class CsvAssert {
             expected.describeMismatch(actualList, description);
             String prefix = "row " + f.row + " column " + f.column + ":";
             return prefix + description.toString().replace("\n", "\n" + prefix);
-        }).collect(Collectors.joining("\n")));
+        }).collect(Collectors.joining(System.lineSeparator()));
     }
 
     private static Comparator<List<Object>> resultRowComparator(List<Type> types) {

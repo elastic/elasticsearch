@@ -156,7 +156,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             randomZone(),
             randomLocale(random()),
             "test_user",
-            "test_cluser",
+            "test_cluster",
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
@@ -187,7 +187,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             );
         }
         releasables.add(searcher);
-        return new EsPhysicalOperationProviders(shardContexts);
+        return new EsPhysicalOperationProviders(shardContexts, null);
     }
 
     private IndexReader reader() {

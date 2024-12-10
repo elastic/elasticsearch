@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceResults;
@@ -32,6 +31,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
@@ -78,6 +78,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
@@ -571,6 +572,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
+    public void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
+    }
+
+    @Override
     public void infer(
         Model model,
         @Nullable String query,
@@ -676,11 +687,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+        chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
     }
 
     @Override
@@ -690,7 +700,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
@@ -862,6 +871,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
+    @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
@@ -892,7 +902,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
             ElserMlNodeTaskSettings.DEFAULT,
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultE5 = new MultilingualE5SmallModel(
             DEFAULT_E5_ID,
@@ -904,7 +914,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5);
     }

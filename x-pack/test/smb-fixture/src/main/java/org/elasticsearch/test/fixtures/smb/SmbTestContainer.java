@@ -46,9 +46,7 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
         addExposedPort(AD_LDAP_GC_PORT);
 
         setWaitStrategy(
-            new WaitAllStrategy()
-                .withStrategy(Wait.forLogMessage(".*Samba started.*", 1))
-                .withStrategy(Wait.forListeningPort())
+            new WaitAllStrategy().withStrategy(Wait.forLogMessage(".*Samba started.*", 1)).withStrategy(Wait.forListeningPort())
         );
 
         getCreateContainerCmdModifiers().add(createContainerCmd -> {

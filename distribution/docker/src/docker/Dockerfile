@@ -340,7 +340,6 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -
 <% } %>
 
 <% if (docker_base == 'fips') { %>
-COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
 COPY --from=builder --chown=0:0 /opt /opt
 USER 1000:0
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive
@@ -362,6 +361,8 @@ RUN bin/elasticsearch-certutil cert --in instance.yml --self-signed --pem --out 
 RUN unzip certificate-bundle.zip
 RUN cp node1/node1.crt config
 RUN cp node1/node1.key config
+
+COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
 
 USER 1000:0
 <% } %>

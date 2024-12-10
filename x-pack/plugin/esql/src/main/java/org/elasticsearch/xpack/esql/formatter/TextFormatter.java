@@ -60,17 +60,23 @@ public class TextFormatter {
     /**
      * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
      */
-    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader) {
+    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader, boolean dropNullColumns) {
+        boolean[] dropColumns = dropNullColumns ? response.nullColumns() : new boolean[response.columns().size()];
         return Iterators.concat(
             // The header lines
-            includeHeader && response.columns().size() > 0 ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
+            includeHeader && response.columns().size() > 0
+                ? Iterators.single(writer -> formatHeader(writer, dropColumns))
+                : Collections.emptyIterator(),
             // Now format the results.
-            formatResults()
+            formatResults(dropColumns)
         );
     }
 
-    private void formatHeader(Writer writer) throws IOException {
+    private void formatHeader(Writer writer, boolean[] dropColumns) throws IOException {
         for (int i = 0; i < width.length; i++) {
+            if (dropColumns[i]) {
+                continue;
+            }
             if (i > 0) {
                 writer.append('|');
             }
@@ -86,6 +92,9 @@ public class TextFormatter {
         writer.append('\n');
 
         for (int i = 0; i < width.length; i++) {
+            if (dropColumns[i]) {
+                continue;
+            }
             if (i > 0) {
                 writer.append('+');
             }
@@ -94,10 +103,14 @@ public class TextFormatter {
         writer.append('\n');
     }
 
-    private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
+    private Iterator<CheckedConsumer<Writer, IOException>> formatResults(boolean[] dropColumns) {
         return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
+                if (dropColumns[i]) {
+                    row.next();
+                    continue;
+                }
                 if (i > 0) {
                     writer.append('|');
                 }

@@ -36,6 +36,7 @@ ES|QL::
 * Fix stats by constant expresson with alias {es-pull}117551[#117551]
 * Fix validation of SORT by aggregate functions {es-pull}117316[#117316]
 * Fixing remote ENRICH by pushing the Enrich inside `FragmentExec` {es-pull}114665[#114665] (issue: {es-issue}105095[#105095])
+* Ignore cancellation exceptions {es-pull}117657[#117657]
 * Limit size of `Literal#toString` {es-pull}117842[#117842]
 * Use `SearchStats` instead of field.isAggregatable in data node planning {es-pull}115744[#115744] (issue: {es-issue}115737[#115737])
 * [ESQL] Fix Binary Comparisons on Date Nanos {es-pull}116346[#116346]
@@ -45,6 +46,7 @@ Infra/CLI::
 * Fix NPE on plugin sync {es-pull}115640[#115640] (issue: {es-issue}114818[#114818])
 
 Ingest Node::
+* Fix enrich cache size setting name {es-pull}117575[#117575]
 * Fix reconstituting version string from components {es-pull}117213[#117213] (issue: {es-issue}116950[#116950])
 * Reducing error-level stack trace logging for normal events in `GeoIpDownloader` {es-pull}114924[#114924]
 
@@ -60,6 +62,7 @@ Machine Learning::
 * Hides `hugging_face_elser` service from the `GET _inference/_services API` {es-pull}116664[#116664] (issue: {es-issue}116644[#116644])
 * Mitigate IOSession timeouts {es-pull}115414[#115414] (issues: {es-issue}114385[#114385], {es-issue}114327[#114327], {es-issue}114105[#114105], {es-issue}114232[#114232])
 * Propagate scoring function through random sampler {es-pull}116957[#116957] (issue: {es-issue}110134[#110134])
+* Wait for the worker service to shutdown before closing task processor {es-pull}117920[#117920] (issue: {es-issue}117563[#117563])
 
 Mapping::
 * Address mapping and compute engine runtime field issues {es-pull}117792[#117792] (issue: {es-issue}117644[#117644])

@@ -50,7 +50,7 @@ public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
                 matchesPattern("LiteralsEvaluator.*"),
                 TIME_DURATION,
                 equalTo(field)
-            );
+            ).withoutEvaluator();
         }));
 
         for (EsqlDataTypeConverter.INTERVALS interval : TIME_DURATIONS) {
@@ -66,7 +66,7 @@ public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
                         matchesPattern("LiteralsEvaluator.*"),
                         TIME_DURATION,
                         equalTo(result)
-                    );
+                    ).withoutEvaluator();
                 }));
             }
         }

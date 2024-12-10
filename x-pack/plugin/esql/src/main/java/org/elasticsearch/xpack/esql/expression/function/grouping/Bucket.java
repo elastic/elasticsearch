@@ -90,7 +90,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private final Expression to;
 
     @FunctionInfo(
-        returnType = { "double", "date" },
+        returnType = { "double", "date", "date_nanos" },
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
             The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
@@ -169,7 +169,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "date" },
+            type = { "integer", "long", "double", "date", "date_nanos" },
             description = "Numeric or date expression from which to derive buckets."
         ) Expression field,
         @Param(
@@ -241,7 +241,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field.dataType() == DataType.DATETIME) {
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isWholeNumber()) {
                 int b = ((Number) buckets.fold()).intValue();
@@ -314,8 +314,8 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
-    // datetime, integer, string/datetime, string/datetime
-    // datetime, rounding/duration, -, -
+    // datetime/date_nanos, integer, string/datetime, string/datetime
+    // datetime/date_nanos, rounding/duration, -, -
     // numeric, integer, numeric, numeric
     // numeric, numeric, -, -
     @Override
@@ -329,7 +329,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType == DataType.DATETIME) {
+        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
             TypeResolution resolution = isType(
                 buckets,
                 dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),

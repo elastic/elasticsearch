@@ -314,6 +314,276 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "date",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "date",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "date",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "date",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "date",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "date",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : true,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : true,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Numeric or date expression from which to derive buckets."

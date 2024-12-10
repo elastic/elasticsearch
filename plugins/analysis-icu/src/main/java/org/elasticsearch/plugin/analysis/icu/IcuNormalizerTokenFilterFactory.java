@@ -30,7 +30,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         String method = settings.get("name", "nfkc_cf");
         Normalizer2 normalizerInstance = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
         this.normalizer = wrapWithUnicodeSetFilter(normalizerInstance, settings);

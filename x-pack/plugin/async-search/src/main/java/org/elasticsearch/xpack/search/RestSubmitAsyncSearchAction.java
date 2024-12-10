@@ -64,9 +64,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
-        context.putHeader("error_trace", request.param("error_trace", ERROR_TRACE_DEFAULT));
-
+        setErrorTraceTransportHeader(context, request);
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
         // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll

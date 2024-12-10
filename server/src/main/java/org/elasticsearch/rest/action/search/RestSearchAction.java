@@ -100,9 +100,7 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
-        context.putHeader("error_trace", request.param("error_trace", ERROR_TRACE_DEFAULT));
-
+        setErrorTraceTransportHeader(context, request);
         SearchRequest searchRequest = new SearchRequest();
         // access the BwC param, but just drop it
         // this might be set by old clients

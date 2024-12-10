@@ -1,9 +1,15 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [allowed_warnings, contains, capabilities]
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [ 'lazy-rollover-failure-store' ]
 
   - do:
       allowed_warnings:
@@ -12,8 +18,7 @@ setup:
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             mappings:
               properties:
@@ -21,6 +26,9 @@ setup:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -145,14 +153,6 @@ teardown:
 
 ---
 "Lazily roll over a data stream's failure store after a shard failure":
-  - requires:
-      reason: "data stream failure store lazy rollover only supported in 8.15+"
-      test_runner_features: [allowed_warnings, capabilities]
-      capabilities:
-        - method: POST
-          path: /{index}/_rollover
-          capabilities: [lazy-rollover-failure-store]
-
   # Initialize failure store
   - do:
       index:
@@ -215,14 +215,6 @@ teardown:
 
 ---
 "Lazily roll over a data stream's failure store after an ingest failure":
-  - requires:
-      reason: "data stream failure store lazy rollover only supported in 8.15+"
-      test_runner_features: [allowed_warnings, capabilities]
-      capabilities:
-        - method: POST
-          path: /{index}/_rollover
-          capabilities: [lazy-rollover-failure-store]
-
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -246,12 +238,14 @@ teardown:
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               index:
                 default_pipeline: "failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:

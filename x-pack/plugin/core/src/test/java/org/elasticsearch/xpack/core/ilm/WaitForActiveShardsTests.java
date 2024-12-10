@@ -250,7 +250,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             JsonXContent.contentBuilder(),
             ToXContent.EMPTY_PARAMS
         );
-        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        String actualResultAsString = Strings.toString(result.getInformationContext());
         assertThat(actualResultAsString, is(Strings.toString(expected)));
         assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
     }
@@ -294,7 +294,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             JsonXContent.contentBuilder(),
             ToXContent.EMPTY_PARAMS
         );
-        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        String actualResultAsString = Strings.toString(result.getInformationContext());
         assertThat(actualResultAsString, is(Strings.toString(expected)));
         assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
     }
@@ -318,7 +318,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         ClusterStateWaitStep.Result result = step.isConditionMet(new Index("index-000000", UUID.randomUUID().toString()), clusterState);
         assertThat(result.isComplete(), is(false));
 
-        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        String actualResultAsString = Strings.toString(result.getInformationContext());
         assertThat(
             actualResultAsString,
             containsString(

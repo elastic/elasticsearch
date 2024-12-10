@@ -89,7 +89,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
 
     private QueryBuilder createMatchSubQuery(List<String> indices, String fieldName, Object value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new InterceptedQueryBuilderWrapper<>(new MatchQueryBuilder(fieldName, value)));
+        boolQueryBuilder.must(new InterceptedQueryBuilderWrapper(new MatchQueryBuilder(fieldName, value)));
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }

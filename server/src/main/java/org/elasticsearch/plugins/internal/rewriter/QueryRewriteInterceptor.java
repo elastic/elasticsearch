@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins.internal.rewriter;
 
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
@@ -54,7 +55,7 @@ public interface QueryRewriteInterceptor {
         @Override
         public QueryBuilder rewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
             QueryRewriteInterceptor interceptor = interceptors.get(queryBuilder.getName());
-            if (interceptor != null) {
+            if (interceptor != null && queryBuilder instanceof InterceptedQueryBuilderWrapper == false) {
                 return interceptor.rewrite(context, queryBuilder);
             }
             return queryBuilder;

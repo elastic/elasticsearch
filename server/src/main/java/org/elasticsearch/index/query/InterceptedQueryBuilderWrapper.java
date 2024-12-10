@@ -20,13 +20,12 @@ import java.io.IOException;
 /**
  * Wrapper for instances of {@link AbstractQueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
- * @param <T>
  */
-public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<T> {
+public class InterceptedQueryBuilderWrapper extends AbstractQueryBuilder<InterceptedQueryBuilderWrapper> {
 
-    protected final T queryBuilder;
+    protected final AbstractQueryBuilder<?> queryBuilder;
 
-    public InterceptedQueryBuilderWrapper(T queryBuilder) {
+    public InterceptedQueryBuilderWrapper(AbstractQueryBuilder<?> queryBuilder) {
         super();
         this.queryBuilder = queryBuilder;
     }
@@ -58,15 +57,8 @@ public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> e
     }
 
     @Override
-    protected boolean doEquals(T other) {
-        // Handle the edge case where we need to unwrap the incoming query builder
-        if (other instanceof InterceptedQueryBuilderWrapper) {
-            @SuppressWarnings("unchecked")
-            InterceptedQueryBuilderWrapper<T> wrapper = (InterceptedQueryBuilderWrapper<T>) other;
-            return queryBuilder.equals(wrapper.queryBuilder);
-        } else {
-            return queryBuilder.equals(other);
-        }
+    protected boolean doEquals(InterceptedQueryBuilderWrapper other) {
+        return queryBuilder.equals(other.queryBuilder);
     }
 
     @Override
@@ -82,5 +74,10 @@ public class InterceptedQueryBuilderWrapper<T extends AbstractQueryBuilder<T>> e
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return queryBuilder.getMinimalSupportedVersion();
+    }
+
+    @Override
+    public boolean isFragment() {
+        return super.isFragment();
     }
 }

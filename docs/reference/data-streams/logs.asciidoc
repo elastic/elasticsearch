@@ -93,7 +93,7 @@ named `host` with a `name` child field of type `keyword`. If `subobjects` is set
 a single `host.name` field is mapped as a `keyword` field.
 
 After an index is created, the sort settings cannot be modified. To use different sort settings,
-create a new index. For data streams, you can update the relevant component templates and then 
+create a new index. For data streams, you can update the templates used by the data stream, and then 
 perform or wait for an index <<data-streams-rollover,rollover>>.
 
 Keep in mind that sort

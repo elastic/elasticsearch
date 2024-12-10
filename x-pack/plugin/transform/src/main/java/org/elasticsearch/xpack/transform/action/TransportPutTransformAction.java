@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,10 +43,12 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
@@ -59,6 +64,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final TransformExtensionHolder extension;
 
     @Inject
     public TransportPutTransformAction(
@@ -69,7 +75,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        TransformExtensionHolder extension
     ) {
         super(
             PutTransformAction.NAME,
@@ -84,6 +91,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         this.settings = settings;
         this.client = client;
         this.transformConfigManager = transformServices.configManager();
+        this.extension = extension;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -125,42 +133,60 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-            TransformPrivilegeChecker.checkPrivileges(
-                "create",
-                settings,
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                client,
-                config,
-                true,
-                ActionListener.wrap(
-                    aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
-                        settings,
-                        transformConfigManager,
-                        transformId,
-                        AuthorizationState.green(),
-                        checkPrivilegesListener
-                    ),
-                    e -> {
-                        if (request.isDeferValidation()) {
-                            AuthorizationStatePersistenceUtils.persistAuthState(
-                                settings,
-                                transformConfigManager,
-                                transformId,
-                                AuthorizationState.red(e),
-                                checkPrivilegesListener
-                            );
-                        } else {
-                            checkPrivilegesListener.onFailure(e);
+        ActionListener<Void> createIndexListener = checkPrivilegesListener.delegateFailureAndWrap((l, r) -> {
+            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+                TransformPrivilegeChecker.checkPrivileges(
+                    "create",
+                    settings,
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    client,
+                    config,
+                    true,
+                    ActionListener.wrap(
+                        aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
+                            settings,
+                            transformConfigManager,
+                            transformId,
+                            AuthorizationState.green(),
+                            l
+                        ),
+                        e -> {
+                            if (request.isDeferValidation()) {
+                                AuthorizationStatePersistenceUtils.persistAuthState(
+                                    settings,
+                                    transformConfigManager,
+                                    transformId,
+                                    AuthorizationState.red(e),
+                                    l
+                                );
+                            } else {
+                                l.onFailure(e);
+                            }
                         }
-                    }
-                )
-            );
-        } else { // No security enabled, just move on
-            checkPrivilegesListener.onResponse(null);
-        }
+                    )
+                );
+            } else { // No security enabled, just move on
+                l.onResponse(null);
+            }
+        });
+
+        // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(
+            clusterService,
+            new ParentTaskAssigningClient(client, parentTaskId),
+            extension.getTransformExtension().getTransformInternalIndexAdditionalSettings(),
+            createIndexListener.delegateResponse((l, e) -> {
+                l.onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.REST_PUT_FAILED_CREATING_TRANSFORM_INDEX,
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        ExceptionsHelper.unwrapCause(e)
+                    )
+                );
+            })
+        );
     }
 
     @Override

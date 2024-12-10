@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -87,13 +88,21 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Pr
         return roleMappings.isEmpty();
     }
 
+    @Deprecated
+    @FixForMultiProject(description = "Need to populate the correct project")
     public ClusterState updateClusterState(ClusterState clusterState) {
+        return ClusterState.builder(clusterState).putProjectMetadata(updateProject(clusterState.getMetadata().getProject())).build();
+    }
+
+    public ProjectMetadata updateProject(ProjectMetadata project) {
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
         if (isEmpty()) {
             // prefer no role mapping custom metadata to the empty role mapping metadata
-            return clusterState.copyAndUpdateMetadata(b -> b.removeProjectCustom(RoleMappingMetadata.TYPE));
+            builder.removeCustom(RoleMappingMetadata.TYPE);
         } else {
-            return clusterState.copyAndUpdateMetadata(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
+            builder.putCustom(RoleMappingMetadata.TYPE, this);
         }
+        return builder.build();
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {

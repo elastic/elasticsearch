@@ -74,8 +74,10 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -288,63 +290,58 @@ public class FileSettingsServiceTests extends ESTestCase {
         verifyNoMoreInteractions(healthIndicatorService);
     }
 
-    @SuppressWarnings("unchecked")
     public void testInvalidJSON() throws Exception {
+        // Chop off the functionality so we don't run too much of the actual cluster logic that we're not testing
+        doNothing().when(controller).updateErrorState(any());
         doAnswer((Answer<Void>) invocation -> {
-            invocation.getArgument(1, XContentParser.class).map(); // Throw if JSON is invalid
-            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
-            return null;
-        }).when(controller).process(any(), any(XContentParser.class), any(), any());
+            throw new AssertionError("Parse error should happen before this process method is called");
+        }).when(controller).process(any(), any(ReservedStateChunk.class), any(), any());
 
-        CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
-        fileSettingsService.addFileChangedListener(() -> awaitOrBust(fileChangeBarrier));
-
+        // Don't really care about the initial state
         Files.createDirectories(fileSettingsService.watchedFileDir());
-        // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(fileSettingsService.watchedFile(), "{}");
-
-        doAnswer((Answer<?>) invocation -> {
-            boolean returnedNormally = false;
-            try {
-                var result = invocation.callRealMethod();
-                returnedNormally = true;
-                return result;
-            } catch (XContentParseException e) {
-                // We're expecting a parse error. processFileChanges specifies that this is supposed to throw ExecutionException.
-                throw new ExecutionException(e);
-            } catch (Throwable e) {
-                throw new AssertionError("Unexpected exception", e);
-            } finally {
-                if (returnedNormally == false) {
-                    // Because of the exception, listeners aren't notified, so we need to activate the barrier ourselves
-                    awaitOrBust(fileChangeBarrier);
-                }
-            }
-        }).when(fileSettingsService).processFileChanges();
-
-        // Establish the initial valid JSON
+        doNothing().when(fileSettingsService).processInitialFileMissing();
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-        awaitOrBust(fileChangeBarrier);
 
-        // Now break the JSON
+        // Now break the JSON and wait
+        CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                awaitOrBust(fileChangeBarrier);
+            }
+        }).when(fileSettingsService).processFileChanges();
         writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
-        verify(fileSettingsService, times(1)).processFileOnServiceStart(); // The initial state
+        verify(fileSettingsService, times(0)).processFileOnServiceStart(); // Initially no file
         verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
         verify(fileSettingsService, times(1)).onProcessFileChangesException(
-            argThat(e -> e instanceof ExecutionException && e.getCause() instanceof XContentParseException)
+            argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
 
         // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
         // referring to fileSettingsService.start(). Rather, it is referring to the initialization
         // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
 
-        verify(healthIndicatorService, times(2)).changeOccurred();
-        verify(healthIndicatorService, times(1)).successOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalArgumentException.class.getName())));
+        verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred(contains(XContentParseException.class.getName()));
         verifyNoMoreInteractions(healthIndicatorService);
+    }
+
+    /**
+     * Looks for the ultimate cause of {@code e} by stripping off layers of bookkeeping exception wrappers.
+     */
+    private Throwable unwrapException(Throwable e) {
+        while (e != null) {
+            if (e instanceof ExecutionException || e instanceof IllegalStateException) {
+                e = e.getCause();
+            } else {
+                break;
+            }
+        }
+        return e;
     }
 
     private static void awaitOrBust(CyclicBarrier barrier) {

@@ -155,6 +155,37 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
+    private boolean isValidateAction;
+
+    DefaultSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTarget shardTarget,
+        LongSupplier relativeTimeSupplier,
+        TimeValue timeout,
+        FetchPhase fetchPhase,
+        boolean lowLevelCancellation,
+        Executor executor,
+        SearchService.ResultsType resultsType,
+        boolean enableQueryPhaseParallelCollection,
+        int minimumDocsPerSlice,
+        boolean isValidateAction
+    ) throws IOException {
+        this(
+            readerContext,
+            request,
+            shardTarget,
+            relativeTimeSupplier,
+            timeout,
+            fetchPhase,
+            lowLevelCancellation,
+            executor,
+            resultsType,
+            enableQueryPhaseParallelCollection,
+            minimumDocsPerSlice
+        );
+        this.isValidateAction = isValidateAction;
+    }
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -174,6 +205,7 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchPhase = fetchPhase;
         boolean success = false;
         try {
+            this.isValidateAction = false;
             this.searchType = request.searchType();
             this.shardTarget = shardTarget;
             this.indexService = readerContext.indexService();

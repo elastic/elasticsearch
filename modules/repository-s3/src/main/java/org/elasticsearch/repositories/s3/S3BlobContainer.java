@@ -342,10 +342,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                     return summary.getKey();
                 });
                 if (list.isTruncated()) {
-                    blobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNameIterator);
+                    blobStore.deleteBlobs(purpose, blobNameIterator);
                     prevListing = list;
                 } else {
-                    blobStore.deleteBlobsIgnoringIfNotExists(purpose, Iterators.concat(blobNameIterator, Iterators.single(keyPath)));
+                    blobStore.deleteBlobs(purpose, Iterators.concat(blobNameIterator, Iterators.single(keyPath)));
                     break;
                 }
             }
@@ -357,7 +357,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(purpose, Iterators.map(blobNames, this::buildKey));
+        blobStore.deleteBlobs(purpose, Iterators.map(blobNames, this::buildKey));
     }
 
     @Override

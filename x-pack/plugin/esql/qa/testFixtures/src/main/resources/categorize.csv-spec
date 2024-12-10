@@ -615,3 +615,84 @@ COUNT():long | x:keyword
            3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
            1 | [.*?Disconnected.*?,.*?Disconnected.*?]
 ;
+
+multiple groupings with categorize and ip
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message), client_ip
+  | SORT category, client_ip
+;
+
+count:long | category:keyword         | client_ip:ip
+         1 | .*?Connected.+?to.*?     | 172.21.2.113
+         1 | .*?Connected.+?to.*?     | 172.21.2.162
+         1 | .*?Connected.+?to.*?     | 172.21.3.15
+         3 | .*?Connection.+?error.*? | 172.21.3.15
+         1 | .*?Disconnected.*?       | 172.21.0.5
+;
+
+multiple groupings with categorize and bucketed timestamp
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message), timestamp=BUCKET(@timestamp, 1 HOUR)
+  | SORT category, timestamp
+;
+
+count:long | category:keyword         | timestamp:datetime
+         2 | .*?Connected.+?to.*?     | 2023-10-23T12:00:00.000Z
+         1 | .*?Connected.+?to.*?     | 2023-10-23T13:00:00.000Z
+         3 | .*?Connection.+?error.*? | 2023-10-23T13:00:00.000Z
+         1 | .*?Disconnected.*?       | 2023-10-23T13:00:00.000Z
+;
+
+multiple groupings with categorize and nulls
+required_capability: categorize_multiple_groupings
+
+FROM employees
+  | STATS SUM(languages) BY category=CATEGORIZE(job_positions), gender
+  | SORT category DESC, gender ASC
+  | LIMIT 5
+;
+
+SUM(languages):long | category:keyword  | gender:keyword
+                 11 | null              | F
+                 16 | null              | M
+                 14 | .*?Tech.+?Lead.*? | F
+                 23 | .*?Tech.+?Lead.*? | M
+                  9 | .*?Tech.+?Lead.*? | null
+;
+
+multiple groupings with categorize and a field that's always null
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | EVAL nullfield = null
+  | STATS count=COUNT() BY category=CATEGORIZE(nullfield), client_ip
+  | SORT client_ip
+;
+
+count:long | category:keyword | client_ip:ip
+         1 | null             | 172.21.0.5
+         1 | null             | 172.21.2.113
+         1 | null             | 172.21.2.162
+         4 | null             | 172.21.3.15
+;
+
+
+multiple groupings with categorize and the same text field
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message), message
+  | SORT message
+;
+
+count:long | category:keyword         | message:keyword
+         1 | .*?Connected.+?to.*?     | Connected to 10.1.0.1
+         1 | .*?Connected.+?to.*?     | Connected to 10.1.0.2
+         1 | .*?Connected.+?to.*?     | Connected to 10.1.0.3
+         3 | .*?Connection.+?error.*? | Connection error
+         1 | .*?Disconnected.*?       | Disconnected
+;

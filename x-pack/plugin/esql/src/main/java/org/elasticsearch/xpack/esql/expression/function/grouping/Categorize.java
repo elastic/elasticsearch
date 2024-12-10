@@ -95,7 +95,8 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     @Override
     public Nullability nullable() {
-        // Both nulls and empty strings result in null values
+        // Null strings and strings that don't produce tokens after analysis lead to null values.
+        // This includes empty strings, only whitespace, (hexa)decimal numbers and stopwords.
         return Nullability.TRUE;
     }
 

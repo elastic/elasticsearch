@@ -297,6 +297,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
+- class: org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT
+  method: testTopNThenEnrichRemote
+  issue: https://github.com/elastic/elasticsearch/issues/118307
 
 # Examples:
 #

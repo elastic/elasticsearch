@@ -24,6 +24,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "finding bugs due to inconsistent plans")
 public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.
@@ -107,15 +108,13 @@ public class SetPriorityAction implements LifecycleAction {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         SetPriorityAction that = (SetPriorityAction) o;
-
-        return recoveryPriority != null ? recoveryPriority.equals(that.recoveryPriority) : that.recoveryPriority == null;
+        return Objects.equals(recoveryPriority, that.recoveryPriority);
     }
 
     @Override
     public int hashCode() {
-        return recoveryPriority != null ? recoveryPriority.hashCode() : 0;
+        return Objects.hash(recoveryPriority);
     }
 
     @Override

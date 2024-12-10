@@ -71,7 +71,7 @@ setup:
   - do:
       connector.post:
         body:
-          index_name: search-test
+          index_name: content-search-test
           is_native: true
 
   - set:  { id: id }
@@ -82,7 +82,7 @@ setup:
         connector_id: $id
 
   - match: { id: $id }
-  - match: { index_name: search-test }
+  - match: { index_name: content-search-test }
   - match: { is_native: true }
   - match: { sync_now: false }
   - match: { status: needs_configuration }
@@ -101,6 +101,7 @@ setup:
           language: pl
           is_native: false
           service_type: super-connector
+
 
 ---
 'Create Connector - Index name used by another connector':

@@ -579,9 +579,11 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             request = request.allowPartialSearchResults(allowPartialSearchResults);
         }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
-            .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
-        response = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
+        while (response.isRunning()) {
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
+                .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
+            response = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
+        }
         return response;
     }
 

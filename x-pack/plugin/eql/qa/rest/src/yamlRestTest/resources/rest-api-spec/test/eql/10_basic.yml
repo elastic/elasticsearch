@@ -531,6 +531,28 @@ setup:
 
 
 ---
+"Execute query shard failures and with allow_partial_search_results as request param":
+  - do:
+      eql.search:
+        index: eql_test*
+        allow_partial_search_results: true
+        body:
+          query: 'process where user == "SYSTEM" and day_of_week == "Monday"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
 "Execute sequence with shard failures and allow_partial_search_results=true":
   - do:
       eql.search:
@@ -555,6 +577,34 @@ setup:
           fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
           allow_partial_search_results: true
           allow_partial_sequence_results: true
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.events.0._source.user: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.sequences.0.events.0.fields.id: [123]}
+  - match: {hits.sequences.0.events.0.fields.valid: [false]}
+  - match: {hits.sequences.0.events.0.fields.day_of_week: ["Monday"]}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.sequences.0.events.1.fields.id: [123]}
+  - match: {hits.sequences.0.events.1.fields.valid: [true]}
+  - match: {hits.sequences.0.events.1.fields.day_of_week: ["Tuesday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+"Execute sequence with shard failures, allow_partial_search_results=true and allow_partial_sequence_results=true as query params":
+  - do:
+      eql.search:
+        index: eql_test*
+        allow_partial_search_results: true
+        allow_partial_sequence_results: true
+        body:
+          query: 'sequence [process where user == "SYSTEM" and day_of_week == "Monday"] [process where user == "SYSTEM" and day_of_week == "Tuesday"]'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
 
   - match: {timed_out: false}
   - match: {hits.total.value: 1}

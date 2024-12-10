@@ -1,0 +1,6 @@
+pr: 105999
+summary: update limit heap memory usage for chunked responses
+area: REST API
+type: bug
+issues:
+  - 105684

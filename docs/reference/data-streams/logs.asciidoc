@@ -56,7 +56,7 @@ DELETE _index_template/my-index-template
 By default, `logsdb` mode uses <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
 field. Instead, the document source is synthesized from doc values or stored fields upon document retrieval. 
 
-Before using synthetic source, make sure to review the <<synthetic-source,restriction and modifications>>. To prevent modifications of a particular object or field, you can <<synthetic-source-keep,minimize synthetic source modifications>>.
+Before using synthetic source, make sure to review the <<synthetic-source,restrictions and modifications>>. To prevent modifications of a particular object or field, you can <<synthetic-source-keep,minimize synthetic source modifications>>.
 
 When working with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
 are preserved for <<synthetic-source,synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,

@@ -506,7 +506,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     // Wraps the listener to avoid sending StackTrace if error_trace is set to false
-    private <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener) {
+    <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener) {
         String header = threadPool.getThreadContext().getHeaderOrDefault("error_trace", "true");
         if (header.equals("false")) {
             return listener.delegateResponse((l, e) -> {
@@ -871,6 +871,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }, wrapFailureListener(l, readerContext, markAsUsed));
         }));
+    }
+
+    ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     private Executor getExecutor(IndexShard indexShard) {

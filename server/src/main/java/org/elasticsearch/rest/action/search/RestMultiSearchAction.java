@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -45,6 +46,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestMultiSearchAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+    private static final String ERROR_TRACE_DEFAULT = String.valueOf(RestController.ERROR_TRACE_DEFAULT);
 
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
@@ -80,8 +82,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // set weather data nodes should send back stack trace based on the `error_trace` query parameter
-        context.putHeader("error_trace", request.param("error_trace", "false"));
+        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
+        context.putHeader("error_trace", request.param("error_trace", ERROR_TRACE_DEFAULT));
 
         final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature);
         return channel -> {

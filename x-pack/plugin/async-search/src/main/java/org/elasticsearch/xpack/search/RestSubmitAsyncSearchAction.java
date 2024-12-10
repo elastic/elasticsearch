@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
@@ -35,6 +36,7 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchR
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final String TYPED_KEYS_PARAM = "typed_keys";
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+    private static final String ERROR_TRACE_DEFAULT = String.valueOf(RestController.ERROR_TRACE_DEFAULT);
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
@@ -62,8 +64,8 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // set weather data nodes should send back stack trace based on the `error_trace` query parameter
-        context.putHeader("error_trace", request.param("error_trace", "false"));
+        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
+        context.putHeader("error_trace", request.param("error_trace", ERROR_TRACE_DEFAULT));
 
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);

@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -65,6 +66,7 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
     public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM);
+    private static final String ERROR_TRACE_DEFAULT = String.valueOf(RestController.ERROR_TRACE_DEFAULT);
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
@@ -98,8 +100,8 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // set weather data nodes should send back stack trace based on the `error_trace` query parameter
-        context.putHeader("error_trace", request.param("error_trace", "false"));
+        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
+        context.putHeader("error_trace", request.param("error_trace", ERROR_TRACE_DEFAULT));
 
         SearchRequest searchRequest = new SearchRequest();
         // access the BwC param, but just drop it

@@ -2939,6 +2939,35 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testMaybeWrapListenerForStackTrace() {
+        // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
+        SearchService service = getInstanceFromNode(SearchService.class);
+        service.getThreadPool().getThreadContext().putHeader("error_trace", "false");
+        AtomicBoolean isWrapped = new AtomicBoolean(false);
+        ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+                // noop - we only care about failure scenarios
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (isWrapped.get()) {
+                    assertThat(e.getStackTrace().length, is(0));
+                } else {
+                    assertThat(e.getStackTrace().length, is(not(0)));
+                }
+            }
+        };
+        Exception e = new Exception();
+        e.fillInStackTrace();
+        assertThat(e.getStackTrace().length, is(not(0)));
+        listener.onFailure(e);
+        listener = service.maybeWrapListenerForStackTrace(listener);
+        isWrapped.set(true);
+        listener.onFailure(e);
+    }
+
     private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;

@@ -83,7 +83,7 @@ The `min` mode sorts indices by the minimum value of multi-value fields.
 Missing values are sorted to appear `_first`.
 
 You can override these default sort settings. For example, to sort on different fields
-and change the order, modify `index.sort.field` and `index.sort.order`.
+and change the order, manually configure `index.sort.field` and `index.sort.order`.
 
 When using the default sort settings, the `host.name` field is automatically injected into the index mappings as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and
 retrieved based on the `host.name` and `@timestamp` fields.

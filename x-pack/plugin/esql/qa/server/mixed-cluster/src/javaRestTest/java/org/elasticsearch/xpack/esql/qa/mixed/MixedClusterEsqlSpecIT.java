@@ -93,6 +93,12 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
+    protected boolean supportsIndexModeLookup() {
+        // TODO: base this on the available features or minimum node version
+        return false;
+    }
+
+    @Override
     protected boolean deduplicateExactWarnings() {
         /*
          * In ESQL's main tests we shouldn't have to deduplicate but in

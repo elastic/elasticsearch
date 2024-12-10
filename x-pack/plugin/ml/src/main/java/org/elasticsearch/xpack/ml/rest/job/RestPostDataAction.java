@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +35,9 @@ public class RestPostDataAction extends BaseRestHandler {
             + "in a future major version it will be compulsory to use a datafeed";
         return List.of(
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecated(msg, RestApiVersion.V_8).build(),
-            Route.builder(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecated(msg, RestApiVersion.V_7).build()
+            Route.builder(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data")
+                .deprecated(msg, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

@@ -40,8 +40,12 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             new Route(POST, "/_mtermvectors"),
             new Route(GET, "/{index}/_mtermvectors"),
             new Route(POST, "/{index}/_mtermvectors"),
-            Route.builder(GET, "/{index}/{type}/_mtermvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_mtermvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/_mtermvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_mtermvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

@@ -1,0 +1,6 @@
+pr: 117469
+summary: Handle exceptions in query phase can match
+area: Search
+type: bug
+issues:
+ - 104994

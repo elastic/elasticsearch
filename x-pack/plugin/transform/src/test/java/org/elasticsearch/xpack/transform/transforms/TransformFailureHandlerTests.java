@@ -64,18 +64,9 @@ public class TransformFailureHandlerTests extends ESTestCase {
         }
     }
 
-    // TODO: Circuit breaking exception
-
     public void testHandleIndexerFailure_CircuitBreakingExceptionNewPageSizeLessThanMinimumPageSize() {
         var e = new CircuitBreakingException(randomAlphaOfLength(10), 1, 0, randomFrom(CircuitBreaker.Durability.values()));
-
-        List.of(true, false).forEach((unattended) -> {
-            if (unattended) {
-                assertRetry(e, unattended);
-            } else {
-                assertFailure(e);
-            }
-        });
+        assertRetryIfUnattendedOtherwiseFail(e);
     }
 
     public void testHandleIndexerFailure_CircuitBreakingExceptionNewPageSizeNotLessThanMinimumPageSize() {
@@ -92,13 +83,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
             randomAlphaOfLength(10),
             randomAlphaOfLength(10)
         );
-        List.of(true, false).forEach((unattended) -> {
-            if (unattended) {
-                assertRetry(e, unattended);
-            } else {
-                assertFailure(e);
-            }
-        });
+        assertRetryIfUnattendedOtherwiseFail(e);
     }
 
     public void testHandleIndexerFailure_BulkIndexExceptionWrappingClusterBlockException() {
@@ -112,19 +97,12 @@ public class TransformFailureHandlerTests extends ESTestCase {
     }
 
     public void testHandleIndexerFailure_IrrecoverableBulkIndexException() {
-        final BulkIndexingException bulkIndexingException = new BulkIndexingException(
+        final BulkIndexingException e = new BulkIndexingException(
             randomAlphaOfLength(10),
             new ElasticsearchStatusException(randomAlphaOfLength(10), RestStatus.INTERNAL_SERVER_ERROR),
             true
         );
-
-        List.of(true, false).forEach((unattended) -> {
-            if (unattended) {
-                assertRetry(bulkIndexingException, unattended);
-            } else {
-                assertFailure(bulkIndexingException);
-            }
-        });
+        assertRetryIfUnattendedOtherwiseFail(e);
     }
 
     public void testHandleIndexerFailure_RecoverableBulkIndexException() {
@@ -176,17 +154,19 @@ public class TransformFailureHandlerTests extends ESTestCase {
 
     public void testHandleIndexerFailure_IrrecoverableElasticsearchException() {
         var e = new ElasticsearchStatusException(randomAlphaOfLength(10), RestStatus.NOT_FOUND);
-        List.of(true, false).forEach((unattended) -> {
-            if (unattended) {
-                assertRetry(e, unattended);
-            } else {
-                assertFailure(e);
-            }
-        });
+        assertRetryIfUnattendedOtherwiseFail(e);
     }
 
     public void testHandleIndexerFailure_IllegalArgumentException() {
         var e = new IllegalArgumentException(randomAlphaOfLength(10));
+        assertRetryIfUnattendedOtherwiseFail(e);
+    }
+
+    public void testHandleIndexerFailure_UnexpectedException() {
+        List.of(true, false).forEach((unattended) -> { assertRetry(new Exception(), unattended); });
+    }
+
+    private void assertRetryIfUnattendedOtherwiseFail(Exception e) {
         List.of(true, false).forEach((unattended) -> {
             if (unattended) {
                 assertRetry(e, unattended);
@@ -194,10 +174,6 @@ public class TransformFailureHandlerTests extends ESTestCase {
                 assertFailure(e);
             }
         });
-    }
-
-    public void testHandleIndexerFailure_UnexpectedException() {
-        List.of(true, false).forEach((unattended) -> { assertRetry(new Exception(), unattended); });
     }
 
     private void assertRetry(Exception e, boolean unattended) {

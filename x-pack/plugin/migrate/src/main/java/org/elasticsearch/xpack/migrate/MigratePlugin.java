@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.cluster.metadata.DataStream.REINDEX_DATA_STREAM_FEATURE_FLAG;
 
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 

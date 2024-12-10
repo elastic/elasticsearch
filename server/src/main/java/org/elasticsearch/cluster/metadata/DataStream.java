@@ -69,12 +69,17 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
+    public static final FeatureFlag REINDEX_DATA_STREAM_FEATURE_FLAG = new FeatureFlag("reindex_data_stream");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
+    }
+
+    public static boolean isMigrationReindexFeatureFlagEnabled() {
+        return REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled();
     }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";

@@ -69,10 +69,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
     private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
-    private static final List<String> DEPRECATED_DATA_FRAME_TRANSFORMS_ROLES = List.of(
-        "data_frame_transforms_admin",
-        "data_frame_transforms_user"
-    );
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -411,20 +407,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
         if (retentionPolicyConfig != null) {
             retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
-        }
-
-        var deprecatedTransformRoles = getRolesFromHeaders().stream().filter(DEPRECATED_DATA_FRAME_TRANSFORMS_ROLES::contains).toList();
-        if (deprecatedTransformRoles.isEmpty() == false) {
-            deprecations.add(
-                new DeprecationIssue(
-                    Level.CRITICAL,
-                    "Transform [" + id + "] uses deprecated transform roles " + deprecatedTransformRoles,
-                    TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_BREAKING_CHANGES_URL,
-                    TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_IS_DEPRECATED,
-                    false,
-                    null
-                )
-            );
         }
 
         return deprecations;

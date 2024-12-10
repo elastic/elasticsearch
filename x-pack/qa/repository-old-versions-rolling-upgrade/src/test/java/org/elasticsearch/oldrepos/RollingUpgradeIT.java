@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import static org.hamcrest.Matchers.lessThan;
 
 public class RollingUpgradeIT extends ESRestTestCase {
 
@@ -44,24 +43,25 @@ public class RollingUpgradeIT extends ESRestTestCase {
     public void testRollingUpgrade() throws IOException {
         String repoLocation = System.getProperty("tests.repo.location.first.cluster");
 
+        // First Cluster -> V5
         String indexName = "test_index";
         int portFirstCluster = Integer.parseInt(System.getProperty("tests.es.port.first.cluster"));
         try (RestClient client = RestClient.builder(new HttpHost("127.0.0.1", portFirstCluster)).build()) {
             Version version5 = Version.fromString(System.getProperty("tests.es.version5"));
-            getVersion(client);
             createIndex(version5, indexName, client);
             addDocuments(version5, indexName,  client);
             registerRepository(indexName, repoLocation, client);
             createSnapshot(indexName, repoLocation, client);
         }
 
+        // Second Cluster -> V6
         int portSecondCluster = Integer.parseInt(System.getProperty("tests.es.port.second.cluster"));
         try (RestClient client = RestClient.builder(new HttpHost("127.0.0.1", portSecondCluster)).build()) {
-            getVersion(client);
             registerRepository(indexName, repoLocation, client);
             restoreSnapshot(indexName, client);
         }
-        int x = 10;
+
+        // Upgrade Second cluster (should be V8 to V9) and verify
     }
 
     private void createIndex(Version version, String indexName, RestClient client) throws IOException {
@@ -83,26 +83,15 @@ public class RollingUpgradeIT extends ESRestTestCase {
 
     private void addDocuments(Version version, String indexName, RestClient client) throws IOException {
         int numDocs = 10;
-        int extraDocs = 1;
         final Set<String> expectedIds = new HashSet<>();
-        for (int i = 0; i < numDocs + extraDocs; i++) {
+        for (int i = 0; i < numDocs; i++) {
             String id = "testdoc" + i;
             expectedIds.add(id);
-            // use multiple types for ES versions < 6.0.0
             String type = getType(version, id);
             Request doc = new Request("PUT", "/" + indexName + "/" + type + "/" + id);
             doc.addParameter("refresh", "true");
             doc.setJsonEntity(sourceForDoc(i));
             assertOK(client.performRequest(doc));
-        }
-
-        for (int i = 0; i < extraDocs; i++) {
-            String id = randomFrom(expectedIds);
-            expectedIds.remove(id);
-            String type = getType(version, id);
-            Request doc = new Request("DELETE", "/" + indexName + "/" + type + "/" + id);
-            doc.addParameter("refresh", "true");
-            client.performRequest(doc);
         }
     }
 
@@ -136,11 +125,16 @@ public class RollingUpgradeIT extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
-    private void getVersion(RestClient client) throws IOException {
+    private void getIndices(RestClient client) throws IOException {
+        final Request request = new Request("GET", "_cat/indices");
+        Response response = client.performRequest(request);
+        System.out.println(EntityUtils.toString(response.getEntity()));
+    }
+
+    private void getClusterInfo(RestClient client) throws IOException {
         final Request request = new Request("GET", "/");
         Response response = client.performRequest(request);
-        String fd = EntityUtils.toString(response.getEntity());
-        int x = 10;
+        System.out.println(EntityUtils.toString(response.getEntity()));
     }
 
     private String getType(Version oldVersion, String id) {

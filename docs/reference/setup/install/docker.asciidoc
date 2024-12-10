@@ -39,7 +39,7 @@ adjust memory usage in Docker Desktop by going to **Settings > Resources**.
 ----
 docker network create elastic
 ----
-
+// REVIEWED[DEC.10.24]
 . Pull the {es} Docker image.
 +
 --
@@ -52,10 +52,11 @@ endif::[]
 ----
 docker pull {docker-image}
 ----
+// REVIEWED[DEC.10.24]
 --
 
 . Optional: Install
-https://docs.sigstore.dev/system_config/installation/[Cosign] for your
+https://docs.sigstore.dev/cosign/system_config/installation/[Cosign] for your
 environment. Then use Cosign to verify the {es} image's signature.
 +
 [[docker-verify-signature]]
@@ -64,6 +65,7 @@ environment. Then use Cosign to verify the {es} image's signature.
 wget https://artifacts.elastic.co/cosign.pub
 cosign verify --key cosign.pub {docker-image}
 ----
+// REVIEWED[DEC.10.24]
 +
 The `cosign` command prints the check results and the signature payload in JSON format:
 +
@@ -75,6 +77,7 @@ The following checks were performed on each of these signatures:
   - Existence of the claims in the transparency log was verified offline
   - The signatures were verified against the specified public key
 ----
+// REVIEWED[DEC.10.24]
 
 . Start an {es} container.
 +
@@ -82,6 +85,7 @@ The following checks were performed on each of these signatures:
 ----
 docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
 ----
+// REVIEWED[DEC.10.24]
 +
 TIP: Use the `-m` flag to set a memory limit for the container. This removes the
 need to <<docker-set-heap-size,manually set the JVM size>>.
@@ -95,6 +99,7 @@ If you intend to use the {ml} capabilities, then start the container with this c
 ----
 docker run --name es01 --net elastic -p 9200:9200 -it -m 6GB -e "xpack.ml.use_auto_machine_memory_percent=true" {docker-image}
 ----
+// REVIEWED[DEC.10.24]
 The command prints the `elastic` user password and an enrollment token for {kib}.
 
 . Copy the generated `elastic` password and enrollment token. These credentials
@@ -106,6 +111,7 @@ credentials using the following commands.
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
 ----
+// REVIEWED[DEC.10.24]
 +
 We recommend storing the `elastic` password as an environment variable in your shell. Example:
 +
@@ -113,6 +119,7 @@ We recommend storing the `elastic` password as an environment variable in your s
 ----
 export ELASTIC_PASSWORD="your_password"
 ----
+// REVIEWED[DEC.10.24]
 
 . Copy the `http_ca.crt` SSL certificate from the container to your local machine.
 +
@@ -120,6 +127,7 @@ export ELASTIC_PASSWORD="your_password"
 ----
 docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
 ----
+// REVIEWED[DEC.10.24]
 
 . Make a REST API call to {es} to ensure the {es} container is running.
 +
@@ -128,6 +136,7 @@ docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
 curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 ----
 // NOTCONSOLE
+// REVIEWED[DEC.10.24]
 
 ===== Add more nodes
 
@@ -137,6 +146,7 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 ----
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
 ----
+// REVIEWED[DEC.10.24]
 +
 The enrollment token is valid for 30 minutes.
 
@@ -146,6 +156,7 @@ The enrollment token is valid for 30 minutes.
 ----
 docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it -m 1GB {docker-image}
 ----
+// REVIEWED[DEC.10.24]
 
 . Call the <<cat-nodes,cat nodes API>> to verify the node was added to the cluster.
 +
@@ -154,6 +165,7 @@ docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it -m 1GB {d
 curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cat/nodes
 ----
 // NOTCONSOLE
+// REVIEWED[DEC.10.24]
 
 [[run-kibana-docker]]
 ===== Run {kib}
@@ -170,6 +182,7 @@ endif::[]
 ----
 docker pull {kib-docker-image}
 ----
+// REVIEWED[DEC.10.24]
 --
 
 . Optional: Verify the {kib} image's signature.
@@ -179,6 +192,7 @@ docker pull {kib-docker-image}
 wget https://artifacts.elastic.co/cosign.pub
 cosign verify --key cosign.pub {kib-docker-image}
 ----
+// REVIEWED[DEC.10.24]
 
 . Start a {kib} container.
 +
@@ -186,6 +200,7 @@ cosign verify --key cosign.pub {kib-docker-image}
 ----
 docker run --name kib01 --net elastic -p 5601:5601 {kib-docker-image}
 ----
+// REVIEWED[DEC.10.24]
 
 . When {kib} starts, it outputs a unique generated link to the terminal. To
 access {kib}, open this link in a web browser.
@@ -198,6 +213,7 @@ To regenerate the token, run:
 ----
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
 ----
+// REVIEWED[DEC.10.24]
 
 . Log in to {kib} as the `elastic` user with the password that was generated
 when you started {es}.
@@ -208,6 +224,7 @@ To regenerate the password, run:
 ----
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
 ----
+// REVIEWED[DEC.10.24]
 
 [[remove-containers-docker]]
 ===== Remove containers
@@ -226,6 +243,7 @@ docker rm es02
 # Remove the {kib} container
 docker rm kib01
 ----
+// REVIEWED[DEC.10.24]
 
 ===== Next steps
 
@@ -306,6 +324,7 @@ ES_PORT=127.0.0.1:9200
 ----
 docker-compose up -d
 ----
+// REVIEWED[DEC.10.24]
 
 . After the cluster has started, open http://localhost:5601 in a web browser to
 access {kib}.
@@ -321,6 +340,7 @@ is preserved and loaded when you restart the cluster with `docker-compose up`.
 ----
 docker-compose down
 ----
+// REVIEWED[DEC.10.24]
 
 To delete the network, containers, and volumes when you stop the cluster,
 specify the `-v` option:
@@ -329,6 +349,7 @@ specify the `-v` option:
 ----
 docker-compose down -v
 ----
+// REVIEWED[DEC.10.24]
 
 ===== Next steps
 
@@ -377,6 +398,7 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 --------------------------------------------
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
+// REVIEWED[DEC.10.24]
 
 . Press enter and use `sysctl` to configure `vm.max_map_count`:
 +
@@ -494,6 +516,7 @@ To check the Docker daemon defaults for ulimits, run:
 --------------------------------------------
 docker run --rm {docker-image} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
+// REVIEWED[DEC.10.24]
 
 If needed, adjust them in the Daemon or override them per container.
 For example, when using `docker run`, set:
@@ -502,6 +525,7 @@ For example, when using `docker run`, set:
 --------------------------------------------
 --ulimit nofile=65535:65535
 --------------------------------------------
+// REVIEWED[DEC.10.24]
 
 ===== Disable swapping
 
@@ -518,6 +542,7 @@ When using `docker run`, you can specify:
 ----
 -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
 ----
+// REVIEWED[DEC.10.24]
 
 ===== Randomize published ports
 
@@ -545,6 +570,7 @@ environment variable. For example, to use 1GB, use the following command.
 ----
 docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es01 -p 9200:9200 --net elastic -it {docker-image}
 ----
+// REVIEWED[DEC.10.24]
 
 The `ES_JAVA_OPTS` variable overrides all other JVM options.
 We do not recommend using `ES_JAVA_OPTS` in production.
@@ -616,6 +642,7 @@ If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 --------------------------------------------
 -e ELASTIC_PASSWORD_FILE=/run/secrets/bootstrapPassword.txt
 --------------------------------------------
+// REVIEWED[DEC.10.24]
 
 You can override the default command for the image to pass {es} configuration
 parameters as command line options. For example:

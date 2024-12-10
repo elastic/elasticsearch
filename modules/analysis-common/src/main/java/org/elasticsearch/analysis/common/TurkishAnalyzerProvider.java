@@ -22,7 +22,7 @@ public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Turki
     private final TurkishAnalyzer analyzer;
 
     TurkishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new TurkishAnalyzer(
             Analysis.parseStopWords(env, settings, TurkishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

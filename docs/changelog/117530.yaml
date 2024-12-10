@@ -1,0 +1,6 @@
+pr: 117530
+summary: Expose operation and request counts separately in repository stats
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 104443

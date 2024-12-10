@@ -6,7 +6,6 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -24,9 +23,22 @@ def supportedVersion = bwcVersion -> {
 }
 
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
-  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+  tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
-    systemProperty("tests.old_cluster_version", bwcVersion)
+    systemProperty("tests.version.remote_cluster", bwcVersion)
+    maxParallelForks = 1
+  }
+
+  tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.version.local_cluster", bwcVersion)
+    maxParallelForks = 1
+  }
+
+  // TODO: avoid running tests twice with the current version
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    dependsOn tasks.named("${baseName}#oldToNew")
+    dependsOn tasks.named("${baseName}#newToOld")
     maxParallelForks = 1
   }
 }

@@ -1,0 +1,5 @@
+pr: 117963
+summary: '`SearchServiceTests.testParseSourceValidation` failure'
+area: Search
+type: bug
+issues: []

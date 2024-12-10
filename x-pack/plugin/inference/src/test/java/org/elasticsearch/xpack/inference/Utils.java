@@ -143,20 +143,6 @@ public final class Utils {
         latch.await();
     }
 
-    public static class TestInferencePlugin extends InferencePlugin {
-        public TestInferencePlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-            return List.of(
-                TestSparseInferenceServiceExtension.TestInferenceService::new,
-                TestDenseInferenceServiceExtension.TestInferenceService::new
-            );
-        }
-    }
-
     public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * A {@link BuildVersion} that uses the same identifiers and compatibility constraints
@@ -45,6 +46,11 @@ final class DefaultBuildVersion extends BuildVersion {
 
     DefaultBuildVersion(StreamInput in) throws IOException {
         this(in.readVInt());
+    }
+
+    @Override
+    public OptionalInt majorVersion() {
+        return OptionalInt.of(Version.CURRENT.major);
     }
 
     @Override

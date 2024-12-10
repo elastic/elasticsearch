@@ -9,9 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Arrays;
-import java.util.Objects;
-
 public final class ContentPath {
 
     private static final char DELIMITER = '.';
@@ -28,21 +25,9 @@ public final class ContentPath {
         this.sb = new StringBuilder();
     }
 
-    public String[] getPath() {
-        return path.clone();
-    }
-
-    public void setPath(String[] newPath) {
-        Objects.requireNonNull(newPath);
-        Arrays.fill(path, null);
-        index = 0;
-
-        for (String newPathPart : newPath) {
-            if (newPathPart == null) {
-                break;
-            }
-            add(newPathPart);
-        }
+    String[] getPath() {
+        // used for testing
+        return path;
     }
 
     public void add(String name) {

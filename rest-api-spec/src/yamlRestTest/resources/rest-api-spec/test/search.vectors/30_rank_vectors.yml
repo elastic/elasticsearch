@@ -3,9 +3,9 @@ setup:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ multi_dense_vector_field_mapper ]
+          capabilities: [ rank_vectors_field_mapper ]
       test_runner_features: capabilities
-      reason: "Support for multi dense vector field mapper capability required"
+      reason: "Support for rank vectors field mapper capability required"
 ---
 "Test create multi-vector field":
   - do:
@@ -15,7 +15,7 @@ setup:
           mappings:
             properties:
               vector1:
-                type: multi_dense_vector
+                type: rank_vectors
                 dims: 3
   - do:
       index:
@@ -48,7 +48,7 @@ setup:
               name:
                 type: keyword
               vector1:
-                type: multi_dense_vector
+                type: rank_vectors
   - do:
       index:
         index: test
@@ -88,7 +88,7 @@ setup:
           mappings:
             properties:
               vector1:
-                type: multi_dense_vector
+                type: rank_vectors
   - do:
       catch: bad_request
       index:
@@ -105,7 +105,7 @@ setup:
           mappings:
             properties:
               vector1:
-                type: multi_dense_vector
+                type: rank_vectors
                 dims: 3
   - do:
       catch: bad_request
@@ -123,7 +123,7 @@ setup:
           mappings:
             properties:
               vector1:
-                type: multi_dense_vector
+                type: rank_vectors
                 dims: 3
   - do:
       catch: bad_request

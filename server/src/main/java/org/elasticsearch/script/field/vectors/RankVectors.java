@@ -11,7 +11,7 @@ package org.elasticsearch.script.field.vectors;
 
 import java.util.Iterator;
 
-public interface MultiDenseVector {
+public interface RankVectors {
 
     default void checkDimensions(int qvDims) {
         checkDimensions(getDims(), qvDims);
@@ -45,9 +45,9 @@ public interface MultiDenseVector {
         return "Cannot use vector [" + queryVector + "] with class [" + queryVector.getClass().getName() + "] as query vector";
     }
 
-    MultiDenseVector EMPTY = new MultiDenseVector() {
-        public static final String MISSING_VECTOR_FIELD_MESSAGE = "Multi Dense vector value missing for a field,"
-            + " use isEmpty() to check for a missing vector value";
+    RankVectors EMPTY = new RankVectors() {
+        public static final String MISSING_VECTOR_FIELD_MESSAGE = "rank-vectors value missing for a field,"
+            + " use isEmpty() to check for a missing value";
 
         @Override
         public Iterator<float[]> getVectors() {

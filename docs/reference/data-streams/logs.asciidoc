@@ -88,7 +88,7 @@ and change the order, manually configure `index.sort.field` and `index.sort.orde
 When using the default sort settings, the `host.name` field is automatically injected into the index mappings as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and
 retrieved based on the `host.name` and `@timestamp` fields.
 
-NOTE: If `subobjects` is set to `true` (default), the `host.name` field is mapped as an object field
+NOTE: If `subobjects` is set to `true` (default), the `host` field is mapped as an object field
 named `host` with a `name` child field of type `keyword`. If `subobjects` is set to `false`,
 a single `host.name` field is mapped as a `keyword` field.
 

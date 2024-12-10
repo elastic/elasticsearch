@@ -1,0 +1,5 @@
+pr: 118375
+summary: Checking for presence of error object when validating response
+area: Machine Learning
+type: enhancement
+issues: []

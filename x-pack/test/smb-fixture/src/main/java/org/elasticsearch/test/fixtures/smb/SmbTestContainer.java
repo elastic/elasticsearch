@@ -11,6 +11,7 @@ import com.github.dockerjava.api.model.Capability;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.containers.wait.strategy.WaitAllStrategy;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
@@ -44,7 +45,11 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
         addExposedPort(AD_LDAP_PORT);
         addExposedPort(AD_LDAP_GC_PORT);
 
-        setWaitStrategy(Wait.forLogMessage(".*Samba started.*", 1));
+        setWaitStrategy(
+            new WaitAllStrategy()
+                .withStrategy(Wait.forLogMessage(".*Samba started.*", 1))
+                .withStrategy(Wait.forListeningPort())
+        );
 
         getCreateContainerCmdModifiers().add(createContainerCmd -> {
             createContainerCmd.getHostConfig().withCapAdd(Capability.SYS_ADMIN);

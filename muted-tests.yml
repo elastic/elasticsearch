@@ -291,6 +291,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
   issue: https://github.com/elastic/elasticsearch/issues/118274
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/118306
 
 # Examples:
 #

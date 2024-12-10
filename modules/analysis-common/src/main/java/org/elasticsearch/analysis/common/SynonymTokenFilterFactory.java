@@ -148,7 +148,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         Settings settings,
         SynonymsManagementAPIService synonymsManagementAPIService
     ) {
-        super(name, settings);
+        super(name);
         this.settings = settings;
 
         this.synonymsSource = SynonymsSource.fromSettings(settings);

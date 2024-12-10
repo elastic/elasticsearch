@@ -20,7 +20,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     public UpperCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

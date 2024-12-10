@@ -303,6 +303,9 @@ tests:
 - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
   method: test {p0=/11_nodes/Test cat nodes output with full_id set}
   issue: https://github.com/elastic/elasticsearch/issues/118396
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/11_nodes/Test cat nodes output}
+  issue: https://github.com/elastic/elasticsearch/issues/118397
 
 # Examples:
 #

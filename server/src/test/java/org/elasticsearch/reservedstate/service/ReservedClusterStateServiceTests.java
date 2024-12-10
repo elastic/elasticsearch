@@ -357,8 +357,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                     ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                     Map.of(),
                     Set.of(),
-                    errorState -> {
-                    },
+                    errorState -> {},
                     ActionListener.noop()
                 )
             );

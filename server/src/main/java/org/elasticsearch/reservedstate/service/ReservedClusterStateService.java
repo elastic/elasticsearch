@@ -164,11 +164,10 @@ public class ReservedClusterStateService {
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
-                errorState -> {
-                    throw new AssertionError();
-                },
+                errorState -> { throw new AssertionError(); },
                 listener
-            ));
+            )
+        );
     }
 
     /**
@@ -255,7 +254,8 @@ public class ReservedClusterStateService {
                         }
                     }
                 }
-            ));
+            )
+        );
     }
 
     // package private for testing
@@ -286,11 +286,7 @@ public class ReservedClusterStateService {
     }
 
     void submitUpdateTask(String source, ReservedStateUpdateTask task) {
-        var updateTaskQueue = clusterService.createTaskQueue(
-            "reserved state update",
-            Priority.URGENT,
-            updateTaskExecutor
-        );
+        var updateTaskQueue = clusterService.createTaskQueue("reserved state update", Priority.URGENT, updateTaskExecutor);
         updateTaskQueue.submitTask(source, task, null);
     }
 

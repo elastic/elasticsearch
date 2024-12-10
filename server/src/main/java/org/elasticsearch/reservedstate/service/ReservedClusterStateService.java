@@ -160,7 +160,7 @@ public class ReservedClusterStateService {
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
         var missingVersion = new ReservedStateVersion(EMPTY_VERSION, BuildVersion.current());
         var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
-        updateTaskQueue.submitTask(
+        submitUpdateTask(
             "empty initial cluster state [" + namespace + "]",
             new ReservedStateUpdateTask(
                 namespace,
@@ -169,12 +169,11 @@ public class ReservedClusterStateService {
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
-                errorState -> { throw new AssertionError(); },
+                errorState -> {
+                    throw new AssertionError();
+                },
                 listener
-            ),
-            null
-        );
-
+            ));
     }
 
     /**
@@ -234,7 +233,7 @@ public class ReservedClusterStateService {
             errorListener.accept(error);
             return;
         }
-        updateTaskQueue.submitTask(
+        submitUpdateTask(
             "reserved cluster state [" + namespace + "]",
             new ReservedStateUpdateTask(
                 namespace,
@@ -242,7 +241,7 @@ public class ReservedClusterStateService {
                 versionCheck,
                 handlers,
                 orderedHandlers,
-                ReservedClusterStateService.this::updateErrorState,
+                this::updateErrorState,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {
@@ -261,9 +260,7 @@ public class ReservedClusterStateService {
                         }
                     }
                 }
-            ),
-            null
-        );
+            ));
     }
 
     // package private for testing
@@ -291,6 +288,10 @@ public class ReservedClusterStateService {
         }
 
         return null;
+    }
+
+    void submitUpdateTask(String source, ReservedStateUpdateTask task) {
+        updateTaskQueue.submitTask(source, task, null);
     }
 
     // package private for testing

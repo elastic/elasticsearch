@@ -201,7 +201,7 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-    private void doParseMultiFields(DocumentParserContext context) throws IOException {
+    protected void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
@@ -209,7 +209,7 @@ public abstract class FieldMapper extends Mapper {
         context.path().remove();
     }
 
-    private static void throwIndexingWithScriptParam() {
+    protected static void throwIndexingWithScriptParam() {
         throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
     }
 

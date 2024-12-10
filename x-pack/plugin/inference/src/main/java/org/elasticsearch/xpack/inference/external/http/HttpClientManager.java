@@ -254,9 +254,4 @@ public class HttpClientManager implements Closeable {
         this.connectionMaxIdle = connectionMaxIdle;
         connectionEvictor.setMaxIdleTime(connectionMaxIdle);
     }
-
-    public static SSLIOSessionStrategy getSSLStrategy(String prefix) {
-        SSLService sslService = XPackPlugin.getSharedSslService();
-        return sslService.sslIOSessionStrategy(sslService.getSSLConfiguration(prefix));
-    }
 }

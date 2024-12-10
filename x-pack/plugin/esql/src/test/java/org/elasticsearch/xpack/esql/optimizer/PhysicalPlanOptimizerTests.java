@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -128,6 +129,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -613,6 +615,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -654,6 +657,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -1174,7 +1178,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            contains(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
 
         var source = source(extract.child());
@@ -2274,6 +2290,58 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testVerifierOnMissingReferences() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(
+            AggregateExec.class,
+            a -> new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                List.of(), // remove the aggs (and thus the groupings) entirely
+                a.getMode(),
+                a.intermediateAttributes(),
+                a.estimatedRowSize()
+            )
+        );
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
+    }
+
+    public void testVerifierOnDuplicateOutputAttributes() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(AggregateExec.class, a -> {
+            List<Attribute> intermediates = new ArrayList<>(a.intermediateAttributes());
+            intermediates.add(intermediates.get(0));
+            return new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                a.aggregates(),
+                AggregatorMode.INTERMEDIATE,  // FINAL would deduplicate aggregates()
+                intermediates,
+                a.estimatedRowSize()
+            );
+        });
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(
+            e.getMessage(),
+            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+        );
+    }
+
     public void testProjectAwayColumns() {
         var rule = new ProjectAwayColumns();
 
@@ -2545,7 +2613,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = asRemoteExchange(aggregate.child());
         var localSourceExec = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
+        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "$$m$min", "$$m$seen"));
     }
 
     /**
@@ -2581,9 +2649,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("count", "seen"));
+        assertThat(Expressions.names(exchange.output()), contains("$$c$count", "$$c$seen"));
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("count", "seen"));
+        assertThat(Expressions.names(source.output()), contains("$$c$count", "$$c$seen"));
     }
 
     /**
@@ -2615,7 +2683,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         // The partial aggregation's output is determined via AbstractPhysicalOperationProviders.intermediateAttributes()
-        assertThat(Expressions.names(aggPartial.output()), contains("count", "seen"));
+        assertThat(Expressions.names(aggPartial.output()), contains("$$c$count", "$$c$seen"));
         limit = as(aggPartial.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2653,9 +2721,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.output(), hasSize(2));
         var exchange = as(aggFinal.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(exchange.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(source.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
     }
 
     /**

@@ -78,7 +78,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             step.evaluateCondition(clusterState.metadata(), previousGeneration, new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(true));
                 }
 
@@ -96,9 +96,9 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             step.evaluateCondition(clusterState.metadata(), writeIndex, new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(false));
-                    String information = Strings.toString(infomationContext);
+                    String information = Strings.toString(informationContext);
                     assertThat(
                         information,
                         containsString(
@@ -130,7 +130,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             step.evaluateCondition(newMetadata, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(true));
                 }
 

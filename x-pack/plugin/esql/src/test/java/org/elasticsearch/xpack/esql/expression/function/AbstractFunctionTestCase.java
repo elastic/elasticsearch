@@ -756,7 +756,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
             assertEquals(
-                "Missmatch between actual and declared parameter types. You probably need to update your @params annotations.",
+                "Mismatch between actual and declared param type for ["
+                    + arg.name()
+                    + "]. "
+                    + "You probably need to update your @params annotations or add test cases to your test.",
                 signatureTypes,
                 annotationTypes
             );

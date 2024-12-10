@@ -35,6 +35,7 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
     public QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
         try {
+            queryRewriteContext.setQueryRewriteInterceptor(null);
             QueryBuilder rewritten = queryBuilder.rewrite(queryRewriteContext);
             if (rewritten != queryBuilder) {
                 return new InterceptedQueryBuilderWrapper(rewritten);

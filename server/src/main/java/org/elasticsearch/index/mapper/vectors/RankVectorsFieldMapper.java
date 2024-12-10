@@ -51,14 +51,14 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT_BIT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.namesToElementType;
 
-public class MultiDenseVectorFieldMapper extends FieldMapper {
+public class RankVectorsFieldMapper extends FieldMapper {
 
     public static final String VECTOR_MAGNITUDES_SUFFIX = "._magnitude";
-    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("multi_dense_vector");
-    public static final String CONTENT_TYPE = "multi_dense_vector";
+    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("rank_vectors");
+    public static final String CONTENT_TYPE = "rank_vectors";
 
-    private static MultiDenseVectorFieldMapper toType(FieldMapper in) {
-        return (MultiDenseVectorFieldMapper) in;
+    private static RankVectorsFieldMapper toType(FieldMapper in) {
+        return (RankVectorsFieldMapper) in;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -122,24 +122,24 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
             return new Parameter<?>[] { elementType, dims, meta };
         }
 
-        public MultiDenseVectorFieldMapper.Builder dimensions(int dimensions) {
+        public RankVectorsFieldMapper.Builder dimensions(int dimensions) {
             this.dims.setValue(dimensions);
             return this;
         }
 
-        public MultiDenseVectorFieldMapper.Builder elementType(DenseVectorFieldMapper.ElementType elementType) {
+        public RankVectorsFieldMapper.Builder elementType(DenseVectorFieldMapper.ElementType elementType) {
             this.elementType.setValue(elementType);
             return this;
         }
 
         @Override
-        public MultiDenseVectorFieldMapper build(MapperBuilderContext context) {
+        public RankVectorsFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            return new MultiDenseVectorFieldMapper(
+            return new RankVectorsFieldMapper(
                 leafName(),
-                new MultiDenseVectorFieldType(
+                new RankVectorsFieldType(
                     context.buildFullName(leafName()),
                     elementType.getValue(),
                     dims.getValue(),
@@ -153,16 +153,16 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new MultiDenseVectorFieldMapper.Builder(n, c.indexVersionCreated()),
+        (n, c) -> new RankVectorsFieldMapper.Builder(n, c.indexVersionCreated()),
         notInMultiFields(CONTENT_TYPE)
     );
 
-    public static final class MultiDenseVectorFieldType extends SimpleMappedFieldType {
+    public static final class RankVectorsFieldType extends SimpleMappedFieldType {
         private final DenseVectorFieldMapper.ElementType elementType;
         private final Integer dims;
         private final IndexVersion indexCreatedVersion;
 
-        public MultiDenseVectorFieldType(
+        public RankVectorsFieldType(
             String name,
             DenseVectorFieldMapper.ElementType elementType,
             Integer dims,
@@ -207,7 +207,7 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return new MultiVectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexCreatedVersion, dims, elementType);
+            return new RankVectorsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexCreatedVersion, dims, elementType);
         }
 
         @Override
@@ -231,19 +231,14 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
 
     private final IndexVersion indexCreatedVersion;
 
-    private MultiDenseVectorFieldMapper(
-        String simpleName,
-        MappedFieldType fieldType,
-        BuilderParams params,
-        IndexVersion indexCreatedVersion
-    ) {
+    private RankVectorsFieldMapper(String simpleName, MappedFieldType fieldType, BuilderParams params, IndexVersion indexCreatedVersion) {
         super(simpleName, fieldType, params);
         this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override
-    public MultiDenseVectorFieldType fieldType() {
-        return (MultiDenseVectorFieldType) super.fieldType();
+    public RankVectorsFieldType fieldType() {
+        return (RankVectorsFieldType) super.fieldType();
     }
 
     @Override
@@ -282,14 +277,14 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             }
-            MultiDenseVectorFieldType updatedFieldType = new MultiDenseVectorFieldType(
+            RankVectorsFieldType updatedFieldType = new RankVectorsFieldType(
                 fieldType().name(),
                 fieldType().elementType,
                 currentDims,
                 indexCreatedVersion,
                 fieldType().meta()
             );
-            Mapper update = new MultiDenseVectorFieldMapper(leafName(), updatedFieldType, builderParams, indexCreatedVersion);
+            Mapper update = new RankVectorsFieldMapper(leafName(), updatedFieldType, builderParams, indexCreatedVersion);
             context.addDynamicMapper(update);
             return;
         }
@@ -371,12 +366,12 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new MultiDenseVectorFieldMapper.Builder(leafName(), indexCreatedVersion).init(this);
+        return new RankVectorsFieldMapper.Builder(leafName(), indexCreatedVersion).init(this);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(new MultiDenseVectorFieldMapper.DocValuesSyntheticFieldLoader());
+        return new SyntheticSourceSupport.Native(new RankVectorsFieldMapper.DocValuesSyntheticFieldLoader());
     }
 
     private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {

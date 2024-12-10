@@ -35,7 +35,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     private static TestAnalysis testAnalysis;
     private static Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
 
-    private static TokenFilterFactory NO_OP_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory("my_filter", Settings.EMPTY) {
+    private static TokenFilterFactory NO_OP_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory("my_filter") {
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.SEARCH_TIME;
@@ -47,7 +47,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         }
     };
 
-    private static TokenFilterFactory LOWERCASE_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory("my_other_filter", Settings.EMPTY) {
+    private static TokenFilterFactory LOWERCASE_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory("my_other_filter") {
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.SEARCH_TIME;

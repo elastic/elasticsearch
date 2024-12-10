@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -421,7 +422,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             try {
                 return Long.parseLong(params.get(parameterName));
             } catch (NumberFormatException e) {
-                throw new MockGcsBlobStore.GcsRestException(RestStatus.BAD_REQUEST, "Invalid long parameter: " + parameterName);
+                ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Invalid long parameter: " + parameterName));
             }
         }
         return null;

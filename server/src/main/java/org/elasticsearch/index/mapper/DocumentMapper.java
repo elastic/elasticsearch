@@ -76,7 +76,7 @@ public class DocumentMapper {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document: " + ex.getMessage(), ex);
         } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
-            logger.error("Error while parsing document: " + ex.getMessage(), ex);
+            logger.info("Error while parsing document: " + ex.getMessage(), ex);
         }
     }
 

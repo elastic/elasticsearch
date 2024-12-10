@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -297,15 +298,19 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         if (typedData.get(0).type() == DataType.DATETIME) {
             long millis = ((Number) typedData.get(0).data()).longValue();
-            return equalTo(Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis));
+            long expected = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis);
+            LogManager.getLogger(getTestClass()).info("Expected: " + Instant.ofEpochMilli(expected));
+            LogManager.getLogger(getTestClass()).info("Input: " + Instant.ofEpochMilli(millis));
+            return equalTo(expected);
         }
         if (typedData.get(0).type() == DataType.DATE_NANOS) {
             long nanos = ((Number) typedData.get(0).data()).longValue();
-            return equalTo(
-                DateUtils.toNanoSeconds(
-                    Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(DateUtils.toMilliSeconds(nanos))
-                )
+            long expected = DateUtils.toNanoSeconds(
+                Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(DateUtils.toMilliSeconds(nanos))
             );
+            LogManager.getLogger(getTestClass()).info("Expected: " + DateUtils.toInstant(expected));
+            LogManager.getLogger(getTestClass()).info("Input: " + DateUtils.toInstant(nanos));
+            return equalTo(expected);
         }
         return equalTo(((Number) typedData.get(0).data()).doubleValue());
     }

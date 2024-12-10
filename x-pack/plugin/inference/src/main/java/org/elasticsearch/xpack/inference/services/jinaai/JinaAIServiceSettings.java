@@ -44,7 +44,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000); //TODO(JoanFM): Check value
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000); // TODO(JoanFM): Check value
 
     public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -66,7 +66,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        //TODO(JoanFM): Review this
+        // TODO(JoanFM): Review this
         if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
             logger.info("The JinaAI [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }

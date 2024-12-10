@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIErrorResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.streaming.NewlineDelimitedByteProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.concurrent.Flow;
@@ -28,8 +27,9 @@ import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkFor
  *
  */
 public class JinaAIResponseHandler extends BaseResponseHandler {
-    static final String TEXTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER = "is larger than the largest allowed size";
-    static final String TEXTS_ARRAY_ERROR_MESSAGE = "Received a texts array too large response";
+    static final String INPUTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER = "is larger than the largest allowed size";
+    static final String INPUTS_ARRAY_ERROR_MESSAGE = "Received an inputs array too large response";
+    static final String PAYMENT_ERROR_MESSAGE = "Payment required";
 
     public JinaAIResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, JinaAIErrorResponseEntity::fromResponse);
@@ -44,13 +44,13 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
 
     @Override
     public boolean canHandleStreamingResponses() {
-        //TODO (JoanFM): Check this usage
+        // TODO (JoanFM): Check this usage
         return false;
     }
 
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
-        //TODO (JoanFM): Check this logic
+        // TODO (JoanFM): Check this logic
         return new StreamingChatCompletionResults(null);
     }
 
@@ -74,23 +74,23 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));
-        } else if (isTextsArrayTooLarge(result)) {
-            throw new RetryException(false, buildError(TEXTS_ARRAY_ERROR_MESSAGE, request, result));
+        } else if (statusCode == 400 && isTextsArrayTooLarge(result, statusCode)) {
+            throw new RetryException(false, buildError(INPUTS_ARRAY_ERROR_MESSAGE, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
-        } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, request, result));
+        } else if (statusCode == 402) {
+            throw new RetryException(false, buildError(PAYMENT_ERROR_MESSAGE, request, result));
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
     }
 
-    private static boolean isTextsArrayTooLarge(HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+    private static boolean isTextsArrayTooLarge(HttpResult result, int statusCode) {
 
         if (statusCode == 400) {
             var errorEntity = JinaAIErrorResponseEntity.fromResponse(result);
-            return errorEntity != null && errorEntity.getErrorMessage().contains(TEXTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER);
+
+            return errorEntity != null && errorEntity.getErrorMessage().contains(INPUTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER);
         }
 
         return false;

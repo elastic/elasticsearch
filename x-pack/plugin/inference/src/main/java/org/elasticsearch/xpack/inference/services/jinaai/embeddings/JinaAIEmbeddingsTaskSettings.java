@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "jinaai_embeddings_task_settings";
-    public static final JinaAIEmbeddingsTaskSettings EMPTY_SETTINGS = new JinaAIEmbeddingsTaskSettings((InputType)null);
+    public static final JinaAIEmbeddingsTaskSettings EMPTY_SETTINGS = new JinaAIEmbeddingsTaskSettings((InputType) null);
     static final String INPUT_TYPE = "input_type";
     static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
         InputType.INGEST,

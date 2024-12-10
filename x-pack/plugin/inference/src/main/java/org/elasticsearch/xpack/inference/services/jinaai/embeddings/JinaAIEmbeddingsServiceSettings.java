@@ -82,7 +82,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
      * Parse either and convert to a JinaAIEmbeddingType
      */
     static JinaAIEmbeddingType fromJinaAIOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
-        //TODO(JoanFM): Check this
+        // TODO(JoanFM): Check this
         if (enumString == null) {
             return JinaAIEmbeddingType.FLOAT;
         }

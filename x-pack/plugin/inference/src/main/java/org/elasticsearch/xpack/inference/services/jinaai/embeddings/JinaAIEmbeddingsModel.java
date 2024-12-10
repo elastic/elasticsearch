@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;

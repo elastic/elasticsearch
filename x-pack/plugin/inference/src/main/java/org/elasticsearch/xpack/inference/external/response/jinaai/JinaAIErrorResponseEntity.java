@@ -28,13 +28,7 @@ public class JinaAIErrorResponseEntity implements ErrorMessage {
     }
 
     /**
-     * An example error response for invalid auth would look like
-     * <code>
-     *     {
-     *       "message": "invalid request: total number of texts must be at most 96 - received 97"
-     *     }
-     * </code>
-     *
+     * Parse an HTTP response into a JinaAIErrorResponseEntity
      *
      * @param response The error response
      * @return An error entity if the response is JSON with the above structure
@@ -46,7 +40,8 @@ public class JinaAIErrorResponseEntity implements ErrorMessage {
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
         ) {
             var responseMap = jsonParser.map();
-            var message = (String) responseMap.get("message");
+            // TODO(JoanFM): Check if it should be detail
+            var message = (String) responseMap.get("detail");
             if (message != null) {
                 return new JinaAIErrorResponseEntity(message);
             }

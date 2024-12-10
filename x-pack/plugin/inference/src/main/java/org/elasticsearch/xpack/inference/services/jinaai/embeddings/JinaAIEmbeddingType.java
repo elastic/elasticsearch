@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -105,7 +104,7 @@ public enum JinaAIEmbeddingType {
      * @return the embedding type that is known to the version passed in
      */
     public static JinaAIEmbeddingType translateToVersion(JinaAIEmbeddingType embeddingType, TransportVersion version) {
-        //TODO(JoanFM): Review this
+        // TODO(JoanFM): Review this
         return embeddingType;
     }
 }

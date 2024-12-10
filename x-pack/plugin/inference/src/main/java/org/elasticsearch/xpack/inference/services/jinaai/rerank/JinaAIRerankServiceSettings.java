@@ -20,7 +20,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;

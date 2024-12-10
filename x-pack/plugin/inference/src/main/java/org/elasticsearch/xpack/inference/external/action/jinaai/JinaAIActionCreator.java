@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.action.jinaai;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.JinaAIEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.JinaAIRerankRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;

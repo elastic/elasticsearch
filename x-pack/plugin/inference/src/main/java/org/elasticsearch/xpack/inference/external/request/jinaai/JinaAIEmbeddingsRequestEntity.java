@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
@@ -64,7 +63,7 @@ public record JinaAIEmbeddingsRequestEntity(
 
     // default for testing
     static String covertToString(InputType inputType) {
-        //TODO (JoanFM): Check mapping
+        // TODO (JoanFM): Check mapping
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;

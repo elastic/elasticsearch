@@ -374,7 +374,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             "mark built-in roles as synced task",
             new MarkRolesAsSyncedTask(listener.delegateFailureAndWrap((l, response) -> {
                 if (newRolesDigests.equals(response) == false) {
-                    logger.trace(
+                    logger.debug(
                         () -> Strings.format(
                             "Another master node most probably indexed a newer versions of built-in roles in the meantime. "
                                 + "Expected: [%s], Actual: [%s]",

@@ -826,7 +826,7 @@ public class ActionModule extends AbstractModule {
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
         Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (handler instanceof BaseRestHandler baseRestHandler) {
+            if (handler instanceof BaseRestHandler baseRestHandler && threadPool != null) {
                 baseRestHandler.setThreadContext(threadPool.getThreadContext());
             }
             if (restFilter.test(handler)) {

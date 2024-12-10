@@ -22,7 +22,6 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -118,9 +117,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
-
-        var model = parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+    public void stop(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
 
             var serviceSettings = esModel.getServiceSettings();

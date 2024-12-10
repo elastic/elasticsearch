@@ -438,3 +438,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/118184
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  method: testHFEmbeddings {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118197

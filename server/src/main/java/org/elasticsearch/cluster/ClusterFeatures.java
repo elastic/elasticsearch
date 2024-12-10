@@ -89,7 +89,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     /**
      * Returns {@code true} if {@code node} can have assumed features.
-     * @see {@link org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures}
+     * @see org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures
      */
     public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
         return node.getBuildVersion().canRemoveAssumedFeatures();
@@ -97,7 +97,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     /**
      * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
-     * @see {@link org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures}
+     * @see org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures
      */
     public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
         return nodes.getAllNodes().stream().anyMatch(n -> n.getBuildVersion().canRemoveAssumedFeatures());

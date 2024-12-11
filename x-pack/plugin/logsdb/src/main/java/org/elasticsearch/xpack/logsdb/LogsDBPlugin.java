@@ -44,7 +44,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
         this.licenseService = new SyntheticSourceLicenseService(settings);
-        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(settings);
+        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(licenseService, settings);
     }
 
     @Override
@@ -63,19 +63,13 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        if (DiscoveryNode.isStateless(settings)) {
-            return List.of(logsdbIndexModeSettingsProvider);
+        if (DiscoveryNode.isStateless(settings) == false) {
+            logsdbIndexModeSettingsProvider.init(
+                parameters.mapperServiceFactory(),
+                () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
+            );
         }
-        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
-            licenseService,
-            parameters.mapperServiceFactory(),
-            logsdbIndexModeSettingsProvider,
-            () -> IndexVersion.min(
-                IndexVersion.current(),
-                parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
-            )
-        );
-        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
+        return List.of(logsdbIndexModeSettingsProvider);
     }
 
     @Override

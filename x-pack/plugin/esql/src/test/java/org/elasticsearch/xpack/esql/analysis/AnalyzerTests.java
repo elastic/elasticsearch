@@ -2149,7 +2149,7 @@ public class AnalyzerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),
-                missingLookupIndex,
+                Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution()
             ),
             TEST_VERIFIER

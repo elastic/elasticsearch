@@ -117,8 +117,8 @@ public final class AnalyzerTestUtils {
         return loadMapping("mapping-default.json", "test");
     }
 
-    public static IndexResolution defaultLookupResolution() {
-        return loadMapping("mapping-languages.json", "languages_lookup");
+    public static Map<String, IndexResolution> defaultLookupResolution() {
+        return Map.of("languages_lookup", loadMapping("mapping-languages.json", "languages_lookup"));
     }
 
     public static EnrichResolution defaultEnrichResolution() {

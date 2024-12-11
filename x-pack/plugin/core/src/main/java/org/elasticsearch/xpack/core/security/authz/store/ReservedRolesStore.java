@@ -301,14 +301,28 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "Grants access to manage all index templates and all ingest pipeline configurations."
                 )
             ),
-            // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
             entry(
                 "reporting_user",
                 new RoleDescriptor(
                     "reporting_user",
                     null,
                     null,
-                    null,
+                    new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                            .application("kibana-.kibana")
+                            .resources("*")
+                            .privileges(
+                                "feature_discover.minimal_read",
+                                "feature_discover.generate_report",
+                                "feature_dashboard.minimal_read",
+                                "feature_dashboard.generate_report",
+                                "feature_dashboard.download_csv_report",
+                                "feature_canvas.minimal_read",
+                                "feature_canvas.generate_report",
+                                "feature_visualize.minimal_read",
+                                "feature_visualize.generate_report"
+                            )
+                            .build() },
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),

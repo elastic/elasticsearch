@@ -20,6 +20,8 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpriseLicense;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,18 +47,22 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     private SyntheticSourceIndexSettingsProvider provider;
     private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
 
-    private static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
+    static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
         return new LogsdbIndexModeSettingsProvider(Settings.builder().put("cluster.logsdb.enabled", enabled).build());
     }
 
     @Before
-    public void setup() {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+    public void setup() throws Exception {
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(any())).thenReturn(true);
         var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
+        var mockLicenseService = mock(LicenseService.class);
+        License license = createEnterpriseLicense();
+        when(mockLicenseService.getLicense()).thenReturn(license);
         syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
         provider = new SyntheticSourceIndexSettingsProvider(syntheticSourceLicenseService, im -> {
             newMapperServiceCounter.incrementAndGet();
@@ -86,10 +93,12 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertTrue(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
+            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         {
             String mapping;
-            if (randomBoolean()) {
+            boolean withSourceMode = randomBoolean();
+            if (withSourceMode) {
                 mapping = """
                     {
                         "_doc": {
@@ -120,6 +129,9 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
+            if (withSourceMode) {
+                assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            }
         }
     }
 
@@ -188,7 +200,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsageTimeSeries() throws IOException {
-        String dataStreamName = DATA_STREAM_NAME;
+        String dataStreamName = "logs-app1";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
             {
@@ -228,7 +240,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsage_invalidSettings() throws IOException {
-        String dataStreamName = DATA_STREAM_NAME;
+        String dataStreamName = "logs-app1";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings settings = Settings.builder().put("index.soft_deletes.enabled", false).build();
         {

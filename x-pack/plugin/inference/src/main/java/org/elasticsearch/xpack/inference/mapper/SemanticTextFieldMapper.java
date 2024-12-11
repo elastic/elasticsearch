@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -57,6 +56,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +93,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
     public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
+        "semantic_text.always_emit_inference_id_fix"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -119,7 +122,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
                 );
             }
-        });
+        }).alwaysSerialize();
 
         private final Parameter<String> searchInferenceId = Parameter.stringParam(
             SEARCH_INFERENCE_ID_FIELD,
@@ -526,17 +529,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        // TODO: Use WeightedTokensQueryBuilder
                         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
-                        var boolQuery = QueryBuilders.boolQuery();
-                        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-                            boolQuery.should(
-                                QueryBuilders.termQuery(inferenceResultsFieldName, weightedToken.token()).boost(weightedToken.weight())
-                            );
-                        }
-                        boolQuery.minimumShouldMatch(1);
-
-                        yield boolQuery;
+                        yield new SparseVectorQueryBuilder(
+                            inferenceResultsFieldName,
+                            textExpansionResults.getWeightedTokens(),
+                            null,
+                            null,
+                            null,
+                            null
+                        );
                     }
                     case TEXT_EMBEDDING -> {
                         if (inferenceResults instanceof MlTextEmbeddingResults == false) {
@@ -559,7 +560,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             k = Math.max(k, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

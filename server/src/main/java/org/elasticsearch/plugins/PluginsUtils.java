@@ -210,12 +210,12 @@ public class PluginsUtils {
     }
 
     /** Get bundles for plugins installed in the given modules directory. */
-    static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
+    public static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
         return findBundles(modulesDirectory, "module");
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
-    static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+    public static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return findBundles(pluginsDirectory, "plugin");
     }
 

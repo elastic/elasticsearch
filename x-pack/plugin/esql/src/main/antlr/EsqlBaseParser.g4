@@ -69,7 +69,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
+    | matchBooleanExpression                                                     #matchExpression
     ;
 
 regexBooleanExpression
@@ -78,7 +78,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName COLON queryString=constant
+    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
     ;
 
 valueExpression

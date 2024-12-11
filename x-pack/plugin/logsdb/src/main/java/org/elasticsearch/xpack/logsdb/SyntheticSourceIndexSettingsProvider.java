@@ -76,13 +76,21 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     ) {
         var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, settings);
         if (logsdbSettings != Settings.EMPTY) {
-            settings = Settings.builder().put(logsdbSettings).put(settings).build();
+            settings = Settings.builder()
+                .put(logsdbSettings)
+                .put(settings)
+                .build();
         }
 
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
-        if (syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
+        boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
+            templateIndexMode,
+            indexName,
+            dataStreamName
+        );
+        if (syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
             var builder = Settings.builder();
             if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, settings, combinedTemplateMappings)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
@@ -131,7 +139,6 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
                 }
             }
         return Settings.EMPTY;
-
     }
 
     boolean newIndexHasSyntheticSourceUsage(
@@ -209,5 +216,30 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         return tmpIndexMetadata.build();
+    }
+
+    /**
+     * The GA-ed use cases in which synthetic source usage is allowed with gold or platinum license.
+     */
+    boolean isLegacyLicensedUsageOfSyntheticSourceAllowed(IndexMode templateIndexMode, String indexName, String dataStreamName) {
+        if (templateIndexMode == IndexMode.TIME_SERIES) {
+            return true;
+        }
+
+        // To allow the following patterns: profiling-metrics and profiling-events
+        if (dataStreamName != null && dataStreamName.startsWith("profiling-")) {
+            return true;
+        }
+        // To allow the following patterns: .profiling-sq-executables, .profiling-sq-leafframes and .profiling-stacktraces
+        if (indexName.startsWith(".profiling-")) {
+            return true;
+        }
+        // To allow the following patterns: metrics-apm.transaction.*, metrics-apm.service_transaction.*, metrics-apm.service_summary.*,
+        // metrics-apm.service_destination.*, "metrics-apm.internal-* and metrics-apm.app.*
+        if (dataStreamName != null && dataStreamName.startsWith("metrics-apm.")) {
+            return true;
+        }
+
+        return false;
     }
 }

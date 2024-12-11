@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -525,10 +526,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidCharacterInIndexPattern() {
         Map<String, String> commands = new HashMap<>();
-        commands.put("FROM {}", "line 1:7: ");
+        commands.put("FROM {}", "line 1:6: ");
         if (Build.current().isSnapshot()) {
-            commands.put("METRICS {}", "line 1:10: ");
-            commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:23: ");
+            commands.put("METRICS {}", "line 1:9: ");
+            commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:22: ");
         }
         String lineNumber;
         for (String command : commands.keySet()) {
@@ -572,7 +573,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 continue;
             }
 
-            lineNumber = command.contains("FROM") ? "line 1:21: " : "line 1:24: ";
+            lineNumber = command.contains("FROM") ? "line 1:20: " : "line 1:23: ";
             expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, --indexpattern", lineNumber, "-indexpattern");
             expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, \"--indexpattern\"", lineNumber, "-indexpattern");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern, --indexpattern\"", commands.get(command), "-indexpattern");
@@ -585,7 +586,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             if (command.contains("LOOKUP_🐔")) {
                 continue;
             }
-            lineNumber = command.contains("FROM") ? "line 1:10: " : "line 1:13: ";
+            lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
             clustersAndIndices(command, "*", "-index#pattern");
             clustersAndIndices(command, "index*", "-index#pattern");
             clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
@@ -885,18 +886,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testDeprecatedIsNullFunction() {
         expectError(
             "from test | eval x = is_null(f)",
-            "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
         expectError(
             "row x = is_null(f)",
-            "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            "line 1:9: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
 
         if (Build.current().isSnapshot()) {
             expectError(
                 "from test | eval x = ?fn1(f)",
                 List.of(paramAsIdentifier("fn1", "IS_NULL")),
-                "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+                "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
             );
         }
     }
@@ -911,23 +912,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetadataFieldMultipleDeclarations() {
-        expectError("from test metadata _index, _version, _index", "1:39: metadata field [_index] already declared [@1:20]");
+        expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
     }
 
     public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test metadata _tier", "line 1:21: unsupported metadata field [_tier]");
+        expectError("from test metadata _tier", "line 1:20: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test metadata _feature", "line 1:21: unsupported metadata field [_feature]");
+        expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
     }
 
     public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test metadata _doesnot_compute", "line 1:21: unsupported metadata field [_doesnot_compute]");
+        expectError("from test metadata _doesnot_compute", "line 1:20: unsupported metadata field [_doesnot_compute]");
     }
 
     public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
+        expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -985,13 +986,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo bar\" | GROK a \"%{NUMBER:foo} %{WORD:foo}\"",
-            "line 1:22: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
+            "line 1:21: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
                 + " the attribute [foo] is defined multiple times with different types"
         );
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:18: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:17: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
         );
     }
 
@@ -1015,7 +1016,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
-            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+            "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
         );
     }
@@ -1076,7 +1077,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "from a | enrich typo:countries on foo",
-            "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
+            "line 1:17: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
     }
 
@@ -1261,8 +1262,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "from test | where x < ?0 and y < ?2",
             List.of(paramAsConstant(null, 5)),
-            "line 1:24: No parameter is defined for position 0, did you mean position 1?; "
-                + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
+            "line 1:23: No parameter is defined for position 0, did you mean position 1?; "
+                + "line 1:34: No parameter is defined for position 2, did you mean position 1?"
         );
 
         expectError(
@@ -2107,11 +2108,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineConvertWithNonexistentType() {
-        expectError("ROW 1::doesnotexist", "line 1:9: Unknown data type named [doesnotexist]");
-        expectError("ROW \"1\"::doesnotexist", "line 1:11: Unknown data type named [doesnotexist]");
-        expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
-        expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
-        expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW 1::doesnotexist", "line 1:8: Unknown data type named [doesnotexist]");
+        expectError("ROW \"1\"::doesnotexist", "line 1:10: Unknown data type named [doesnotexist]");
+        expectError("ROW false::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
+        expectError("ROW abs(1)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
     }
 
     public void testLookup() {
@@ -2131,7 +2132,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineConvertUnsupportedType() {
-        expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+        expectError("ROW 3::BYTE", "line 1:5: Unsupported conversion to type [BYTE]");
     }
 
     public void testMetricsWithoutStats() {
@@ -2300,7 +2301,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchOperatorConstantQueryString() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
         var match = (Match) filter.condition();
@@ -2310,13 +2310,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidMatchOperator() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         expectError("from test | WHERE field:", "line 1:25: mismatched input '<EOF>' expecting {QUOTED_STRING, ");
         expectError(
             "from test | WHERE field:CONCAT(\"hello\", \"world\")",
             "line 1:25: mismatched input 'CONCAT' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
-        expectError("from test | WHERE field:123::STRING", "line 1:28: mismatched input '::' expecting {<EOF>, '|', 'and', 'or'}");
         expectError(
             "from test | WHERE field:(true OR false)",
             "line 1:25: extraneous input '(' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
@@ -2325,7 +2323,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | WHERE field:another_field_or_value",
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
-        expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+' expecting {<EOF>, '|', 'and', 'or'}");
+        expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
         expectError(
             "from test | WHERE \"field\":\"value\"",
             "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
@@ -2334,5 +2332,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | WHERE CONCAT(\"field\", 1):\"value\"",
             "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
         );
+    }
+
+    public void testMatchFunctionFieldCasting() {
+        var plan = statement("FROM test | WHERE match(field::int, \"value\")");
+        var filter = as(plan, Filter.class);
+        var function = (UnresolvedFunction) filter.condition();
+        var toInteger = (ToInteger) function.children().get(0);
+        var matchField = (UnresolvedAttribute) toInteger.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(function.children().get(1).fold(), equalTo("value"));
+    }
+
+    public void testMatchOperatorFieldCasting() {
+        var plan = statement("FROM test | WHERE field::int : \"value\"");
+        var filter = as(plan, Filter.class);
+        var match = (Match) filter.condition();
+        var toInteger = (ToInteger) match.field();
+        var matchField = (UnresolvedAttribute) toInteger.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(match.query().fold(), equalTo("value"));
     }
 }

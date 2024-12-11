@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -125,6 +128,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -609,6 +613,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -650,6 +655,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -1170,7 +1176,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            contains(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
 
         var source = source(extract.child());
@@ -2270,6 +2288,58 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testVerifierOnMissingReferences() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(
+            AggregateExec.class,
+            a -> new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                List.of(), // remove the aggs (and thus the groupings) entirely
+                a.getMode(),
+                a.intermediateAttributes(),
+                a.estimatedRowSize()
+            )
+        );
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
+    }
+
+    public void testVerifierOnDuplicateOutputAttributes() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(AggregateExec.class, a -> {
+            List<Attribute> intermediates = new ArrayList<>(a.intermediateAttributes());
+            intermediates.add(intermediates.get(0));
+            return new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                a.aggregates(),
+                AggregatorMode.INTERMEDIATE,  // FINAL would deduplicate aggregates()
+                intermediates,
+                a.estimatedRowSize()
+            );
+        });
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(
+            e.getMessage(),
+            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+        );
+    }
+
     public void testProjectAwayColumns() {
         var rule = new ProjectAwayColumns();
 
@@ -2541,7 +2611,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = asRemoteExchange(aggregate.child());
         var localSourceExec = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
+        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "$$m$min", "$$m$seen"));
     }
 
     /**
@@ -2577,9 +2647,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("count", "seen"));
+        assertThat(Expressions.names(exchange.output()), contains("$$c$count", "$$c$seen"));
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("count", "seen"));
+        assertThat(Expressions.names(source.output()), contains("$$c$count", "$$c$seen"));
     }
 
     /**
@@ -2611,7 +2681,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         // The partial aggregation's output is determined via AbstractPhysicalOperationProviders.intermediateAttributes()
-        assertThat(Expressions.names(aggPartial.output()), contains("count", "seen"));
+        assertThat(Expressions.names(aggPartial.output()), contains("$$c$count", "$$c$seen"));
         limit = as(aggPartial.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2649,9 +2719,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.output(), hasSize(2));
         var exchange = as(aggFinal.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(exchange.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(source.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
     }
 
     /**
@@ -6579,6 +6655,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookup.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
+    }
+
+    public void testScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            """);
+
+        ProjectExec outerProject = as(plan, ProjectExec.class);
+        LimitExec limitExec = as(outerProject.child(), LimitExec.class);
+        ExchangeExec exchange = as(limitExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        Limit limit = as(opt, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+    }
+
+    public void testScoreTopN() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var plan = physicalPlan("""
+            from test metadata _score
+            | where match(first_name, "john")
+            | keep _score
+            | sort _score desc
+            """);
+
+        ProjectExec projectExec = as(plan, ProjectExec.class);
+        TopNExec topNExec = as(projectExec.child(), TopNExec.class);
+        ExchangeExec exchange = as(topNExec.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        TopN topN = as(opt, TopN.class);
+        List<Order> order = topN.order();
+        Order scoreOrer = order.getFirst();
+        assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
+        Expression child = scoreOrer.child();
+        assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        Filter filter = as(topN.child(), Filter.class);
+
+        Match match = as(filter.condition(), Match.class);
+        assertTrue(match.field() instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+
+        EsRelation esRelation = as(filter.child(), EsRelation.class);
+        assertTrue(esRelation.optimized());
+        assertTrue(esRelation.resolved());
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
     }
 
     @SuppressWarnings("SameParameterValue")

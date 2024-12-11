@@ -46,10 +46,10 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
-        var docsInput = docsOnly.getInputs();
-        var stream = docsOnly.stream();
-        AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(docsInput, model, stream);
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
+        var stream = chatCompletionInput.stream();
+        AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(inputs, model, stream);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 

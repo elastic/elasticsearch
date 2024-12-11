@@ -31,7 +31,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
@@ -89,7 +88,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -220,8 +218,6 @@ public class LocalExecutionPlanner {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
-        } else if (node instanceof RowExec row) {
-            return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
@@ -362,11 +358,10 @@ public class LocalExecutionPlanner {
                 case VERSION -> TopNEncoder.VERSION;
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
-                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE ->
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
-                case SOURCE -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
@@ -576,20 +571,12 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        // TODO: this works when the join happens on the coordinator
-        /*
-         * But when it happens on the data node we get a
-         * \_FieldExtractExec[language_code{f}#15, language_name{f}#16]<[]>
-         *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#18], limit[], sort[] estimatedRowSize[62]
-         * Which we'd prefer not to do - at least for now. We already know the fields we're loading
-         * and don't want any local planning.
-         */
         EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.matchFields().size());
-        for (Attribute m : join.matchFields()) {
+        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
+        for (Attribute m : join.leftFields()) {
             Layout.ChannelAndType t = source.layout.get(m.id());
             if (t == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
@@ -609,7 +596,7 @@ public class LocalExecutionPlanner {
                 lookupFromIndexService,
                 matchFields.getFirst().type(),
                 localSourceExec.index().name(),
-                join.matchFields().getFirst().name(),
+                join.leftFields().getFirst().name(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
@@ -619,13 +606,6 @@ public class LocalExecutionPlanner {
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         return EvalMapper.toEvaluator(exp, layout);
-    }
-
-    private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
-        List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(row.output());
-        return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

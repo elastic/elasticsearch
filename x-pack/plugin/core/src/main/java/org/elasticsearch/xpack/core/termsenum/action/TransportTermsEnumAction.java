@@ -492,7 +492,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return false;
     }
 
-    private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) throws IOException {
+    private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) {
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }

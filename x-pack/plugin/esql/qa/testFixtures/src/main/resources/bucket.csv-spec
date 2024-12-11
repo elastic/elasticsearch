@@ -503,6 +503,27 @@ FROM employees
 //end::reuseGroupingFunctionWithExpression-result[]
 ;
 
+reuseGroupingFunctionImplicitAliasWithExpression#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS s1 = `BUCKET(salary / 100 + 99, 50.)` + 1, s2 = BUCKET(salary / 1000 + 999, 50.) + 2 BY BUCKET(salary / 100 + 99, 50.), b2 = BUCKET(salary / 1000 + 999, 50.)
+| SORT `BUCKET(salary / 100 + 99, 50.)`, b2
+| KEEP s1, `BUCKET(salary / 100 + 99, 50.)`, s2, b2
+;
+
+ s1:double | BUCKET(salary / 100 + 99, 50.):double | s2:double   | b2:double
+351.0      |350.0      |1002.0       |1000.0
+401.0      |400.0      |1002.0       |1000.0
+451.0      |450.0      |1002.0       |1000.0
+501.0      |500.0      |1002.0       |1000.0
+551.0      |550.0      |1002.0       |1000.0
+601.0      |600.0      |1002.0       |1000.0
+601.0      |600.0      |1052.0       |1050.0
+651.0      |650.0      |1052.0       |1050.0
+701.0      |700.0      |1052.0       |1050.0
+751.0      |750.0      |1052.0       |1050.0
+801.0      |800.0      |1052.0       |1050.0
+;
+
 reuseGroupingFunctionWithinAggs#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | STATS sum = 1 + MAX(1 + BUCKET(salary, 1000.)) BY BUCKET(salary, 1000.) + 1
@@ -759,4 +780,20 @@ FROM sample_data
 c:long |b:date
 3      |2025-10-01T00:00:00.000Z
 4      |2023-11-01T00:00:00.000Z
+;
+
+bucketWithFilteredCountRefingBucket
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| STATS c = COUNT(*) WHERE b > "1953-01-01T00:00:00.000Z" AND emp_no > 10020 BY b = BUCKET(birth_date, 1 year)
+| SORT c, b
+| LIMIT 4
+;
+
+c:long |b:date
+0      |1952-01-01T00:00:00.000Z
+0      |1953-01-01T00:00:00.000Z
+0      |null
+1      |1965-01-01T00:00:00.000Z
 ;

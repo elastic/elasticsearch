@@ -74,8 +74,7 @@ public class BulkRestIT extends HttpSmokeTestCase {
 
         ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
-        assertThat(responseException.getMessage(), containsString("could not parse bulk request body"));
-        assertThat(responseException.getMessage(), containsString("json_parse_exception"));
+        assertThat(responseException.getMessage(), containsString("x_content_parse_exception"));
         assertThat(responseException.getMessage(), containsString("Invalid UTF-8"));
     }
 

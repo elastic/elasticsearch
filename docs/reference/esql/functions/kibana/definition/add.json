@@ -44,6 +44,42 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        },
+        {
+          "name" : "rhs",
+          "type" : "date_period",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        },
+        {
+          "name" : "rhs",
+          "type" : "time_duration",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "date_period",
           "optional" : false,
           "description" : "A numeric value or a date time value."
@@ -57,6 +93,24 @@
       ],
       "variadic" : false,
       "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "date_period",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        },
+        {
+          "name" : "rhs",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
     },
     {
       "params" : [
@@ -255,6 +309,24 @@
       ],
       "variadic" : false,
       "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "time_duration",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        },
+        {
+          "name" : "rhs",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "A numeric value or a date time value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
     },
     {
       "params" : [

@@ -20,6 +20,7 @@ import java.lang.reflect.AccessFlag;
 import java.util.EnumSet;
 import java.util.Set;
 
+import static org.objectweb.asm.Opcodes.ACC_PROTECTED;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ASM9;
 
@@ -63,11 +64,11 @@ class FindUsagesClassVisitor extends ClassVisitor {
         this.className = name;
         this.classAccess = access;
         if (interfaces.length > 0) {
-            this.accessibleViaInterfaces = findAccessibility(interfaces);
+            this.accessibleViaInterfaces = findAccessibility(interfaces, moduleExports);
         }
     }
 
-    private boolean findAccessibility(String[] interfaces) {
+    private static boolean findAccessibility(String[] interfaces, Set<String> moduleExports) {
         var accessibleViaInterfaces = false;
         for (var interfaceName : interfaces) {
             if (moduleExports.contains(getPackageName(interfaceName))) {
@@ -122,7 +123,8 @@ class FindUsagesClassVisitor extends ClassVisitor {
                         EnumSet<ExternalAccess> externalAccess = ExternalAccess.fromPermissions(
                             moduleExports.contains(getPackageName(className)),
                             accessibleViaInterfaces || (classAccess & ACC_PUBLIC) != 0,
-                            (methodAccess & ACC_PUBLIC) != 0
+                            (methodAccess & ACC_PUBLIC) != 0,
+                            (methodAccess & ACC_PROTECTED) != 0
                         );
                         callers.accept(source, line, className, methodName, methodDescriptor, externalAccess);
                     }

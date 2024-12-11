@@ -9,49 +9,60 @@
 
 package org.elasticsearch.entitlement.tools;
 
+import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.stream.Collectors;
 
 public enum ExternalAccess {
-    CLASS,
-    METHOD;
+    PUBLIC_CLASS,
+    PUBLIC_METHOD,
+    PROTECTED_METHOD;
+
+    private static final String DELIMITER = ":";
 
     public static String toString(EnumSet<ExternalAccess> externalAccesses) {
-        if (isFullyPublic(externalAccesses)) {
-            return "PUBLIC";
-        } else if (isPublicMethod(externalAccesses)) {
-            return "PUBLIC-METHOD";
-        } else {
-            return "PRIVATE";
-        }
+        return externalAccesses.stream().map(Enum::toString).collect(Collectors.joining(DELIMITER));
     }
 
-    public static EnumSet<ExternalAccess> fromPermissions(boolean packageExported, boolean classPublic, boolean methodPublic) {
-        EnumSet<ExternalAccess> externalAccesses = EnumSet.noneOf(ExternalAccess.class);
-        if (methodPublic) {
-            externalAccesses.add(ExternalAccess.METHOD);
+    public static EnumSet<ExternalAccess> fromPermissions(
+        boolean packageExported,
+        boolean publicClass,
+        boolean publicMethod,
+        boolean protectedMethod
+    ) {
+        if (publicMethod && protectedMethod) {
+            throw new IllegalArgumentException();
         }
-        if (packageExported && classPublic) {
-            externalAccesses.add(ExternalAccess.CLASS);
+
+        EnumSet<ExternalAccess> externalAccesses = EnumSet.noneOf(ExternalAccess.class);
+        if (publicMethod) {
+            externalAccesses.add(ExternalAccess.PUBLIC_METHOD);
+        } else if (protectedMethod) {
+            externalAccesses.add(ExternalAccess.PROTECTED_METHOD);
+        }
+
+        if (packageExported && publicClass) {
+            externalAccesses.add(ExternalAccess.PUBLIC_CLASS);
         }
         return externalAccesses;
     }
 
-    public static boolean isPublicMethod(EnumSet<ExternalAccess> access) {
-        return access.contains(ExternalAccess.METHOD);
-    }
-
-    public static boolean isFullyPublic(EnumSet<ExternalAccess> access) {
-        return access.contains(ExternalAccess.METHOD) && access.contains(ExternalAccess.CLASS);
+    public static boolean isExternallyAccessible(EnumSet<ExternalAccess> access) {
+        return access.contains(ExternalAccess.PUBLIC_CLASS)
+            && (access.contains(ExternalAccess.PUBLIC_METHOD) || access.contains(ExternalAccess.PROTECTED_METHOD));
     }
 
     public static EnumSet<ExternalAccess> fromString(String accessAsString) {
         if ("PUBLIC".equals(accessAsString)) {
-            return EnumSet.of(ExternalAccess.METHOD, ExternalAccess.CLASS);
+            return EnumSet.of(ExternalAccess.PUBLIC_CLASS, ExternalAccess.PUBLIC_METHOD);
         }
         if ("PUBLIC-METHOD".equals(accessAsString)) {
-            return EnumSet.of(ExternalAccess.METHOD);
+            return EnumSet.of(ExternalAccess.PUBLIC_METHOD);
         }
-        return EnumSet.noneOf(ExternalAccess.class);
-    }
+        if ("PRIVATE".equals(accessAsString)) {
+            return EnumSet.noneOf(ExternalAccess.class);
+        }
 
+        return EnumSet.copyOf(Arrays.stream(accessAsString.split(DELIMITER)).map(ExternalAccess::valueOf).toList());
+    }
 }

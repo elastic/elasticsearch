@@ -68,10 +68,10 @@ public class Main {
 
                         var notSeenBefore = methodsSeen.add(newMethod.entryPoint());
                         if (notSeenBefore) {
-                            if (ExternalAccess.isFullyPublic(access)) {
+                            if (ExternalAccess.isExternallyAccessible(access)) {
                                 usageConsumer.usageFound(caller.next(), newMethod);
                             }
-                            if (ExternalAccess.isPublicMethod(access) == false || bubbleUpFromPublic) {
+                            if (access.contains(ExternalAccess.PUBLIC_METHOD) == false || bubbleUpFromPublic) {
                                 methodsToCheck.add(newMethod);
                             }
                         }
@@ -130,13 +130,11 @@ public class Main {
                 }
             }
 
-            originalCallers.stream().filter(c -> ExternalAccess.isFullyPublic(c.entryPoint().access())).forEach(c -> {
+            originalCallers.stream().filter(c -> ExternalAccess.isExternallyAccessible(c.entryPoint().access())).forEach(c -> {
                 var originalCaller = c.next();
                 printRow(getEntryPointString(c.entryPoint().moduleName(), c.entryPoint()), getOriginalEntryPointString(originalCaller));
             });
-            var firstLevelCallers = bubbleUpFromPublic
-                ? originalCallers
-                : originalCallers.stream().filter(c -> ExternalAccess.isFullyPublic(c.entryPoint().access()) == false).toList();
+            var firstLevelCallers = bubbleUpFromPublic ? originalCallers : originalCallers.stream().filter(Main::isNotFullyPublic).toList();
 
             if (firstLevelCallers.isEmpty() == false) {
                 findTransitiveUsages(
@@ -151,6 +149,11 @@ public class Main {
                 );
             }
         });
+    }
+
+    private static boolean isNotFullyPublic(CallChain c) {
+        return (c.entryPoint().access().contains(ExternalAccess.PUBLIC_CLASS)
+            && c.entryPoint().access().contains(ExternalAccess.PUBLIC_METHOD)) == false;
     }
 
     @SuppressForbidden(reason = "This tool prints the CSV to stdout")

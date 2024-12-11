@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.objectweb.asm.Opcodes.ACC_PROTECTED;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ASM9;
 import static org.objectweb.asm.Opcodes.GETSTATIC;
@@ -207,7 +208,8 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                     EnumSet<ExternalAccess> externalAccesses = ExternalAccess.fromPermissions(
                         moduleExports.contains(getPackageName(className)),
                         (classAccess & ACC_PUBLIC) != 0,
-                        (methodAccess & ACC_PUBLIC) != 0
+                        (methodAccess & ACC_PUBLIC) != 0,
+                        (methodAccess & ACC_PROTECTED) != 0
                     );
 
                     if (name.equals("checkPermission")) {

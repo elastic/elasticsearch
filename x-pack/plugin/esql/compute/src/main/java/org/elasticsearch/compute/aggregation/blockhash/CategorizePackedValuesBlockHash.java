@@ -35,6 +35,11 @@ import java.util.Map;
 /**
  * BlockHash implementation for {@code Categorize} grouping function as first
  * grouping expression, followed by one or mode other grouping expressions.
+ * <p>
+ * For the first grouping (the {@code Categorize} grouping function), a
+ * {@code CategorizeBlockHash} is used, which outputs integers (category IDs).
+ * Next, a {@code PackedValuesBlockHash} is used on the category IDs and the
+ * other groupings (which are not {@code Categorize}s).
  */
 public class CategorizePackedValuesBlockHash extends BlockHash {
 
@@ -112,6 +117,7 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     public Block[] getKeys() {
         Block[] keys = packedValuesBlockHash.getKeys();
         if (aggregatorMode.isOutputPartial() == false) {
+            // For final output, the keys are the category regexes.
             try (
                 BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys()[0];
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys[0].getPositionCount())
@@ -131,9 +137,15 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
                 keys[0] = builder.build();
             }
         } else {
+            // For intermediate output, the keys are the delegate PackedValuesBlockHash's
+            // keys, with the category IDs replaced by the categorizer's internal state
+            // together with the list of category IDs.
             BytesRef state;
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeBytesRef(categorizeBlockHash.serializeCategorizer());
+                // It's a bit inefficient to copy the IntVector's values into an int[]
+                // and discard the array soon after. IntVector should maybe expose the
+                // underlying array instead. TODO: investigate whether that's worth it
                 IntVector idsVector = (IntVector) keys[0].asVector();
                 int[] idsArray = new int[idsVector.getPositionCount()];
                 for (int i = 0; i < idsVector.getPositionCount(); i++) {

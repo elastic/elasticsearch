@@ -58,7 +58,7 @@ public class IndexVersions {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the index versions with which v9 will not need to interact
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
 
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
@@ -136,6 +136,7 @@ public class IndexVersions {
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion DEPRECATE_SOURCE_MODE_MAPPER = def(9_003_00_0, Version.LUCENE_10_0_0);
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_00_0, Version.LUCENE_10_0_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

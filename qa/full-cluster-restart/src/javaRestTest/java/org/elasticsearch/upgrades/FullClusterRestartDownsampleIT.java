@@ -263,7 +263,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];
         }
-        logger.warn("--> No matching rollup name for path [%s]", endpoint);
+        logger.warn("--> No matching rollup name for path [{}]", endpoint);
         return null;
     }
 

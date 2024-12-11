@@ -356,7 +356,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true)) {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true, -1)) {
             return snapshot.totalOperations();
         }
     }
@@ -369,6 +369,19 @@ public class ReadOnlyEngine extends Engine {
         boolean requiredFullRange,
         boolean singleConsumer,
         boolean accessStats
+    ) throws IOException {
+        return Translog.Snapshot.EMPTY;
+    }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats,
+        long maxChunkSize
     ) {
         return Translog.Snapshot.EMPTY;
     }

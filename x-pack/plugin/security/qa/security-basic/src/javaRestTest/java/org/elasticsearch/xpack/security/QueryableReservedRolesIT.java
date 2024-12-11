@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.security;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.AnnotationTestOrdering;
+import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -23,6 +29,11 @@ import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.xpack.security.QueryRoleIT.assertQuery;
 import static org.elasticsearch.xpack.security.QueryRoleIT.waitForMigrationCompletion;
 import static org.hamcrest.Matchers.containsString;
@@ -31,13 +42,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.oneOf;
 
+@TestCaseOrdering(AnnotationTestOrdering.class)
 public class QueryableReservedRolesIT extends ESRestTestCase {
 
     protected static final String REST_USER = "security_test_user";
     private static final SecureString REST_PASSWORD = new SecureString("security-test-password".toCharArray());
     private static final String ADMIN_USER = "admin_user";
     private static final SecureString ADMIN_PASSWORD = new SecureString("admin-password".toCharArray());
-
     protected static final String READ_SECURITY_USER = "read_security_user";
     private static final SecureString READ_SECURITY_PASSWORD = new SecureString("read-security-password".toCharArray());
 
@@ -51,23 +62,29 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         return true;
     }
 
+    private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
+        {
+            put("xpack.license.self_generated.type", "basic");
+            put("xpack.security.enabled", "true");
+            put("xpack.security.http.ssl.enabled", "false");
+            put("xpack.security.transport.ssl.enabled", "false");
+        }
+    };
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(2)
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "basic")
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.ssl.diagnose.trust", "true")
-        .setting("xpack.security.http.ssl.enabled", "false")
-        .setting("xpack.security.transport.ssl.enabled", "false")
-        .setting("xpack.security.authc.token.enabled", "true")
-        .setting("xpack.security.authc.api_key.enabled", "true")
+        .nodes(2)
+        .settings(clusterSettings)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user(ADMIN_USER, ADMIN_PASSWORD.toString(), User.ROOT_USER_ROLE, true)
         .user(REST_USER, REST_PASSWORD.toString(), "security_test_role", false)
         .user(READ_SECURITY_USER, READ_SECURITY_PASSWORD.toString(), "read_security_user_role", false)
         .systemProperty("es.queryable_built_in_roles_enabled", "true")
+        .plugin("queryable-reserved-roles-test")
         .build();
+
+    private static Set<String> CONFIGURED_RESERVED_ROLES;
 
     @Override
     protected String getTestRestCluster() {
@@ -86,6 +103,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Order(10)
     public void testQueryDeleteOrUpdateReservedRoles() throws Exception {
         waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
 
@@ -111,6 +129,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertCannotCreateOrUpdateReservedRole(roleName);
     }
 
+    @Order(11)
     public void testGetReservedRoles() throws Exception {
         final String[] allReservedRoles = ReservedRolesStore.names().toArray(new String[0]);
         final String roleName = randomFrom(allReservedRoles);
@@ -120,6 +139,43 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         var responseMap = responseAsMap(response);
         assertThat(responseMap.size(), equalTo(1));
         assertThat(responseMap.containsKey(roleName), is(true));
+    }
+
+    @Order(20)
+    public void testRestartForConfiguringReservedRoles() throws Exception {
+        CONFIGURED_RESERVED_ROLES = new HashSet<>();
+        CONFIGURED_RESERVED_ROLES.add("superuser");
+        CONFIGURED_RESERVED_ROLES.addAll(
+            randomSubsetOf(List.of("editor", "viewer", "kibana_system", "apm_system", "beats_system", "logstash_system"))
+        );
+        clusterSettings.put("xpack.security.reserved_roles.include", Strings.collectionToCommaDelimitedString(CONFIGURED_RESERVED_ROLES));
+        cluster.restart(false);
+        closeClients();
+    }
+
+    @Order(30)
+    public void testConfiguredReservedRoles() throws Exception {
+        assert CONFIGURED_RESERVED_ROLES != null;
+
+        // Test query roles API
+        assertBusy(() -> {
+            assertQuery(client(), """
+                { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
+                """, CONFIGURED_RESERVED_ROLES.size(), roles -> {
+                assertThat(roles, iterableWithSize(CONFIGURED_RESERVED_ROLES.size()));
+                for (var role : roles) {
+                    assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
+                }
+            });
+        });
+
+        // Test get roles API
+        assertBusy(() -> {
+            final Response response = adminClient().performRequest(new Request("GET", "/_security/role"));
+            assertOK(response);
+            final Map<String, Object> responseMap = responseAsMap(response);
+            assertThat(responseMap.keySet(), equalTo(CONFIGURED_RESERVED_ROLES));
+        });
     }
 
     private void assertCannotDeleteReservedRoles() throws Exception {

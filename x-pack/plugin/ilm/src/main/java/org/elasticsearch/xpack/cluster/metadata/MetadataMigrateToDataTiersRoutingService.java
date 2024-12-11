@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -811,13 +810,12 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * Represents the elasticsearch abstractions that were, in some way, migrated such that the system is managing indices lifecycles and
      * allocations using data tiers.
      */
-    public static final class MigratedEntities {
-        @Nullable
-        public final String removedIndexTemplateName;
-        public final List<String> migratedIndices;
-        public final List<String> migratedPolicies;
-        public final MigratedTemplates migratedTemplates;
-
+    public record MigratedEntities(
+        @Nullable String removedIndexTemplateName,
+        List<String> migratedIndices,
+        List<String> migratedPolicies,
+        MigratedTemplates migratedTemplates
+    ) {
         public MigratedEntities(
             @Nullable String removedIndexTemplateName,
             List<String> migratedIndices,
@@ -830,36 +828,17 @@ public final class MetadataMigrateToDataTiersRoutingService {
             this.migratedTemplates = migratedTemplates;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            MigratedEntities that = (MigratedEntities) o;
-            return Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
-                && Objects.equals(migratedIndices, that.migratedIndices)
-                && Objects.equals(migratedPolicies, that.migratedPolicies)
-                && Objects.equals(migratedTemplates, that.migratedTemplates);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(removedIndexTemplateName, migratedIndices, migratedPolicies, migratedTemplates);
-        }
     }
 
     /**
      * Represents the legacy, composable, and component templates that were migrated away from shard allocation settings based on custom
      * node attributes.
      */
-    public static final class MigratedTemplates {
-        public final List<String> migratedLegacyTemplates;
-        public final List<String> migratedComposableTemplates;
-        public final List<String> migratedComponentTemplates;
-
+    public record MigratedTemplates(
+        List<String> migratedLegacyTemplates,
+        List<String> migratedComposableTemplates,
+        List<String> migratedComponentTemplates
+    ) {
         public MigratedTemplates(
             List<String> migratedLegacyTemplates,
             List<String> migratedComposableTemplates,
@@ -868,25 +847,6 @@ public final class MetadataMigrateToDataTiersRoutingService {
             this.migratedLegacyTemplates = Collections.unmodifiableList(migratedLegacyTemplates);
             this.migratedComposableTemplates = Collections.unmodifiableList(migratedComposableTemplates);
             this.migratedComponentTemplates = Collections.unmodifiableList(migratedComponentTemplates);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            MigratedTemplates that = (MigratedTemplates) o;
-            return Objects.equals(migratedLegacyTemplates, that.migratedLegacyTemplates)
-                && Objects.equals(migratedComposableTemplates, that.migratedComposableTemplates)
-                && Objects.equals(migratedComponentTemplates, that.migratedComponentTemplates);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(migratedLegacyTemplates, migratedComposableTemplates, migratedComponentTemplates);
         }
     }
 }

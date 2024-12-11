@@ -114,9 +114,7 @@ public class SegmentCountStep extends AsyncWaitStep {
         return super.equals(obj) && Objects.equals(maxNumSegments, other.maxNumSegments);
     }
 
-    public static class Info implements ToXContentObject {
-
-        private final long numberShardsLeftToMerge;
+    public record Info(long numberShardsLeftToMerge) implements ToXContentObject {
 
         static final ParseField SHARDS_TO_MERGE = new ParseField("shards_left_to_merge");
         static final ParseField MESSAGE = new ParseField("message");
@@ -124,17 +122,10 @@ public class SegmentCountStep extends AsyncWaitStep {
             "segment_count_step_info",
             a -> new Info((long) a[0])
         );
+
         static {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_MERGE);
             PARSER.declareString((i, s) -> {}, MESSAGE);
-        }
-
-        public Info(long numberShardsLeftToMerge) {
-            this.numberShardsLeftToMerge = numberShardsLeftToMerge;
-        }
-
-        public long getNumberShardsLeftToMerge() {
-            return numberShardsLeftToMerge;
         }
 
         @Override
@@ -148,23 +139,6 @@ public class SegmentCountStep extends AsyncWaitStep {
             builder.field(SHARDS_TO_MERGE.getPreferredName(), numberShardsLeftToMerge);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(numberShardsLeftToMerge);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Info other = (Info) obj;
-            return Objects.equals(numberShardsLeftToMerge, other.numberShardsLeftToMerge);
         }
 
         @Override

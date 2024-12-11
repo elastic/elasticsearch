@@ -14,6 +14,7 @@ module org.elasticsearch.xcontent.impl {
     requires com.fasterxml.jackson.dataformat.yaml;
     requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
+    requires simdjson.java;
 
     provides org.elasticsearch.xcontent.spi.XContentProvider with org.elasticsearch.xcontent.provider.XContentProviderImpl;
 }

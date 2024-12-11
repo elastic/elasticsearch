@@ -571,11 +571,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener);
+        ActionListener<SearchPhaseResult> finalListener = maybeWrapListenerForStackTrace(listener);
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
+        rewriteAndFetchShardRequest(shard, request, finalListener.delegateFailure((l, orig) -> {
             // check if we can shortcut the query phase entirely.
             if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
@@ -589,7 +589,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
                 CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
                 if (canMatchResp.canMatch() == false) {
-                    listener.onResponse(QuerySearchResult.nullInstance());
+                    finalListener.onResponse(QuerySearchResult.nullInstance());
                     return;
                 }
             }

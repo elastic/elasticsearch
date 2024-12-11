@@ -97,3 +97,30 @@ setup:
   - match: { hits.hits.1.fields: null }
   - match: { hits.hits.2.fields: {"event.success_count": [1]} }
   - match: { hits.hits.3.fields: {"event.success_count": [0]} }
+---
+"Test traces-apm-* setting event.ingested via ingest pipeline":
+  - requires:
+      test_runner_features: [is_after]
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # No event.ingested field populated, it gets added
+          - create: {}
+          - '{"@timestamp": "2017-06-22"}'
+
+          # event.ingested populated, it is preserved
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"ingested": "2017-06-22T00:00:00.123456Z"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["event.ingested"]
+  - length: { hits.hits: 2 }
+  - is_after: { hits.hits.1.fields.event\.ingested.0: "2017-06-22T00:00:00.000Z" }
+  

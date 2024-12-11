@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<JinaAIEmbeddingsServiceSettings> {
@@ -72,14 +69,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
-                        null
-                    )
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null)
                 )
             )
         );
@@ -113,14 +103,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
-                        null
-                    )
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null)
                 )
             )
         );
@@ -156,14 +139,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
-                        null
-                    )
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null)
                 )
             )
         );

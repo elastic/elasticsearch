@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.external.response.jinaai;
 
 import org.apache.http.HttpResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.common.Strings;
 import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 
 public class JinaAIErrorResponseEntityTests extends ESTestCase {
     public void testFromResponse() {
-        //TODO(JoanFM): Check it works with real response
+        // TODO(JoanFM): Check it works with real response
         String message = "\"input\" length 2049 is larger than the largest allowed size 2048";
         String escapedMessage = message.replace("\\", "\\\\").replace("\"", "\\\"");
         String responseJson = Strings.format("""
@@ -33,10 +33,7 @@ public class JinaAIErrorResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorMessage);
-        MatcherAssert.assertThat(
-            errorMessage.getErrorMessage(),
-            is(message)
-        );
+        MatcherAssert.assertThat(errorMessage.getErrorMessage(), is(message));
     }
 
     public void testFromResponse_noMessage() {

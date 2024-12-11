@@ -20,11 +20,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record JinaAIEmbeddingsRequestEntity(
-    List<String> input,
-    JinaAIEmbeddingsTaskSettings taskSettings,
-    @Nullable String model
-) implements ToXContentObject {
+public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddingsTaskSettings taskSettings, @Nullable String model)
+    implements
+        ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "retrieval.passage";
     private static final String SEARCH_QUERY = "retrieval.query";

@@ -11,6 +11,7 @@ package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -267,16 +268,45 @@ public class InputStreamIndexInputTests extends ESTestCase {
             skipBytesExpected
         );
 
-        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
-        InputStreamIndexInput is = new InputStreamIndexInput(input, limit);
+        var countingInput = new CountingReadBytesIndexInput("test", dir.openInput("test", IOContext.DEFAULT));
+        InputStreamIndexInput is = new InputStreamIndexInput(countingInput, limit);
         is.readNBytes(initialReadBytes);
         assertThat(is.skip(skipBytes), equalTo((long) skipBytesExpected));
+        long expectedActualBytesRead = Math.min(Math.min(initialReadBytes, limit), bytes);
+        assertThat(countingInput.getBytesRead(), equalTo(expectedActualBytesRead));
 
         int remainingBytes = Math.min(bytes, limit) - seekExpected;
         for (int i = seekExpected; i < seekExpected + remainingBytes; i++) {
             assertThat(is.read(), equalTo(i));
         }
     }
+
+    protected static class CountingReadBytesIndexInput extends FilterIndexInput {
+        private long bytesRead = 0;
+
+        public CountingReadBytesIndexInput(String resourceDescription, IndexInput in) {
+            super(resourceDescription, in);
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            long filePointerBefore = getFilePointer();
+            byte b = super.readByte();
+            bytesRead += getFilePointer() - filePointerBefore;
+            return b;
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            long filePointerBefore = getFilePointer();
+            super.readBytes(b, offset, len);
+            bytesRead += getFilePointer() - filePointerBefore;
+        }
+
+        public long getBytesRead() {
+            return bytesRead;
+        }
+    };
 
     public void testReadZeroShouldReturnZero() throws IOException {
         try (Directory dir = new ByteBuffersDirectory()) {

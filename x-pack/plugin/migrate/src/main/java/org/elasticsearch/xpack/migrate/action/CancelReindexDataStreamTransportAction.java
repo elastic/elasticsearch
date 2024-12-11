@@ -58,29 +58,19 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
         } else if (persistentTask.isAssigned()) {
             String nodeId = persistentTask.getExecutorNode();
             if (clusterService.localNode().getId().equals(nodeId)) {
-                getRunningTaskFromNode(persistentTaskId, listener);
+                cancelTaskOnThisNode(persistentTaskId, listener);
             } else {
-                runOnNodeWithTaskIfPossible(task, request, nodeId, listener);
+                runActionOnNodeWithTaskIfPossible(task, request, nodeId, listener);
             }
         } else {
             listener.onFailure(new ResourceNotFoundException("Persistent task with id [{}] is not assigned to a node", persistentTaskId));
         }
     }
 
-    private ReindexDataStreamTask getRunningPersistentTaskFromTaskManager(String persistentTaskId) {
-        Optional<Map.Entry<Long, CancellableTask>> optionalTask = taskManager.getCancellableTasks()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().getType().equals("persistent"))
-            .filter(
-                entry -> entry.getValue() instanceof ReindexDataStreamTask
-                    && persistentTaskId.equals((((AllocatedPersistentTask) entry.getValue()).getPersistentTaskId()))
-            )
-            .findAny();
-        return optionalTask.map(entry -> (ReindexDataStreamTask) entry.getValue()).orElse(null);
-    }
-
-    void getRunningTaskFromNode(String persistentTaskId, ActionListener<Response> listener) {
+    /*
+     * This method cancels the persistent task with id persistentTaskId. It assumes that the task is running on this node.
+     */
+    private void cancelTaskOnThisNode(String persistentTaskId, ActionListener<Response> listener) {
         ReindexDataStreamTask runningTask = getRunningPersistentTaskFromTaskManager(persistentTaskId);
         if (runningTask == null) {
             listener.onFailure(
@@ -98,7 +88,27 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
         }
     }
 
-    private void runOnNodeWithTaskIfPossible(Task thisTask, Request request, String nodeId, ActionListener<Response> listener) {
+    /*
+     * This gets the persistent task from the task manager. It must be run on the node where the persistent task is running.
+     */
+    private ReindexDataStreamTask getRunningPersistentTaskFromTaskManager(String persistentTaskId) {
+        Optional<Map.Entry<Long, CancellableTask>> optionalTask = taskManager.getCancellableTasks()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().getType().equals("persistent"))
+            .filter(
+                entry -> entry.getValue() instanceof ReindexDataStreamTask
+                    && persistentTaskId.equals((((AllocatedPersistentTask) entry.getValue()).getPersistentTaskId()))
+            )
+            .findAny();
+        return optionalTask.map(entry -> (ReindexDataStreamTask) entry.getValue()).orElse(null);
+    }
+
+    /*
+     * This forwards this CancelReindexDataStreamAction request to the node with id nodeId, since the task can only be canceled on the node
+     * where it is running.
+     */
+    private void runActionOnNodeWithTaskIfPossible(Task thisTask, Request request, String nodeId, ActionListener<Response> listener) {
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         if (node == null) {
             listener.onFailure(

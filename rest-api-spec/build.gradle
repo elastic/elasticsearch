@@ -58,7 +58,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling")
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling")
-  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "TopScoreDocCollector", "dfs knn vector profiling with vector_operations_count")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling with vector_operations_count")
   task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
   task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")

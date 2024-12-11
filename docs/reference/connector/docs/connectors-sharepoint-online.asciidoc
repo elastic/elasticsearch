@@ -146,8 +146,7 @@ To configure `Sites.Selected` permissions, follow these steps in the Azure Activ
 
 [TIP]
 ====
-Refer to the official Microsoft documentation for managing permissions in Azure AD:
-* https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft Graph permissions reference^]
+Refer to the official https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft documentation] for managing permissions in Azure AD.
 ====
 
 To assign access to specific SharePoint sites using `Sites.Selected`:
@@ -647,7 +646,7 @@ The application name will appear in the Title box.
 </AppPermissionRequests>
 ----
 
-[discrete#es-connectors-sharepoint-online-sites-selected-permissions]
+[discrete#es-connectors-sharepoint-online-sites-selected-permissions-self-managed]
 ====== Granting `Sites.Selected` permissions
 
 To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
@@ -660,9 +659,9 @@ To configure `Sites.Selected` permissions, follow these steps in the Azure Activ
 
 [TIP]
 ====
-Refer to the official Microsoft documentation for managing permissions in Azure AD:
-* https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft Graph permissions reference^]
+Refer to the official https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft documentation] for managing permissions in Azure AD.
 ====
+
 
 To assign access to specific SharePoint sites using `Sites.Selected`:
 

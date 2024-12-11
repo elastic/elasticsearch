@@ -7,17 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
@@ -58,21 +50,6 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-    }
-
-    public void testSerializationBWC() throws IOException {
-        RoleMappingMetadata original = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_2_0, null);
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(version);
-        original.writeTo(output);
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(
-            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables())
-        );
-        streamInput.setTransportVersion(version);
-        RoleMappingMetadata deserialized = new RoleMappingMetadata(streamInput);
-        assertEquals(original, deserialized);
     }
 
     public void testEquals() {

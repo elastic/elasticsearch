@@ -109,7 +109,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var subBatches = batches.get(0).batch().subBatches();
         for (int i = 0; i < inputs.size(); i++) {
             var subBatch = subBatches.get(i);
-            assertThat(subBatch.requests(), contains(inputs.get(i)));
+            assertThat(subBatch.requests().toChunkText(), contains(inputs.get(i)));
             assertEquals(0, subBatch.positions().chunkIndex());
             assertEquals(i, subBatch.positions().inputIndex());
             assertEquals(1, subBatch.positions().embeddingCount());
@@ -149,7 +149,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var subBatches = batches.get(0).batch().subBatches();
         for (int i = 0; i < batches.size(); i++) {
             var subBatch = subBatches.get(i);
-            assertThat(subBatch.requests(), contains(inputs.get(i)));
+            assertThat(subBatch.requests().toChunkText(), contains(inputs.get(i)));
             assertEquals(0, subBatch.positions().chunkIndex());
             assertEquals(inputIndex, subBatch.positions().inputIndex());
             assertEquals(1, subBatch.positions().embeddingCount());
@@ -193,7 +193,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var subBatches = batches.get(0).batch().subBatches();
         for (int i = 0; i < batches.size(); i++) {
             var subBatch = subBatches.get(i);
-            assertThat(subBatch.requests(), contains(inputs.get(i)));
+            assertThat(subBatch.requests().toChunkText(), contains(inputs.get(i)));
             assertEquals(0, subBatch.positions().chunkIndex());
             assertEquals(inputIndex, subBatch.positions().inputIndex());
             assertEquals(1, subBatch.positions().embeddingCount());
@@ -231,17 +231,17 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
                 assertEquals(0, subBatch.positions().inputIndex());
                 assertEquals(0, subBatch.positions().chunkIndex());
                 assertEquals(1, subBatch.positions().embeddingCount());
-                assertThat(subBatch.requests(), contains("1st small"));
+                assertThat(subBatch.requests().toChunkText(), contains("1st small"));
             }
             {
                 var subBatch = batch.subBatches().get(1);
                 assertEquals(1, subBatch.positions().inputIndex()); // 2nd input
                 assertEquals(0, subBatch.positions().chunkIndex());  // 1st part of the 2nd input
                 assertEquals(4, subBatch.positions().embeddingCount()); // 4 chunks
-                assertThat(subBatch.requests().get(0), startsWith("passage_input0 "));
-                assertThat(subBatch.requests().get(1), startsWith(" passage_input20 "));
-                assertThat(subBatch.requests().get(2), startsWith(" passage_input40 "));
-                assertThat(subBatch.requests().get(3), startsWith(" passage_input60 "));
+                assertThat(subBatch.requests().toChunkText().get(0), startsWith("passage_input0 "));
+                assertThat(subBatch.requests().toChunkText().get(1), startsWith(" passage_input20 "));
+                assertThat(subBatch.requests().toChunkText().get(2), startsWith(" passage_input40 "));
+                assertThat(subBatch.requests().toChunkText().get(3), startsWith(" passage_input60 "));
             }
         }
         {
@@ -254,22 +254,22 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
                 assertEquals(1, subBatch.positions().inputIndex()); // 2nd input
                 assertEquals(1, subBatch.positions().chunkIndex()); // 2nd part of the 2nd input
                 assertEquals(2, subBatch.positions().embeddingCount());
-                assertThat(subBatch.requests().get(0), startsWith(" passage_input80 "));
-                assertThat(subBatch.requests().get(1), startsWith(" passage_input100 "));
+                assertThat(subBatch.requests().toChunkText().get(0), startsWith(" passage_input80 "));
+                assertThat(subBatch.requests().toChunkText().get(1), startsWith(" passage_input100 "));
             }
             {
                 var subBatch = batch.subBatches().get(1);
                 assertEquals(2, subBatch.positions().inputIndex()); // 3rd input
                 assertEquals(0, subBatch.positions().chunkIndex());  // 1st and only part
                 assertEquals(1, subBatch.positions().embeddingCount()); // 1 chunk
-                assertThat(subBatch.requests(), contains("2nd small"));
+                assertThat(subBatch.requests().toChunkText(), contains("2nd small"));
             }
             {
                 var subBatch = batch.subBatches().get(2);
                 assertEquals(3, subBatch.positions().inputIndex());  // 4th input
                 assertEquals(0, subBatch.positions().chunkIndex());  // 1st and only part
                 assertEquals(1, subBatch.positions().embeddingCount()); // 1 chunk
-                assertThat(subBatch.requests(), contains("3rd small"));
+                assertThat(subBatch.requests().toChunkText(), contains("3rd small"));
             }
         }
     }

@@ -91,7 +91,7 @@ public class MockGcsBlobStore {
     }
 
     /**
-     * Update or query a resumable blob
+     * Update or query a resumable upload
      *
      * @see <a href="https://cloud.google.com/storage/docs/resumable-uploads">GCS Resumable Uploads</a>
      * @param uploadId The upload ID

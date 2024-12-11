@@ -3186,6 +3186,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(SnapshotShardContext context) {
+        context.status().updateStatusDescription("queued in snapshot task runner");
         shardSnapshotTaskRunner.enqueueShardSnapshot(context);
     }
 
@@ -3198,6 +3199,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         final SnapshotId snapshotId = context.snapshotId();
         final IndexShardSnapshotStatus snapshotStatus = context.status();
+        snapshotStatus.updateStatusDescription("snapshot task runner: setting up shard snapshot");
         final long startTime = threadPool.absoluteTimeInMillis();
         try {
             final ShardGeneration generation = snapshotStatus.generation();
@@ -3206,6 +3208,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Set<String> blobs;
             if (generation == null) {
                 snapshotStatus.ensureNotAborted();
+                snapshotStatus.updateStatusDescription("snapshot task runner: listing blob prefixes");
                 try {
                     blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
                 } catch (IOException e) {
@@ -3216,6 +3219,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             snapshotStatus.ensureNotAborted();
+            snapshotStatus.updateStatusDescription("snapshot task runner: loading snapshot blobs");
             Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
                 context.indexId(),
                 shardId.id(),
@@ -3316,6 +3320,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = filesFromSegmentInfos;
             }
 
+            snapshotStatus.updateStatusDescription("snapshot task runner: starting shard snapshot");
             snapshotStatus.moveToStarted(
                 startTime,
                 indexIncrementalFileCount,
@@ -3342,6 +3347,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
                         Boolean.toString(writeFileInfoWriterUUID)
                     );
+                    snapshotStatus.updateStatusDescription("snapshot task runner: updating blob store with new shard generation");
                     INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                         updatedBlobStoreIndexShardSnapshots,
                         shardContainer,
@@ -3387,6 +3393,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
                             Boolean.toString(writeFileInfoWriterUUID)
                         );
+                        snapshotStatus.updateStatusDescription("no shard generations: writing new index-${N} file");
                         writeShardIndexBlobAtomic(shardContainer, newGen, updatedBlobStoreIndexShardSnapshots, serializationParams);
                     } catch (IOException e) {
                         throw new IndexShardSnapshotFailedException(
@@ -3401,6 +3408,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     snapshotStatus.addProcessedFiles(finalFilesInShardMetadataCount, finalFilesInShardMetadataSize);
                     try {
+                        snapshotStatus.updateStatusDescription("no shard generations: deleting blobs");
                         deleteFromContainer(OperationPurpose.SNAPSHOT_METADATA, shardContainer, blobsToDelete.iterator());
                     } catch (IOException e) {
                         logger.warn(
@@ -3414,6 +3422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // filesToSnapshot will be emptied while snapshotting the file. We make a copy here for cleanup purpose in case of failure.
             final AtomicReference<List<FileInfo>> fileToCleanUp = new AtomicReference<>(List.copyOf(filesToSnapshot));
             final ActionListener<Collection<Void>> allFilesUploadedListener = ActionListener.assertOnce(ActionListener.wrap(ignore -> {
+                snapshotStatus.updateStatusDescription("all files uploaded: finalizing");
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize();
 
                 // now create and write the commit point
@@ -3435,6 +3444,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
                         Boolean.toString(writeFileInfoWriterUUID)
                     );
+                    snapshotStatus.updateStatusDescription("all files uploaded: writing to index shard file");
                     INDEX_SHARD_SNAPSHOT_FORMAT.write(
                         blobStoreIndexShardSnapshot,
                         shardContainer,
@@ -3451,10 +3461,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
                     getSegmentInfoFileCount(blobStoreIndexShardSnapshot.indexFiles())
                 );
+                snapshotStatus.updateStatusDescription("all files uploaded: done");
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 context.onResponse(shardSnapshotResult);
             }, e -> {
                 try {
+                    snapshotStatus.updateStatusDescription("all files uploaded: cleaning up data files, exception while finalizing: " + e);
                     shardContainer.deleteBlobsIgnoringIfNotExists(
                         OperationPurpose.SNAPSHOT_DATA,
                         Iterators.flatMap(fileToCleanUp.get().iterator(), f -> Iterators.forRange(0, f.numberOfParts(), f::partName))
@@ -3484,12 +3496,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // A normally running shard snapshot should be in stage INIT or STARTED. And we know it's not in PAUSING or ABORTED because
                 // the ensureNotAborted() call above did not throw. The remaining options don't make sense, if they ever happen.
                 logger.error(
-                    () -> Strings.format(
-                        "Shard snapshot found an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
-                        shardId,
-                        snapshotId,
-                        shardSnapshotStage
-                    )
+                    "Shard snapshot found an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
+                    shardId,
+                    snapshotId,
+                    shardSnapshotStage
                 );
                 assert false;
             }
@@ -3519,6 +3529,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         final int noOfFilesToSnapshot = filesToSnapshot.size();
         final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, noOfFilesToSnapshot, allFilesUploadedListener);
+        context.status().updateStatusDescription("enqueued file snapshot tasks: threads running concurrent file uploads");
         for (int i = 0; i < noOfFilesToSnapshot; i++) {
             shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
         }

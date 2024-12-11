@@ -124,17 +124,13 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         numBuckets = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            minimumIntervalExpression = in.readOptionalString();
-        }
+        minimumIntervalExpression = in.readOptionalString();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
+        out.writeOptionalString(minimumIntervalExpression);
     }
 
     protected AutoDateHistogramAggregationBuilder(

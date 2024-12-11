@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 
 import java.util.Collection;
@@ -39,6 +40,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -50,6 +52,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testNonExistentDataStream() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String nonExistentDataStreamName = randomAlphaOfLength(50);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
@@ -63,12 +66,13 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testAlreadyUpToDateDataStream() throws Exception {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String dataStreamName = randomAlphaOfLength(50).toLowerCase(Locale.ROOT);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
             dataStreamName
         );
-        createDataStream(dataStreamName);
+        final int backingIndexCount = createDataStream(dataStreamName);
         ReindexDataStreamResponse response = client().execute(
             new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME),
             reindexDataStreamRequest
@@ -78,7 +82,6 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         AtomicReference<ReindexDataStreamTask> runningTask = new AtomicReference<>();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             TaskManager taskManager = transportService.getTaskManager();
-            Map<Long, CancellableTask> tasksMap = taskManager.getCancellableTasks();
             Optional<Map.Entry<Long, CancellableTask>> optionalTask = taskManager.getCancellableTasks()
                 .entrySet()
                 .stream()
@@ -99,9 +102,24 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         assertThat(task.getStatus().pending(), equalTo(0));
         assertThat(task.getStatus().inProgress(), equalTo(0));
         assertThat(task.getStatus().errors().size(), equalTo(0));
+
+        assertBusy(() -> {
+            GetMigrationReindexStatusAction.Response statusResponse = client().execute(
+                new ActionType<GetMigrationReindexStatusAction.Response>(GetMigrationReindexStatusAction.NAME),
+                new GetMigrationReindexStatusAction.Request(dataStreamName)
+            ).actionGet();
+            ReindexDataStreamStatus status = (ReindexDataStreamStatus) statusResponse.getTask().getTask().status();
+            assertThat(status.complete(), equalTo(true));
+            assertThat(status.errors(), equalTo(List.of()));
+            assertThat(status.exception(), equalTo(null));
+            assertThat(status.pending(), equalTo(0));
+            assertThat(status.inProgress(), equalTo(0));
+            assertThat(status.totalIndices(), equalTo(backingIndexCount));
+            assertThat(status.totalIndicesToBeUpgraded(), equalTo(0));
+        });
     }
 
-    private void createDataStream(String dataStreamName) {
+    private int createDataStream(String dataStreamName) {
         final TransportPutComposableIndexTemplateAction.Request putComposableTemplateRequest =
             new TransportPutComposableIndexTemplateAction.Request("my-template");
         putComposableTemplateRequest.indexTemplate(
@@ -125,10 +143,13 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)
         );
         assertThat(createDataStreamResponse.isAcknowledged(), is(true));
-        indexDocs(dataStreamName);
-        safeGet(new RolloverRequestBuilder(client()).setRolloverTarget(dataStreamName).lazy(false).execute());
-        indexDocs(dataStreamName);
-        safeGet(new RolloverRequestBuilder(client()).setRolloverTarget(dataStreamName).lazy(false).execute());
+        int backingIndices = 1;
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            indexDocs(dataStreamName);
+            safeGet(new RolloverRequestBuilder(client()).setRolloverTarget(dataStreamName).lazy(false).execute());
+            backingIndices++;
+        }
+        return backingIndices;
     }
 
     private void indexDocs(String dataStreamName) {

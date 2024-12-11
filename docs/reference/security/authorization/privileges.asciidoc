@@ -95,12 +95,6 @@ only on clusters that contain follower indices.
 +
 This privilege is not available in {serverless-full}.
 
-`manage_data_frame_transforms`::
-All operations related to managing {transforms}.
-deprecated[7.5] Use `manage_transform` instead.
-+
-This privilege is not available in {serverless-full}.
-
 `manage_data_stream_global_retention`::
 This privilege has no effect.deprecated[8.16]
 

@@ -76,6 +76,12 @@ https://platform.openai.com/api-keys[API keys section].
 include::inference-shared.asciidoc[tag=api-key-admonition]
 --
 
+`dimensions`:::
+(Optional, integer)
+The number of dimensions the resulting output embeddings should have.
+Only supported in `text-embedding-3` and later models.
+If not set the OpenAI defined default for the model is used.
+
 `model_id`:::
 (Required, string)
 The name of the model to use for the {infer} task.
@@ -134,8 +140,8 @@ Specifies the user issuing the request, which can be used for abuse detection.
 [[inference-example-openai]]
 ==== OpenAI service example
 
-The following example shows how to create an {infer} endpoint called
-`openai-embeddings` to perform a `text_embedding` task type.
+The following example shows how to create an {infer} endpoint called `openai-embeddings` to perform a `text_embedding` task type.
+The embeddings created by requests to this endpoint will have 128 dimensions.
 
 [source,console]
 ------------------------------------------------------------
@@ -144,14 +150,14 @@ PUT _inference/text_embedding/openai-embeddings
     "service": "openai",
     "service_settings": {
         "api_key": "<api_key>",
-        "model_id": "text-embedding-ada-002"
+        "model_id": "text-embedding-3-small",
+        "dimensions": 128
     }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-The next example shows how to create an {infer} endpoint called
-`openai-completion` to perform a `completion` task type.
+The next example shows how to create an {infer} endpoint called `openai-completion` to perform a `completion` task type.
 
 [source,console]
 ------------------------------------------------------------

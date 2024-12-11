@@ -279,6 +279,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
         for (int i = seekExpected; i < seekExpected + remainingBytes; i++) {
             assertThat(is.read(), equalTo(i));
         }
+        assertThat(countingInput.getBytesRead(), equalTo(expectedActualBytesRead + remainingBytes));
     }
 
     protected static class CountingReadBytesIndexInput extends FilterIndexInput {

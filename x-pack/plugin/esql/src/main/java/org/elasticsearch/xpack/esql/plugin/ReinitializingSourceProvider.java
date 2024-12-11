@@ -15,7 +15,9 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * This is a workaround for when compute engine executes concurrently with data partitioning by docid.
+ * This is a workaround for when compute engine executes concurrently with data partitioning by docid (inter segment parallelization).
+ * A {@link SourceProvider} can only be used by a single thread and this wrapping source provider ensures that each thread uses
+ * its own {@link SourceProvider}.
  */
 final class ReinitializingSourceProvider implements SourceProvider {
 

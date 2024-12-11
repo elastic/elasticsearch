@@ -148,17 +148,12 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 if (autoExpandReplicas.enabled() == false) {
                     continue;
                 }
-                // Special case for stateless indices: auto-expand is disabled, unless number_of_replicas has been set
-                // manually to 0 via index settings, which needs to be converted to 1.
+                // Special case for stateless indices: ensures there is always at least one replica.
                 if (Objects.equals(
                     indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
                     "stateless"
                 )) {
-                    if (indexMetadata.getNumberOfReplicas() == 0) {
-                        nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
-                    } else {
-                        continue;
-                    }
+                    autoExpandReplicas = new AutoExpandReplicas(1, autoExpandReplicas.maxReplicas(), true);
                 }
                 if (allocation == null) {
                     allocation = allocationSupplier.get();

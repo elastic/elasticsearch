@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
-public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
+public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
 
     private final URI uri;
 

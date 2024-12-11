@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
@@ -24,24 +23,16 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 
-public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteClusterSecurityTestCase {
-    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
-    private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
-    private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
-    private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
-
+// TODO consolidate me with RemoteClusterSecurityDataStreamEsqlRcs2IT
+public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClusterSecurityTestCase {
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
-            .nodes(3)
             .module("x-pack-autoscaling")
             .module("x-pack-esql")
             .module("x-pack-enrich")
@@ -49,16 +40,9 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
             .module("x-pack-ilm")
             .module("ingest-common")
             .apply(commonClusterConfig)
-            .setting("remote_cluster.port", "0")
             .setting("xpack.ml.enabled", "false")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
-            .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
-            .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
-            .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
-            .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
-            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
-            .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
+            .rolesFile(Resource.fromClasspath("roles.yml"))
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -71,23 +55,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
             .module("ingest-common")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
-            .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
-            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
-                if (API_KEY_MAP_REF.get() == null) {
-                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        {
-                          "search": [
-                            {
-                                "names": ["logs-*", "alias-*"]
-                            }
-                          ]
-                        }""");
-                    API_KEY_MAP_REF.set(apiKeyMap);
-                }
-                return (String) API_KEY_MAP_REF.get().get("encoded");
-            })
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user("logs_foo_all", "x-pack-test-password", "logs_foo_all", false)
             .user("logs_foo_16_only", "x-pack-test-password", "logs_foo_16_only", false)
@@ -98,37 +66,62 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
     }
 
     @ClassRule
-    // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
-    // We set it here, since randomization methods are not available in the static initialize context above
-    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
-        SSL_ENABLED_REF.set(usually());
-        NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
-        NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
-    })).around(fulfillingCluster).around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testDataStreamsWithDls() throws Exception {
-        configureRemoteCluster();
-        createDataStream();
+        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, true, randomBoolean(), randomBoolean());
+        createDataStreamOnFulfillingCluster();
+
         MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));
         MapMatcher oneResult = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(1)));
-        assertMap(entityAsMap(runESQLCommand("logs_foo_all", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")), twoResults);
-        assertMap(entityAsMap(runESQLCommand("logs_foo_16_only", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")), oneResult);
-        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")), oneResult);
         assertMap(
-            entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
+            twoResults
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
             oneResult
         );
-        assertMap(entityAsMap(runESQLCommand("logs_foo_all", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")), twoResults);
-        assertMap(entityAsMap(runESQLCommand("logs_foo_16_only", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")), oneResult);
-        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")), oneResult);
-        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")
+            ),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            twoResults
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            oneResult
+        );
 
-        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-foo | STATS COUNT(*)")), oneResult);
-        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-* | STATS COUNT(*)")), oneResult);
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-foo | STATS COUNT(*)")
+            ),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-* | STATS COUNT(*)")),
+            oneResult
+        );
     }
 
-    protected Response runESQLCommand(String user, String command) throws IOException {
+    static Response runESQLCommandAgainstQueryCluster(String user, String command) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -176,7 +169,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         return settings.build();
     }
 
-    private void createDataStream() throws IOException {
+    static void createDataStreamOnFulfillingCluster() throws IOException {
         createDataStreamPolicy();
         createDataStreamComponentTemplate();
         createDataStreamIndexTemplate();
@@ -184,7 +177,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         createDataStreamAlias();
     }
 
-    private void createDataStreamPolicy() throws IOException {
+    private static void createDataStreamPolicy() throws IOException {
         Request request = new Request("PUT", "_ilm/policy/my-lifecycle-policy");
         request.setJsonEntity("""
             {
@@ -210,7 +203,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         performRequestAgainstFulfillingCluster(request);
     }
 
-    private void createDataStreamComponentTemplate() throws IOException {
+    private static void createDataStreamComponentTemplate() throws IOException {
         Request request = new Request("PUT", "_component_template/my-template");
         request.setJsonEntity("""
             {
@@ -236,7 +229,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         performRequestAgainstFulfillingCluster(request);
     }
 
-    private void createDataStreamIndexTemplate() throws IOException {
+    private static void createDataStreamIndexTemplate() throws IOException {
         Request request = new Request("PUT", "_index_template/my-index-template");
         request.setJsonEntity("""
             {
@@ -248,7 +241,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         performRequestAgainstFulfillingCluster(request);
     }
 
-    private void createDataStreamDocuments() throws IOException {
+    private static void createDataStreamDocuments() throws IOException {
         Request request = new Request("POST", "logs-foo/_bulk");
         request.addParameter("refresh", "");
         request.setJsonEntity("""
@@ -260,7 +253,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         assertMap(entityAsMap(performRequestAgainstFulfillingCluster(request)), matchesMap().extraOk().entry("errors", false));
     }
 
-    private void createDataStreamAlias() throws IOException {
+    private static void createDataStreamAlias() throws IOException {
         Request request = new Request("PUT", "_alias");
         request.setJsonEntity("""
             {
@@ -275,6 +268,4 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
             }""");
         assertMap(entityAsMap(performRequestAgainstFulfillingCluster(request)), matchesMap().extraOk().entry("errors", false));
     }
-
-    record ExpectedCluster(String clusterAlias, String indexExpression, String status, Integer totalShards) {}
 }

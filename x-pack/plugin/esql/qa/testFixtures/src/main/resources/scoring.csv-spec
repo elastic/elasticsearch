@@ -283,3 +283,33 @@ book_no:keyword | c_score:double
 7350            | 2.0
 7140            | 3.0
 ;
+
+QstrScoreManipulation
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("title:rings") 
+| eval _score = _score + 1 
+| keep book_no, title, _score
+| limit 2;
+
+book_no:keyword | title:text                                                                                  | _score:double
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 2.6404519081115723
+2714            | Return of the King Being the Third Part of The Lord of the Rings                            | 2.9239964485168457
+;
+
+QstrScoreOverride
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("title:rings") 
+| eval _score = "foobar"
+| keep book_no, title, _score 
+| limit 2;
+
+book_no:keyword | title:text                                                                                  | _score:keyword
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | foobar
+2714            | Return of the King Being the Third Part of The Lord of the Rings                            | foobar
+;

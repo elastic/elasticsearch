@@ -473,7 +473,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> createMapperService(
-                    IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY),
+                    IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT),
                     settings,
                     () -> false,
                     topMapping(b -> {})

@@ -152,7 +152,7 @@ public class CloneIndexIT extends ESIntegTestCase {
                     "index.version.created",
                     IndexVersionUtils.randomVersionBetween(
                         random(),
-                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
+                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
                         IndexVersion.current()
                     )
                 )
@@ -167,7 +167,7 @@ public class CloneIndexIT extends ESIntegTestCase {
                             "index.version.created",
                             IndexVersionUtils.randomVersionBetween(
                                 random(),
-                                IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
+                                IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
                                 IndexVersion.current()
                             )
                         )

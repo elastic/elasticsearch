@@ -26,7 +26,7 @@ public class GraphFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
 }

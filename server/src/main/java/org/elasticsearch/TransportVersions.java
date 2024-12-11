@@ -13,13 +13,12 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
 
@@ -53,9 +52,6 @@ public class TransportVersions {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
-    public static final TransportVersion V_7_0_1 = def(7_00_01_99);
-    public static final TransportVersion V_7_2_0 = def(7_02_00_99);
-    public static final TransportVersion V_7_2_1 = def(7_02_01_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
     public static final TransportVersion V_7_5_0 = def(7_05_00_99);
@@ -140,6 +136,8 @@ public class TransportVersions {
     public static final TransportVersion SOURCE_MODE_TELEMETRY = def(8_802_00_0);
     public static final TransportVersion NEW_REFRESH_CLUSTER_BLOCK = def(8_803_00_0);
     public static final TransportVersion RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS = def(8_804_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES = def(8_805_00_0);
+    public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -208,21 +206,24 @@ public class TransportVersions {
      */
     public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_0;
 
-    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
+    /**
+     * Sorted list of all versions defined in this class
+     */
+    static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
 
-    // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
+    // the highest transport version constant defined
     static final TransportVersion LATEST_DEFINED;
     static {
-        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
+        LATEST_DEFINED = DEFINED_VERSIONS.getLast();
 
         // see comment on IDS field
         // now we're registered all the transport versions, we can clear the map
         IDS = null;
     }
 
-    public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+    public static List<TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
-        NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
+        List<TransportVersion> definedTransportVersions = new ArrayList<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
 
@@ -239,7 +240,7 @@ public class TransportVersions {
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 }
-                builder.put(version.id(), version);
+                definedTransportVersions.add(version);
 
                 if (Assertions.ENABLED) {
                     // check the version number is unique
@@ -256,11 +257,9 @@ public class TransportVersions {
             }
         }
 
-        return Collections.unmodifiableNavigableMap(builder);
-    }
+        Collections.sort(definedTransportVersions);
 
-    static Collection<TransportVersion> getAllVersions() {
-        return VERSION_IDS.values();
+        return List.copyOf(definedTransportVersions);
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());

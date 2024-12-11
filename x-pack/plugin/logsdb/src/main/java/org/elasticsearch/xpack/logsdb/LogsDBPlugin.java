@@ -66,7 +66,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         if (DiscoveryNode.isStateless(settings) == false) {
             logsdbIndexModeSettingsProvider.init(
                 parameters.mapperServiceFactory(),
-                () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
+                () -> IndexVersion.min(
+                    IndexVersion.current(),
+                    parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
+                )
             );
         }
         return List.of(logsdbIndexModeSettingsProvider);

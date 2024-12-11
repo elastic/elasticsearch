@@ -5,6 +5,12 @@ coming[8.17.0]
 
 Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
 
+[[license-8.17.0]]
+[float]
+=== License changes
+
+
+
 [[bug-8.17.0]]
 [float]
 === Bug fixes

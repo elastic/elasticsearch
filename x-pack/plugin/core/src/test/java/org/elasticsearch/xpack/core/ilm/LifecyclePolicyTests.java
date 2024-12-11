@@ -20,8 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -47,7 +45,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
                     TimeseriesLifecycleType.TYPE,
@@ -74,7 +72,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
-            Arrays.asList(
+            List.of(
                 new NamedXContentRegistry.Entry(
                     LifecycleType.class,
                     new ParseField(TimeseriesLifecycleType.TYPE),
@@ -217,7 +215,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                 new Phase(
                     TimeseriesLifecycleType.FROZEN_PHASE,
                     frozenTime,
-                    Collections.singletonMap(
+                    Map.of(
                         SearchableSnapshotAction.NAME,
                         new SearchableSnapshotAction(
                             randomAlphaOfLength(10),
@@ -303,7 +301,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                     )
                 );
                 phases = new LinkedHashMap<>(phases);
-                phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
+                phases.put(phaseName, new Phase(phaseName, null, Map.of()));
             }
             case 2 -> metadata = randomValueOtherThan(metadata, LifecyclePolicyTests::randomMeta);
             case 3 -> deprecated = instance.isDeprecated() ? randomFrom(false, null) : true;
@@ -336,8 +334,8 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecycleAction firstAction = new MockAction(Arrays.asList(mockStep));
-        Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
+        LifecycleAction firstAction = new MockAction(List.of(mockStep));
+        Map<String, LifecycleAction> actions = Map.of(MockAction.NAME, firstAction);
         Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
@@ -371,10 +369,10 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecycleAction firstAction = new MockAction(Arrays.asList(firstActionStep, firstActionAnotherStep));
-        LifecycleAction secondAction = new MockAction(Arrays.asList(secondActionStep));
-        Map<String, LifecycleAction> firstActions = Collections.singletonMap(MockAction.NAME, firstAction);
-        Map<String, LifecycleAction> secondActions = Collections.singletonMap(MockAction.NAME, secondAction);
+        LifecycleAction firstAction = new MockAction(List.of(firstActionStep, firstActionAnotherStep));
+        LifecycleAction secondAction = new MockAction(List.of(secondActionStep));
+        Map<String, LifecycleAction> firstActions = Map.of(MockAction.NAME, firstAction);
+        Map<String, LifecycleAction> secondActions = Map.of(MockAction.NAME, secondAction);
         Phase firstPhase = new Phase("first_phase", TimeValue.ZERO, firstActions);
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
@@ -400,10 +398,10 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
 
     public void testIsActionSafe() {
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecycleAction firstAction = new MockAction(Collections.emptyList(), true);
-        LifecycleAction secondAction = new MockAction(Collections.emptyList(), false);
-        Map<String, LifecycleAction> firstActions = Collections.singletonMap(MockAction.NAME, firstAction);
-        Map<String, LifecycleAction> secondActions = Collections.singletonMap(MockAction.NAME, secondAction);
+        LifecycleAction firstAction = new MockAction(List.of(), true);
+        LifecycleAction secondAction = new MockAction(List.of(), false);
+        Map<String, LifecycleAction> firstActions = Map.of(MockAction.NAME, firstAction);
+        Map<String, LifecycleAction> secondActions = Map.of(MockAction.NAME, secondAction);
         Phase firstPhase = new Phase("first_phase", TimeValue.ZERO, firstActions);
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
@@ -457,12 +455,9 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
     public static Map<String, Object> randomMeta() {
         if (randomBoolean()) {
             if (randomBoolean()) {
-                return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+                return Map.of(randomAlphaOfLength(4), randomAlphaOfLength(4));
             } else {
-                return Collections.singletonMap(
-                    randomAlphaOfLength(5),
-                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
-                );
+                return Map.of(randomAlphaOfLength(5), Map.of(randomAlphaOfLength(4), randomAlphaOfLength(4)));
             }
         } else {
             return null;

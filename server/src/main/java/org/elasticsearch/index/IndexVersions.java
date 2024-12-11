@@ -58,7 +58,7 @@ public class IndexVersions {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the index versions with which v9 will not need to interact
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
 
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));

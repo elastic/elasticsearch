@@ -633,7 +633,6 @@ public class SearchEngine extends Engine {
         return 0;
     }
 
-    @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
         long fromSeqNo,
@@ -641,6 +640,19 @@ public class SearchEngine extends Engine {
         boolean requiredFullRange,
         boolean singleConsumer,
         boolean accessStats
+    ) throws IOException {
+        return null;
+    }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats,
+        long chunkSize
     ) throws IOException {
         return null;
     }

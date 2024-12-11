@@ -2,4 +2,5 @@ pr: 118474
 summary: Esql bucket function for date nanos
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 118031

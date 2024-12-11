@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  */
 public class LifecyclePolicyUtils {
 
-    private LifecyclePolicyUtils() {};
+    private LifecyclePolicyUtils() {}
 
     /**
      * Loads a built-in index lifecycle policy and returns its source.

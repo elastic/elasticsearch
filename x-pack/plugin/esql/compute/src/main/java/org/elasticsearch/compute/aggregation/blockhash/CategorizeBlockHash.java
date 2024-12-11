@@ -154,24 +154,16 @@ public class CategorizeBlockHash extends BlockHash {
             seenNull = true;
             return blockFactory.newConstantIntBlockWith(NULL_ORD, 1);
         }
-
-        Map<Integer, Integer> idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
-        try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
-            int fromId = idMap.containsKey(0) ? 0 : 1;
-            int toId = fromId + idMap.size();
-            for (int i = fromId; i < toId; i++) {
-                newIdsBuilder.appendInt(idMap.get(i));
-            }
-            return newIdsBuilder.build();
-        }
+        int[] ids = recategorize(categorizerState.getBytesRef(0, new BytesRef()), null);
+        return blockFactory.newIntArrayVector(ids, ids.length).asBlock();
     }
 
     /**
-     * Read intermediate state from a block.
-     *
-     * @return a map from the old category id to the new one. The old ids go from 0 to {@code size - 1}.
+     * Reads the intermediate state from a block and recategorizes the provided IDs.
+     * If no IDs are provided, the IDs are the IDs in the categorizer's state in order.
+     * (So 0...N-1 or 1...N, depending on whether null is present.)
      */
-    Map<Integer, Integer> readIntermediate(BytesRef bytes) {
+    int[] recategorize(BytesRef bytes, int[] ids) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
             if (in.readBoolean()) {
@@ -184,10 +176,20 @@ public class CategorizeBlockHash extends BlockHash {
                 // +1 because the 0 ordinal is reserved for null
                 idMap.put(oldCategoryId + 1, newCategoryId + 1);
             }
-            return idMap;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        if (ids == null) {
+            ids = new int[idMap.size()];
+            int idOffset = idMap.containsKey(0) ? 0 : 1;
+            for (int i = 0; i < idMap.size(); i++) {
+                ids[i] = i + idOffset;
+            }
+        }
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = idMap.get(ids[i]);
+        }
+        return ids;
     }
 
     /**

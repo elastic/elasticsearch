@@ -30,7 +30,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * BlockHash implementation for {@code Categorize} grouping function as first
@@ -96,17 +95,11 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         } else {
             BytesRefBlock stateBlock = page.getBlock(0);
             BytesRef stateBytes = stateBlock.getBytesRef(0, new BytesRef());
-
             try (StreamInput in = new BytesArray(stateBytes).streamInput()) {
                 BytesRef categorizerState = in.readBytesRef();
-                Map<Integer, Integer> idMap = categorizeBlockHash.readIntermediate(categorizerState);
-                int[] oldIds = in.readIntArray();
-                try (IntBlock.Builder newIds = blockFactory.newIntBlockBuilder(page.getPositionCount())) {
-                    for (int oldId : oldIds) {
-                        newIds.appendInt(idMap.get(oldId));
-                    }
-                    return newIds.build();
-                }
+                int[] ids = in.readIntArray();
+                ids = categorizeBlockHash.recategorize(categorizerState, ids);
+                return blockFactory.newIntArrayVector(ids, ids.length).asBlock();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

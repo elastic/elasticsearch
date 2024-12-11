@@ -447,3 +447,6 @@ tests:
 - class: org.elasticsearch.upgrades.FileSettingsRoleMappingUpgradeIT
   method: testRoleMappingsAppliedOnUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/118311
+- class: org.elasticsearch.upgrades.FileSettingsRoleMappingUpgradeIT
+  method: testRoleMappingsAppliedOnUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/118309

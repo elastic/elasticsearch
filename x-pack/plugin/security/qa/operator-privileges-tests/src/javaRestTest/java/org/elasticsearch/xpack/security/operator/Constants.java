@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.util.Objects;
 import java.util.Set;
@@ -636,6 +637,8 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

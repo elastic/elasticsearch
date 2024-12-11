@@ -13,8 +13,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -49,7 +52,12 @@ public class MappingLookupTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers);
+        return MappingLookup.fromMappers(
+            mapping,
+            fieldMappers,
+            objectMappers,
+            new IndexSettings(IndexMetadata.builder("index").build(), Settings.EMPTY)
+        );
     }
 
     public void testOnlyRuntimeField() {

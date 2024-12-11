@@ -297,7 +297,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), null);
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -389,7 +389,10 @@ public class SearchExecutionContextTests extends ESTestCase {
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        MappingLookup lookup = MappingLookup.fromMapping(mapping);
+        MappingLookup lookup = MappingLookup.fromMapping(
+            mapping,
+            new IndexSettings(IndexMetadata.builder("index").build(), Settings.EMPTY)
+        );
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
         assertTrue(sec.isSourceSynthetic());

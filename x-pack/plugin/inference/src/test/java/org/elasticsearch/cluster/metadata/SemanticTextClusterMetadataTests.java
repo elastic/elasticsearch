@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.hamcrest.Matchers;
 
@@ -28,7 +29,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class);
+        return List.of(XPackPlugin.class, InferencePlugin.class);
     }
 
     public void testCreateIndexWithSemanticTextField() {

@@ -637,7 +637,7 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/index/reindex" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/data_stream/index/reindex" : null,
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
         "internal:admin/repository/verify",

@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -33,16 +35,19 @@ import java.util.Optional;
 public class CancelReindexDataStreamTransportAction extends HandledTransportAction<Request, AcknowledgedResponse> {
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final PersistentTasksService persistentTasksService;
 
     @Inject
     public CancelReindexDataStreamTransportAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        PersistentTasksService persistentTasksService
     ) {
         super(CancelReindexDataStreamAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.persistentTasksService = persistentTasksService;
     }
 
     @Override
@@ -65,6 +70,7 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
         } else {
             listener.onFailure(new ResourceNotFoundException("Persistent task with id [{}] is not assigned to a node", persistentTaskId));
         }
+
     }
 
     /*
@@ -83,8 +89,24 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
                 )
             );
         } else {
-            runningTask.markAsCompleted();
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            // Calling sendRemoveRequest results in the task (and its child tasks) being cancelled
+            persistentTasksService.sendRemoveRequest(
+                persistentTaskId,
+                TimeValue.MAX_VALUE,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                        // Calling unregister removes the task from the /_tasks list
+                        taskManager.unregister(runningTask);
+                        listener.onResponse(AcknowledgedResponse.TRUE);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+            );
         }
     }
 

@@ -1212,8 +1212,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testCombineProjectionWithCategorizeGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
-
         var plan = plan("""
             from test
             | eval k = first_name, k1 = k
@@ -3949,8 +3947,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      */
     public void testNestedExpressionsInGroupsWithCategorize() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
-
         var plan = optimizedPlan("""
             from test
             | stats c = count(salary) by CATEGORIZE(CONCAT(first_name, "abc"))

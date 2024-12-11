@@ -79,7 +79,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 

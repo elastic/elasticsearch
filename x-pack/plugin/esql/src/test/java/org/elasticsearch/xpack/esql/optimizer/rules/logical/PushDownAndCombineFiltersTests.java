@@ -199,7 +199,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
     public void testPushDownLikeRlikeFilter() {
         EsRelation relation = relation();
-        org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
         Filter fa = new Filter(EMPTY, relation, conditionA);

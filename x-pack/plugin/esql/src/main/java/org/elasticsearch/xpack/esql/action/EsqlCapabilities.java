@@ -565,7 +565,12 @@ public class EsqlCapabilities {
         /**
          * Additional types for match function and operator
          */
-        MATCH_ADDITIONAL_TYPES;
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD;
 
         private final boolean enabled;
 

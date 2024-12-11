@@ -125,7 +125,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+                searchService.getRewriteContext(timeProvider, resolvedIndices, null, true),
                 rewriteListener
             );
         }
@@ -221,7 +221,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(),
             request.filteringAliases()
         );
-        try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
+        try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, true)) {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess();

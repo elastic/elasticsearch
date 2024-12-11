@@ -125,7 +125,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null, false),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(

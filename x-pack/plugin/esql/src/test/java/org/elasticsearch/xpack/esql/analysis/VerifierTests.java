@@ -1894,7 +1894,7 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testCategorizeSingleGrouping() {
+    public void testCategorizeOnlyFirstGrouping() {
         query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)");
         query("FROM test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
         query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no");

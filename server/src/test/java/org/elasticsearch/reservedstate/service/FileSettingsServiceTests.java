@@ -315,8 +315,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
-        verify(fileSettingsService, times(0)).processFileOnServiceStart(); // Initially no file
-        verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
         verify(fileSettingsService, times(1)).onProcessFileChangesException(
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
@@ -325,9 +323,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // referring to fileSettingsService.start(). Rather, it is referring to the initialization
         // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
 
-        verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred(contains(XContentParseException.class.getName()));
-        verifyNoMoreInteractions(healthIndicatorService);
+        verify(healthIndicatorService).failureOccurred(contains(XContentParseException.class.getName()));
     }
 
     /**

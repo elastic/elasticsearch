@@ -92,3 +92,57 @@ fls_user:
       privileges: [ 'read' ]
       field_security:
         grant: [ value ]
+
+logs_foo_all:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+
+logs_foo_16_only:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "term": {
+            "data_stream.namespace": "16"
+          }
+        }
+
+logs_foo_after_2021:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+logs_foo_after_2021_pattern:
+  cluster: []
+  indices:
+    - names: [ 'logs-*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+logs_foo_after_2021_alias:
+  cluster: []
+  indices:
+    - names: [ 'alias-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }

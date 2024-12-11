@@ -441,3 +441,9 @@ tests:
 - class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
   method: testHFEmbeddings {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/118197
+- class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
+  method: testSettingsApplied
+  issue: https://github.com/elastic/elasticsearch/issues/116694
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.LookupMessageFromIndexKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118399

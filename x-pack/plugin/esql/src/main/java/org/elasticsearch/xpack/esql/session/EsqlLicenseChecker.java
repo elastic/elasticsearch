@@ -34,6 +34,11 @@ public class EsqlLicenseChecker {
         return CCS_FEATURE.check(licenseState);
     }
 
+    /**
+     * @param licenseState existing license state. Need to extract info on the current installed license.
+     * @return ElasticsearchStatusException with an error message informing the caller what license is needed
+     * to run ES|QL cross-cluster searches and what license (if any) was found.
+     */
     public static ElasticsearchStatusException invalidLicenseForCcsException(XPackLicenseState licenseState) {
         String message = "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: ";
         if (licenseState == null) {

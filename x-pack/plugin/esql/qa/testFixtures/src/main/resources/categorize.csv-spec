@@ -60,6 +60,19 @@ COUNT():long | VALUES(str):keyword | category:keyword
            1 | [a, b, c]           | .*?disconnected.*?
 ;
 
+limit before stats
+required_capability: categorize_v5
+
+FROM sample_data | SORT message | LIMIT 4
+  | STATS count=COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+count:long | category:keyword
+         3 | .*?Connected.+?to.*?
+         1 | .*?Connection.+?error.*?
+;
+
 skips stopwords
 required_capability: categorize_v5
 
@@ -647,6 +660,22 @@ count:long | category:keyword         | timestamp:datetime
          1 | .*?Disconnected.*?       | 2023-10-23T13:00:00.000Z
 ;
 
+
+multiple groupings with categorize and limit before stats
+required_capability: categorize_v5
+
+FROM sample_data | SORT message | LIMIT 5
+  | STATS count=COUNT() BY category=CATEGORIZE(message), client_ip
+  | SORT category, client_ip
+;
+
+count:long | category:keyword         | client_ip:ip
+         1 | .*?Connected.+?to.*?     | 172.21.2.113
+         1 | .*?Connected.+?to.*?     | 172.21.2.162
+         1 | .*?Connected.+?to.*?     | 172.21.3.15
+         2 | .*?Connection.+?error.*? | 172.21.3.15
+;
+
 multiple groupings with categorize and nulls
 required_capability: categorize_multiple_groupings
 
@@ -740,4 +769,18 @@ lang_low:double | lang_high:double | category:keyword  | gender:keyword
             5.0 |              2.0 | .*?Accountant.*?  | null
             3.0 |             3.25 | .*?Architect.*?   | F
            3.75 |             null | .*?Architect.*?   | M
+;
+
+multiple groupings with categorize on null row
+required_capability: categorize_multiple_groupings
+
+ROW message = null, str = ["a", "b", "c"]
+  | STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message), str
+  | SORT str
+;
+
+COUNT():long | VALUES(str):keyword | category:keyword | str:keyword
+           1 | [a, b, c]           | null             | a
+           1 | [a, b, c]           | null             | b
+           1 | [a, b, c]           | null             | c
 ;

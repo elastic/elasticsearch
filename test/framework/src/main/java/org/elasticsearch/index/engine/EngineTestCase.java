@@ -57,13 +57,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -142,6 +141,7 @@ import static java.util.Collections.shuffle;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -159,6 +159,8 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected Store store;
     protected Store storeReplica;
+
+    protected MapperService mapperService;
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
@@ -198,6 +200,27 @@ public abstract class EngineTestCase extends ESTestCase {
             .build();
     }
 
+    protected String defaultMapping() {
+        return """
+            {
+                "dynamic": false,
+                "properties": {
+                    "value": {
+                        "type": "keyword"
+                    },
+                    "nested_field": {
+                        "type": "nested",
+                        "properties": {
+                            "field-0": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -212,15 +235,16 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             codecName = "default";
         }
-        defaultSettings = IndexSettingsModule.newIndexSettings("test", indexSettings());
+        defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
         storeReplica = createStore();
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        translogHandler = createTranslogHandler(defaultSettings);
-        engine = createEngine(store, primaryTranslogDir);
+        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping());
+        translogHandler = createTranslogHandler(mapperService);
+        engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -230,7 +254,7 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.config().setEnableGcDeletes(false);
         }
         replicaTranslogDir = createTempDir("translog-replica");
-        replicaEngine = createEngine(storeReplica, replicaTranslogDir);
+        replicaEngine = createEngine(defaultSettings, storeReplica, replicaTranslogDir, newMergePolicy());
         currentIndexWriterConfig = replicaEngine.getCurrentIndexWriterConfig();
 
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -433,37 +457,9 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
-        final MapperService mapperService = createMapperService();
-        final String nestedMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested_field")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        final DocumentMapper nestedMapper = mapperService.merge(
-            "type",
-            new CompressedXContent(nestedMapping),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
-        return (docId, nestedFieldValues) -> {
-            final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
-            if (nestedFieldValues > 0) {
-                XContentBuilder nestedField = source.startObject("nested_field");
-                for (int i = 0; i < nestedFieldValues; i++) {
-                    nestedField.field("field-" + i, "value-" + i);
-                }
-                source.endObject();
-            }
-            source.endObject();
-            return nestedMapper.parse(new SourceToParse(docId, BytesReference.bytes(source), XContentType.JSON));
-        };
+    public static ParsedDocument parseDocument(MapperService mapperService, String id, String routing) {
+        SourceToParse sourceToParse = new SourceToParse(id, new BytesArray("{ \"value\" : \"test\" }"), XContentType.JSON, routing);
+        return mapperService.documentMapper().parse(sourceToParse);
     }
 
     protected Store createStore() throws IOException {
@@ -500,8 +496,8 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
-        return new TranslogHandler(xContentRegistry(), indexSettings);
+    protected TranslogHandler createTranslogHandler(MapperService mapperService) {
+        return new TranslogHandler(mapperService);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -857,7 +853,7 @@ public abstract class EngineTestCase extends ESTestCase {
             this::relativeTimeInNanos,
             indexCommitListener,
             true,
-            null
+            mapperService
         );
     }
 
@@ -1031,6 +1027,22 @@ public abstract class EngineTestCase extends ESTestCase {
         return ops;
     }
 
+    private CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory(MapperService mapperService) {
+        final DocumentMapper nestedMapper = mapperService.documentMapper();
+        return (docId, nestedFieldValues) -> {
+            final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("value", "test");
+            if (nestedFieldValues > 0) {
+                XContentBuilder nestedField = source.startObject("nested_field");
+                for (int i = 0; i < nestedFieldValues; i++) {
+                    nestedField.field("field-" + i, "value-" + i);
+                }
+                source.endObject();
+            }
+            source.endObject();
+            return nestedMapper.parse(new SourceToParse(docId, BytesReference.bytes(source), XContentType.JSON));
+        };
+    }
+
     public List<Engine.Operation> generateHistoryOnReplica(
         int numOps,
         boolean allowGapInSeqNo,
@@ -1050,7 +1062,9 @@ public abstract class EngineTestCase extends ESTestCase {
         long seqNo = startingSeqNo;
         final int maxIdValue = randomInt(numOps * 2);
         final List<Engine.Operation> operations = new ArrayList<>(numOps);
-        CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory();
+        CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory(
+            engine.engineConfig.getMapperService()
+        );
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(randomInt(maxIdValue));
             final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
@@ -1059,7 +1073,9 @@ public abstract class EngineTestCase extends ESTestCase {
             final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
             for (int copy = 0; copy < copies; copy++) {
-                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
+                final ParsedDocument doc = isNestedDoc
+                    ? nestedParsedDocFactory.apply(id, nestedValues)
+                    : parseDocument(engine.engineConfig.getMapperService(), id, null);
                 switch (opType) {
                     case INDEX -> operations.add(
                         new Engine.Index(
@@ -1274,7 +1290,17 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
+        try (
+            Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -1345,7 +1371,15 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
+                if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                    assertToXContentEquivalent(
+                        ((Translog.Index) luceneOp).source(),
+                        ((Translog.Index) translogOp).source(),
+                        XContentFactory.xContentType(((Translog.Index) luceneOp).source().array())
+                    );
+                } else {
+                    assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
+                }
             }
         }
     }
@@ -1401,15 +1435,19 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static MapperService createMapperService() throws IOException {
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-            .putMapping("{\"properties\": {}}")
+        return createMapperService(Settings.EMPTY, "{}");
+    }
+
+    public static MapperService createMapperService(Settings settings, String mappings) throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(settings))
+            .putMapping(mappings)
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
             createTempDir(),
-            Settings.EMPTY,
-            "test"
+            indexMetadata.getSettings(),
+            "index"
         );
         mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
         return mapperService;

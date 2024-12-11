@@ -275,8 +275,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamWithFailureStoreInitialized() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -317,8 +319,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamWithFailureStoreUninitialized() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -356,8 +360,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .put(MetadataCreateDataStreamService.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, timeValue)
             .build();
         final String dataStreamName = "my-data-stream";
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))

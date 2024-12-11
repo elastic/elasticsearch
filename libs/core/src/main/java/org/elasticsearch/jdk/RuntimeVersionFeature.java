@@ -7,16 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch;
+package org.elasticsearch.jdk;
 
-import java.util.List;
+import org.elasticsearch.core.UpdateForV9;
 
-/**
- * Provides access to all known transport versions.
- */
-public class KnownTransportVersions {
-    /**
-     * A sorted list of all known transport versions
-     */
-    public static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersions.getAllVersions());
+public class RuntimeVersionFeature {
+    private RuntimeVersionFeature() {}
+
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // Remove once we removed all references to SecurityManager in code
+    public static boolean isSecurityManagerAvailable() {
+        return Runtime.version().feature() < 24;
+    }
 }

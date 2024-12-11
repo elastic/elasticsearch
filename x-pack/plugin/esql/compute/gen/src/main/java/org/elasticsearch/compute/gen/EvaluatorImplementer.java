@@ -699,6 +699,9 @@ public class EvaluatorImplementer {
             }
             if (componentType.equals(BYTES_REF)) {
                 builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
+            } else if (componentType.equals(INT_BLOCK) || componentType.equals(LONG_BLOCK) || componentType.equals(DOUBLE_BLOCK)
+                || componentType.equals(BOOLEAN_BLOCK) || componentType.equals(BYTES_REF_BLOCK)) {
+                builder.addStatement("$LValues[i] = $L[i]", name, paramName(blockStyle));
             } else {
                 builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(componentType), lookupVar);
             }

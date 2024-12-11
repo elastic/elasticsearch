@@ -57,6 +57,7 @@ tasks.named("yamlRestTest").configure {
     '^ilm/80_health/*',
     '^logsdb/10_usage/*',
     '^migrate/10_reindex/Test Reindex With Nonexistent Data Stream',
+    '^migrate/20_reindex_status/Test get reindex status with nonexistent task id',
     '^ml/3rd_party_deployment/*',
     '^ml/bucket_correlation_agg/*',
     '^ml/bucket_count_ks_test_agg/*',

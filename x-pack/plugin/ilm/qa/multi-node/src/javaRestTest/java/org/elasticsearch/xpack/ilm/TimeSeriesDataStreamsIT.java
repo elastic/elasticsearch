@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
-import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -213,35 +212,6 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
             equalTo("true")
         );
-    }
-
-    public void testFreezeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "cold", FreezeAction.INSTANCE);
-        createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
-        indexDocument(client(), dataStream, true);
-
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
-        assertBusy(
-            () -> assertThat(
-                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-                explainIndex(client(), backingIndexName).get("step"),
-                is(CheckNotDataStreamWriteIndexStep.NAME)
-            ),
-            30,
-            TimeUnit.SECONDS
-        );
-
-        // Manual rollover the original index such that it's not the write index in the data stream anymore
-        rolloverMaxOneDocCondition(client(), dataStream);
-
-        assertBusy(
-            () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
-
-        Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
-        assertNull(settings.get("index.frozen"));
     }
 
     public void checkForceMergeAction(String codec) throws Exception {

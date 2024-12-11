@@ -114,7 +114,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
     public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
-        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, DownsampleAction.NAME))
+        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, ShrinkAction.NAME, DownsampleAction.NAME))
     );
 
     private TimeseriesLifecycleType() {}

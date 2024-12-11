@@ -35,7 +35,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
-    static DownsampleAction randomInstance() {
+    public static DownsampleAction randomInstance() {
         return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
     }
 

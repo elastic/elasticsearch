@@ -592,6 +592,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    /**
+     * Fetch and write in cache multiple region of a blob if there are enough free pages in the cache to do so.
+     * <p>
+     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
+     * are run on the bulk executor.
+     * <p>
+     * If an exception is thrown from the writer then the cache entry being downloaded is freed
+     * and unlinked
+     *
+     * @param cacheKey      the key to fetch data for
+     * @param firstRegion   the first region of the blob to fetch
+     * @param lastRegion    the last region of the blob to fetch
+     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
+     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
+     *                      there is not enough free pages to fetch the region.
+     */
     public void maybeFetchRegions(
         final KeyType cacheKey,
         final int firstRegion,
@@ -601,7 +621,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Void> listener
     ) {
-        ArrayList<CacheFileRegion<KeyType>> regionsToFetch = new ArrayList<>(lastRegion + 1 - firstRegion);
+        int regionCount = lastRegion + 1 - firstRegion;
+        ArrayList<CacheFileRegion<KeyType>> regionsToFetch = new ArrayList<>(regionCount);
         for (int i = firstRegion; i <= lastRegion; i++) {
             if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
                 // no free page available and no old enough unused region to be evicted
@@ -612,7 +633,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 try {
                     entry.incRefEnsureOpen();
                     regionsToFetch.add(entry);
-                } catch (AlreadyClosedException e) {}
+                } catch (AlreadyClosedException e) {
+                    // Fine to ignore. It is only added to the list after we have inc()
+                }
 
             }
         }
@@ -648,7 +671,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps.stream().map(Tuple::v2).toList());
             logger.trace(
-                () -> Strings.format("fill gaps %s %s shared input stream factory", gaps, streamFactory == null ? "without" : "with")
+                () -> Strings.format(
+                    "fill regions gaps %s %s shared input stream factory",
+                    gaps,
+                    streamFactory == null ? "without" : "with"
+                )
             );
 
             if (streamFactory == null) {
@@ -658,10 +685,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                 }
             } else {
+                var regionsToRelease = regionsListener.acquire();
                 try (
-                    var sequentialGapsListener = new RefCountingListener(
-                        ActionListener.runBefore(regionsListener.acquire(), streamFactory::close)
-                    )
+                    var sequentialGapsListener = new RefCountingListener(ActionListener.runBefore(regionsToRelease, streamFactory::close))
                 ) {
                     ArrayList<Runnable> gapFillingTasks = new ArrayList<>();
                     for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
@@ -678,6 +704,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             }
         } catch (Exception e) {
+            // TODO: Double call?
             listener.onFailure(e);
         }
     }
@@ -1028,17 +1055,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        List<SparseFileTracker.Gap> gapsToPopulate(RefCountingRunnable refs, final ByteRange rangeToWrite) {
-            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                rangeToWrite,
-                rangeToWrite,
-                Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                    assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                }), refs.acquire()) : refs.acquireListener()
-            );
-            return gaps;
-        }
-
         /**
          * Populates a range in cache if the range is not available nor pending to be available in cache.
          *
@@ -1094,11 +1110,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             }
                         }
                     } else {
+                        var refsToRelease = refs.acquire();
                         try (
                             var sequentialGapsListener = new RefCountingListener(
                                 ActionListener.runBefore(
                                     listener.map(unused -> true),
-                                    () -> Releasables.close(refs.acquire(), streamFactory::close)
+                                    () -> Releasables.close(refsToRelease, streamFactory::close)
                                 )
                             )
                         ) {
@@ -1593,7 +1610,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         @Override
-        public SourceInputStreamFactory sharedInputStreamFactory(RegionGaps gaps) {
+        public SourceInputStreamFactory sharedInputStreamFactory(List<RegionGaps> gaps) {
             return delegate.sharedInputStreamFactory(gaps);
         }
 
@@ -1849,8 +1866,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             SharedBytes.IO io = entry.chunk.nonVolatileIO();
             assert io != null || entry.chunk.isEvicted();
-            assert io == null || regionOwners.get(io) == entry.chunk || entry.chunk.isEvicted()
-                : io + " " + regionOwners.get(io) + " " + entry.chunk + " " + entry.chunk.isEvicted();
+            assert io == null || regionOwners.get(io) == entry.chunk || entry.chunk.isEvicted();
             return true;
         }
 

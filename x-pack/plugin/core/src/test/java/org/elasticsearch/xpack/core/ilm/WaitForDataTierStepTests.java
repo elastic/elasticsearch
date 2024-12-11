@@ -79,11 +79,11 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
 
     private void verify(WaitForDataTierStep step, ClusterState state, boolean complete, String message) {
         ClusterStateWaitStep.Result result = step.isConditionMet(null, state);
-        assertThat(result.isComplete(), is(complete));
+        assertThat(result.complete(), is(complete));
         if (message != null) {
-            assertThat(Strings.toString(result.getInformationContext()), containsString(message));
+            assertThat(Strings.toString(result.informationContext()), containsString(message));
         } else {
-            assertThat(result.getInformationContext(), is(nullValue()));
+            assertThat(result.informationContext(), is(nullValue()));
         }
     }
 

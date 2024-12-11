@@ -37,7 +37,7 @@ This will create and populate an index called `kibana_sample_data_ecommerce`.
 
 [discrete]
 [[aggregations-tutorial-inspect-data]]
-=== Inspect sample data fields
+=== Inspect index structure
 
 Before we start analyzing the data, let's examine the structure of the documents in our sample eCommerce index. Run this command to see the field <<elasticsearch-intro-documents-fields-mappings,mappings>>:
 

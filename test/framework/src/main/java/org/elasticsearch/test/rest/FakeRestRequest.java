@@ -63,6 +63,10 @@ public class FakeRestRequest extends RestRequest {
             this(method, uri, content == null ? HttpBody.empty() : HttpBody.fromBytesReference(content), headers, null);
         }
 
+        public FakeHttpRequest(Method method, String uri, HttpBody body, Map<String, List<String>> headers) {
+            this(method, uri, body, headers, null);
+        }
+
         private FakeHttpRequest(
             Method method,
             String uri,
@@ -85,6 +89,19 @@ public class FakeRestRequest extends RestRequest {
         @Override
         public String uri() {
             return uri;
+        }
+
+        @Override
+        public int contentLength() {
+            if (content.isFull()) {
+                return content.asFull().bytes().length();
+            } else {
+                if (headers.getOrDefault("transfer-encoding", List.of("")).getFirst().isEmpty()) { // no transfer encoding
+                    return Integer.parseInt(headers.getOrDefault("content-length", List.of("0")).getFirst());
+                } else {
+                    return -1;
+                }
+            }
         }
 
         @Override

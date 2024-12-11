@@ -1697,7 +1697,12 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public static Settings.Builder copySettingsFromSource(boolean copyPrivateSettings, Settings sourceSettings, IndexScopedSettings indexScopedSettings, Settings.Builder indexSettingsBuilder) {
+    public static Settings.Builder copySettingsFromSource(
+        boolean copyPrivateSettings,
+        Settings sourceSettings,
+        IndexScopedSettings indexScopedSettings,
+        Settings.Builder indexSettingsBuilder
+    ) {
         final Settings.Builder builder = Settings.builder();
         for (final String key : sourceSettings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);

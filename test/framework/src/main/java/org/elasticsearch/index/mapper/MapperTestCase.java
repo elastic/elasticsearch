@@ -1483,7 +1483,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 blockReaderSupport.syntheticSource
             );
         }
-        var sourceLoader = mapper.mappingLookup().newSourceLoader(SourceFieldMetrics.NOOP);
+        var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 

@@ -224,12 +224,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 +
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
-`rescore`::
-+
---
-(Optional, object) Rescoring to apply to quantized vectors.
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore]
---
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
 
 ===== Restrictions
 

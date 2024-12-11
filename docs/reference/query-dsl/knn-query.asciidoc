@@ -134,12 +134,8 @@ documents are then scored according to <<dense-vector-similarity, `similarity`>>
 and the provided `boost` is applied.
 --
 
-`rescore`::
-+
---
-(Optional, object) Rescoring to apply to quantized vectors.
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore]
---
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
 
 `boost`::
 +

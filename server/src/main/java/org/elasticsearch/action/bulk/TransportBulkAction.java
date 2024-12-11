@@ -35,6 +35,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -667,12 +669,16 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * Determines if an index name is associated with an index template that has a data stream failure store enabled.
+     * Determines if an index name is associated with an index template that has a data stream failure store enabled. Since failure store is
+     * a data stream feature, the method returns true/false only if it is a data stream template, otherwise null.
      * @param indexName The index name to check.
      * @param projectMetadata ProjectMetadata from the cluster state.
-     * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
+     * @return true the associated index template has failure store enabled, false if the failure store is disabled or it's not specified,
+     * and null if the template is not a data stream template.
+     * Visible for testing
      */
-    private static Boolean resolveFailureStoreFromTemplate(String indexName, ProjectMetadata projectMetadata) {
+    @Nullable
+    static Boolean resolveFailureStoreFromTemplate(String indexName, ProjectMetadata projectMetadata) {
         if (indexName == null) {
             return null;
         }
@@ -685,7 +691,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
-                return composableIndexTemplate.getDataStreamTemplate().hasFailureStore();
+                DataStreamOptions dataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
+                    composableIndexTemplate,
+                    metadata.componentTemplates()
+                ).mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+                return dataStreamOptions != null && dataStreamOptions.isFailureStoreEnabled();
             }
         }
 

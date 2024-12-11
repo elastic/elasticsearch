@@ -317,12 +317,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = new Template(
-            finalSettings,
-            wrappedMappings,
-            template.template().aliases(),
-            template.template().lifecycle()
-        );
+        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
             finalTemplate,
             template.version(),
@@ -353,6 +348,7 @@ public class MetadataIndexTemplateService {
                         composableTemplate,
                         globalRetentionSettings.get()
                     );
+                    validateDataStreamOptions(tempStateWithComponentTemplateAdded.metadata(), composableTemplateName, composableTemplate);
                     validateIndexTemplateV2(
                         tempProjectWithComponentTemplateAdded,
                         projectState.cluster().getMinTransportVersion(),
@@ -643,7 +639,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
+            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
             finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
@@ -704,7 +700,8 @@ public class MetadataIndexTemplateService {
         return overlaps;
     }
 
-    private void validateIndexTemplateV2(
+    // Visibility for testing
+    void validateIndexTemplateV2(
         ProjectMetadata projectMetadata,
         TransportVersion minTransportVersion,
         String name,
@@ -744,6 +741,7 @@ public class MetadataIndexTemplateService {
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
         validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get());
+        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, projectMetadata.componentTemplates());
@@ -841,6 +839,20 @@ public class MetadataIndexTemplateService {
                 // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
                 boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
                 lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+            }
+        }
+    }
+
+    // Visible for testing
+    static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
+        ResettableValue<DataStreamOptions.Template> dataStreamOptions = resolveDataStreamOptions(template, metadata.componentTemplates());
+        if (dataStreamOptions.get() != null) {
+            if (template.getDataStreamTemplate() == null) {
+                throw new IllegalArgumentException(
+                    "index template ["
+                        + indexTemplateName
+                        + "] specifies data stream options that can only be used in combination with a data stream"
+                );
             }
         }
     }
@@ -1614,7 +1626,7 @@ public class MetadataIndexTemplateService {
     public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.getProject().templatesV2().get(templateName);
         assert template != null
-            : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
+            : "attempted to resolve lifecycle for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return null;
         }
@@ -1704,6 +1716,81 @@ public class MetadataIndexTemplateService {
             }
         }
         return builder == null ? null : builder.build();
+    }
+
+    /**
+     * Resolve the given v2 template into a {@link ResettableValue<DataStreamOptions>} object
+     */
+    public static ResettableValue<DataStreamOptions.Template> resolveDataStreamOptions(final Metadata metadata, final String templateName) {
+        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        assert template != null
+            : "attempted to resolve data stream options for a template [" + templateName + "] that did not exist in the cluster state";
+        if (template == null) {
+            return ResettableValue.undefined();
+        }
+        return resolveDataStreamOptions(template, metadata.componentTemplates());
+    }
+
+    /**
+     * Resolve the provided v2 template and component templates into a {@link ResettableValue<DataStreamOptions>} object
+     */
+    public static ResettableValue<DataStreamOptions.Template> resolveDataStreamOptions(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Objects.requireNonNull(template, "attempted to resolve data stream for a null template");
+        Objects.requireNonNull(componentTemplates, "attempted to resolve data stream options with null component templates");
+
+        List<ResettableValue<DataStreamOptions.Template>> dataStreamOptionsList = new ArrayList<>();
+        for (String componentTemplateName : template.composedOf()) {
+            if (componentTemplates.containsKey(componentTemplateName) == false) {
+                continue;
+            }
+            ResettableValue<DataStreamOptions.Template> dataStreamOptions = componentTemplates.get(componentTemplateName)
+                .template()
+                .resettableDataStreamOptions();
+            if (dataStreamOptions.isDefined()) {
+                dataStreamOptionsList.add(dataStreamOptions);
+            }
+        }
+        // The actual index template's data stream options have the highest precedence.
+        if (template.template() != null && template.template().resettableDataStreamOptions().isDefined()) {
+            dataStreamOptionsList.add(template.template().resettableDataStreamOptions());
+        }
+        return composeDataStreamOptions(dataStreamOptionsList);
+    }
+
+    /**
+     * This method composes a series of data streams options to a final one. Since currently the data stream options
+     * contains only the failure store configuration which also contains only one field, the composition is a bit trivial.
+     * But we introduce the mechanics that will help extend it really easily.
+     * @param dataStreamOptionsList a sorted list of data stream options in the order that they will be composed
+     * @return the final data stream option configuration
+     */
+    public static ResettableValue<DataStreamOptions.Template> composeDataStreamOptions(
+        List<ResettableValue<DataStreamOptions.Template>> dataStreamOptionsList
+    ) {
+        if (dataStreamOptionsList.isEmpty()) {
+            return ResettableValue.undefined();
+        }
+        DataStreamOptions.Template.Builder builder = null;
+        for (ResettableValue<DataStreamOptions.Template> current : dataStreamOptionsList) {
+            if (current.isDefined() == false) {
+                continue;
+            }
+            if (current.shouldReset()) {
+                builder = null;
+            } else {
+                DataStreamOptions.Template currentTemplate = current.get();
+                if (builder == null) {
+                    builder = DataStreamOptions.Template.builder(currentTemplate);
+                } else {
+                    // Currently failure store has only one field that needs to be defined so the composing of the failure store is trivial
+                    builder.updateFailureStore(currentTemplate.failureStore());
+                }
+            }
+        }
+        return builder == null ? ResettableValue.undefined() : ResettableValue.create(builder.build());
     }
 
     /**

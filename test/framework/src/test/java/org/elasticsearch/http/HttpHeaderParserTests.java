@@ -76,7 +76,7 @@ public class HttpHeaderParserTests extends ESTestCase {
     }
 
     public void testParseNoRangeOrSize() {
-        assertNull(HttpHeaderParser.parseContentRangeHeader("bytes */*"));
+        assertEquals(new HttpHeaderParser.ContentRange(null, null, null), HttpHeaderParser.parseContentRangeHeader("bytes */*"));
     }
 
     public void testToString() {

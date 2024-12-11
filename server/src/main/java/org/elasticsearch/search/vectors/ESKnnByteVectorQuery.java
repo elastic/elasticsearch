@@ -39,8 +39,4 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     public Integer kParam() {
         return kParam;
     }
-
-    public Integer kParam() {
-        return kParam;
-    }
 }

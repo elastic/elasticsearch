@@ -39,8 +39,4 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     public Integer kParam() {
         return kParam;
     }
-
-    public Integer kParam() {
-        return kParam;
-    }
 }

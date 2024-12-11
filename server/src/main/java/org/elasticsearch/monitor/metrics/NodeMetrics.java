@@ -29,6 +29,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -350,17 +351,30 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongAsyncCounter(
+            registry.registerLongsAsyncCounter(
                 "es.indexing.indexing.failed.total",
                 "Total number of failed indexing operations",
                 "operations",
-                () -> new LongWithAttributes(
-                    Optional.ofNullable(stats.getOrRefresh())
-                        .map(o -> o.getIndices())
-                        .map(o -> o.getIndexing())
-                        .map(o -> o.getTotal())
-                        .map(o -> o.getIndexFailedCount())
-                        .orElse(0L)
+                () -> List.of(
+//                    new LongWithAttributes(
+//                        Optional.ofNullable(stats.getOrRefresh())
+//                            .map(o -> o.getIndices())
+//                            .map(o -> o.getIndexing())
+//                            .map(o -> o.getTotal())
+//                            .map(o -> o.getIndexFailedCount())
+//                            .orElse(0L),
+//                        Map.of("es.indexing.indexing.failed.cause", "any")
+//                    ),
+                    new LongWithAttributes(
+                        Optional.ofNullable(stats.getOrRefresh())
+                            .map(o -> o.getIndices())
+                            .map(o -> o.getIndexing())
+                            .map(o -> o.getTotal())
+                            .map(o -> o.getIndexFailedWithVersionConflictCount())
+                            .orElse(0L),
+//                        Map.of("es.indexing.indexing.failed.cause", "version_conflict")
+                            Map.of()
+                    )
                 )
             )
         );

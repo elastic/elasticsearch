@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -75,6 +76,30 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
+    }
+
+    public void testVersionConflictsMetrics() {
+        final String dataNode = internalCluster().startNode();
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+                .filterPlugins(TestTelemetryPlugin.class)
+                .findFirst()
+                .orElseThrow();
+        plugin.resetMeter();
+
+        // test version conflicts are counted when retrieving from the translog
+        assertAcked(prepareCreate("index_no_refresh", Settings.builder().put("index.refresh_interval", "-1")));
+
+        var indexResponse1 = client(dataNode).index(new IndexRequest("index_no_refresh").id("doc_id_1").source(Map.of())).actionGet();
+
+        var getResponse1 = client(dataNode).get(new GetRequest("index_no_refresh", "doc_id_1")).actionGet();
+
+        var indexResponse2 = client(dataNode).index(new IndexRequest("index_no_refresh").id("doc_id_2").source(Map.of())).actionGet();
+
+        var getResponse2 = client(dataNode).get(new GetRequest("index_no_refresh", "doc_id_2")).actionGet();
+
+        getResponse2.toString();
     }
 
     public void testNodeIndexingMetricsArePublishing() {

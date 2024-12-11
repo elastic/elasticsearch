@@ -84,7 +84,7 @@ import static org.elasticsearch.action.search.AbstractSearchAsyncAction.DEFAULT_
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.core.Strings.format;
 
-class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearchContext {
+public class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearchContext {
 
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -381,7 +381,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new SearchShardTask(id, type, action, "", parentTaskId, headers);
+            return new SearchShardTask(id, type, action, "NodeQueryRequest", parentTaskId, headers);
         }
 
         @Override
@@ -532,7 +532,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                 getOriginalIndices(shardIndex),
                                 shardIndex,
                                 routing.getShardId(),
-                                shardsIts.get(shardIndex).getSearchContextId()
+                                shardIterators[shardIndex].getSearchContextId()
                             )
                         );
                     } else {
@@ -1021,21 +1021,6 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     }
 
-    private static void executeOne(
-        SearchService searchService,
-        NodeQueryRequest request,
-        CancellableTask task,
-        ShardToQuery shardToQuery,
-        AtomicInteger shardIndex,
-        BlockingQueue<ShardToQuery> shards,
-        Executor executor,
-        QueryPhaseResultConsumer queryPhaseResultConsumer,
-        Map<Integer, Exception> failures,
-        Runnable onDone
-    ) {
-
-    }
-
     private static AbstractRunnable shardTask(
         SearchService searchService,
         NodeQueryRequest request,
@@ -1048,6 +1033,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         Map<Integer, Exception> failures,
         Runnable onDone
     ) {
+        var pitBuilder = request.searchRequest.pointInTimeBuilder();
         final ShardSearchRequest req = buildShardSearchRequest(
             shardToQuery.shardId,
             null,
@@ -1055,7 +1041,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             shardToQuery.contextId,
             shardToQuery.originalIndices,
             request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
-            null,
+            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
             shardToQuery.boost,
             request.searchRequest,
             2,
@@ -1104,17 +1090,18 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError("shouldn't throw", e);
-            }
-
-            @Override
-            public void onRejection(Exception e) {
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
                 failures.put(req.shardRequestIndex(), e);
                 onDone.run();
                 // TODO SO risk!
                 maybeNext();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // TODO this could be done better now, we probably should only make sure to have a single loop running at
+                onFailure(e);
             }
 
             private void maybeNext() {

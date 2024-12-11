@@ -263,7 +263,6 @@ The response shows the field mappings for the `kibana_sample_data_ecommerce` ind
   }
 }
 ----
-// TEST[skip:Using Kibana sample data]
 <1> `fields`: Multi-field mapping that allows both full text and exact matching
 <2> `geoip.properties`: Object type field containing location-related properties
 <3> `geoip.location`: Geographic coordinates stored as geo_point for location-based queries

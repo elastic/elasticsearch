@@ -81,8 +81,14 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
+    /**
+     * Finalize the request before routing, with data needed for routing decisions.
+     */
     public void preProcess(IndexRequest indexRequest) {}
 
+    /**
+     * Finalize the request after routing, incorporating data produced by the routing logic.
+     */
     public void postProcess(IndexRequest indexRequest) {}
 
     /**

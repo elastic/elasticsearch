@@ -97,7 +97,6 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
             .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l))
-            // TODO handle searchable snapshots
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }

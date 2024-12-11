@@ -13,12 +13,16 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -29,6 +33,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -162,7 +167,6 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
     }
 
     public void testReadOnlyAddedBack() {
-
         // Create source index with read-only and/or block-writes
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         boolean isReadOnly = randomBoolean();
@@ -187,13 +191,67 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         removeReadOnly(destIndex);
     }
 
-    // TODO error on set read-only if don't have perms
-    // TODO check settings added after
+    public void testSettingsAndMappingsFromTemplate() throws IOException {
+        var numShards = randomIntBetween(1, 10);
+        var numReplicas = randomIntBetween(0, 10);
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .build();
+
+        String mappingString = """
+            {
+              "_doc":{
+                "dynamic":"strict",
+                "properties":{
+                  "foo1":{
+                    "type":"text"
+                  }
+                }
+              }
+            }
+            """;
+        CompressedXContent mappings = CompressedXContent.fromJSON(mappingString);
+
+        // Create template with settings and mappings
+        var request = new TransportPutComposableIndexTemplateAction.Request("logs-template");
+        request.indexTemplate(
+            ComposableIndexTemplate.builder().indexPatterns(List.of("logs-*")).template(new Template(settings, mappings, null)).build()
+        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+
+        var sourceIndex = "logs-" + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        // verify settings from templates copied to dest index
+        {
+            var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+            assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+            assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+        }
+
+        // verify mappings from templates copied to dest index
+        {
+            var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+            var destMappings = mappingsResponse.mappings().get(destIndex).sourceAsMap();
+            var sourceMappings = mappingsResponse.mappings().get(sourceIndex).sourceAsMap();
+            assertEquals(sourceMappings, destMappings);
+            // sanity check specific value from dest mapping
+            assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
+        }
+    }
+
+    // TODO check logsdb/tsdb work
     // TODO check tsdb start/end time correct
     // TODO check other metadata
-    // TODO check logsdb/tsdb work
-    // TODO settings and mappings that come from template
     // TODO test that does not fail on create if index exists after delete (Not sure how to do this since relies on race condition)
+    // TODO error on set read-only if don't have perms
 
     static void removeReadOnly(String index) {
         var settings = Settings.builder()

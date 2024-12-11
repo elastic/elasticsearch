@@ -108,6 +108,75 @@ setup:
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "2" }
 ---
+"Vector rescoring has same scoring as exact search for kNN section":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore]
+  - skip:
+      features: "headers"
+
+  # Rescore
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              num_candidates_factor: 1.5
+
+  # Get rescoring scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  # Exact knn via script score
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }
+
+---
 "Test bad quantization parameters":
   - do:
       catch: bad_request

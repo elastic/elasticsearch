@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Checks whether a condition has been met based on the cluster state.
- *
+ * <p>
  * If checking a condition not based on the cluster state, or which may take time to evaluate, use {@link AsyncWaitStep}.
  */
 public abstract class ClusterStateWaitStep extends Step {
@@ -35,19 +35,19 @@ public abstract class ClusterStateWaitStep extends Step {
 
     public static class Result {
         private final boolean complete;
-        private final ToXContentObject infomationContext;
+        private final ToXContentObject informationContext;
 
-        public Result(boolean complete, ToXContentObject infomationContext) {
+        public Result(boolean complete, ToXContentObject informationContext) {
             this.complete = complete;
-            this.infomationContext = infomationContext;
+            this.informationContext = informationContext;
         }
 
         public boolean isComplete() {
             return complete;
         }
 
-        public ToXContentObject getInfomationContext() {
-            return infomationContext;
+        public ToXContentObject getInformationContext() {
+            return informationContext;
         }
     }
 

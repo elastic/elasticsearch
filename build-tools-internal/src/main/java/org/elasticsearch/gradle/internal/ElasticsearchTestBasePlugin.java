@@ -20,6 +20,7 @@ import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -112,7 +113,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "-Djava.security.manager=allow",
                 "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
@@ -127,6 +127,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
+            test.getJvmArgumentProviders().add(() -> {
+                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
+                    return List.of("-Djava.security.manager=allow");
+                } else {
+                    return List.of();
+                }
+            });
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

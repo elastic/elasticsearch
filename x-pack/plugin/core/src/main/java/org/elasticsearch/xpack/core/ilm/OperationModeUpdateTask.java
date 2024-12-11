@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
 
 /**
  * This task updates the operation mode state for ILM.
- *
+ * <p>
  * As stopping ILM proved to be an action we want to sometimes take in order to allow clusters to stabilise when under heavy load this
  * task might run at {@link Priority#IMMEDIATE} priority so please make sure to keep this task as lightweight as possible.
  */

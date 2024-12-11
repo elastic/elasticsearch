@@ -143,6 +143,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
             } catch (Exception e) {
                 logger.info("request failed", e);
+                EsqlTestUtils.assertEsqlFailure(e);
                 ensureBlocksReleased();
             } finally {
                 setRequestCircuitBreakerLimit(null);

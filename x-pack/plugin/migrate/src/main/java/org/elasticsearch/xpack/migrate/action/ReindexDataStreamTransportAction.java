@@ -20,10 +20,13 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
+
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.TASK_ID_PREFIX;
 
 /*
  * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation
@@ -72,7 +75,8 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),
             totalIndices,
-            totalIndicesToBeUpgraded
+            totalIndicesToBeUpgraded,
+            ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
         String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
         persistentTasksService.sendStartRequest(
@@ -85,6 +89,6 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     }
 
     private String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
-        return "reindex-data-stream-" + dataStreamName;
+        return TASK_ID_PREFIX + dataStreamName;
     }
 }

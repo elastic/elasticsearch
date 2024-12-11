@@ -111,9 +111,13 @@ public record UnifiedCompletionRequest(
         out.writeOptionalFloat(topP);
     }
 
-    public record Message(Content content, String role, @Nullable String name, @Nullable String toolCallId, List<ToolCall> toolCalls)
-        implements
-            Writeable {
+    public record Message(
+        Content content,
+        String role,
+        @Nullable String name,
+        @Nullable String toolCallId,
+        @Nullable List<ToolCall> toolCalls
+    ) implements Writeable {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(

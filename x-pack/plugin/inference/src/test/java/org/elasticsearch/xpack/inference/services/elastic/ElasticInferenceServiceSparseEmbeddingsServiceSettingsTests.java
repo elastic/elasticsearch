@@ -71,7 +71,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         assertThat(validationException.getMessage(), containsString(Strings.format("unknown ELSER model id [%s]", invalidModelId)));
     }
 
-    public void testToXContent_WritesAlLFields() throws IOException {
+    public void testToXContent_WritesAllFields() throws IOException {
         var modelId = ElserModels.ELSER_V1_MODEL;
         var maxInputTokens = 10;
         var serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, null);

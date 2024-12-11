@@ -76,7 +76,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return builder;
         }
 
-        public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(30);
         public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.MAX_VALUE;
 
         private final String id;

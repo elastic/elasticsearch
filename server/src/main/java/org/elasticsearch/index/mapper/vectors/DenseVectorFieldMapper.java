@@ -2018,16 +2018,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
-            if (rescoreOversample != null && indexOptions.type.isQuantized() == false) {
-                throw new IllegalArgumentException(
-                    "cannot use rescore oversample on field ["
-                        + name()
-                        + "], that uses non-quantized type ["
-                        + indexOptions.type
-                        + "]. "
-                        + "Only quantized index option types support rescore oversample."
-                );
-            }
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
                 case FLOAT -> createKnnFloatQuery(

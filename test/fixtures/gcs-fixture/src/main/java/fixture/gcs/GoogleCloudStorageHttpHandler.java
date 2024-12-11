@@ -241,19 +241,17 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     throw failAndThrow("Invalid Content-Range: " + range);
                 }
 
-                final HttpHeaderParser.Range appliedRange = mockGcsBlobStore.updateResumableUpload(
+                final MockGcsBlobStore.UpdateResponse updateResponse = mockGcsBlobStore.updateResumableUpload(
                     params.get("upload_id"),
                     contentRange,
                     requestBody
                 );
 
-                if (appliedRange.end() != contentRange.size() - 1) {
+                if (updateResponse.rangeHeader() != null) {
                     exchange.getResponseHeaders().add("Range", range);
-                    exchange.getResponseHeaders().add("Content-Length", "0");
-                    exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
-                } else {
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
+                exchange.getResponseHeaders().add("Content-Length", "0");
+                exchange.sendResponseHeaders(updateResponse.statusCode(), -1);
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }

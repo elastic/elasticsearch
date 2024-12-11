@@ -83,6 +83,7 @@ public class HttpHeaderParserTests extends ESTestCase {
         long start = randomLongBetween(0, 10_000);
         long end = randomLongBetween(start, start + 10_000);
         long size = randomLongBetween(end, Long.MAX_VALUE);
+        assertEquals("bytes */*", new HttpHeaderParser.ContentRange(null, null, null).toString());
         assertEquals("bytes */" + size, new HttpHeaderParser.ContentRange(null, null, size).toString());
         assertEquals("bytes " + start + "-" + end + "/*", new HttpHeaderParser.ContentRange(start, end, null).toString());
         assertEquals("bytes " + start + "-" + end + "/" + size, new HttpHeaderParser.ContentRange(start, end, size).toString());

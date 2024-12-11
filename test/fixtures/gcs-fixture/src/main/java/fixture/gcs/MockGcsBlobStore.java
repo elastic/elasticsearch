@@ -20,15 +20,17 @@ import org.elasticsearch.test.fixture.HttpHeaderParser;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class MockGcsBlobStore {
 
+    private static final int RESUME_INCOMPLETE = 308;
     private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
 
     record BlobVersion(String path, long generation, BytesReference contents) {}
 
-    record ResumableUpload(String uploadId, String path, BytesReference contents) {}
+    record ResumableUpload(String uploadId, String path, BytesReference contents, boolean completed) {}
 
     BlobVersion getBlob(String path, Long ifGenerationMatch) {
         final BlobVersion blob = blobs.get(path);
@@ -78,53 +80,76 @@ public class MockGcsBlobStore {
 
     ResumableUpload createResumableUpload(String path) {
         final String uploadId = UUIDs.randomBase64UUID();
-        final ResumableUpload value = new ResumableUpload(uploadId, path, BytesArray.EMPTY);
+        final ResumableUpload value = new ResumableUpload(uploadId, path, BytesArray.EMPTY, false);
         resumableUploads.put(uploadId, value);
         return value;
     }
 
     /**
-     * Update a resumable blob
+     * Update or query a resumable blob
      *
      * @see <a href="https://cloud.google.com/storage/docs/resumable-uploads">GCS Resumable Uploads</a>
      * @param uploadId The upload ID
      * @param contentRange The range being submitted
      * @param requestBody The data for that range
-     * @return The range that is now persisted
+     * @return The response to the request
      */
-    HttpHeaderParser.Range updateResumableUpload(String uploadId, HttpHeaderParser.ContentRange contentRange, BytesReference requestBody) {
+    UpdateResponse updateResumableUpload(String uploadId, HttpHeaderParser.ContentRange contentRange, BytesReference requestBody) {
+        final AtomicReference<UpdateResponse> updateResponse = new AtomicReference<>();
         resumableUploads.compute(uploadId, (uid, existing) -> {
             if (existing == null) {
                 throw failAndThrow("Attempted to update a non-existent resumable: " + uid);
             }
-            if (contentRange.start() > contentRange.end()) {
-                throw failAndThrow("Invalid content range " + contentRange);
-            }
-            if (contentRange.start() > existing.contents.length()) {
-                throw failAndThrow(
-                    "Attempted to append after the end of the current content: size="
-                        + existing.contents.length()
-                        + ", start="
-                        + contentRange.start()
+
+            if (contentRange.hasRange() == false) {
+                // Content-Range: */... is a status check https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
+                if (existing.completed) {
+                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
+                } else {
+                    final HttpHeaderParser.Range range = calculateRangeHeader(existing);
+                    updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, range));
+                }
+                return existing;
+            } else {
+                if (contentRange.start() > contentRange.end()) {
+                    throw failAndThrow("Invalid content range " + contentRange);
+                }
+                if (contentRange.start() > existing.contents.length()) {
+                    throw failAndThrow(
+                        "Attempted to append after the end of the current content: size="
+                            + existing.contents.length()
+                            + ", start="
+                            + contentRange.start()
+                    );
+                }
+                if (contentRange.end() < existing.contents.length()) {
+                    throw failAndThrow("Attempted to upload no new data");
+                }
+                final int offset = Math.toIntExact(existing.contents.length() - contentRange.start());
+                final BytesReference updatedContent = CompositeBytesReference.of(
+                    existing.contents,
+                    requestBody.slice(offset, requestBody.length())
                 );
+                // We just received the last chunk, update the blob and remove the resumable upload from the map
+                if (contentRange.hasSize() && updatedContent.length() == contentRange.size()) {
+                    updateBlob(existing.path(), null, updatedContent);
+                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
+                    return new ResumableUpload(uploadId, existing.path(), BytesArray.EMPTY, true);
+                }
+                final ResumableUpload updated = new ResumableUpload(existing.uploadId, existing.path, updatedContent, false);
+                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(updated)));
+                return updated;
             }
-            if (contentRange.end() < existing.contents.length()) {
-                throw failAndThrow("Attempted to upload no new data");
-            }
-            final int offset = Math.toIntExact(existing.contents.length() - contentRange.start());
-            final BytesReference updatedContent = CompositeBytesReference.of(
-                existing.contents,
-                requestBody.slice(offset, requestBody.length())
-            );
-            // We just received the last chunk, update the blob and remove the resumable upload from the map
-            if (updatedContent.length() == contentRange.size()) {
-                updateBlob(existing.path(), null, updatedContent);
-                return null;
-            }
-            return new ResumableUpload(existing.uploadId, existing.path, updatedContent);
         });
-        return new HttpHeaderParser.Range(0, contentRange.end());
+        assert updateResponse.get() != null : "Should always produce an update response";
+        return updateResponse.get();
     }
+
+    private static HttpHeaderParser.Range calculateRangeHeader(ResumableUpload resumableUpload) {
+        return resumableUpload.contents.length() > 0 ? new HttpHeaderParser.Range(0, resumableUpload.contents.length() - 1) : null;
+    }
+
+    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader) {}
 
     void deleteBlob(String path) {
         blobs.remove(path);

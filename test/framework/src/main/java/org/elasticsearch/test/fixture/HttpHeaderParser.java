@@ -63,12 +63,6 @@ public enum HttpHeaderParser {
                     final Long start = parseOptionalLongValue(matcher.group(1));
                     final Long end = parseOptionalLongValue(matcher.group(2));
                     final Long size = parseOptionalLongValue(matcher.group(3));
-                    if (start == null && end == null && size == null) {
-                        return null;
-                    }
-                    if (size == null && (start == null || end == null)) {
-                        return null;
-                    }
                     return new ContentRange(start, end, size);
                 }
             } catch (NumberFormatException e) {
@@ -90,6 +84,7 @@ public enum HttpHeaderParser {
      *     <li>start, end, size</li>
      *     <li>start, end</li>
      *     <li>size</li>
+     *     <li>nothing</li>
      * </ul>
      *
      * @param start The start of the range
@@ -97,6 +92,18 @@ public enum HttpHeaderParser {
      * @param size The total size
      */
     public record ContentRange(Long start, Long end, Long size) {
+
+        public ContentRange {
+            assert (start == null) == (end == null) : "Must have either start and end or neither";
+        }
+
+        public boolean hasRange() {
+            return start != null && end != null;
+        }
+
+        public boolean hasSize() {
+            return size != null;
+        }
 
         @Override
         public String toString() {

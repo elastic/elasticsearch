@@ -90,7 +90,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_0_0;
+            return TransportVersions.ZERO;
         }
 
         public int getNumberOfFollowerIndices() {

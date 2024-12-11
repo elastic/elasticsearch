@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -139,11 +138,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.enabled = in.readBoolean();
         this.roles = in.readStringCollectionAsList();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
-        } else {
-            this.roleTemplates = Collections.emptyList();
-        }
+        this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         this.expression = ExpressionParser.readExpression(in);
         this.metadata = in.readGenericMap();
     }
@@ -175,9 +170,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeCollection(roleTemplates);
-        }
+        out.writeCollection(roleTemplates);
         ExpressionParser.writeExpression(expression, out);
         out.writeGenericMap(metadata);
     }

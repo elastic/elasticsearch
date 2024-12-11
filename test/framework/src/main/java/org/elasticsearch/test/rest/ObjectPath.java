@@ -70,11 +70,24 @@ public class ObjectPath {
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    @SuppressWarnings("unchecked")
     public <T> T evaluate(String path, Stash stash) throws IOException {
-        String[] parts = parsePath(path);
+        return evaluateExact(stash, parsePath(path));
+    }
+
+    /**
+     * Returns the object corresponding to the provided path if present, null otherwise
+     */
+    public <T> T evaluateExact(String... path) throws IOException {
+        return evaluateExact(Stash.EMPTY, path);
+    }
+
+    /**
+     * Returns the object corresponding to the provided path if present, null otherwise
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T evaluateExact(Stash stash, String... path) throws IOException {
         Object result = this.object;
-        for (String part : parts) {
+        for (String part : path) {
             result = evaluate(part, result, stash);
             if (result == null) {
                 return null;

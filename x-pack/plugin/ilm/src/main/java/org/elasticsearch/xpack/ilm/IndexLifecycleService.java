@@ -354,7 +354,7 @@ public class IndexLifecycleService
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.jobName().equals(XPackField.INDEX_LIFECYCLE)) {
-            logger.trace("job triggered: " + event.jobName() + ", " + event.scheduledTime() + ", " + event.triggeredTime());
+            logger.trace("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
             triggerPolicies(clusterService.state(), false);
         }
     }

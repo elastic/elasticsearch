@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
@@ -143,7 +144,10 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(Exception e) {
-        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
+        logger.error(
+            () -> Strings.format("unable to update lifecycle metadata with new ilm mode [%s], slm mode [%s]", ilmMode, slmMode),
+            e
+        );
     }
 
     @Override

@@ -19,8 +19,8 @@ You'll learn how to:
 
 You'll need:
 
-. A running instance of <<elasticsearch-intro-deploy,{es}>>, together with {kib}.
-** Run the following command in your terminal to set up a <<run-elasticsearch-locally,local dev environment>>:
+. A running instance of <<elasticsearch-intro-deploy,{es}>>, either on {serverless-full} or together with {kib} on Elastic Cloud Hosted/Self Managed deployments.
+** If you don't have a deployment, you can run the following command in your terminal to set up a <<run-elasticsearch-locally,local dev environment>>:
 +
 [source,sh]
 ----
@@ -34,6 +34,255 @@ curl -fsSL https://elastic.co/start-local | sh
 * Select the *Other sample data sets* collapsible.
 * Add the *Sample eCommerce orders* data set.
 This will create and populate an index called `kibana_sample_data_ecommerce`.
+
+[discrete]
+[[aggregations-tutorial-inspect-data]]
+=== Inspect sample data fields
+
+Before we start analyzing the data, let's examine the structure of the documents in our sample eCommerce index. Run this command to see the field <<elasticsearch-intro-documents-fields-mappings,mappings>>:
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_mapping
+----
+// TEST[skip:Using Kibana sample data]
+
+The response shows the field mappings for the `kibana_sample_data_ecommerce` index.
+
+.Example response
+[%collapsible]
+==============
+[source,console-response]
+----
+{
+  "kibana_sample_data_ecommerce": {
+    "mappings": {
+      "properties": {
+        "category": {
+          "type": "text",
+          "fields": { <1>
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "currency": {
+          "type": "keyword"
+        },
+        "customer_birth_date": {
+          "type": "date"
+        },
+        "customer_first_name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "customer_full_name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "customer_gender": {
+          "type": "keyword"
+        },
+        "customer_id": {
+          "type": "keyword"
+        },
+        "customer_last_name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "customer_phone": {
+          "type": "keyword"
+        },
+        "day_of_week": {
+          "type": "keyword"
+        },
+        "day_of_week_i": {
+          "type": "integer"
+        },
+        "email": {
+          "type": "keyword"
+        },
+        "event": {
+          "properties": {
+            "dataset": {
+              "type": "keyword"
+            }
+          }
+        },
+        "geoip": {
+          "properties": { <2>
+            "city_name": {
+              "type": "keyword"
+            },
+            "continent_name": {
+              "type": "keyword"
+            },
+            "country_iso_code": {
+              "type": "keyword"
+            },
+            "location": {
+              "type": "geo_point" <3>
+            },
+            "region_name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "manufacturer": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "order_date": {
+          "type": "date"
+        },
+        "order_id": {
+          "type": "keyword"
+        },
+        "products": {
+          "properties": { <4>
+            "_id": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "base_price": {
+              "type": "half_float"
+            },
+            "base_unit_price": {
+              "type": "half_float"
+            },
+            "category": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "created_on": {
+              "type": "date"
+            },
+            "discount_amount": {
+              "type": "half_float"
+            },
+            "discount_percentage": {
+              "type": "half_float"
+            },
+            "manufacturer": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "min_price": {
+              "type": "half_float"
+            },
+            "price": {
+              "type": "half_float"
+            },
+            "product_id": {
+              "type": "long"
+            },
+            "product_name": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword"
+                }
+              },
+              "analyzer": "english"
+            },
+            "quantity": {
+              "type": "integer"
+            },
+            "sku": {
+              "type": "keyword"
+            },
+            "tax_amount": {
+              "type": "half_float"
+            },
+            "taxful_price": {
+              "type": "half_float"
+            },
+            "taxless_price": {
+              "type": "half_float"
+            },
+            "unit_discount_amount": {
+              "type": "half_float"
+            }
+          }
+        },
+        "sku": {
+          "type": "keyword"
+        },
+        "taxful_total_price": {
+          "type": "half_float"
+        },
+        "taxless_total_price": {
+          "type": "half_float"
+        },
+        "total_quantity": {
+          "type": "integer"
+        },
+        "total_unique_products": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "user": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> `fields`: Multi-field mapping that allows both full text and exact matching
+<2> `geoip.properties`: Object type field containing location-related properties
+<3> `geoip.location`: Geographic coordinates stored as geo_point for location-based queries
+<4> `products.properties`: Nested structure containing details about items in each order
+==============
+
+The sample data includes the following <<mapping-types,field data types>>:
+
+* <<text,`text`>> and <<keyword,`keyword`>> for text fields
+** Most `text` fields have a `.keyword` subfield for exact matching using <<multi-fields,multi-fields>>
+* <<date,`date`>> for date fields
+* 3 <<number,numeric>> types:
+** `integer` for whole numbers
+** `long` for large whole numbers
+** `half_float` for floating-point numbers
+* <<geo-point,`geo_point`>> for geographic coordinates
+* <<object,`object`>> for nested structures such as `products`, `geoip`, `event`
+
+Now that we understand the data structure, let's start analyzing it.
 
 [discrete]
 [[aggregations-tutorial-basic-metrics]]

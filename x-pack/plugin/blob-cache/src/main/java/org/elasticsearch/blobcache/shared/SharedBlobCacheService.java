@@ -626,9 +626,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 ActionListener.releaseAfter(listener, () -> regionsToFetch.forEach(AbstractRefCounted::decRef))
             )
         ) {
-            final List<Tuple<CacheFileRegion<KeyType>, RegionGaps>> gaps = new ArrayList<>();
+            final List<Tuple<CacheFileRegion<KeyType>, RegionGaps>> gaps = new ArrayList<>(regionsToFetch.size());
             for (CacheFileRegion<KeyType> toFetch : regionsToFetch) {
-                ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, toFetch.regionKey.region));
+                int region = toFetch.regionKey.region();
+                ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
                 if (regionRange.isEmpty() == false) {
                     List<SparseFileTracker.Gap> regionGaps = toFetch.tracker.waitForRange(
                         regionRange,
@@ -636,7 +637,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         regionsListener.acquire()
                     );
                     if (regionGaps.isEmpty() == false) {
-                        gaps.add(new Tuple<>(toFetch, new RegionGaps(toFetch.regionKey.region(), regionGaps)));
+                        gaps.add(new Tuple<>(toFetch, new RegionGaps((long) region * regionSize, regionGaps)));
                     }
                 }
             }
@@ -1070,7 +1071,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         return;
                     }
                     final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
-                        new RegionGaps(regionKey.region(), gaps)
+                        new RegionGaps((long) regionKey.region() * blobCacheService.getRegionSize(), gaps)
                     );
                     logger.trace(
                         () -> Strings.format(
@@ -1149,7 +1150,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
                     if (gaps.isEmpty() == false) {
                         final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
-                            new RegionGaps(regionKey.region(), gaps)
+                            new RegionGaps((long) regionKey.region() * blobCacheService.getRegionSize(), gaps)
                         );
                         logger.trace(
                             () -> Strings.format(
@@ -1248,7 +1249,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    public record RegionGaps(int region, List<SparseFileTracker.Gap> gaps) {}
+    public record RegionGaps(long regionOffset, List<SparseFileTracker.Gap> gaps) {}
 
     public class CacheFile {
 

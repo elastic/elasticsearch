@@ -126,8 +126,8 @@ Indices APIs::
 * Ensure class resource stream is closed in `ResourceUtils` {es-pull}116437[#116437]
 
 Inference::
-* [8.17] Add version prefix to Inference Service API path {es-pull}117366[#117366]
-* [8.17] Update sparse text embeddings API route for Inference Service {es-pull}118368[#118368]
+* Add version prefix to Inference Service API path {es-pull}117366[#117366]
+* Update sparse text embeddings API route for Inference Service {es-pull}118368[#118368]
 
 Infra/Core::
 * Support for unsigned 64 bit numbers in Cpu stats {es-pull}114681[#114681] (issue: {es-issue}112274[#112274])

@@ -511,6 +511,71 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    public void testLookupJoinIndexAllowed() throws Exception {
+        Response resp = runESQLCommand("metadata1_read2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `index-user2` ON value | KEEP x, org");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(
+            Map.of("name", "x", "type", "double"),
+            Map.of("name", "org", "type", "keyword")
+        )));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(
+            40.0, "sales"
+        ))));
+
+        /* TODO: Aliases don't work yet for LOOKUP JOIN
+        // Alias, should find the index and the row
+        resp = runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `first-alias` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(
+            Map.of("name", "x", "type", "double"),
+            Map.of("name", "org", "type", "keyword")
+        )));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(
+            10.0, "sales"
+        ))));
+
+        // Alias, for a row that's filtered out
+        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN `first-alias` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(
+            Map.of("name", "x", "type", "double"),
+            Map.of("name", "org", "type", "keyword")
+        )));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(
+            12.0
+        ))));*/
+    }
+
+    public void testLookupJoinIndexForbidden() {
+        // TODO: Shouldn't this only work on lookup indices?
+        // TODO: It should throw "unauthorized for user..." instead
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `index-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(),containsString("Unknown index [index-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        // TODO: It should throw "unauthorized for user..." instead
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `index-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(),containsString("Unknown index [index-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        // TODO: It should throw "unauthorized for user..." instead
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `index-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(),containsString("Unknown index [index-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
     private void createEnrichPolicy() throws Exception {
         createIndex("songs", Settings.EMPTY, """
             "properties":{"song_id": {"type": "keyword"}, "title": {"type": "keyword"}, "artist": {"type": "keyword"} }

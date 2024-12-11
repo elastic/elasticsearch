@@ -52,7 +52,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         super(
             LOOKUP_ACTION_NAME,
-            ClusterPrivilegeResolver.MONITOR_ENRICH.name(), // TODO some other privilege
+            null,
             clusterService,
             searchService,
             transportService,

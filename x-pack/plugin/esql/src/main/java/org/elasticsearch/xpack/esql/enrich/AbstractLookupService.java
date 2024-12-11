@@ -132,6 +132,7 @@ import java.util.stream.IntStream;
  */
 abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
+    @Nullable
     private final String privilegeName;
     private final ClusterService clusterService;
     private final SearchService searchService;
@@ -143,6 +144,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
 
     AbstractLookupService(
         String actionName,
+        @Nullable
         String privilegeName,
         ClusterService clusterService,
         SearchService searchService,
@@ -239,7 +241,11 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
 
     private void hasPrivilege(ActionListener<Void> outListener) {
         final Settings settings = clusterService.getSettings();
-        if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+        if (
+            privilegeName == null
+            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            || XPackSettings.SECURITY_ENABLED.get(settings) == false
+        ) {
             outListener.onResponse(null);
             return;
         }
@@ -269,6 +275,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             String message = "user ["
                 + user.principal()
                 + "] doesn't have "
+                // TODO: "Enrich lookup" doesn't make sense for LOOKUP JOIN (?)
                 + "sufficient privileges to perform enrich lookup: "
                 + detailed;
             l.onFailure(Exceptions.authorizationError(message));

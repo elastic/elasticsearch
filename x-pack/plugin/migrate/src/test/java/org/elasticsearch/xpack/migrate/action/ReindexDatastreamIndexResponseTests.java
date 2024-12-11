@@ -19,11 +19,17 @@ public class ReindexDatastreamIndexResponseTests extends AbstractWireSerializing
 
     @Override
     protected Response createTestInstance() {
-        return new Response(randomAlphaOfLength(20));
+        return new Response(randomAlphaOfLength(20), randomLong());
     }
 
     @Override
     protected Response mutateInstance(Response instance) {
-        return new Response(randomValueOtherThan(instance.getDestIndex(), () -> randomAlphaOfLength(20)));
+        String destIndex = instance.getDestIndex();
+        long numCreated = instance.getNumCreated();
+        switch (between(0, 1)) {
+            case 0 -> destIndex = randomValueOtherThan(destIndex, () -> randomAlphaOfLength(20));
+            case 1 -> numCreated++;
+        }
+        return new Response(destIndex, numCreated);
     }
 }

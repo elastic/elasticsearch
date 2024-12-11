@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.migrate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -38,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -92,12 +94,17 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
+        AtomicReference<BulkByScrollResponse> reindexResponse = new AtomicReference<>();
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setReadOnly(sourceIndexName, l))
-            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l))
+            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(request.getDeleteDestIfExists(), destIndexName, l))
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
+            .andThenApply(r -> {
+                reindexResponse.set(r);
+                return r;
+            })
             .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l))
-            .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
+            .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName, reindexResponse.get().getCreated()))
             .addListener(listener);
     }
 
@@ -105,13 +112,13 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         logger.info("Setting read only on source index [{}]", sourceIndexName);
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
         var updateSettingsRequest = new UpdateSettingsRequest(readOnlySettings, sourceIndexName);
-        var errorMessage = String.format(Locale.ROOT, "Could not set read-only on source index [%s]", sourceIndexName);
         client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 if (response.isAcknowledged()) {
                     listener.onResponse(null);
                 } else {
+                    var errorMessage = String.format(Locale.ROOT, "Could not set read-only on source index [%s]", sourceIndexName);
                     listener.onFailure(new ElasticsearchException(errorMessage));
                 }
             }
@@ -128,7 +135,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         });
     }
 
-    private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener) {
+    private void deleteDestIfExists(boolean doDelete, String destIndexName, ActionListener<AcknowledgedResponse> listener) {
+        if (doDelete == false) {
+            listener.onResponse(null);
+            return;
+        }
+
         logger.info("Attempting to delete index [{}]", destIndexName);
         var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
@@ -146,8 +158,27 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         Map<String, Object> mapping = sourceMapping != null ? sourceMapping.rawSourceAsMap() : Map.of();
         var createIndexRequest = new CreateIndexRequest(destIndexName).settings(settings).mapping(mapping);
 
-        var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", destIndexName);
-        client.admin().indices().create(createIndexRequest, failIfNotAcknowledged(listener, errorMessage));
+        client.admin().indices().create(createIndexRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(CreateIndexResponse response) {
+                if (response.isAcknowledged()) {
+                    listener.onResponse(null);
+                } else {
+                    var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", destIndexName);
+                    listener.onFailure(new ElasticsearchException(errorMessage));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // If dest index already exists, just reindex into the existing one
+                if (e instanceof ResourceAlreadyExistsException || e.getCause() instanceof ResourceAlreadyExistsException) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {
@@ -178,7 +209,6 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     // Similar to the settings filtering done when reindexing for upgrade in Kibana
     // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack
     // /plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
-    // TODO does tsdb start/end time get set in create request if copied into settings from source index
     private Settings getPreSettings(IndexMetadata sourceIndex) {
         // filter settings that will be added back later
         var filtered = sourceIndex.getSettings().filter(settingName -> SETTINGS_TO_ADD_BACK.contains(settingName) == false);
@@ -193,7 +223,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     public static String generateDestIndexName(String sourceIndex) {
-        return "upgrade-" + sourceIndex;
+        return "migrated-" + sourceIndex;
     }
 
     private static <U extends AcknowledgedResponse> ActionListener<U> failIfNotAcknowledged(

@@ -31,14 +31,21 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
     public static class Request extends ActionRequest implements IndicesRequest {
 
         private final String sourceIndex;
+        private final boolean deleteDestIfExists;
 
         public Request(String sourceIndex) {
+            this(sourceIndex, true);
+        }
+
+        public Request(String sourceIndex, boolean deleteDestIfExists) {
             this.sourceIndex = sourceIndex;
+            this.deleteDestIfExists = deleteDestIfExists;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.sourceIndex = in.readString();
+            this.deleteDestIfExists = in.readBoolean();
         }
 
         public static Request readFrom(StreamInput in) throws IOException {
@@ -49,6 +56,7 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(sourceIndex);
+            out.writeBoolean(deleteDestIfExists);
         }
 
         @Override
@@ -60,17 +68,21 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
             return sourceIndex;
         }
 
+        public boolean getDeleteDestIfExists() {
+            return deleteDestIfExists;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(sourceIndex, request.sourceIndex);
+            return Objects.equals(sourceIndex, request.sourceIndex) && deleteDestIfExists == request.deleteDestIfExists;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sourceIndex);
+            return Objects.hash(sourceIndex, deleteDestIfExists);
         }
 
         @Override
@@ -86,23 +98,31 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
 
     public static class Response extends ActionResponse {
         private final String destIndex;
+        private final long numCreated;
 
-        public Response(String destIndex) {
+        public Response(String destIndex, long numCreated) {
             this.destIndex = destIndex;
+            this.numCreated = numCreated;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.destIndex = in.readString();
+            this.numCreated = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(destIndex);
+            out.writeLong(numCreated);
         }
 
         public String getDestIndex() {
             return destIndex;
+        }
+
+        public long getNumCreated() {
+            return numCreated;
         }
 
         @Override
@@ -110,12 +130,12 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(destIndex, response.destIndex);
+            return Objects.equals(destIndex, response.destIndex) && numCreated == response.numCreated;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(destIndex);
+            return Objects.hash(destIndex, numCreated);
         }
     }
 }

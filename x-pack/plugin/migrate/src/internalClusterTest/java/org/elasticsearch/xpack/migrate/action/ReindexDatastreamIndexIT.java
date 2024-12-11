@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -47,13 +48,14 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
-    private static final String mappingString = """
+    private static final String MAPPING = """
         {
           "_doc":{
             "dynamic":"strict",
@@ -103,7 +105,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
     }
 
     public void testDestIndexContainsDocs() throws Exception {
-        // empty source index
+        // source index with docs
         var numDocs = randomIntBetween(1, 100);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
@@ -116,6 +118,55 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
         // verify that dest contains docs
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
+    }
+
+    public void testReindexIntoExistingIndex() {
+        // source index with docs
+        var numDocs = randomIntBetween(1, 100);
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+        indexDocs(sourceIndex, numDocs);
+
+        // call reindex once to create dest index
+        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet();
+        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
+        assertEquals(numDocs, response.getNumCreated());
+
+        // Delete single document with id 0 (which must exist)
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest(response.getDestIndex()).id("0"));
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(1));
+        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
+
+        var destIndexUUID = getIndexUUID(response.getDestIndex());
+
+        // verify that dest contains one less doc
+        assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs - 1);
+
+        // repeat call to reindex with deleteDestIfExists=false
+        var response2 = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, false)
+        ).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
+
+        // verify is the same dest index
+        assertEquals(destIndexUUID, getIndexUUID(response.getDestIndex()));
+
+        // verify only one doc added back
+        assertEquals(1, response2.getNumCreated());
+
+        // verify correct number of docs
+        assertHitCount(prepareSearch(response2.getDestIndex()).setSize(0), numDocs);
+    }
+
+    private static String getIndexUUID(String index) {
+        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
+            .actionGet()
+            .getSettings()
+            .get(index)
+            .get(IndexMetadata.SETTING_INDEX_UUID);
     }
 
     public void testSetSourceToReadOnly() throws Exception {
@@ -223,7 +274,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         // Create template with settings and mappings
         var template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("logs-*"))
-            .template(new Template(settings, CompressedXContent.fromJSON(mappingString), null))
+            .template(new Template(settings, CompressedXContent.fromJSON(MAPPING), null))
             .build();
         var request = new TransportPutComposableIndexTemplateAction.Request("logs-template");
         request.indexTemplate(template);
@@ -331,7 +382,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         // force a rollover so can call reindex and delete
         var rolloverRequest = new RolloverRequest("k8s", null);
         var rolloverResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
-        var newBackingIndexName = rolloverResponse.getNewIndex();
+        rolloverResponse.getNewIndex();
 
         // call reindex on the original backing index
         var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndexName))
@@ -346,17 +397,17 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertEquals(endTime, destEnd);
     }
 
-    // TODO check logsdb/tsdb work
-    // TODO check other metadata
-    // TODO test that does not fail on create if index exists after delete (Not sure how to do this since relies on race condition)
-    // TODO error on set read-only if don't have perms
+    // TODO more logsdb/tsdb specific tests
+    // TODO more data stream specific tests (how are data streams indices are different from regular indices?)
+    // TODO check other IndexMetadata fields that need to be fixed after the fact
+    // TODO what happens if don't have necessary perms for a given index?
 
     static void removeReadOnly(String index) {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_READ_ONLY, false)
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, false)
             .build();
-        assertTrue(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet().isAcknowledged());
+        assertAcked(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet());
     }
 
     static void indexDocs(String index, int numDocs) {
@@ -365,6 +416,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             bulkRequest.add(
                 new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
+                    .id(i + "")
                     .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
             );
         }

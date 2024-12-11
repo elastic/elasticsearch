@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -155,6 +156,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
@@ -281,14 +283,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String indexName,
         String mappingFileName,
         EsqlFunctionRegistry functionRegistry,
+        IndexResolution lookupResolution,
         EnrichResolution enrichResolution,
         SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
-        Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(
+            new AnalyzerContext(config, functionRegistry, getIndexResult, lookupResolution, enrichResolution),
+            TEST_VERIFIER
+        );
         return new TestDataSource(mapping, index, analyzer, stats);
+    }
+
+    TestDataSource makeTestDataSource(
+        String indexName,
+        String mappingFileName,
+        EsqlFunctionRegistry functionRegistry,
+        EnrichResolution enrichResolution,
+        SearchStats stats
+    ) {
+        return makeTestDataSource(indexName, mappingFileName, functionRegistry, defaultLookupResolution(), enrichResolution, stats);
     }
 
     TestDataSource makeTestDataSource(
@@ -2310,6 +2326,39 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         final var finalPlan = plan;
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
+    }
+
+    public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan("""
+              FROM test
+            | RENAME languages AS language_code
+            | SORT language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, testData, false);
+
+        var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
+
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+
+        var planWithInvalidJoinRightSide = plan.transformUp(
+            LookupJoinExec.class,
+            // LookupJoinExec.rightReferences() is currently EMPTY (hack); use a HashJoinExec instead.
+            join -> new HashJoinExec(
+                join.source(),
+                join.left(),
+                join.left(),
+                join.leftFields(),
+                join.leftFields(),
+                join.rightFields(),
+                join.output()
+            )
+        );
+
+        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
     public void testVerifierOnDuplicateOutputAttributes() {
@@ -6863,11 +6912,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
+        return physicalPlan(query, dataSource, true);
+    }
+
+    private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println(physical);
-        assertSerialization(physical);
+        if (assertSerialization) {
+            assertSerialization(physical);
+        }
         return physical;
     }
 

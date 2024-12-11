@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -36,11 +35,6 @@ public final class PhysicalVerifier {
         Failures depFailures = new Failures();
 
         plan.forEachDown(p -> {
-            if (p instanceof AggregateExec agg) {
-                var exclude = Expressions.references(agg.ordinalAttributes());
-                DEPENDENCY_CHECK.checkPlan(p, exclude, depFailures);
-                return;
-            }
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {

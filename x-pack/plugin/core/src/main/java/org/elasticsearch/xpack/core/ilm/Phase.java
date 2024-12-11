@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -31,6 +34,12 @@ import java.util.TreeMap;
  * particular point in the lifecycle of an index.
  */
 public class Phase implements ToXContentObject, Writeable {
+    private static final Logger log = LogManager.getLogger(Phase.class);
+    /**
+     * These deprecated actions have been reduced to a noop, and we will not be persisted anymore.
+     * We only keep the classes for bwc purposes.
+     */
+    private static final Set<String> DEPRECATED_ACTIONS = Set.of(FreezeAction.NAME);
 
     public static final ParseField MIN_AGE = new ParseField("min_age");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
@@ -40,12 +49,17 @@ public class Phase implements ToXContentObject, Writeable {
         final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];
         Map<String, LifecycleAction> map = Maps.newMapWithExpectedSize(lifecycleActions.size());
         for (LifecycleAction lifecycleAction : lifecycleActions) {
-            if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
-                throw new IllegalStateException("Duplicate key");
+            if (DEPRECATED_ACTIONS.contains(lifecycleAction.getWriteableName())) {
+                log.info("Deprecated [{}] action will not be persisted in the policy.", lifecycleAction.getWriteableName());
+            } else {
+                if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
+                    throw new IllegalStateException("Duplicate key");
+                }
             }
         }
         return new Phase(name, (TimeValue) a[0], map);
     });
+
     static {
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -102,7 +116,11 @@ public class Phase implements ToXContentObject, Writeable {
         int size = in.readVInt();
         TreeMap<String, LifecycleAction> actions = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            actions.put(in.readString(), in.readNamedWriteable(LifecycleAction.class));
+            String actionName = in.readString();
+            LifecycleAction action = in.readNamedWriteable(LifecycleAction.class);
+            if (DEPRECATED_ACTIONS.contains(actionName) == false) {
+                actions.put(actionName, action);
+            }
         }
         this.actions = actions;
     }
@@ -113,8 +131,10 @@ public class Phase implements ToXContentObject, Writeable {
         out.writeTimeValue(minimumAge);
         out.writeVInt(actions.size());
         for (Map.Entry<String, LifecycleAction> entry : actions.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeNamedWriteable(entry.getValue());
+            if (DEPRECATED_ACTIONS.contains(entry.getKey()) == false) {
+                out.writeString(entry.getKey());
+                out.writeNamedWriteable(entry.getValue());
+            }
         }
     }
 

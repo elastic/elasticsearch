@@ -395,3 +395,40 @@ setup:
                }
              }
            }
+
+---
+"Test deprecated Freeze action":
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_freeze_lifecycle"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "cold": {
+                  "min_age": "10s",
+                  "actions": {
+                    "freeze": {
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_freeze_lifecycle"
+  - match: { my_freeze_lifecycle.version: 1 }
+  - is_true: my_freeze_lifecycle.modified_date
+  - match: { my_freeze_lifecycle.policy.phases.cold.min_age: "10s" }
+  - match: { my_freeze_lifecycle.policy.phases.cold.actions: {} }
+
+  - do:
+      ilm.delete_lifecycle:
+        policy: "my_freeze_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "my_freeze_lifecycle"

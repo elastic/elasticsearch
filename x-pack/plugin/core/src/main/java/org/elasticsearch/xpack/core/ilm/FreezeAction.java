@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * @deprecated the freeze action is deprecated since 7.x, the freeze step was effectively a noop in 8.x and now we make
  * all steps here a noop that skip to the nextStepKey.
- * We preserve the action and the  names of the steps to avoid
+ * We preserve the action and the  names of the steps to avoid breaking bwc.
  */
 @Deprecated
 public class FreezeAction implements LifecycleAction {

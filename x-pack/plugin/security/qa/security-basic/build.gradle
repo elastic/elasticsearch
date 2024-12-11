@@ -26,6 +26,7 @@ tasks.named('javaRestTest') {
   usesDefaultDistribution()
 }
 
+tasks.named("javadoc").configure { enabled = false }
 
 if (buildParams.inFipsJvm) {
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC

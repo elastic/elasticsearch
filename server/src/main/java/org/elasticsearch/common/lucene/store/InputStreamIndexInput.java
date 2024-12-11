@@ -91,22 +91,11 @@ public class InputStreamIndexInput extends InputStream {
 
     @Override
     public long skip(long n) throws IOException {
-        long skipBytes = n;
-
-        if (skipBytes <= 0 || indexInput.getFilePointer() >= indexInput.length()) {
+        long skipBytes = Math.min(n, Math.min(indexInput.length() - indexInput.getFilePointer(), limit - counter));
+        if (skipBytes <= 0) {
             return 0;
         }
-
-        if (indexInput.getFilePointer() + skipBytes > indexInput.length()) {
-            skipBytes = indexInput.length() - indexInput.getFilePointer();
-        }
-        if (counter + skipBytes > limit) {
-            skipBytes = limit - counter;
-        }
-        if (skipBytes > 0) {
-            indexInput.skipBytes(skipBytes);
-        }
-
+        indexInput.skipBytes(skipBytes);
         counter += skipBytes;
         return skipBytes;
     }

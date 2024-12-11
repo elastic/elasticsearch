@@ -315,9 +315,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
-        verify(fileSettingsService).onProcessFileChangesException(
-            argThat(e -> unwrapException(e) instanceof XContentParseException)
-        );
+        verify(fileSettingsService).onProcessFileChangesException(argThat(e -> unwrapException(e) instanceof XContentParseException));
 
         // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
         // referring to fileSettingsService.start(). Rather, it is referring to the initialization

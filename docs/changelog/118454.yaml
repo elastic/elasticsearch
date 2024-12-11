@@ -1,0 +1,5 @@
+pr: 118454
+summary: Fix RLIKE folding with (unsupported) case insensitive pattern
+area: ES|QL
+type: bug
+issues: []

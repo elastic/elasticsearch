@@ -64,11 +64,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                         || request.indicesOptions().expandWildcardsHidden()) {
                         assertEquals(request.indicesOptions(), indicesOptions);
                     }
-                    if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                        assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
-                    } else {
-                        assertEquals(0, in.available());
-                    }
+                    assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
                 }
             }
         }
@@ -85,9 +81,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.writeTimeValue(sample.ackTimeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                    sample.waitForActiveShards().writeTo(out);
-                }
+                sample.waitForActiveShards().writeTo(out);
 
                 final CloseIndexRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -105,11 +99,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                    assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
-                } else {
-                    assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());
-                }
+                assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
             }
         }
     }

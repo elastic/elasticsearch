@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -320,9 +321,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+        var sourceFilter = fetchSourceContext.filter();
         SourceLoader loader = forceSyntheticSource
-            ? new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics())
-            : mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
+            ? new SourceLoader.Synthetic(
+                sourceFilter,
+                () -> mappingLookup.getMapping().syntheticFieldLoader(sourceFilter),
+                mapperMetrics.sourceFieldMetrics()
+            )
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -381,8 +387,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
-            if (fetchSourceContext.hasFilter()) {
-                source = source.filter(fetchSourceContext.filter());
+            SourceFilter filter = fetchSourceContext.filter();
+            if (filter != null) {
+                source = source.filter(filter);
             }
 
             if (hasInferenceMetadataFields) {

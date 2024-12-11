@@ -1,0 +1,80 @@
+{
+    "properties" : {
+        "emp_no" : {
+            "type" : "long"
+        },
+        "first_name" : {
+            "type" : "text"
+        },
+        "last_name" : {
+            "type" : "text"
+        },
+        "gender" : {
+            "type" : "text"
+        },
+        "birth_date": {
+            "type" : "date"
+        },
+        "hire_date": {
+            "type" : "date_nanos"
+        },
+        "salary" : {
+            "type" : "long"
+        },
+        "languages" : {
+            "type" : "byte",
+            "fields": {
+                "long": {
+                    "type": "long"
+                },
+                "short": {
+                    "type": "short"
+                },
+                "int": {
+                    "type": "integer"
+                }
+            }
+        },
+        "height": {
+            "type" : "float",
+            "fields" : {
+                "double" : {
+                  "type" : "double"
+                },
+                "scaled_float": {
+                    "type": "scaled_float",
+                    "scaling_factor": 100
+                },
+                "half_float": {
+                    "type": "half_float"
+                }
+            }
+        },
+        "still_hired": {
+            "type" : "keyword"
+        },
+        "avg_worked_seconds" : {
+            "type" : "unsigned_long"
+        },
+        "job_positions" : {
+            "type" : "text"
+        },
+        "is_rehired" : {
+            "type" : "keyword"
+        },
+        "salary_change": {
+            "type": "float",
+            "fields": {
+                "int": {
+                   "type": "integer"
+                },
+                "long": {
+                    "type": "long"
+                },
+                "keyword": {
+                    "type" : "keyword"
+                }
+            }
+        }
+    }
+}

@@ -1299,7 +1299,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0)
+            TransportVersions.V_8_0_0
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));

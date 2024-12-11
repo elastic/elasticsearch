@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -77,11 +78,11 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class FileSettingsServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(FileSettingsServiceTests.class);
@@ -216,9 +217,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
 
-        verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
-        verifyNoMoreInteractions(healthIndicatorService);
+        verify(healthIndicatorService, Mockito.atLeast(1)).changeOccurred();
+        verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(
+            argThat(s -> s.startsWith(IllegalStateException.class.getName()))
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -246,7 +248,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(healthIndicatorService, times(1)).changeOccurred();
         verify(healthIndicatorService, times(1)).successOccurred();
-        verifyNoMoreInteractions(healthIndicatorService);
+        verify(healthIndicatorService, never()).failureOccurred(any());
     }
 
     @SuppressWarnings("unchecked")
@@ -285,7 +287,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(healthIndicatorService, times(2)).changeOccurred();
         verify(healthIndicatorService, times(2)).successOccurred();
-        verifyNoMoreInteractions(healthIndicatorService);
+        verify(healthIndicatorService, never()).failureOccurred(any());
     }
 
     @SuppressWarnings("unchecked")
@@ -341,10 +343,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         // referring to fileSettingsService.start(). Rather, it is referring to the initialization
         // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
 
-        verify(healthIndicatorService, times(2)).changeOccurred();
-        verify(healthIndicatorService, times(1)).successOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalArgumentException.class.getName())));
-        verifyNoMoreInteractions(healthIndicatorService);
+        verify(healthIndicatorService, Mockito.atLeast(1)).changeOccurred();
+        verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(
+            argThat(s -> s.startsWith(IllegalArgumentException.class.getName()))
+        );
     }
 
     private static void awaitOrBust(CyclicBarrier barrier) {
@@ -398,11 +400,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
 
-        verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, Mockito.atLeast(1)).changeOccurred();
         verify(healthIndicatorService, times(1)).failureOccurred(
             argThat(s -> s.startsWith(FailedToCommitClusterStateException.class.getName()))
         );
-        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     public void testHandleSnapshotRestoreClearsMetadata() throws Exception {

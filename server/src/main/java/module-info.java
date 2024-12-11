@@ -147,6 +147,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.master;
     exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
+    exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
     exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
@@ -458,7 +459,9 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with

@@ -278,6 +278,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
+            if (DataType.isRepresentable(expectedType) == false) {
+                testCase = testCase.withoutEvaluator();
+            }
             return testCase;
         });
     }
@@ -618,70 +621,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, booleanCases(), expectedType, v -> expectedValue.apply((Boolean) v), warnings);
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
-     * This variant defaults to maximum range of possible values
-     */
-    public static void forUnaryDatetime(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<Instant, Object> expectedValue,
-        List<String> warnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            dateCases(),
-            expectedType,
-            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
-            warnings
-        );
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
-     * This variant accepts a range of values
-     */
-    public static void forUnaryDatetime(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        long min,
-        long max,
-        Function<Instant, Object> expectedValue,
-        List<String> warnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            dateCases(min, max),
-            expectedType,
-            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
-            warnings
-        );
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#DATE_NANOS}.
-     */
-    public static void forUnaryDateNanos(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<Instant, Object> expectedValue,
-        List<String> warnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            dateNanosCases(),
-            expectedType,
-            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
-            warnings
-        );
     }
 
     /**
@@ -1502,7 +1441,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
-                data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type))
+                true
             );
         }
 
@@ -1855,9 +1794,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         @Override
         public String toString() {
             if (type == DataType.UNSIGNED_LONG && data instanceof Long longData) {
-                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
+                return type + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
             }
-            return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
+            return type.toString() + "(" + (data == null ? "null" : getValue().toString()) + ")";
         }
 
         /**
@@ -1912,11 +1851,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
-         * @return the data value being supplied, casting unsigned longs into BigIntegers correctly
+         * @return the data value being supplied, casting to java objects when appropriate
          */
         public Object getValue() {
-            if (type == DataType.UNSIGNED_LONG && data instanceof Long l) {
-                return NumericUtils.unsignedLongAsBigInteger(l);
+            if (data instanceof Long l) {
+                if (type == DataType.UNSIGNED_LONG) {
+                    return NumericUtils.unsignedLongAsBigInteger(l);
+                }
+                if (type == DataType.DATETIME) {
+                    return Instant.ofEpochMilli(l);
+                }
+                if (type == DataType.DATE_NANOS) {
+                    return DateUtils.toInstant(l);
+                }
             }
             return data;
         }

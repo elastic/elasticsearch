@@ -54,7 +54,7 @@ public class CrossClusterPainlessExecuteIT extends AbstractMultiClustersTestCase
     private static final String KEYWORD_FIELD = "my_field";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 

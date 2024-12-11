@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class PolicyParserFailureTests extends ESTestCase {
@@ -26,7 +25,7 @@ public class PolicyParserFailureTests extends ESTestCase {
         assertEquals("[1:1] policy parsing error for [test-failure-policy.yaml]: expected object <scope name>", ppe.getMessage());
     }
 
-    public void testEntitlementDoesNotExist() throws IOException {
+    public void testEntitlementDoesNotExist() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - does_not_exist: {}
@@ -38,7 +37,7 @@ public class PolicyParserFailureTests extends ESTestCase {
         );
     }
 
-    public void testEntitlementMissingParameter() throws IOException {
+    public void testEntitlementMissingParameter() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - file: {}
@@ -61,7 +60,7 @@ public class PolicyParserFailureTests extends ESTestCase {
         );
     }
 
-    public void testEntitlementExtraneousParameter() throws IOException {
+    public void testEntitlementExtraneousParameter() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - file:

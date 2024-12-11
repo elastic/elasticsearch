@@ -232,6 +232,12 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     private void testDoToQuery(SparseVectorQueryBuilder queryBuilder, SearchExecutionContext context) throws IOException {
         Query query = queryBuilder.doToQuery(context);
+
+        // test query builder can randomly have no vectors, which rewrites to a MatchNoneQuery - nothing more to do in this case.
+        if (query instanceof MatchNoDocsQuery) {
+            return;
+        }
+
         assertTrue(query instanceof SparseVectorQueryWrapper);
         var sparseQuery = (SparseVectorQueryWrapper) query;
         if (queryBuilder.shouldPruneTokens()) {

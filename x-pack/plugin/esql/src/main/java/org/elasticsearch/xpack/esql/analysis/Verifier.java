@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -37,10 +36,12 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -55,7 +56,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
@@ -172,20 +174,6 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            } else if (p instanceof LookupJoin lj) {
-                // expect right side to always be a lookup index
-                lj.right().forEachUp(EsRelation.class, r -> {
-                    if (r.indexMode() != IndexMode.LOOKUP) {
-                        failures.add(
-                            fail(
-                                r,
-                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
-                                r.index().name(),
-                                r.indexMode().getName()
-                            )
-                        );
-                    }
-                });
             }
 
             else {
@@ -217,6 +205,7 @@ public class Verifier {
             checkSort(p, failures);
 
             checkFullTextQueryFunctions(p, failures);
+            checkJoin(p, failures);
         });
         checkRemoteEnrich(plan, failures);
         checkMetadataScoreNameReserved(plan, failures);
@@ -393,6 +382,18 @@ public class Verifier {
                     );
                 }
             })));
+        agg.aggregates().forEach(a -> a.forEachDown(FilteredExpression.class, fe -> fe.filter().forEachDown(Attribute.class, attribute -> {
+            var categorize = categorizeByAttribute.get(attribute);
+            if (categorize != null) {
+                failures.add(
+                    fail(
+                        attribute,
+                        "cannot reference CATEGORIZE grouping function [{}] within an aggregation filter",
+                        attribute.sourceText()
+                    )
+                );
+            }
+        })));
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
@@ -432,7 +433,8 @@ public class Verifier {
                 Expression filter = fe.filter();
                 failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
             }
-            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
+            Expression f = fe.filter();
+            // check the filter has to be a boolean term, similar as checkFilterConditionType
             if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
                 failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
             }
@@ -443,9 +445,10 @@ public class Verifier {
                         fail(af, "cannot use aggregate function [{}] in aggregate WHERE clause [{}]", af.sourceText(), fe.sourceText())
                     );
                 }
-                // check the bucketing function against the group
+                // check the grouping function against the group
                 else if (c instanceof GroupingFunction gf) {
-                    if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                    if (c instanceof Categorize
+                        || Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
                         failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }
@@ -608,7 +611,11 @@ public class Verifier {
     }
 
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
@@ -653,6 +660,12 @@ public class Verifier {
         if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
+
+        // Allow mixed millisecond and nanosecond binary comparisons
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+            return null;
+        }
+
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,
@@ -792,6 +805,35 @@ public class Verifier {
     }
 
     /**
+     * Checks Joins for invalid usage.
+     *
+     * @param plan root plan to check
+     * @param failures failures found
+     */
+    private static void checkJoin(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Join join) {
+            JoinConfig config = join.config();
+            for (int i = 0; i < config.leftFields().size(); i++) {
+                Attribute leftField = config.leftFields().get(i);
+                Attribute rightField = config.rightFields().get(i);
+                if (leftField.dataType() != rightField.dataType()) {
+                    failures.add(
+                        fail(
+                            leftField,
+                            "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                            leftField.name(),
+                            leftField.dataType(),
+                            rightField.name(),
+                            rightField.dataType()
+                        )
+                    );
+                }
+            }
+
+        }
+    }
+
+    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -817,6 +859,14 @@ public class Verifier {
                 plan,
                 condition,
                 Match.class,
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                m -> "[" + m.functionName() + "] " + m.functionType(),
+                failures
+            );
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                Term.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures

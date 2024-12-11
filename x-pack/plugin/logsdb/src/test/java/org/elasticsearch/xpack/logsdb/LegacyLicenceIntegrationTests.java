@@ -69,7 +69,8 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
     }
 
     public void testSyntheticSourceUsageWithLegacyLicensePastCutoff() throws Exception {
-        long startPastCutoff = LocalDateTime.of(2025, 11, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        // One day after default cutoff date
+        long startPastCutoff = LocalDateTime.of(2025, 2, 5, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         putLicense(createGoldOrPlatinumLicense(startPastCutoff));
         ensureGreen();
 

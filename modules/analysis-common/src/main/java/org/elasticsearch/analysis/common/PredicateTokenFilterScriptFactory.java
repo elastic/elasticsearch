@@ -29,7 +29,7 @@ public class PredicateTokenFilterScriptFactory extends AbstractTokenFilterFactor
     private final AnalysisPredicateScript.Factory factory;
 
     public PredicateTokenFilterScriptFactory(IndexSettings indexSettings, String name, Settings settings, ScriptService scriptService) {
-        super(name, settings);
+        super(name);
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
         if (script.getType() != ScriptType.INLINE) {

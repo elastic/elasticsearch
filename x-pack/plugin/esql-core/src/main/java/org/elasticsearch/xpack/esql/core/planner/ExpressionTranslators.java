@@ -107,9 +107,7 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(Not not, TranslatorHandler handler) {
-            Query wrappedQuery = handler.asQuery(not.field());
-            Query q = wrappedQuery.negate(not.source());
-            return q;
+            return handler.asQuery(not.field()).negate(not.source());
         }
     }
 

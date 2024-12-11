@@ -194,6 +194,13 @@ public class HeapAttackIT extends ESRestTestCase {
         );
     }
 
+    private void assertParseFailure(ThrowingRunnable r) throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, r);
+        Map<?, ?> map = responseAsMap(e.getResponse());
+        logger.info("expected parse failure {}", map);
+        assertMap(map, matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "parsing_exception")));
+    }
+
     private Response sortByManyLongs(int count) throws IOException {
         logger.info("sorting by {} longs", count);
         return query(makeSortByManyLongs(count).toString(), null);
@@ -319,6 +326,13 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     /**
+     * Fails to parse a huge huge query.
+     */
+    public void testHugeHugeManyConcatFromRow() throws IOException {
+        assertParseFailure(() -> manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", 50000));
+    }
+
+    /**
      * Tests that generate many moderately long strings.
      */
     private Response manyConcat(String init, int strings) throws IOException {
@@ -376,6 +390,13 @@ public class HeapAttackIT extends ESRestTestCase {
         int strings = 10000;
         Response resp = manyRepeat("ROW a = 99", strings);
         assertManyStrings(resp, strings);
+    }
+
+    /**
+     * Fails to parse a huge huge query.
+     */
+    public void testHugeHugeManyRepeatFromRow() throws IOException {
+        assertParseFailure(() -> manyRepeat("ROW a = 99", 100000));
     }
 
     /**

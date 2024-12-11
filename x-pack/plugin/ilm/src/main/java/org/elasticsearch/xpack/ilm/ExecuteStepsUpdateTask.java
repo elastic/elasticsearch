@@ -180,7 +180,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                             );
                         }
                     } else {
-                        final ToXContentObject stepInfo = result.getInfomationContext();
+                        final ToXContentObject stepInfo = result.getInformationContext();
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "[{}] condition not met ({}) [{}], returning existing state (info: {})",

@@ -10,12 +10,12 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -58,12 +58,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
         long subsetDf;
         long supersetDf;
-        /**
-         * Ordinal of the bucket while it is being built. Not used after it is
-         * returned from {@link Aggregator#buildAggregations(org.elasticsearch.common.util.LongArray)} and not
-         * serialized.
-         */
-        transient long bucketOrd;
         double score;
         protected InternalAggregations aggregations;
         final transient DocValueFormat format;
@@ -235,7 +229,12 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             public InternalAggregation get() {
                 final SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
                 final int size = (int) (reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
-                try (BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size, reduceContext.bigArrays())) {
+                try (ObjectArrayPriorityQueue<B> ordered = new ObjectArrayPriorityQueue<B>(size, reduceContext.bigArrays()) {
+                    @Override
+                    protected boolean lessThan(B a, B b) {
+                        return a.getSignificanceScore() < b.getSignificanceScore();
+                    }
+                }) {
                     buckets.forEach(entry -> {
                         final B b = createBucket(
                             entry.value.subsetDf[0],

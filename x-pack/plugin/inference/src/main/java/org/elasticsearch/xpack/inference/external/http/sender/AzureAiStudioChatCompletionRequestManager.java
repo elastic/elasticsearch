@@ -41,10 +41,10 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
-        var docsInput = docsOnly.getInputs();
-        var stream = docsOnly.stream();
-        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, docsInput, stream);
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
+        var stream = chatCompletionInput.stream();
+        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, inputs, stream);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

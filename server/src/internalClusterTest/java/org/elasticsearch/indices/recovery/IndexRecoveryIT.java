@@ -156,7 +156,6 @@ import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
@@ -257,7 +256,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public Settings.Builder createRecoverySettingsChunkPerSecond(long chunkSizeBytes) {
         return Settings.builder()
             // Set the chunk size in bytes
-            .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
+            .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
             // Set one chunk of bytes per second.
             .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSizeBytes, ByteSizeUnit.BYTES);
     }
@@ -280,7 +279,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Settings.builder()
                 // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
-                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
         );
     }
 
@@ -1569,18 +1568,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-            return singletonMap(
-                "test_token_filter",
-                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name, settings) {
-                    @Override
-                    public TokenStream create(TokenStream tokenStream) {
-                        if (throwParsingError.get()) {
-                            throw new MapperParsingException("simulate mapping parsing error");
-                        }
-                        return tokenStream;
+            return singletonMap("test_token_filter", (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name) {
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (throwParsingError.get()) {
+                        throw new MapperParsingException("simulate mapping parsing error");
                     }
+                    return tokenStream;
                 }
-            );
+            });
         }
     }
 

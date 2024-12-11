@@ -40,7 +40,7 @@ public class MonitoringFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
     public Map<String, Object> getExporters() {

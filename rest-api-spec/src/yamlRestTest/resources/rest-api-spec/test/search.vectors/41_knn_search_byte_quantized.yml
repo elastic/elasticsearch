@@ -368,6 +368,65 @@ setup:
   - match: {hits.hits.2._id: "1"}
   - gte: {hits.hits.2._score: 0.78}
   - lte: {hits.hits.2._score: 0.791}
+
+---
+# Won't be true for larger datasets, but this helps checking kNN vs rescoring vs exact search
+"Vector rescoring has the same scoring as exact search for kNN section":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore]
+  - skip:
+      features: "headers"
+
+  # Rescore
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: hnsw_byte_quantized
+        body:
+          size: 3
+          query:
+            knn:
+              k: 3
+              num_candidates: 3
+              field: vector
+              query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+              rescore_vector:
+                num_candidates_factor: 1.5
+
+  # Get rescoring scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  # Exact knn via script score
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "1.0 / (1.0 + Math.pow(l2norm(params.query_vector, 'vector'), 2.0))"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }
+
 ---
 "Test bad quantization parameters":
   - do:

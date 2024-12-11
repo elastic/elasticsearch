@@ -52,7 +52,6 @@ public class TransportVersions {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
-    public static final TransportVersion V_7_0_1 = def(7_00_01_99);
     public static final TransportVersion V_7_2_0 = def(7_02_00_99);
     public static final TransportVersion V_7_2_1 = def(7_02_01_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
@@ -140,6 +139,7 @@ public class TransportVersions {
     public static final TransportVersion NEW_REFRESH_CLUSTER_BLOCK = def(8_803_00_0);
     public static final TransportVersion RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS = def(8_804_00_0);
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES = def(8_805_00_0);
+    public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

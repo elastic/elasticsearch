@@ -103,7 +103,7 @@ left:keyword | client_ip:keyword | right:keyword | env:keyword
 left         | 172.21.0.5        | right         | Development
 ;
 
-lookupIPFromRowKeep
+lookupIPFromKeepRow
 required_capability: join_lookup_v4
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
@@ -239,6 +239,18 @@ left:keyword | message:keyword       | right:keyword | type:keyword
 left         | Connected to 10.1.0.1 | right         | Success
 ;
 
+lookupMessageFromKeepRow
+required_capability: join_lookup_v4
+
+ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
+KEEP left, message, right
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
 lookupMessageFromRowWithShadowing
 required_capability: join_lookup_v4
 
@@ -365,7 +377,7 @@ left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:k
 left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
 ;
 
-lookupIPAndMessageFromRowKeep-Ignore
+lookupIPAndMessageFromKeepRow-Ignore
 required_capability: join_lookup_v4
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"

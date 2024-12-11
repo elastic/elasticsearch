@@ -34,7 +34,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.ProfilingQuery;
+import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -224,8 +224,8 @@ public class DfsPhase {
             );
             topDocs = searcher.search(knnQuery, ipcm);
 
-            if (knnQuery instanceof ProfilingQuery profilingQuery) {
-                profilingQuery.profile(knnProfiler);
+            if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.profile(knnProfiler);
             }
 
             knnProfiler.setCollectorResult(ipcm.getCollectorTree());

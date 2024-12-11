@@ -17,7 +17,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;

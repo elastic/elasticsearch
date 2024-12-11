@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * A driver-local context that is shared across operators.
@@ -60,23 +61,39 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+    private final BooleanSupplier earlyTerminated;
+    private final Runnable checkForCancellation;
+    private int events;
+    static final long EVENT_THRESHOLD = 2048;
+
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, BooleanSupplier earlyTerminated, Runnable checkForCancellation) {
+        this(bigArrays, blockFactory, WarningsMode.COLLECT, earlyTerminated, checkForCancellation);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
+    private DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        WarningsMode warningsMode,
+        BooleanSupplier earlyTerminated,
+        Runnable checkForCancellation
+    ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.warningsMode = warningsMode;
+        this.earlyTerminated = earlyTerminated;
+        this.checkForCancellation = checkForCancellation;
     }
 
     public static DriverContext getLocalDriver() {
         return new DriverContext(
             BigArrays.NON_RECYCLING_INSTANCE,
             // TODO maybe this should have a small fixed limit?
-            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE),
+            WarningsMode.COLLECT,
+            () -> false,
+            () -> {}
         );
     }
 
@@ -160,6 +177,35 @@ public class DriverContext {
     private void ensureFinished() {
         if (isFinished() == false) {
             throw new IllegalStateException("not finished");
+        }
+    }
+
+    /**
+     * Checks if this driver has been early terminated or cancelled.
+     *
+     * @return true if this driver can be terminated early, false otherwise.
+     * @throws org.elasticsearch.tasks.TaskCancelledException if this driver has been cancelled.
+     */
+    public boolean checkForCompletionOrCancellation() {
+        events = 0;
+        checkForCancellation.run();
+        return earlyTerminated.getAsBoolean();
+    }
+
+    /**
+     * Accumulates events and performs the cancellation or early termination check once every 2048 small operations to reduce overhead.
+     * This method is designed to be called frequently, but the actual check will only happen after the threshold is reached.
+     *
+     * @return true if this driver can be terminated early; false otherwise.
+     * @throws org.elasticsearch.tasks.TaskCancelledException if this driver has been cancelled.
+     * @see #checkForCompletionOrCancellation()
+     */
+    public boolean logEventForCompletionOrCancellation() {
+        if (events >= EVENT_THRESHOLD) {
+            return checkForCompletionOrCancellation();
+        } else {
+            ++events;
+            return false;
         }
     }
 

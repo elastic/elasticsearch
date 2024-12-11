@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.imds.Ec2ImdsHttpFixture;
+import fixture.aws.imds.Ec2ImdsServiceBuilder;
 import fixture.aws.imds.Ec2ImdsVersion;
 import fixture.s3.DynamicS3Credentials;
 import fixture.s3.S3HttpFixture;
@@ -23,8 +24,6 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.util.Set;
-
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3ImdsV1CredentialsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -37,9 +36,7 @@ public class RepositoryS3ImdsV1CredentialsRestIT extends AbstractRepositoryS3Res
     private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        Ec2ImdsVersion.V1,
-        dynamicS3Credentials::addValidCredentials,
-        Set.of()
+        new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicS3Credentials::addValidCredentials)
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicS3Credentials::isAuthorized);

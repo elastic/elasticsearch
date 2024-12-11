@@ -27,6 +27,9 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:2.10.10"
+
+  javaRestTestImplementation project(':plugins:discovery-ec2')
+  javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.imds.Ec2ImdsHttpFixture;
+import fixture.aws.imds.Ec2ImdsServiceBuilder;
 import fixture.aws.imds.Ec2ImdsVersion;
 import fixture.s3.DynamicS3Credentials;
 import fixture.s3.S3HttpFixture;
@@ -37,9 +38,8 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        Ec2ImdsVersion.V1,
-        dynamicS3Credentials::addValidCredentials,
-        Set.of("/ecs_credentials_endpoint")
+        new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicS3Credentials::addValidCredentials)
+            .alternativeCredentialsEndpoints(Set.of("/ecs_credentials_endpoint"))
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicS3Credentials::isAuthorized);

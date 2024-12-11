@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomSecretKey;
@@ -43,15 +44,18 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
 
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
+    private final Supplier<String> availabilityZoneSupplier;
 
     public Ec2ImdsHttpHandler(
         Ec2ImdsVersion ec2ImdsVersion,
         BiConsumer<String, String> newCredentialsConsumer,
-        Collection<String> alternativeCredentialsEndpoints
+        Collection<String> alternativeCredentialsEndpoints,
+        Supplier<String> availabilityZoneSupplier
     ) {
         this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
+        this.availabilityZoneSupplier = availabilityZoneSupplier;
     }
 
     @Override
@@ -94,6 +98,13 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     final var profileName = randomIdentifier();
                     validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
                     final byte[] response = profileName.getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "text/plain");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                    return;
+                } else if (path.equals("/latest/meta-data/placement/availability-zone")) {
+                    final var availabilityZone = availabilityZoneSupplier.get();
+                    final byte[] response = availabilityZone.getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "text/plain");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);

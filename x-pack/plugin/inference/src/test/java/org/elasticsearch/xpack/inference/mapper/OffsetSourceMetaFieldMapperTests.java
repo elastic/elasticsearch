@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -36,6 +37,7 @@ public class OffsetSourceMetaFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testBasics() throws Exception {
+        assumeTrue("Inference metadata fields not enabled", InferenceMetadataFieldsMapper.isEnabled(getVersion()));
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
@@ -59,6 +61,7 @@ public class OffsetSourceMetaFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentParsingFailsOnMetaField() throws Exception {
+        assumeTrue("Inference metadata fields not enabled", InferenceMetadataFieldsMapper.isEnabled(getVersion()));
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         DocumentMapper mapper = createMapperService(mapping).merge(
             "_doc",

@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.startsWith;
  * some ad-hoc test cases (e.g. overloaded methods, overloaded targets, multiple instrumentation, etc.)
  */
 @ESTestCase.WithoutSecurityManager
-public class SyntheticInstrumenterTests extends ESTestCase {
-    private static final Logger logger = LogManager.getLogger(SyntheticInstrumenterTests.class);
+public class InstrumenterTests extends ESTestCase {
+    private static final Logger logger = LogManager.getLogger(InstrumenterTests.class);
 
     /**
      * Contains all the virtual methods from {@link TestClassToInstrument},
@@ -137,10 +137,10 @@ public class SyntheticInstrumenterTests extends ESTestCase {
         @Override
         public void checkSomeInstanceMethod(Class<?> callerClass, Testable that, int arg, String anotherArg) {
             checkSomeInstanceMethodCallCount++;
-            assertSame(SyntheticInstrumenterTests.class, callerClass);
+            assertSame(InstrumenterTests.class, callerClass);
             assertThat(
                 that.getClass().getName(),
-                startsWith("org.elasticsearch.entitlement.instrumentation.impl.SyntheticInstrumenterTests$TestClassToInstrument")
+                startsWith("org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests$TestClassToInstrument")
             );
             assertEquals(123, arg);
             assertEquals("def", anotherArg);
@@ -150,14 +150,14 @@ public class SyntheticInstrumenterTests extends ESTestCase {
         @Override
         public void checkCtor(Class<?> callerClass) {
             checkCtorCallCount++;
-            assertSame(SyntheticInstrumenterTests.class, callerClass);
+            assertSame(InstrumenterTests.class, callerClass);
             throwIfActive();
         }
 
         @Override
         public void checkCtor(Class<?> callerClass, int arg) {
             checkCtorIntCallCount++;
-            assertSame(SyntheticInstrumenterTests.class, callerClass);
+            assertSame(InstrumenterTests.class, callerClass);
             assertEquals(123, arg);
             throwIfActive();
         }
@@ -374,8 +374,8 @@ public class SyntheticInstrumenterTests extends ESTestCase {
      * Testable) which is not what would happen when it's run by the agent.
      */
     private InstrumenterImpl createInstrumenter(Map<MethodKey, CheckMethod> checkMethods) {
-        String checkerClass = Type.getInternalName(SyntheticInstrumenterTests.MockEntitlementChecker.class);
-        String handleClass = Type.getInternalName(SyntheticInstrumenterTests.TestEntitlementCheckerHolder.class);
+        String checkerClass = Type.getInternalName(InstrumenterTests.MockEntitlementChecker.class);
+        String handleClass = Type.getInternalName(InstrumenterTests.TestEntitlementCheckerHolder.class);
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
 
         return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "_NEW", checkMethods);

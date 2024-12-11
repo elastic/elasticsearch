@@ -181,6 +181,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
         } else {
             assert groups.get(0).isCategorize();
+            assert groups.subList(1, groups.size()).stream().noneMatch(GroupSpec::isCategorize);
             return new CategorizePackedValuesBlockHash(groups, blockFactory, aggregatorMode, analysisRegistry, emitBatchSize);
         }
     }

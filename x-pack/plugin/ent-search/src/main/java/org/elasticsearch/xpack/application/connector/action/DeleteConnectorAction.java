@@ -28,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class DeleteConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/delete";
+    public static final String NAME = "indices:data/write/xpack/connector/delete";
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
     private DeleteConnectorAction() {/* no instances */}

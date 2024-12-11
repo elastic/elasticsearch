@@ -84,7 +84,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -139,7 +138,7 @@ public class ConnectorIndexService {
      */
     public ConnectorIndexService(Client client) {
         this.client = client;
-        this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+        this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
     /**
@@ -248,10 +247,14 @@ public class ConnectorIndexService {
      */
     public void getConnector(String connectorId, Boolean isDeleted, ActionListener<ConnectorSearchResult> listener) {
         final String indexName = isDeleted ? DELETED_CONNECTORS_INDEX_NAME : CONNECTOR_INDEX_NAME;
+
+        // Only .connectors-delete is system index now
+        Client requestCli = isDeleted ? clientWithOrigin : client;
+
         try {
             final GetRequest getRequest = new GetRequest(indexName).id(connectorId).realtime(true);
 
-            client.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
+            requestCli.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
@@ -340,13 +343,16 @@ public class ConnectorIndexService {
     ) {
         try {
             final String indexName = isDeleted ? DELETED_CONNECTORS_INDEX_NAME : CONNECTOR_INDEX_NAME;
+            // Only .connectors-delete is system index now
+            Client requestCli = isDeleted ? clientWithOrigin : client;
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery))
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(indexName).source(source);
-            client.search(req, new ActionListener<>() {
+
+            requestCli.search(req, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     try {

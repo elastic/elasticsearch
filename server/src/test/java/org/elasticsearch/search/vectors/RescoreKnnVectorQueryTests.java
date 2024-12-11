@@ -17,7 +17,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
@@ -95,12 +94,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
                 for (LeafReaderContext leafReaderContext : reader.leaves()) {
                     FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(FIELD_NAME);
-                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                    while (iterator.nextDoc() != NO_MORE_DOCS) {
-                        float[] vectorData = vectorValues.vectorValue(iterator.docID());
+                    while (vectorValues.nextDoc() != NO_MORE_DOCS) {
+                        float[] vectorData = vectorValues.vectorValue();
                         float score = VectorSimilarityFunction.COSINE.compare(queryVector, vectorData);
                         topK.add(score);
-                        int docId = iterator.docID();
+                        int docId = vectorValues.docID();
                         // If the doc has been retrieved from the RescoreKnnVectorQuery, check the score is the same and remove it
                         // to ensure we found them all
                         if (rescoredDocs.containsKey(docId)) {

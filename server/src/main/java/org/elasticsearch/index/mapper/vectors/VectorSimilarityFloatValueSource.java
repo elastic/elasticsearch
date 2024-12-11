@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -47,18 +46,19 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource impleme
         final LeafReader reader = ctx.reader();
 
         FloatVectorValues vectorValues = reader.getFloatVectorValues(field);
-        final KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
 
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
                 vectorOpsCount++;
-                return vectorSimilarityFunction.compare(target, vectorValues.vectorValue(iterator.index()));
+                return vectorSimilarityFunction.compare(target, vectorValues.vectorValue());
             }
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                return doc >= iterator.docID() && iterator.docID() != DocIdSetIterator.NO_MORE_DOCS && iterator.advance(doc) == doc;
+                return doc >= vectorValues.docID()
+                    && vectorValues.docID() != DocIdSetIterator.NO_MORE_DOCS
+                    && vectorValues.advance(doc) == doc;
             }
         };
     }

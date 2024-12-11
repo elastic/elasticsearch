@@ -1968,6 +1968,26 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeWithFilteredAggregations() {
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
+
+        query("FROM test | STATS COUNT(*) WHERE first_name == \"John\" BY CATEGORIZE(last_name)");
+        query("FROM test | STATS COUNT(*) WHERE last_name == \"Doe\" BY CATEGORIZE(last_name)");
+
+        assertEquals(
+            "1:34: can only use grouping function [CATEGORIZE(first_name)] as part of the BY clause",
+            error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(first_name) == \"John\" BY CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:34: can only use grouping function [CATEGORIZE(last_name)] as part of the BY clause",
+            error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(last_name) == \"Doe\" BY CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:34: cannot reference CATEGORIZE grouping function [category] within an aggregation filter",
+            error("FROM test | STATS COUNT(*) WHERE category == \"Doe\" BY category = CATEGORIZE(last_name)")
+        );
+    }
+
     public void testSortByAggregate() {
         assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
         assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));

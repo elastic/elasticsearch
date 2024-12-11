@@ -10,6 +10,11 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 
+/**
+ * Expressions can implement this interface to control how they would be translated and pushed down as Lucene queries.
+ * When an expression implements {@link TranslationAware}, we call {@link #asQuery(TranslatorHandler)} to get the
+ * {@link Query} translation, instead of relying on the registered translators from EsqlExpressionTranslators.
+ */
 public interface TranslationAware {
     Query asQuery(TranslatorHandler translatorHandler);
 }

@@ -7,7 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'

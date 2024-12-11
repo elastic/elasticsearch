@@ -28,7 +28,7 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 (Required, string)
 
 `deleted`::
-(Optional, string) A flag indicating whether to return connectors that have been soft-deleted. Defaults to `false`.
+(Optional, boolean) A flag indicating whether to return connectors that have been soft-deleted. Defaults to `false`.
 
 [[get-connector-api-response-codes]]
 ==== {api-response-codes-title}

@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -528,47 +529,40 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof CustomElandEmbeddingModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
-            // At this point the inference endpoint configuration has not been persisted yet, if we attempt to do inference using the
-            // inference id we'll get an error because the trained model code needs to use the persisted inference endpoint to retrieve the
-            // model id. To get around this we'll have the getEmbeddingSize() method use the model id instead of inference id. So we need
-            // to create a temporary model that overrides the inference id with the model id.
-            var temporaryModelWithModelId = new CustomElandEmbeddingModel(
-                elandModel.getServiceSettings().modelId(),
-                elandModel.getTaskType(),
-                elandModel.getConfigurations().getService(),
-                elandModel.getServiceSettings(),
-                elandModel.getConfigurations().getChunkingSettings()
-            );
-
-            ServiceUtils.getEmbeddingSize(
-                temporaryModelWithModelId,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(elandModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType(), true).validate(this, model, listener);
     }
 
-    private static CustomElandEmbeddingModel updateModelWithEmbeddingDetails(CustomElandEmbeddingModel model, int embeddingSize) {
-        CustomElandInternalTextEmbeddingServiceSettings serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
-            model.getServiceSettings().getNumAllocations(),
-            model.getServiceSettings().getNumThreads(),
-            model.getServiceSettings().modelId(),
-            model.getServiceSettings().getAdaptiveAllocationsSettings(),
-            embeddingSize,
-            model.getServiceSettings().similarity(),
-            model.getServiceSettings().elementType()
-        );
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof ElasticsearchInternalModel) {
+            if (model instanceof CustomElandEmbeddingModel embeddingsModel) {
+                var serviceSettings = embeddingsModel.getServiceSettings();
 
-        return new CustomElandEmbeddingModel(
-            model.getInferenceEntityId(),
-            model.getTaskType(),
-            model.getConfigurations().getService(),
-            serviceSettings,
-            model.getConfigurations().getChunkingSettings()
-        );
+                var updatedServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                    serviceSettings.getNumAllocations(),
+                    serviceSettings.getNumThreads(),
+                    serviceSettings.modelId(),
+                    serviceSettings.getAdaptiveAllocationsSettings(),
+                    embeddingSize,
+                    serviceSettings.similarity(),
+                    serviceSettings.elementType()
+                );
+
+                return new CustomElandEmbeddingModel(
+                    model.getInferenceEntityId(),
+                    model.getTaskType(),
+                    model.getConfigurations().getService(),
+                    updatedServiceSettings,
+                    model.getConfigurations().getChunkingSettings()
+                );
+            } else {
+                // TODO: This is for the E5 case which is text embedding but we didn't previously update the dimensions. Figure out if we do
+                // need to update the dimensions?
+                return model;
+            }
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     @Override
@@ -921,7 +915,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     boolean isDefaultId(String inferenceId) {
-        return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId);
+        // return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId);
+        // TODO: This is a temporary override to ensure that we always deploy models on infer to run a validation call.
+        // Figure out if this is what we actually want to do?
+        return true;
     }
 
     static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(

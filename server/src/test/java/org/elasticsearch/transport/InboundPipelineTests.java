@@ -275,9 +275,8 @@ public class InboundPipelineTests extends ESTestCase {
             }
 
             final BytesReference reference = message.serialize(streamOutput);
-            final int fixedHeaderSize = TcpHeader.headerSize(TransportVersion.current());
-            final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
-            final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
+            final int variableHeaderSize = reference.getInt(TcpHeader.HEADER_SIZE - 4);
+            final int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);
             for (int i = 0; i < totalHeaderSize - 1; ++i) {
                 try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -17,14 +16,12 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -47,15 +44,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     private final boolean canHandleStreamingResponses;
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
-        super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
+        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
         this.canHandleStreamingResponses = canHandleStreamingResponses;
-    }
-
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
     }
 
     /**
@@ -66,7 +56,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -104,7 +95,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         if (statusCode == 400) {
-            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+            var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
 
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }

@@ -11,10 +11,12 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class ErrorMessageResponseEntityTests extends ESTestCase {
@@ -33,11 +35,29 @@ public class ErrorMessageResponseEntityTests extends ESTestCase {
         assertThat(error.getErrorMessage(), is("test_error_message"));
     }
 
+    public void testFromResponse_WithOtherFieldsPresent() {
+        String responseJson = """
+            {
+                "error": {
+                    "message": "You didn't provide an API key",
+                    "type": "invalid_request_error",
+                    "param": null,
+                    "code": null
+                }
+            }
+            """;
+
+        ErrorResponse errorMessage = ErrorMessageResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+        assertEquals("You didn't provide an API key", errorMessage.getErrorMessage());
+    }
+
     public void testFromResponse_noMessage() {
         String responseJson = """
             {
               "error": {
-                "type": "not_found_error",
+                "type": "not_found_error"
               }
             }
             """;
@@ -45,21 +65,22 @@ public class ErrorMessageResponseEntityTests extends ESTestCase {
         var errorMessage = ErrorMessageResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertNull(errorMessage);
+        assertThat(errorMessage.getErrorMessage(), is(""));
+        assertTrue(errorMessage.errorStructureFound());
     }
 
-    public void testErrorResponse_ReturnsNullIfNoError() {
+    public void testErrorResponse_ReturnsUndefinedObjectIfNoError() {
         var result = getMockResult("""
             {"noerror":true}""");
 
         var error = ErrorMessageResponseEntity.fromResponse(result);
-        assertNull(error);
+        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
-    public void testErrorResponse_ReturnsNullIfNotJson() {
+    public void testErrorResponse_ReturnsUndefinedObjectIfNotJson() {
         var result = getMockResult("not a json string");
 
         var error = ErrorMessageResponseEntity.fromResponse(result);
-        assertNull(error);
+        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 }

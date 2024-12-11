@@ -383,12 +383,13 @@ public class SearchTransportService {
         }
     }
 
-    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public static void registerRequestHandler(SearchTransportService searchTransportService, SearchService searchService) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
             logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
+        var transportService = searchTransportService.transportService;
         final Executor freeContextExecutor = buildFreeContextExecutor(transportService);
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,

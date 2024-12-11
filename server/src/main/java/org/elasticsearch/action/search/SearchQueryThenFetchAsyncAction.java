@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,7 +31,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -59,10 +61,15 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -107,10 +114,9 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
-    private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
-    private final Set<ShardId> outstandingShards = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<ShardId> outstandingShards = ConcurrentCollections.newConcurrentSet();
 
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
@@ -155,17 +161,11 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
 
+        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        Map<SearchShardIterator, Integer> shardMap = new HashMap<>();
-        List<SearchShardIterator> searchIterators = new ArrayList<>(iterators);
-        CollectionUtil.timSort(searchIterators);
-        for (int i = 0; i < searchIterators.size(); i++) {
-            shardMap.put(searchIterators.get(i), i);
-        }
-        this.shardIndexMap = Collections.unmodifiableMap(shardMap);
-        this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
+        Arrays.sort(shardIterators);
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -492,12 +492,15 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     @Override
     public void run() throws IOException {
-        // TODO: stupid
-        for (int i = 0; i < shardsIts.size(); i++) {
-            outstandingShards.add(shardsIts.get(i).shardId());
-        }
+        // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         for (SearchShardIterator toSkipShardsIt : toSkipShardsIts) {
             outstandingShards.add(toSkipShardsIt.shardId());
+        }
+        final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
+        for (int i = 0; i < shardIterators.length; i++) {
+            var iterator = shardIterators[i];
+            shardIndexMap.put(iterator, i);
+            outstandingShards.add(iterator.shardId());
         }
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
@@ -585,39 +588,15 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                     final int successfulShards = request.shards.size() - failedShards;
                                     if (successfulShards > 0) {
                                         hasShardResponse.set(true);
-                                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                            queryPhaseResultConsumer.reduce(response.results, response.topDocsStats, response.mergeResult);
-                                        } else {
-                                            if (results instanceof CountOnlyQueryPhaseResultConsumer countOnlyQueryPhaseResultConsumer) {
-                                                /*
-                                                  TODO: do this
-                                                  var reducedTotalHits = response.mergeResult.reducedTopDocs().totalHits;
-                                                countOnlyQueryPhaseResultConsumer.reduce(
-                                                    false,
-                                                    false,
-                                                    reducedTotalHits.value(),
-                                                    reducedTotalHits.relation()
+                                        for (Object result : response.results) {
+                                            if (result instanceof SearchPhaseResult searchPhaseResult) {
+                                                results.consumeResult(
+                                                    searchPhaseResult,
+                                                    () -> finishShardAndMaybePhase(searchPhaseResult.getSearchShardTarget().getShardId())
                                                 );
-                                                 */
-                                                for (Object result : response.results) {
-                                                    if (result instanceof SearchPhaseResult searchPhaseResult) {
-                                                        countOnlyQueryPhaseResultConsumer.consumeResult(searchPhaseResult, () -> {});
-                                                    }
-                                                }
                                             }
                                         }
                                         successfulOps.addAndGet(successfulShards);
-                                        for (Object result : response.results) {
-                                            if (result instanceof SearchPhaseResult searchPhaseResult) {
-                                                boolean removed = outstandingShards.remove(
-                                                    searchPhaseResult.getSearchShardTarget().getShardId()
-                                                );
-                                                assert removed;
-                                            }
-                                        }
-                                        if (outstandingShards.isEmpty()) {
-                                            onPhaseDone();
-                                        }
                                     }
                                 }
 
@@ -952,7 +931,8 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
-    public static void registerNodeSearchAction(TransportService transportService, SearchService searchService) {
+    public static void registerNodeSearchAction(SearchTransportService searchTransportService, SearchService searchService) {
+        var transportService = searchTransportService.transportService();
         transportService.registerRequestHandler(
             NODE_SEARCH_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -976,9 +956,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                     ((CancellableTask) task)::isCancelled,
                     SearchProgressListener.NOOP,
                     request.shards.size(),
-                    e -> {
-                        throw new AssertionError(e);
-                    }
+                    e -> searchTransportService.cancelSearchTask((SearchTask) task, "failed to merge result [" + e.getMessage() + "]")
                 );
                 final CountDown countDown = new CountDown(request.shards.size());
                 final Runnable onDone = () -> {
@@ -1019,7 +997,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                     ShardToQuery shardToQuery = shards.poll();
                     if (shardToQuery != null) {
                         executor.execute(
-                            () -> executeOne(
+                            shardTask(
                                 searchService,
                                 request.searchRequest,
                                 (CancellableTask) task,
@@ -1084,7 +1062,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 var shardToQuery = shards.poll();
                 if (shardToQuery != null) {
                     executor.execute(
-                        () -> executeOne(
+                        shardTask(
                             searchService,
                             request,
                             task,
@@ -1100,5 +1078,49 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 }
             }
         });
+    }
+
+    private static AbstractRunnable shardTask(
+        SearchService searchService,
+        SearchRequest request,
+        CancellableTask task,
+        ShardToQuery shardToQuery,
+        AtomicInteger shardIndex,
+        BlockingQueue<ShardToQuery> shards,
+        Executor executor,
+        QueryPhaseResultConsumer queryPhaseResultConsumer,
+        Map<Integer, Exception> failures,
+        Runnable onDone
+    ) {
+        return new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                executeOne(
+                    searchService,
+                    request,
+                    task,
+                    shardToQuery,
+                    shardIndex,
+                    shards,
+                    executor,
+                    queryPhaseResultConsumer,
+                    failures,
+                    onDone
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("shouldn't throw", e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // TODO this could be done better now, we probably should only make sure to have a single loop running at
+                // minimum and ignore + requeue rejections in that case
+                failures.put(shardToQuery.shardIndex, e);
+                onDone.run();
+            }
+        };
     }
 }

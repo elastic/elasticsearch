@@ -45,11 +45,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
 
-    static final String HOT_PHASE = "hot";
-    static final String WARM_PHASE = "warm";
-    static final String COLD_PHASE = "cold";
-    static final String FROZEN_PHASE = "frozen";
-    static final String DELETE_PHASE = "delete";
+    public static final String HOT_PHASE = "hot";
+    public static final String WARM_PHASE = "warm";
+    public static final String COLD_PHASE = "cold";
+    public static final String FROZEN_PHASE = "frozen";
+    public static final String DELETE_PHASE = "delete";
     public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
     public static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(

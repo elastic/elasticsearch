@@ -169,6 +169,7 @@ public class RestShardsAction extends AbstractCatAction {
             "indexing.index_failed",
             "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
         );
+        table.addCell("indexing.write_load", "alias:iwl,indexingWriteLoad;default:false;text-align:right;desc:write load");
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell(
@@ -373,6 +374,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getWriteLoad()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrent));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrentNumDocs));

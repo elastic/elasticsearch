@@ -282,7 +282,7 @@ The sample data includes the following <<mapping-types,field data types>>:
 * <<geo-point,`geo_point`>> for geographic coordinates
 * <<object,`object`>> for nested structures such as `products`, `geoip`, `event`
 
-Now that we understand the data structure, let's start analyzing it.
+Now that we understand the structure of our sample data, let's start analyzing it.
 
 [discrete]
 [[aggregations-tutorial-basic-metrics]]

@@ -1489,7 +1489,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final AtomicInteger position = new AtomicInteger(-1);
 
                 @Override
-                public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                public SourceInputStreamFactory sharedInputStreamFactory(SharedBlobCacheService.RegionGaps gaps) {
                     return dummyStreamFactory;
                 }
 

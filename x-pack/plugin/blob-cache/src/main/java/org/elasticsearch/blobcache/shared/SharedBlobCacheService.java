@@ -626,7 +626,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 ActionListener.releaseAfter(listener, () -> regionsToFetch.forEach(AbstractRefCounted::decRef))
             )
         ) {
-            final List<Tuple<CacheFileRegion<KeyType>, List<SparseFileTracker.Gap>>> gaps = new ArrayList<>();
+            final List<Tuple<CacheFileRegion<KeyType>, RegionGaps>> gaps = new ArrayList<>();
             for (CacheFileRegion<KeyType> toFetch : regionsToFetch) {
                 ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, toFetch.regionKey.region));
                 if (regionRange.isEmpty() == false) {
@@ -636,7 +636,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         regionsListener.acquire()
                     );
                     if (regionGaps.isEmpty() == false) {
-                        gaps.add(new Tuple<>(toFetch, regionGaps));
+                        gaps.add(new Tuple<>(toFetch, new RegionGaps(toFetch.regionKey.region(), regionGaps)));
                     }
                 }
             }
@@ -645,16 +645,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 regionsListener.acquire().onResponse(null);
                 return;
             }
-            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
-                gaps.stream().flatMap(g -> g.v2().stream()).toList()
-            );
+            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps.stream().map(Tuple::v2).toList());
             logger.trace(
                 () -> Strings.format("fill gaps %s %s shared input stream factory", gaps, streamFactory == null ? "without" : "with")
             );
 
             if (streamFactory == null) {
-                for (Tuple<CacheFileRegion<KeyType>, List<SparseFileTracker.Gap>> gapsToFetch : gaps) {
-                    for (SparseFileTracker.Gap gap : gapsToFetch.v2()) {
+                for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
+                    for (SparseFileTracker.Gap gap : gapsToFetch.v2().gaps()) {
                         fetchExecutor.execute(gapsToFetch.v1().fillGapRunnable(gap, writer, null, regionsListener.acquire()));
                     }
                 }
@@ -665,10 +663,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     )
                 ) {
                     ArrayList<Runnable> gapFillingTasks = new ArrayList<>();
-                    for (Tuple<CacheFileRegion<KeyType>, List<SparseFileTracker.Gap>> gapsToFetch : gaps) {
-                        System.err.println(gapsToFetch.v1().regionKey.region() + " " + gapsToFetch.v2());
+                    for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
+                        int offset = (gapsToFetch.v1().regionKey.region() - firstRegion) * regionSize;
                         gapFillingTasks.addAll(
-                            gapsToFetch.v1().gapFillingTasks(writer, sequentialGapsListener, streamFactory, gapsToFetch.v2())
+                            gapsToFetch.v1().gapFillingTasks(offset, writer, sequentialGapsListener, streamFactory, gapsToFetch.v2().gaps())
                         );
                     }
                     fetchExecutor.execute(() -> {
@@ -1071,7 +1069,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         listener.onResponse(false);
                         return;
                     }
-                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
+                        new RegionGaps(regionKey.region(), gaps)
+                    );
                     logger.trace(
                         () -> Strings.format(
                             "fill gaps %s %s shared input stream factory",
@@ -1101,7 +1101,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 )
                             )
                         ) {
-                            List<Runnable> gapFillingTasks = gapFillingTasks(writer, sequentialGapsListener, streamFactory, gaps);
+                            List<Runnable> gapFillingTasks = gapFillingTasks(0, writer, sequentialGapsListener, streamFactory, gaps);
                             executor.execute(() -> {
                                 // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
                                 // gap will still be executed.
@@ -1113,15 +1113,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             } catch (Exception e) {
                 listener.onFailure(e);
             }
-        }
-
-        List<Runnable> gapFillingTasks(
-            RangeMissingHandler writer,
-            RefCountingListener sequentialGapsListener,
-            SourceInputStreamFactory streamFactory,
-            List<SparseFileTracker.Gap> gaps
-        ) {
-            return gaps.stream().map(gap -> fillGapRunnable(gap, writer, streamFactory, sequentialGapsListener.acquire())).toList();
         }
 
         void populateAndRead(
@@ -1157,7 +1148,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     );
 
                     if (gaps.isEmpty() == false) {
-                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
+                            new RegionGaps(regionKey.region(), gaps)
+                        );
                         logger.trace(
                             () -> Strings.format(
                                 "fill gaps %s %s shared input stream factory",
@@ -1189,7 +1182,29 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
+        List<Runnable> gapFillingTasks(
+            int gapOffset,
+            RangeMissingHandler writer,
+            RefCountingListener sequentialGapsListener,
+            SourceInputStreamFactory streamFactory,
+            List<SparseFileTracker.Gap> gaps
+        ) {
+            return gaps.stream()
+                .map(gap -> fillGapRunnable(gapOffset, gap, writer, streamFactory, sequentialGapsListener.acquire()))
+                .toList();
+        }
+
         private Runnable fillGapRunnable(
+            SparseFileTracker.Gap gap,
+            RangeMissingHandler writer,
+            @Nullable SourceInputStreamFactory streamFactory,
+            ActionListener<Void> listener
+        ) {
+            return fillGapRunnable(0, gap, writer, streamFactory, listener);
+        }
+
+        private Runnable fillGapRunnable(
+            int gapOffset,
             SparseFileTracker.Gap gap,
             RangeMissingHandler writer,
             @Nullable SourceInputStreamFactory streamFactory,
@@ -1204,7 +1219,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     ioRef,
                     start,
                     streamFactory,
-                    start,
+                    gapOffset + start,
                     Math.toIntExact(gap.end() - start),
                     progress -> gap.onProgress(start + progress),
                     l.<Void>map(unused -> {
@@ -1232,6 +1247,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             throwAlreadyEvicted();
         }
     }
+
+    public record RegionGaps(int region, List<SparseFileTracker.Gap> gaps) {}
 
     public class CacheFile {
 
@@ -1510,6 +1527,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     @FunctionalInterface
     public interface RangeMissingHandler {
+
+        default SourceInputStreamFactory sharedInputStreamFactory(RegionGaps gaps) {
+            return sharedInputStreamFactory(List.of(gaps));
+        }
+
         /**
          * Attempt to get a shared {@link SourceInputStreamFactory} for the given list of Gaps so that all of them
          * can be filled from the input stream created from the factory. If a factory is returned, the gaps must be
@@ -1520,7 +1542,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * its own input stream.
          */
         @Nullable
-        default SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+        default SourceInputStreamFactory sharedInputStreamFactory(List<RegionGaps> gaps) {
             return null;
         }
 
@@ -1570,7 +1592,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         @Override
-        public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+        public SourceInputStreamFactory sharedInputStreamFactory(RegionGaps gaps) {
             return delegate.sharedInputStreamFactory(gaps);
         }
 

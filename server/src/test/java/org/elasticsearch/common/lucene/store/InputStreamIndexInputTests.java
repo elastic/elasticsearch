@@ -218,7 +218,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(read), equalTo(-1));
     }
 
-    public void testMarkRest() throws Exception {
+    public void testMarkReset() throws Exception {
         Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
@@ -241,6 +241,41 @@ public class InputStreamIndexInputTests extends ESTestCase {
         is.reset();
         assertThat(is.read(), equalTo(1));
         assertThat(is.read(), equalTo(2));
+    }
+
+    public void testSkipBytes() throws Exception {
+        Directory dir = new ByteBuffersDirectory();
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
+        int bytes = randomIntBetween(10, 100);
+        for (int i = 0; i < bytes; i++) {
+            output.writeByte((byte) i);
+        }
+        output.close();
+
+        int limit = randomIntBetween(0, bytes * 2);
+        int initialReadBytes = randomIntBetween(0, limit);
+        int skipBytes = randomIntBetween(0, limit);
+        int seekExpected = Math.min(Math.min(initialReadBytes + skipBytes, limit), bytes);
+        int skipBytesExpected = Math.max(seekExpected - initialReadBytes, 0);
+        logger.debug(
+            "bytes: {}, limit: {}, initialReadBytes: {}, skipBytes: {}, seekExpected: {}, skipBytesExpected: {}",
+            bytes,
+            limit,
+            initialReadBytes,
+            skipBytes,
+            seekExpected,
+            skipBytesExpected
+        );
+
+        IndexInput input = dir.openInput("test", IOContext.DEFAULT);
+        InputStreamIndexInput is = new InputStreamIndexInput(input, limit);
+        is.readNBytes(initialReadBytes);
+        assertThat(is.skip(skipBytes), equalTo((long) skipBytesExpected));
+
+        int remainingBytes = Math.min(bytes, limit) - seekExpected;
+        for (int i = seekExpected; i < seekExpected + remainingBytes; i++) {
+            assertThat(is.read(), equalTo(i));
+        }
     }
 
     public void testReadZeroShouldReturnZero() throws IOException {

@@ -31,27 +31,27 @@ import static org.hamcrest.Matchers.sameInstance;
 public class TransportVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        TransportVersion V_7_2_0 = TransportVersions.V_7_2_0;
-        TransportVersion V_8_0_0 = TransportVersions.V_8_0_0;
-        assertThat(V_7_2_0.before(V_8_0_0), is(true));
-        assertThat(V_7_2_0.before(V_7_2_0), is(false));
-        assertThat(V_8_0_0.before(V_7_2_0), is(false));
+        TransportVersion V_8_2_0 = TransportVersions.V_8_2_0;
+        TransportVersion V_8_16_0 = TransportVersions.V_8_16_0;
+        assertThat(V_8_2_0.before(V_8_16_0), is(true));
+        assertThat(V_8_2_0.before(V_8_2_0), is(false));
+        assertThat(V_8_16_0.before(V_8_2_0), is(false));
 
-        assertThat(V_7_2_0.onOrBefore(V_8_0_0), is(true));
-        assertThat(V_7_2_0.onOrBefore(V_7_2_0), is(true));
-        assertThat(V_8_0_0.onOrBefore(V_7_2_0), is(false));
+        assertThat(V_8_2_0.onOrBefore(V_8_16_0), is(true));
+        assertThat(V_8_2_0.onOrBefore(V_8_2_0), is(true));
+        assertThat(V_8_16_0.onOrBefore(V_8_2_0), is(false));
 
-        assertThat(V_7_2_0.after(V_8_0_0), is(false));
-        assertThat(V_7_2_0.after(V_7_2_0), is(false));
-        assertThat(V_8_0_0.after(V_7_2_0), is(true));
+        assertThat(V_8_2_0.after(V_8_16_0), is(false));
+        assertThat(V_8_2_0.after(V_8_2_0), is(false));
+        assertThat(V_8_16_0.after(V_8_2_0), is(true));
 
-        assertThat(V_7_2_0.onOrAfter(V_8_0_0), is(false));
-        assertThat(V_7_2_0.onOrAfter(V_7_2_0), is(true));
-        assertThat(V_8_0_0.onOrAfter(V_7_2_0), is(true));
+        assertThat(V_8_2_0.onOrAfter(V_8_16_0), is(false));
+        assertThat(V_8_2_0.onOrAfter(V_8_2_0), is(true));
+        assertThat(V_8_16_0.onOrAfter(V_8_2_0), is(true));
 
-        assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
-        assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
-        assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
+        assertThat(V_8_2_0, is(lessThan(V_8_16_0)));
+        assertThat(V_8_2_0.compareTo(V_8_2_0), is(0));
+        assertThat(V_8_16_0, is(greaterThan(V_8_2_0)));
     }
 
     public static class CorrectFakeVersion {

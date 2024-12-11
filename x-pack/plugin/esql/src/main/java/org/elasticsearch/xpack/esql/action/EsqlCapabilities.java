@@ -523,7 +523,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V4(false && Build.current().isSnapshot()),
+        JOIN_LOOKUP_V4(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -543,7 +543,12 @@ public class EsqlCapabilities {
         /**
          * Term function
          */
-        TERM_FUNCTION(Build.current().isSnapshot());
+        TERM_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES;
 
         private final boolean enabled;
 

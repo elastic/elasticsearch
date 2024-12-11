@@ -14,6 +14,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.containers.wait.strategy.WaitAllStrategy;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
+import java.time.Duration;
+
 public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final String DOCKER_BASE_IMAGE = "ubuntu:24.04";
@@ -46,7 +48,9 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
         addExposedPort(AD_LDAP_GC_PORT);
 
         setWaitStrategy(
-            new WaitAllStrategy().withStrategy(Wait.forLogMessage(".*Samba started.*", 1)).withStrategy(Wait.forListeningPort())
+            new WaitAllStrategy().withStartupTimeout(Duration.ofSeconds(120))
+                .withStrategy(Wait.forLogMessage(".*Samba started.*", 1))
+                .withStrategy(Wait.forListeningPort())
         );
 
         getCreateContainerCmdModifiers().add(createContainerCmd -> {

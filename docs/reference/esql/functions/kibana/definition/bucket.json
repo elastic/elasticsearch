@@ -320,6 +320,24 @@
         },
         {
           "name" : "buckets",
+          "type" : "date_period",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
           "type" : "integer",
           "optional" : false,
           "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
@@ -575,6 +593,24 @@
           "type" : "text",
           "optional" : true,
           "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "time_duration",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         }
       ],
       "variadic" : false,

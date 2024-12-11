@@ -16,6 +16,7 @@ date | integer | text | date | date
 date | integer | text | keyword | date
 date | integer | text | text | date
 date | time_duration | | | date
+date_nanos | date_period | | | date_nanos
 date_nanos | integer | date | date | date_nanos
 date_nanos | integer | date | keyword | date_nanos
 date_nanos | integer | date | text | date_nanos
@@ -25,6 +26,7 @@ date_nanos | integer | keyword | text | date_nanos
 date_nanos | integer | text | date | date_nanos
 date_nanos | integer | text | keyword | date_nanos
 date_nanos | integer | text | text | date_nanos
+date_nanos | time_duration | | | date_nanos
 double | double | | | double
 double | integer | double | double | double
 double | integer | double | integer | double

@@ -62,7 +62,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
         dateNanosCasesWithSpan(
             suppliers,
             "fixed date nanos with period",
-            () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")),
+            () -> DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.00Z")),
             DataType.DATE_PERIOD,
             Period.ofYears(1),
             "[YEAR_OF_CENTURY in Z][fixed to midnight]"

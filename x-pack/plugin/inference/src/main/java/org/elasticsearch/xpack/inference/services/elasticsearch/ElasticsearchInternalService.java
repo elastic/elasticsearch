@@ -15,7 +15,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -100,7 +99,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     );
 
     public static final String RERANKER_ID = ".rerank-v1";
-    private static final FeatureFlag RERANKER_FEATURE_FLAG = new FeatureFlag("elasticsearch_reranker");
 
     public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
     public static final String DEFAULT_ELSER_ID = ".elser-2-elasticsearch";
@@ -834,18 +832,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     public List<DefaultConfigId> defaultConfigIds() {
-        if (RERANKER_FEATURE_FLAG.isEnabled()) {
-            return List.of(
-                new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
-                new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this),
-                new DefaultConfigId(DEFAULT_RERANK_ID, TaskType.RERANK, this)
-            );
-        } else {
-            return List.of(
-                new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
-                new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this)
-            );
-        }
+        return List.of(
+            new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
+            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this),
+            new DefaultConfigId(DEFAULT_RERANK_ID, TaskType.RERANK, this)
+        );
     }
 
     @Override
@@ -937,28 +928,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
-
-        if (RERANKER_FEATURE_FLAG.isEnabled() == false) {
-            return List.of(defaultElser, defaultE5);
-        } else {
-            var defaultRerank = new ElasticRerankerModel(
-                DEFAULT_RERANK_ID,
-                TaskType.RERANK,
-                NAME,
-                new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
-                RerankTaskSettings.DEFAULT_SETTINGS
-            );
-            return List.of(defaultElser, defaultE5, defaultRerank);
-        }
+        var defaultRerank = new ElasticRerankerModel(
+            DEFAULT_RERANK_ID,
+            TaskType.RERANK,
+            NAME,
+            new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
+            RerankTaskSettings.DEFAULT_SETTINGS
+        );
+        return List.of(defaultElser, defaultE5, defaultRerank);
     }
 
     @Override
     boolean isDefaultId(String inferenceId) {
-        if (RERANKER_FEATURE_FLAG.isEnabled()) {
-            return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId) || DEFAULT_RERANK_ID.equals(inferenceId);
-        } else {
-            return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId);
-        }
+        return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId) || DEFAULT_RERANK_ID.equals(inferenceId);
     }
 
     static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(

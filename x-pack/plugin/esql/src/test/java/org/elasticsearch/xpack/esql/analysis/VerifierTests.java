@@ -947,6 +947,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterNonBoolField() {
         assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+
+        // `where null` should return empty result set
+        query("from test | where null");
     }
 
     public void testFilterDateConstant() {

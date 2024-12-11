@@ -244,7 +244,7 @@ public class Verifier {
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter f) {
             Expression condition = f.condition();
-            if (condition.dataType() != BOOLEAN) {
+            if (condition.dataType() != NULL && condition.dataType() != BOOLEAN) {
                 localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
             }
         }

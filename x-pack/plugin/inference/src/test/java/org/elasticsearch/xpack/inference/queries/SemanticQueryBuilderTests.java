@@ -346,6 +346,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         DenseVectorFieldMapper.ElementType denseVectorElementType,
         IndexVersion indexVersion
     ) throws IOException {
+        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
+
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
             case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
@@ -368,9 +370,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            builder.startObject(InferenceMetadataFieldsMapper.NAME);
+            if (useInferenceMetadataFields) {
+                builder.startObject(InferenceMetadataFieldsMapper.NAME);
+            }
             builder.field(semanticTextField.fieldName(), semanticTextField);
-            builder.endObject().endObject();
+            if (useInferenceMetadataFields) {
+                builder.endObject();
+            }
+            builder.endObject();
             sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
         }
 

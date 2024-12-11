@@ -192,7 +192,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY;
         if (include != null || exclude != null) {
-            config = config.withFiltering(include, exclude, false);
+            config = config.withFiltering(null, include, exclude, false);
         }
         return parseToType(ordered ? XContentParser::mapOrdered : XContentParser::map, bytes, xContentType, config);
     }
@@ -267,7 +267,10 @@ public class XContentHelper {
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try (
-            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false), input)
+            XContentParser parser = xContent.createParser(
+                XContentParserConfiguration.EMPTY.withFiltering(null, include, exclude, false),
+                input
+            )
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
@@ -302,7 +305,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         try (
             XContentParser parser = xContent.createParser(
-                XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false),
+                XContentParserConfiguration.EMPTY.withFiltering(null, include, exclude, false),
                 bytes,
                 offset,
                 length

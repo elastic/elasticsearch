@@ -364,16 +364,19 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
     public static class NodeQueryRequest extends TransportRequest {
         private final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
+        private final Map<String, AliasFilter> aliasFilters;
 
-        private NodeQueryRequest(List<ShardToQuery> shards, SearchRequest searchRequest) {
+        private NodeQueryRequest(List<ShardToQuery> shards, SearchRequest searchRequest, Map<String, AliasFilter> aliasFilters) {
             this.shards = shards;
             this.searchRequest = searchRequest;
+            this.aliasFilters = aliasFilters;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
             super(in);
             this.shards = in.readCollectionAsImmutableList(ShardToQuery::readFrom);
             this.searchRequest = new SearchRequest(in);
+            this.aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
         }
 
         @Override
@@ -386,6 +389,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             super.writeTo(out);
             out.writeCollection(shards);
             searchRequest.writeTo(out);
+            out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
         }
     }
 
@@ -521,7 +525,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                     if (routing.getClusterAlias() == null && minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION)) {
                         perNodeQueries.computeIfAbsent(
                             routing.getNodeId(),
-                            ignored -> new NodeQueryRequest(new ArrayList<>(), request)
+                            ignored -> new NodeQueryRequest(new ArrayList<>(), request, aliasFilter)
                         ).shards.add(
                             new ShardToQuery(
                                 concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
@@ -970,6 +974,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                                     results[i] = e;
                                 } else {
                                     results[i] = queryPhaseResultConsumer.results.get(i);
+                                    assert results[i] != null;
                                 }
                             }
                             // TODO: facepalm
@@ -999,7 +1004,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                         executor.execute(
                             shardTask(
                                 searchService,
-                                request.searchRequest,
+                                request,
                                 (CancellableTask) task,
                                 shardToQuery,
                                 shardIndex,
@@ -1019,7 +1024,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     private static void executeOne(
         SearchService searchService,
-        SearchRequest request,
+        NodeQueryRequest request,
         CancellableTask task,
         ShardToQuery shardToQuery,
         AtomicInteger shardIndex,
@@ -1035,10 +1040,10 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             shardIndex.getAndIncrement(),
             shardToQuery.contextId,
             shardToQuery.originalIndices,
-            AliasFilter.EMPTY,
+            request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
             null,
             shardToQuery.boost,
-            request,
+            request.searchRequest,
             2,
             System.currentTimeMillis(),
             false
@@ -1082,7 +1087,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
 
     private static AbstractRunnable shardTask(
         SearchService searchService,
-        SearchRequest request,
+        NodeQueryRequest request,
         CancellableTask task,
         ShardToQuery shardToQuery,
         AtomicInteger shardIndex,
@@ -1120,6 +1125,28 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                 // minimum and ignore + requeue rejections in that case
                 failures.put(shardToQuery.shardIndex, e);
                 onDone.run();
+                // TODO SO risk!
+                maybeNext();
+            }
+
+            private void maybeNext() {
+                var shardToQuery = shards.poll();
+                if (shardToQuery != null) {
+                    executor.execute(
+                        shardTask(
+                            searchService,
+                            request,
+                            task,
+                            shardToQuery,
+                            shardIndex,
+                            shards,
+                            executor,
+                            queryPhaseResultConsumer,
+                            failures,
+                            onDone
+                        )
+                    );
+                }
             }
         };
     }

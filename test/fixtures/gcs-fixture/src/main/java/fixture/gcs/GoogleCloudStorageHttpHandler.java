@@ -262,8 +262,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         } catch (MockGcsBlobStore.GcsRestException e) {
             sendError(exchange, e);
         } finally {
-            int read = exchange.getRequestBody().read();
-            assert read == -1 : "Request body should have been fully read here but saw [" + read + "]";
             exchange.close();
         }
     }

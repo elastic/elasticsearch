@@ -1,0 +1,5 @@
+pr: 118451
+summary: Make `InferModelAction` API timeout consistent with 30s default
+area: Search
+type: enhancement
+issues: []

@@ -234,13 +234,17 @@ class TransformFailureHandler {
      * @param numFailureRetries the number of configured retries
      */
     private void retry(Throwable unwrappedException, String message, boolean unattended, int numFailureRetries) {
+        // group failures to decide whether to report it below
+        final boolean repeatedFailure = context.getLastFailure() != null
+            && unwrappedException.getClass().equals(context.getLastFailure().getClass());
+
         final int failureCount = context.incrementAndGetFailureCount(unwrappedException);
         if (unattended == false && numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(unwrappedException, "task encountered more than " + numFailureRetries + " failures; latest failure: " + message);
             return;
         }
 
-        logRetry(unwrappedException, message, unattended, numFailureRetries, failureCount);
+        logRetry(unwrappedException, message, unattended, numFailureRetries, failureCount, repeatedFailure);
     }
 
     /**
@@ -260,14 +264,21 @@ class TransformFailureHandler {
         boolean unattended,
         int numFailureRetries
     ) {
-        logRetry(unwrappedException, message, unattended, numFailureRetries, context.getFailureCount());
-    }
-
-    private void logRetry(Throwable unwrappedException, String message, boolean unattended, int numFailureRetries, int failureCount) {
         // group failures to decide whether to report it below
         final boolean repeatedFailure = context.getLastFailure() != null
             && unwrappedException.getClass().equals(context.getLastFailure().getClass());
 
+        logRetry(unwrappedException, message, unattended, numFailureRetries, context.getFailureCount(), repeatedFailure);
+    }
+
+    private void logRetry(
+        Throwable unwrappedException,
+        String message,
+        boolean unattended,
+        int numFailureRetries,
+        int failureCount,
+        boolean repeatedFailure
+    ) {
         // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
         // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
         // and if the number of retries is about to exceed

@@ -210,12 +210,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
 
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
-        if (unattended) {
-            assertNoFailure(handler, e, contextListener, settings, false);
-        } else {
-            // fail after max retry attempts reached
-            assertFailure(handler, e, contextListener, settings, true);
-        }
+        assertNoFailure(handler, e, contextListener, settings, false);
     }
 
     private void assertFailure(Exception e) {

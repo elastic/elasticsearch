@@ -34,7 +34,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 esplugin.bundleSpec.from('config/discovery-ec2') {
-  into 'config'
+    into 'config'
 }
 
 tasks.register("writeTestJavaPolicy") {
@@ -74,8 +74,7 @@ tasks.register("writeTestJavaPolicy") {
           "grant {",
           "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
           "};"
-        ].join("\n")
-      )
+        ].join("\n"))
     }
   }
 }
@@ -87,7 +86,7 @@ tasks.named("test").configure {
 
   // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  if (buildParams.inFipsJvm) {
+  if (buildParams.inFipsJvm){
     nonInputProperties.systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
   } else {
     nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
@@ -101,25 +100,25 @@ tasks.named("check").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    // classes are missing
-    'com.amazonaws.jmespath.JmesPathExpression',
-    'com.amazonaws.jmespath.ObjectMapperSingleton',
-    'software.amazon.ion.IonReader',
-    'software.amazon.ion.IonSystem',
-    'software.amazon.ion.IonType',
-    'software.amazon.ion.IonWriter',
-    'software.amazon.ion.Timestamp',
-    'software.amazon.ion.system.IonBinaryWriterBuilder',
-    'software.amazon.ion.system.IonSystemBuilder',
-    'software.amazon.ion.system.IonTextWriterBuilder',
-    'software.amazon.ion.system.IonWriterBuilder',
-    'javax.servlet.ServletContextEvent',
-    'javax.servlet.ServletContextListener',
-    'org.apache.avalon.framework.logger.Logger',
-    'org.apache.log.Hierarchy',
-    'org.apache.log.Logger',
-    'javax.jms.Message',
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.JAXBContext'
+          // classes are missing
+          'com.amazonaws.jmespath.JmesPathExpression',
+          'com.amazonaws.jmespath.ObjectMapperSingleton',
+          'software.amazon.ion.IonReader',
+          'software.amazon.ion.IonSystem',
+          'software.amazon.ion.IonType',
+          'software.amazon.ion.IonWriter',
+          'software.amazon.ion.Timestamp',
+          'software.amazon.ion.system.IonBinaryWriterBuilder',
+          'software.amazon.ion.system.IonSystemBuilder',
+          'software.amazon.ion.system.IonTextWriterBuilder',
+          'software.amazon.ion.system.IonWriterBuilder',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'javax.jms.Message',
+          'javax.xml.bind.DatatypeConverter',
+          'javax.xml.bind.JAXBContext'
   )
 }

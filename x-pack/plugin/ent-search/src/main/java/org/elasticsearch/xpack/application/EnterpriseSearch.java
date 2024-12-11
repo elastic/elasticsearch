@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
+import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.GetConnectorAction;
@@ -477,7 +478,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         Collection<SystemIndexDescriptor> systemIndices = new ArrayList<>(
-            List.of(SearchApplicationIndexService.getSystemIndexDescriptor(), QueryRulesIndexService.getSystemIndexDescriptor())
+            List.of(
+                SearchApplicationIndexService.getSystemIndexDescriptor(),
+                QueryRulesIndexService.getSystemIndexDescriptor(),
+                ConnectorIndexService.getConnectorsDeletedSystemIndexDescriptor()
+            )
         );
 
         if (ConnectorSecretsFeature.isEnabled()) {

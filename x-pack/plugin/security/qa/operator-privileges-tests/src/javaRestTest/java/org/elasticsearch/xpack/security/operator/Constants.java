@@ -133,7 +133,7 @@ public class Constants {
         "cluster:admin/xpack/ccr/auto_follow_pattern/put",
         "cluster:admin/xpack/ccr/pause_follow",
         "cluster:admin/xpack/ccr/resume_follow",
-        "indices:data/write/xpack/connector/delete",
+        "cluster:admin/xpack/connector/delete",
         "indices:data/read/xpack/connector/get",
         "indices:data/read/xpack/connector/list",
         "indices:data/write/xpack/connector/post",

@@ -118,6 +118,59 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
     }
 
+    public void testDeleteConnector_expectSoftDeletion() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        List<Connector> connectors = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+            connectors.add(connector);
+        }
+
+        String connectorIdToDelete = connectorIds.get(0);
+        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+        assertThat(resp.status(), equalTo(RestStatus.OK));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
+
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
+
+        Connector softDeletedConnector = awaitGetSoftDeletedConnector(connectorIdToDelete);
+        assertThat(softDeletedConnector.getConnectorId(), equalTo(connectorIdToDelete));
+        assertThat(softDeletedConnector.getServiceType(), equalTo(connectors.get(0).getServiceType()));
+    }
+
+    public void testDeleteConnector_expectSoftDeletionMultipleConnectors() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+        }
+
+        // Delete all of them
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorIdToDelete = connectorIds.get(i);
+            DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+            assertThat(resp.status(), equalTo(RestStatus.OK));
+        }
+
+        // Connectors were deleted from main index
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorId = connectorIds.get(i);
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorId));
+        }
+
+        // Soft deleted connectors available in system index
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorId = connectorIds.get(i);
+            Connector softDeletedConnector = awaitGetSoftDeletedConnector(connectorId);
+            assertThat(softDeletedConnector.getConnectorId(), equalTo(connectorId));
+        }
+    }
+
     public void testUpdateConnectorConfiguration_FullConfiguration() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
@@ -886,11 +939,19 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private Connector awaitGetSoftDeletedConnector(String connectorId) throws Exception {
+        return awaitGetConnector(connectorId, true);
+    }
+
     private Connector awaitGetConnector(String connectorId) throws Exception {
+        return awaitGetConnector(connectorId, false);
+    }
+
+    private Connector awaitGetConnector(String connectorId, Boolean isDeleted) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Connector> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.getConnector(connectorId, new ActionListener<>() {
+        connectorIndexService.getConnector(connectorId, isDeleted, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorSearchResult connectorResult) {
                 // Serialize the sourceRef to Connector class for unit tests
@@ -925,10 +986,22 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         List<String> serviceTypes,
         String searchQuery
     ) throws Exception {
+        return awaitListConnector(from, size, indexNames, names, serviceTypes, searchQuery, false);
+    }
+
+    private ConnectorIndexService.ConnectorResult awaitListConnector(
+        int from,
+        int size,
+        List<String> indexNames,
+        List<String> names,
+        List<String> serviceTypes,
+        String searchQuery,
+        Boolean isDeleted
+    ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<ConnectorIndexService.ConnectorResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, new ActionListener<>() {
+        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, isDeleted, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorIndexService.ConnectorResult result) {
                 resp.set(result);

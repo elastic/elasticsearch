@@ -177,12 +177,18 @@ public class ClusterPrivilegeResolver {
     );
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
-    private static final Set<String> MANAGE_CONNECTOR_PATTERN = Set.of("cluster:admin/xpack/connector/*");
+    private static final Set<String> MANAGE_CONNECTOR_PATTERN = Set.of(
+        "cluster:admin/xpack/connector/*",
+        "indices:data/read/xpack/connector/*",
+        "indices:data/write/xpack/connector/*"
+    );
     private static final Set<String> MONITOR_CONNECTOR_PATTERN = Set.of(
         "cluster:admin/xpack/connector/get",
         "cluster:admin/xpack/connector/list",
         "cluster:admin/xpack/connector/sync_job/get",
-        "cluster:admin/xpack/connector/sync_job/list"
+        "cluster:admin/xpack/connector/sync_job/list",
+        "indices:data/read/xpack/connector/get",
+        "indices:data/read/xpack/connector/list"
     );
     private static final Set<String> READ_CONNECTOR_SECRETS_PATTERN = Set.of("cluster:admin/xpack/connector/secret/get");
     private static final Set<String> WRITE_CONNECTOR_SECRETS_PATTERN = Set.of(

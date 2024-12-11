@@ -31,7 +31,8 @@ public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
             List.of(generateRandomStringArray(10, 10, false)),
             List.of(generateRandomStringArray(10, 10, false)),
             List.of(generateRandomStringArray(10, 10, false)),
-            randomAlphaOfLengthBetween(3, 10)
+            randomAlphaOfLengthBetween(3, 10),
+            randomBoolean()
         );
     }
 
@@ -52,7 +53,8 @@ public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
             instance.getIndexNames(),
             instance.getConnectorNames(),
             instance.getConnectorServiceTypes(),
-            instance.getConnectorSearchQuery()
+            instance.getConnectorSearchQuery(),
+            instance.getDeleted()
         );
     }
 }

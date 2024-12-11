@@ -44,6 +44,8 @@ public class TransportListConnectorAction extends HandledTransportAction<ListCon
             request.getConnectorNames(),
             request.getConnectorServiceTypes(),
             request.getConnectorSearchQuery(),
+            request.getDeleted(),
+
             listener.map(r -> new ListConnectorAction.Response(r.connectors(), r.totalResults()))
         );
     }

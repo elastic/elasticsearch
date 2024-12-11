@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
 
@@ -23,7 +24,8 @@ public class EnterpriseSearchFeatures implements FeatureSpecification {
         return Set.of(
             QUERY_RULES_TEST_API,
             QueryRuleRetrieverBuilder.QUERY_RULE_RETRIEVERS_SUPPORTED,
-            ListQueryRulesetsAction.QUERY_RULE_LIST_TYPES
+            ListQueryRulesetsAction.QUERY_RULE_LIST_TYPES,
+            ConnectorIndexService.CONNECTOR_SOFT_DELETES_FEATURE
         );
     }
 }

@@ -41,6 +41,9 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 `service_type`::
 (Optional, string) A comma-separated list of connector service types, used to filter search results.
 
+`deleted`::
+(Optional, string) A flag indicating whether to return connectors that have been soft-deleted. Defaults to `false`.
+
 [[list-connector-api-example]]
 ==== {api-examples-title}
 

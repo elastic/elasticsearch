@@ -161,14 +161,6 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(response2.getDestIndex()).setSize(0), numDocs);
     }
 
-    private static String getIndexUUID(String index) {
-        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
-            .actionGet()
-            .getSettings()
-            .get(index)
-            .get(IndexMetadata.SETTING_INDEX_UUID);
-    }
-
     public void testSetSourceToReadOnly() throws Exception {
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -402,7 +394,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
     // TODO check other IndexMetadata fields that need to be fixed after the fact
     // TODO what happens if don't have necessary perms for a given index?
 
-    static void removeReadOnly(String index) {
+    private static void removeReadOnly(String index) {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_READ_ONLY, false)
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, false)
@@ -410,7 +402,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet());
     }
 
-    static void indexDocs(String index, int numDocs) {
+    private static void indexDocs(String index, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -425,7 +417,15 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest(index)).actionGet();
     }
 
-    static String formatInstant(Instant instant) {
+    private static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    private static String getIndexUUID(String index) {
+        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
+            .actionGet()
+            .getSettings()
+            .get(index)
+            .get(IndexMetadata.SETTING_INDEX_UUID);
     }
 }

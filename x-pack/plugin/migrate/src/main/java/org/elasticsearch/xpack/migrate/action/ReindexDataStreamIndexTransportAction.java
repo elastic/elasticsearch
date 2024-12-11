@@ -95,7 +95,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
 
         AtomicReference<BulkByScrollResponse> reindexResponse = new AtomicReference<>();
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setReadOnly(sourceIndexName, l))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(request.getDeleteDestIfExists(), destIndexName, l))
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
@@ -108,7 +108,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .addListener(listener);
     }
 
-    private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
+    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
         logger.info("Setting read only on source index [{}]", sourceIndexName);
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
         var updateSettingsRequest = new UpdateSettingsRequest(readOnlySettings, sourceIndexName);

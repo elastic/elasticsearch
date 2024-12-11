@@ -215,7 +215,7 @@ class Elasticsearch {
         bootstrap.setPluginsLoader(pluginsLoader);
         var pluginsResolver = PluginsResolver.create(pluginsLoader);
 
-        if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
+        if (true) { //Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
             List<Tuple<Path, Boolean>> pluginData = pluginsLoader.allBundles()

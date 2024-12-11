@@ -32,13 +32,11 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,35 +51,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AbstractFileWatchingServiceTests extends ESTestCase {
-
-    class TestFileWatchingService extends AbstractFileWatchingService {
-
-        private final CountDownLatch countDownLatch;
-
-        TestFileWatchingService(Path watchedFile) {
-            super(watchedFile);
-            this.countDownLatch = null;
-        }
-
-        TestFileWatchingService(Path watchedFile, CountDownLatch countDownLatch) {
-            super(watchedFile);
-            this.countDownLatch = countDownLatch;
-        }
-
-        @Override
-        protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
-            if (countDownLatch != null) {
-                countDownLatch.countDown();
-            }
-        }
-
-        @Override
-        protected void processInitialFileMissing() {
-            if (countDownLatch != null) {
-                countDownLatch.countDown();
-            }
-        }
-    }
 
     private AbstractFileWatchingService fileWatchingService;
     private ThreadPool threadpool;
@@ -134,9 +103,9 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         assertTrue(fileWatchingService.watchedFileChanged(tmpFile));
         assertFalse(fileWatchingService.watchedFileChanged(tmpFile));
 
-        // we modify the timestamp of the file, it should trigger a change
-        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
-        Files.setLastModifiedTime(tmpFile, FileTime.from(now));
+        // we modify the timestamp of the file, it should trigger a change.
+        Instant oldTimestamp = Files.getLastModifiedTime(tmpFile).toInstant();
+        Files.setLastModifiedTime(tmpFile, FileTime.from(oldTimestamp.plus(1, SECONDS)));
 
         assertTrue(fileWatchingService.watchedFileChanged(tmpFile));
         assertFalse(fileWatchingService.watchedFileChanged(tmpFile));
@@ -204,6 +173,35 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
     private static Path getWatchedFilePath(Environment env) {
         return env.configFile().toAbsolutePath().resolve("test").resolve("test.json");
+    }
+
+    class TestFileWatchingService extends AbstractFileWatchingService {
+
+        private final CountDownLatch countDownLatch;
+
+        TestFileWatchingService(Path watchedFile) {
+            super(watchedFile);
+            this.countDownLatch = null;
+        }
+
+        TestFileWatchingService(Path watchedFile, CountDownLatch countDownLatch) {
+            super(watchedFile);
+            this.countDownLatch = countDownLatch;
+        }
+
+        @Override
+        protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
+            if (countDownLatch != null) {
+                countDownLatch.countDown();
+            }
+        }
+
+        @Override
+        protected void processInitialFileMissing() {
+            if (countDownLatch != null) {
+                countDownLatch.countDown();
+            }
+        }
     }
 
 }

@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
@@ -79,19 +78,21 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
-    public abstract void process(IndexRequest indexRequest);
+    /**
+     * Finalize the request before routing, with data needed for routing decisions.
+     */
+    public void preProcess(IndexRequest indexRequest) {}
+
+    /**
+     * Finalize the request after routing, incorporating data produced by the routing logic.
+     */
+    public void postProcess(IndexRequest indexRequest) {}
 
     /**
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
-    public abstract int indexShard(
-        String id,
-        @Nullable String routing,
-        XContentType sourceType,
-        BytesReference source,
-        Consumer<String> routingHashSetter
-    );
+    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source);
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -162,7 +163,7 @@ public abstract class IndexRouting {
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
-        public void process(IndexRequest indexRequest) {
+        public void preProcess(IndexRequest indexRequest) {
             // generate id if not already provided
             final String id = indexRequest.id();
             if (id == null) {
@@ -177,13 +178,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int indexShard(
-            String id,
-            @Nullable String routing,
-            XContentType sourceType,
-            BytesReference source,
-            Consumer<String> routingHashSetter
-        ) {
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
@@ -268,6 +263,7 @@ public abstract class IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
         private final boolean trackTimeSeriesRoutingHash;
+        private int hash = Integer.MAX_VALUE;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
@@ -285,22 +281,17 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public void process(IndexRequest indexRequest) {}
+        public void postProcess(IndexRequest indexRequest) {
+            if (trackTimeSeriesRoutingHash) {
+                indexRequest.routing(TimeSeriesRoutingHashFieldMapper.encode(hash));
+            }
+        }
 
         @Override
-        public int indexShard(
-            String id,
-            @Nullable String routing,
-            XContentType sourceType,
-            BytesReference source,
-            Consumer<String> routingHashSetter
-        ) {
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            int hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
-            if (trackTimeSeriesRoutingHash) {
-                routingHashSetter.accept(TimeSeriesRoutingHashFieldMapper.encode(hash));
-            }
+            hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             return hashToShardId(hash);
         }
 

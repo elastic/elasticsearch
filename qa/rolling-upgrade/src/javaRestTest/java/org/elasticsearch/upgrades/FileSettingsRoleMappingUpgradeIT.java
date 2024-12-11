@@ -10,14 +10,13 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.junit.Before;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -70,9 +69,15 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         .setting("xpack.security.authc.anonymous.roles", "superuser")
         .configFile("operator/settings.json", Resource.fromString(SETTING_JSON))
         .build();
+    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
+        () -> assumeTrue(
+            "Only relevant when upgrading from a version before role mappings were stored in cluster state",
+            oldClusterHasFeature("gte_v8.7.0") && oldClusterHasFeature("gte_v8.15.0") == false
+        ));
+
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(versionLimit).around(cluster);
 
     public FileSettingsRoleMappingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -81,14 +86,6 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     @Override
     protected ElasticsearchCluster getUpgradeCluster() {
         return cluster;
-    }
-
-    @Before
-    public void checkVersions() {
-        assumeTrue(
-            "Only relevant when upgrading from a version before role mappings were stored in cluster state",
-            oldClusterHasFeature("gte_v8.7.0") && oldClusterHasFeature("gte_v8.15.0") == false
-        );
     }
 
     private static void waitForSecurityMigrationCompletionIfIndexExists() throws Exception {

@@ -10,6 +10,7 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.XContentTestUtils;
@@ -73,8 +74,8 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         () -> assumeTrue(
             "Only relevant when upgrading from a version before role mappings were stored in cluster state",
             oldClusterHasFeature("gte_v8.7.0") && oldClusterHasFeature("gte_v8.15.0") == false
-        ));
-
+        )
+    );
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(versionLimit).around(cluster);

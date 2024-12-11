@@ -303,18 +303,6 @@ tests:
 - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
   method: test {p0=/11_nodes/Test cat nodes output}
   issue: https://github.com/elastic/elasticsearch/issues/118397
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/20_reindex_status/Test get reindex status with nonexistent task id}
-  issue: https://github.com/elastic/elasticsearch/issues/118401
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
-  issue: https://github.com/elastic/elasticsearch/issues/118274
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Bad Data Stream Name}
-  issue: https://github.com/elastic/elasticsearch/issues/118272
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Unsupported Mode}
-  issue: https://github.com/elastic/elasticsearch/issues/118273
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testUnifiedCompletionInference
   issue: https://github.com/elastic/elasticsearch/issues/118405

@@ -40,12 +40,20 @@ public class JinaAIErrorResponseEntity implements ErrorMessage {
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
         ) {
             var responseMap = jsonParser.map();
+            System.out.println("\\n" + //
+                    "\\n" + //
+                    "\\n" + //
+                    "\\n" + //
+                    "\\n" + //
+                    "\\n" + //
+                    "JOAN I AM HERE " + responseMap);
             // TODO(JoanFM): Check if it should be detail
             var message = (String) responseMap.get("detail");
             if (message != null) {
                 return new JinaAIErrorResponseEntity(message);
             }
         } catch (Exception e) {
+            System.out.println("\n\n\n\n\n\nJOAN I AM HERE EXCEPTION " + e.toString());
             // swallow the error
         }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -29,7 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestEntity.INPUT_TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestEntity.TASK_TYPE_FIELD;
 
 public class JinaAIEmbeddingsModel extends JinaAIModel {
     public static JinaAIEmbeddingsModel of(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
@@ -43,6 +44,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -52,6 +54,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             service,
             JinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -63,10 +66,11 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         String service,
         JinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings()
@@ -116,7 +120,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
-                    INPUT_TYPE_FIELD,
+                    TASK_TYPE_FIELD,
                     new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
                         .setLabel("Input Type")
                         .setOrder(1)

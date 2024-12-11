@@ -44,7 +44,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000); // TODO(JoanFM): Check value
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000); // TODO(JoanFM): Check value
 
     public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -114,6 +114,16 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
+    }
+
+    public JinaAIServiceSettings(
+        @Nullable String url,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer dimensions,
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
+        this(createOptionalUri(url), similarity, dimensions, null, modelId, rateLimitSettings);
     }
 
     public JinaAIServiceSettings(StreamInput in) throws IOException {

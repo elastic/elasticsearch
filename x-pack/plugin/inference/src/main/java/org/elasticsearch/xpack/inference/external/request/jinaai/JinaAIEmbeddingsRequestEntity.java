@@ -12,7 +12,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.io.IOException;
@@ -24,17 +23,15 @@ import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaA
 public record JinaAIEmbeddingsRequestEntity(
     List<String> input,
     JinaAIEmbeddingsTaskSettings taskSettings,
-    @Nullable String model,
-    @Nullable JinaAIEmbeddingType embeddingType
+    @Nullable String model
 ) implements ToXContentObject {
 
-    private static final String SEARCH_DOCUMENT = "search_document";
-    private static final String SEARCH_QUERY = "search_query";
-    private static final String CLUSTERING = "clustering";
+    private static final String SEARCH_DOCUMENT = "retrieval.passage";
+    private static final String SEARCH_QUERY = "retrieval.query";
+    private static final String CLUSTERING = "separation";
     private static final String CLASSIFICATION = "classification";
-    private static final String TEXTS_FIELD = "texts";
-    public static final String INPUT_TYPE_FIELD = "input_type";
-    static final String EMBEDDING_TYPES_FIELD = "embedding_types";
+    private static final String INPUTS_FIELD = "inputs";
+    public static final String TASK_TYPE_FIELD = "task";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -44,17 +41,13 @@ public record JinaAIEmbeddingsRequestEntity(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEXTS_FIELD, input);
+        builder.field(INPUTS_FIELD, input);
         if (model != null) {
             builder.field(JinaAIServiceSettings.OLD_MODEL_ID_FIELD, model);
         }
 
         if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
-        }
-
-        if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
+            builder.field(TASK_TYPE_FIELD, covertToString(taskSettings.getInputType()));
         }
 
         builder.endObject();
@@ -63,7 +56,6 @@ public record JinaAIEmbeddingsRequestEntity(
 
     // default for testing
     static String covertToString(InputType inputType) {
-        // TODO (JoanFM): Check mapping
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;

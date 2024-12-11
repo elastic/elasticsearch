@@ -12,7 +12,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -114,7 +113,10 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, model, null), SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit
+                new JinaAIServiceSettings(url, model, null),
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit
             ),
             taskSettings,
             chunkingSettings,
@@ -134,7 +136,10 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, model, null), SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit
+                new JinaAIServiceSettings(url, model, null),
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit
             ),
             taskSettings,
             null,

@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -47,32 +46,18 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
     private static JinaAIServiceSettings createRandom(String url) {
         var model = randomBoolean() ? randomAlphaOfLength(15) : null;
 
-        return new JinaAIServiceSettings(
-            ServiceUtils.createOptionalUri(url),
-            model,
-            RateLimitSettingsTests.createRandom()
-        );
+        return new JinaAIServiceSettings(ServiceUtils.createOptionalUri(url), model, RateLimitSettingsTests.createRandom());
     }
 
     public void testFromMap() {
         var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
-                    model
-                )
-            ),
+            new HashMap<>(Map.of(ServiceFields.URL, url, JinaAIServiceSettings.OLD_MODEL_ID_FIELD, model)),
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null))
-        );
+        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null)));
     }
 
     public void testFromMap_WithRateLimit() {
@@ -94,13 +79,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(
-                new JinaAIServiceSettings(
-                    ServiceUtils.createUri(url),
-                    model,
-                    new RateLimitSettings(3)
-                )
-            )
+            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, new RateLimitSettings(3)))
         );
     }
 
@@ -108,21 +87,11 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    JinaAIServiceSettings.MODEL_ID,
-                    model
-                )
-            ),
+            new HashMap<>(Map.of(ServiceFields.URL, url, JinaAIServiceSettings.MODEL_ID, model)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null))
-        );
+        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null)));
     }
 
     public void testFromMap_PrefersModelId_OverModel() {
@@ -130,22 +99,12 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
             new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
-                    "old_model",
-                    JinaAIServiceSettings.MODEL_ID,
-                    model
-                )
+                Map.of(ServiceFields.URL, url, JinaAIServiceSettings.OLD_MODEL_ID_FIELD, "old_model", JinaAIServiceSettings.MODEL_ID, model)
             ),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null))
-        );
+        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null)));
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {

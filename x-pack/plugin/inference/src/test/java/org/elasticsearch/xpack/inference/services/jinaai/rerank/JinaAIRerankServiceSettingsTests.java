@@ -35,9 +35,10 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     public static JinaAIRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
         return new JinaAIRerankServiceSettings(
             new JinaAIServiceSettings(
-            randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
-            rateLimitSettings)
+                randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
+                randomFrom(new String[] { null, randomAlphaOfLength(10) }),
+                rateLimitSettings
+            )
         );
     }
 
@@ -81,7 +82,13 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     protected JinaAIRerankServiceSettings mutateInstanceForVersion(JinaAIRerankServiceSettings instance, TransportVersion version) {
         if (version.before(TransportVersions.V_8_15_0)) {
             // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
-            return new JinaAIRerankServiceSettings(new JinaAIServiceSettings(instance.getCommonSettings().uri(), instance.modelId(), JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
+            return new JinaAIRerankServiceSettings(
+                new JinaAIServiceSettings(
+                    instance.getCommonSettings().uri(),
+                    instance.modelId(),
+                    JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
+                )
+            );
         }
         return instance;
     }

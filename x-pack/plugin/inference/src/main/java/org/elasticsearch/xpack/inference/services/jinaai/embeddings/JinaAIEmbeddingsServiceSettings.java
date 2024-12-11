@@ -12,27 +12,24 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-
-import java.io.IOException;
-import java.net.URI;
-import java.util.Map;
-import java.util.Objects;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "jinaai_embeddings_service_settings";
@@ -146,10 +143,10 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIEmbeddingsServiceSettings that = (JinaAIEmbeddingsServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings) 
-        && Objects.equals(similarity, that.similarity)
-        && Objects.equals(dimensions, that.dimensions)
-        && Objects.equals(maxInputTokens, that.maxInputTokens);
+        return Objects.equals(commonSettings, that.commonSettings)
+            && Objects.equals(similarity, that.similarity)
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(maxInputTokens, that.maxInputTokens);
     }
 
     @Override

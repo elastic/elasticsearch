@@ -79,7 +79,10 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens
                 )
             )
         );
@@ -113,7 +116,10 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens
                 )
             )
         );
@@ -150,7 +156,9 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new JinaAIEmbeddingsServiceSettings(
                     new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
-                    SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens
                 )
             )
         );
@@ -177,7 +185,10 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAIEmbeddingsServiceSettings(
-            new JinaAIServiceSettings("url", "model_id", new RateLimitSettings(3)), SimilarityMeasure.COSINE, 5, 10
+            new JinaAIServiceSettings("url", "model_id", new RateLimitSettings(3)),
+            SimilarityMeasure.COSINE,
+            5,
+            10
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

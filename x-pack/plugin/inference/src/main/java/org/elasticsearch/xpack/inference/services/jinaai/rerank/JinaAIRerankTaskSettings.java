@@ -90,10 +90,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
         this(in.readOptionalInt(), in.readOptionalBoolean());
     }
 
-    public JinaAIRerankTaskSettings(
-        @Nullable Integer topNDocumentsOnly,
-        @Nullable Boolean doReturnDocuments
-    ) {
+    public JinaAIRerankTaskSettings(@Nullable Integer topNDocumentsOnly, @Nullable Boolean doReturnDocuments) {
         this.topNDocumentsOnly = topNDocumentsOnly;
         this.returnDocuments = doReturnDocuments;
     }
@@ -137,8 +134,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIRerankTaskSettings that = (JinaAIRerankTaskSettings) o;
-        return Objects.equals(returnDocuments, that.returnDocuments)
-            && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly);
+        return Objects.equals(returnDocuments, that.returnDocuments) && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly);
     }
 
     @Override

@@ -44,10 +44,10 @@ public record JinaAIRerankRequestEntity(String model, String query, List<String>
             if (taskSettings.getTopNDocumentsOnly() != null) {
                 builder.field(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, taskSettings.getTopNDocumentsOnly());
             }
-    
-            var retun_documents = taskSettings.getDoesReturnDocuments();
-            if (retun_documents != null && retun_documents == true ) {
-                builder.field(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, retun_documents);
+
+            var return_documents = taskSettings.getDoesReturnDocuments();
+            if (return_documents != null) {
+                builder.field(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, return_documents);
             }
         }
 

@@ -44,6 +44,7 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
         StringBuilder responseBuilder = new StringBuilder();
 
         responseBuilder.append("{");
+        responseBuilder.append("\"model\": \"model\",");
         responseBuilder.append("\"index\":\"").append(randomAlphaOfLength(36)).append("\",");
         responseBuilder.append("\"results\": [");
         List<Integer> indices = linear(numDocs);
@@ -60,11 +61,9 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
             }
         }
         responseBuilder.append("],");
-        responseBuilder.append("\"meta\": {");
-        responseBuilder.append("\"api_version\": {");
-        responseBuilder.append("\"version\": \"1\"},");
-        responseBuilder.append("\"billed_units\": {");
-        responseBuilder.append("\"search_units\":").append(randomIntBetween(1, 10)).append("}}}");
+        responseBuilder.append("\"usage\": {");
+        responseBuilder.append("\"total_tokens\": 15}");
+        responseBuilder.append("}");
 
         InferenceServiceResults parsedResults = JinaAIRankedResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseBuilder.toString().getBytes(StandardCharsets.UTF_8))
@@ -87,7 +86,7 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
 
     private final String responseLiteral = """
         {
-            "index": "d0760819-5a73-4d58-b163-3956d3648b62",
+            "model": "model",
             "results": [
                 {
                     "index": 2,
@@ -102,13 +101,8 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
                     "relevance_score": 0.10194652
                 }
             ],
-            "meta": {
-                "api_version": {
-                    "version": "1"
-                },
-                "billed_units": {
-                    "search_units": 1
-                }
+            "usage": {
+                "total_tokens": 15
             }
         }
         """;
@@ -124,7 +118,7 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
 
     private final String responseLiteralWithDocuments = """
         {
-            "index": "44873262-1315-4c06-8433-fdc90c9790d0",
+            "model": "model",
             "results": [
                 {
                     "document": {
@@ -148,13 +142,8 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
                     "relevance_score": 0.10194652
                 }
             ],
-            "meta": {
-                "api_version": {
-                    "version": "1"
-                },
-                "billed_units": {
-                    "search_units": 1
-                }
+            "usage": {
+                "total_tokens": 15
             }
         }
         """;

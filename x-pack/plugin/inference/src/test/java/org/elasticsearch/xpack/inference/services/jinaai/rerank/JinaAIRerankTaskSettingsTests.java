@@ -27,12 +27,7 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
     }
 
     public void testFromMap_WithValidValues_ReturnsSettings() {
-        Map<String, Object> taskMap = Map.of(
-            JinaAIRerankTaskSettings.RETURN_DOCUMENTS,
-            true,
-            JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY,
-            5
-        );
+        Map<String, Object> taskMap = Map.of(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, true, JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, 5);
         var settings = JinaAIRerankTaskSettings.fromMap(new HashMap<>(taskMap));
         assertTrue(settings.getReturnDocuments());
         assertEquals(5, settings.getTopNDocumentsOnly().intValue());

@@ -968,8 +968,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
                         try {
                             final Object[] results = new Object[request.shards.size()];
                             for (int i = 0; i < results.length; i++) {
-                                int shardIdx = request.shards.get(i).shardIndex;
-                                var e = failures.get(shardIdx);
+                                var e = failures.get(i);
                                 if (e != null) {
                                     results[i] = e;
                                 } else {
@@ -1034,55 +1033,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         Map<Integer, Exception> failures,
         Runnable onDone
     ) {
-        final ShardSearchRequest req = buildShardSearchRequest(
-            shardToQuery.shardId,
-            null,
-            shardIndex.getAndIncrement(),
-            shardToQuery.contextId,
-            shardToQuery.originalIndices,
-            request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
-            null,
-            shardToQuery.boost,
-            request.searchRequest,
-            2,
-            System.currentTimeMillis(),
-            false
-        );
-        searchService.executeQueryPhase(req, task, new ActionListener<>() {
-            @Override
-            public void onResponse(SearchPhaseResult searchPhaseResult) {
-                searchPhaseResult.setShardIndex(req.shardRequestIndex());
-                queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
-                maybeNext();
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                failures.put(shardToQuery.shardIndex, e);
-                onDone.run();
-                maybeNext();
-            }
-
-            private void maybeNext() {
-                var shardToQuery = shards.poll();
-                if (shardToQuery != null) {
-                    executor.execute(
-                        shardTask(
-                            searchService,
-                            request,
-                            task,
-                            shardToQuery,
-                            shardIndex,
-                            shards,
-                            executor,
-                            queryPhaseResultConsumer,
-                            failures,
-                            onDone
-                        )
-                    );
-                }
-            }
-        });
     }
 
     private static AbstractRunnable shardTask(
@@ -1097,21 +1048,58 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
         Map<Integer, Exception> failures,
         Runnable onDone
     ) {
+        final ShardSearchRequest req = buildShardSearchRequest(
+            shardToQuery.shardId,
+            null,
+            shardIndex.getAndIncrement(),
+            shardToQuery.contextId,
+            shardToQuery.originalIndices,
+            request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
+            null,
+            shardToQuery.boost,
+            request.searchRequest,
+            2,
+            System.currentTimeMillis(),
+            false
+        );
         return new AbstractRunnable() {
             @Override
             protected void doRun() {
-                executeOne(
-                    searchService,
-                    request,
-                    task,
-                    shardToQuery,
-                    shardIndex,
-                    shards,
-                    executor,
-                    queryPhaseResultConsumer,
-                    failures,
-                    onDone
-                );
+                searchService.executeQueryPhase(req, task, new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchPhaseResult searchPhaseResult) {
+                        searchPhaseResult.setShardIndex(req.shardRequestIndex());
+                        queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
+                        maybeNext();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        failures.put(req.shardRequestIndex(), e);
+                        onDone.run();
+                        maybeNext();
+                    }
+
+                    private void maybeNext() {
+                        var shardToQuery = shards.poll();
+                        if (shardToQuery != null) {
+                            executor.execute(
+                                shardTask(
+                                    searchService,
+                                    request,
+                                    task,
+                                    shardToQuery,
+                                    shardIndex,
+                                    shards,
+                                    executor,
+                                    queryPhaseResultConsumer,
+                                    failures,
+                                    onDone
+                                )
+                            );
+                        }
+                    }
+                });
             }
 
             @Override
@@ -1123,7 +1111,7 @@ class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearch
             public void onRejection(Exception e) {
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
-                failures.put(shardToQuery.shardIndex, e);
+                failures.put(req.shardRequestIndex(), e);
                 onDone.run();
                 // TODO SO risk!
                 maybeNext();

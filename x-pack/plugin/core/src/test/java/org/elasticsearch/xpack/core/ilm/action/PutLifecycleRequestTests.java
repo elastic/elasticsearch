@@ -146,5 +146,4 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
         );
         return new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
     }
-
 }

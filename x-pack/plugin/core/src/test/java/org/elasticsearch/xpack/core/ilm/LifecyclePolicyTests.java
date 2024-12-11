@@ -8,17 +8,22 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -111,6 +117,32 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
     protected LifecyclePolicy createTestInstance() {
         lifecycleName = randomAlphaOfLength(5);
         return randomTimeseriesLifecyclePolicy(lifecycleName);
+    }
+
+    public void testDeprecatedFreezeActionIsSkipped() throws IOException {
+        String policyJson = """
+            {
+                "phases": {
+                    "cold": {
+                        "min_age": "10s",
+                        "actions": {
+                            "freeze": {}
+                        }
+                    }
+                }
+            }""";
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                new BytesArray(policyJson),
+                XContentType.JSON
+            )
+        ) {
+            LifecyclePolicy policy = LifecyclePolicy.parse(parser, "my-policy");
+            assertThat(policy.getPhases().get("cold").getActions(), anEmptyMap());
+            assertWarnings("Deprecated [freeze] action will not be persisted in the policy.");
+        }
     }
 
     /**

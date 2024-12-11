@@ -79,8 +79,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         DownsampleAction.NAME,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
-        MigrateAction.NAME,
-        FreezeAction.NAME
+        MigrateAction.NAME
     ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -510,7 +511,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     private static Iterator<String> expectedResultsIterator(List<String> input) {
-        return Stream.concat(input.stream().map(String::toUpperCase).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]")).iterator();
+        // The Locale needs to be ROOT to match what the test service is going to respond with
+        return Stream.concat(input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]"))
+            .iterator();
     }
 
     private static String expectedResult(String input) {

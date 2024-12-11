@@ -38,10 +38,12 @@ import java.util.function.Function;
 public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFieldsMapper {
     private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(
+        c -> InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated()) ? INSTANCE : null
+    );
 
     static class FieldType extends InferenceMetadataFieldType {
-        private static FieldType INSTANCE = new FieldType();
+        private static final FieldType INSTANCE = new FieldType();
 
         FieldType() {
             super();

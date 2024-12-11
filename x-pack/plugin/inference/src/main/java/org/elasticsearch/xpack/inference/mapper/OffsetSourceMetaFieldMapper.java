@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -22,13 +23,17 @@ import java.util.Collections;
  * common _offset_source field and Elasticsearch has a custom codec that complains
  * when fields exist in the index and not in mappings.
  */
+// TODO: Need this metafield?
 public class OffsetSourceMetaFieldMapper extends MetadataFieldMapper {
+    private static final OffsetSourceMetaFieldMapper INSTANCE = new OffsetSourceMetaFieldMapper();
 
     public static final String NAME = "_offset_source";
 
     public static final String CONTENT_TYPE = "_offset_source";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new OffsetSourceMetaFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(
+        c -> InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated()) ? INSTANCE : null
+    );
 
     public static final class OffsetSourceMetaFieldType extends MappedFieldType {
 

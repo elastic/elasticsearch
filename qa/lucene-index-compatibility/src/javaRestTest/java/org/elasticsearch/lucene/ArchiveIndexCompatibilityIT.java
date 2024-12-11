@@ -83,9 +83,9 @@ public class ArchiveIndexCompatibilityIT extends AbstractLuceneIndexCompatibilit
     private void addDocuments(RestClient client, String index, int numDocs) throws Exception {
         final var bulks = new StringBuilder();
         IntStream.range(0, numDocs).forEach(n -> bulks.append(Strings.format("""
-                {"index":{"_id":"%s","_index":"%s"}}
-                {"test":"test"}
-                """, n, index)));
+            {"index":{"_id":"%s","_index":"%s"}}
+            {"test":"test"}
+            """, n, index)));
 
         var bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setJsonEntity(bulks.toString());
@@ -97,12 +97,12 @@ public class ArchiveIndexCompatibilityIT extends AbstractLuceneIndexCompatibilit
         var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");
         request.addParameter("wait_for_completion", "true");
         request.setJsonEntity(Strings.format("""
-                {
-                  "indices": "%s",
-                  "include_global_state": false,
-                  "rename_pattern": "(.+)",
-                  "include_aliases": false
-                }""", index));
+            {
+              "indices": "%s",
+              "include_global_state": false,
+              "rename_pattern": "(.+)",
+              "include_aliases": false
+            }""", index));
         createFromResponse(client.performRequest(request));
     }
 

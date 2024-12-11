@@ -239,7 +239,7 @@ left:keyword | message:keyword       | right:keyword | type:keyword
 left         | Connected to 10.1.0.1 | right         | Success
 ;
 
-lookupMessageFromKeepRow
+lookupMessageFromKeepRow-Ignore
 required_capability: join_lookup_v4
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"

@@ -416,7 +416,7 @@ public class PluginsLoader {
         return result;
     }
 
-    static final String toPackageName(String className) {
+    static String toPackageName(String className) {
         assert className.endsWith(".") == false;
         int index = className.lastIndexOf('.');
         if (index == -1) {
@@ -426,11 +426,11 @@ public class PluginsLoader {
     }
 
     @SuppressForbidden(reason = "I need to convert URL's to Paths")
-    static final Path[] urlsToPaths(Set<URL> urls) {
+    static Path[] urlsToPaths(Set<URL> urls) {
         return urls.stream().map(PluginsLoader::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
     }
 
-    static final URI uncheckedToURI(URL url) {
+    static URI uncheckedToURI(URL url) {
         try {
             return url.toURI();
         } catch (URISyntaxException e) {

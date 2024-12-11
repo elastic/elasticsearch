@@ -30,7 +30,12 @@ public class MockGcsBlobStore {
 
     record BlobVersion(String path, long generation, BytesReference contents) {}
 
-    record ResumableUpload(String uploadId, String path, BytesReference contents, boolean completed) {}
+    record ResumableUpload(String uploadId, String path, Long ifGenerationMatch, BytesReference contents, boolean completed) {
+
+        public ResumableUpload update(BytesReference contents, boolean completed) {
+            return new ResumableUpload(uploadId, path, ifGenerationMatch, contents, completed);
+        }
+    }
 
     BlobVersion getBlob(String path, Long ifGenerationMatch) {
         final BlobVersion blob = blobs.get(path);
@@ -78,9 +83,9 @@ public class MockGcsBlobStore {
         });
     }
 
-    ResumableUpload createResumableUpload(String path) {
+    ResumableUpload createResumableUpload(String path, Long ifGenerationMatch) {
         final String uploadId = UUIDs.randomBase64UUID();
-        final ResumableUpload value = new ResumableUpload(uploadId, path, BytesArray.EMPTY, false);
+        final ResumableUpload value = new ResumableUpload(uploadId, path, ifGenerationMatch, BytesArray.EMPTY, false);
         resumableUploads.put(uploadId, value);
         return value;
     }
@@ -132,11 +137,11 @@ public class MockGcsBlobStore {
                 );
                 // We just received the last chunk, update the blob and remove the resumable upload from the map
                 if (contentRange.hasSize() && updatedContent.length() == contentRange.size()) {
-                    updateBlob(existing.path(), null, updatedContent);
+                    updateBlob(existing.path(), existing.ifGenerationMatch, updatedContent);
                     updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
-                    return new ResumableUpload(uploadId, existing.path(), BytesArray.EMPTY, true);
+                    return existing.update(BytesArray.EMPTY, true);
                 }
-                final ResumableUpload updated = new ResumableUpload(existing.uploadId, existing.path, updatedContent, false);
+                final ResumableUpload updated = existing.update(updatedContent, false);
                 updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(updated)));
                 return updated;
             }

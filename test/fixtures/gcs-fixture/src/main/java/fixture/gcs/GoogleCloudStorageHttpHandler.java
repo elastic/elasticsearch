@@ -212,7 +212,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 final String blobName = params.get("name");
-                final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(blobName);
+                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
+                final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(
+                    blobName,
+                    ifGenerationMatch
+                );
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");

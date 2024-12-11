@@ -755,7 +755,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
         try (
             Translog.Snapshot snapshot = leader.getPrimary()
-                .newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())
+                .newChangesSnapshot(
+                    "test",
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                )
         ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
@@ -780,7 +788,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     Long.MAX_VALUE,
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 Translog.Operation op;

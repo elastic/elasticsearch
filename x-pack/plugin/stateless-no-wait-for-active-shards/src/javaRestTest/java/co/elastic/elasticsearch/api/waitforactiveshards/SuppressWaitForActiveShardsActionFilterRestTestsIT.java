@@ -65,7 +65,7 @@ public class SuppressWaitForActiveShardsActionFilterRestTestsIT extends ESRestTe
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).build());
 
-        cluster.stopNode(1, true);
+        cluster.stopNode(0, true);
 
         final var bulkRequest = new Request(HttpMethod.POST.name(), '/' + indexName + "/_bulk");
         bulkRequest.setJsonEntity("""

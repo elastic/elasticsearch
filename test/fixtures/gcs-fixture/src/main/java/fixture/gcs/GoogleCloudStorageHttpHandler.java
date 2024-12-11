@@ -239,10 +239,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
-                final String range = requireHeader(exchange, "Content-Range");
-                final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(range);
+                final String contentRangeValue = requireHeader(exchange, "Content-Range");
+                final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(contentRangeValue);
                 if (contentRange == null) {
-                    throw failAndThrow("Invalid Content-Range: " + range);
+                    throw failAndThrow("Invalid Content-Range: " + contentRangeValue);
                 }
 
                 final MockGcsBlobStore.UpdateResponse updateResponse = mockGcsBlobStore.updateResumableUpload(
@@ -252,7 +252,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 );
 
                 if (updateResponse.rangeHeader() != null) {
-                    exchange.getResponseHeaders().add("Range", range);
+                    exchange.getResponseHeaders().add("Range", updateResponse.rangeHeader().toString());
                 }
                 exchange.getResponseHeaders().add("Content-Length", "0");
                 exchange.sendResponseHeaders(updateResponse.statusCode(), -1);

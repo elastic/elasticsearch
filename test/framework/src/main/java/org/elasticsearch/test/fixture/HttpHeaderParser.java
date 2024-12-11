@@ -107,8 +107,8 @@ public enum HttpHeaderParser {
 
         @Override
         public String toString() {
-            final String rangeString = start == null && end == null ? "*" : start + "-" + end;
-            final String sizeString = size == null ? "*" : String.valueOf(size);
+            final String rangeString = hasRange() ? start + "-" + end : "*";
+            final String sizeString = hasSize() ? String.valueOf(size) : "*";
             return "bytes " + rangeString + "/" + sizeString;
         }
     }

@@ -70,13 +70,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     @Override
     public Settings getAdditionalIndexSettings(
-        String indexName,
-        String dataStreamName,
+        final String indexName,
+        final String dataStreamName,
         IndexMode templateIndexMode,
-        Metadata metadata,
-        Instant resolvedAt,
+        final Metadata metadata,
+        final Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
-        List<CompressedXContent> combinedTemplateMappings
+        final List<CompressedXContent> combinedTemplateMappings
     ) {
         Settings.Builder settingsBuilder = null;
         if (isLogsdbEnabled

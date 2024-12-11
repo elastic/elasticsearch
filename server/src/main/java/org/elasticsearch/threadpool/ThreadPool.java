@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;

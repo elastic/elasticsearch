@@ -3331,7 +3331,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final ShardGeneration indexGeneration;
             final boolean writeShardGens = SnapshotsService.useShardGenerations(context.getRepositoryMetaVersion());
-            final boolean writeFileInfoWriterUUID = true;
+            final boolean writeFileInfoWriterUUID = SnapshotsService.includeFileInfoWriterUUID(context.getRepositoryMetaVersion());
             // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
             final BlobStoreIndexShardSnapshots updatedBlobStoreIndexShardSnapshots = snapshots.withAddedSnapshot(
                 new SnapshotFiles(snapshotId.getName(), indexCommitPointFiles, context.stateIdentifier())

@@ -72,6 +72,7 @@ public class IndexVersions {
     public static final IndexVersion V_7_9_0 = def(7_09_00_99, parseUnchecked("8.6.0"));
     public static final IndexVersion V_7_10_0 = def(7_10_00_99, parseUnchecked("8.7.0"));
     public static final IndexVersion V_7_12_0 = def(7_12_00_99, parseUnchecked("8.8.0"));
+    public static final IndexVersion V_7_15_0 = def(7_15_00_99, parseUnchecked("8.9.0"));
     public static final IndexVersion V_7_16_0 = def(7_16_00_99, parseUnchecked("8.10.1"));
     public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);

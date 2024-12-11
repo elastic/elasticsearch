@@ -31,6 +31,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -484,7 +485,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Returns synthetic field loader for the mapper.
      * If mapper does not support synthetic source, it is handled using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader(SourceFilter)}.
      * <br>
      *
      * This method is final in order to support common use cases like fallback synthetic source.
@@ -492,7 +493,6 @@ public abstract class FieldMapper extends Mapper {
      *
      * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
      */
-    @Override
     public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;

@@ -398,7 +398,11 @@ setup:
 
 ---
 "Test deprecated Freeze action":
+  - requires:
+      test_runner_features: [allowed_warnings, capabilities]
   - do:
+      allowed_warnings:
+        - "Deprecated [freeze] action will not be persisted in the policy."
       ilm.put_lifecycle:
         policy: "my_freeze_lifecycle"
         body: |

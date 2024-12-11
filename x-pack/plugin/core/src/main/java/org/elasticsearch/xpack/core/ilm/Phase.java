@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -50,7 +51,9 @@ public class Phase implements ToXContentObject, Writeable {
         Map<String, LifecycleAction> map = Maps.newMapWithExpectedSize(lifecycleActions.size());
         for (LifecycleAction lifecycleAction : lifecycleActions) {
             if (DEPRECATED_ACTIONS.contains(lifecycleAction.getWriteableName())) {
-                log.info("Deprecated [{}] action will not be persisted in the policy.", lifecycleAction.getWriteableName());
+                HeaderWarning.addWarning(
+                    "Deprecated [" + lifecycleAction.getWriteableName() + "] action will not be persisted in the policy."
+                );
             } else {
                 if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
                     throw new IllegalStateException("Duplicate key");

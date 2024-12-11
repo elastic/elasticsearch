@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Flow;
@@ -142,7 +143,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private StreamingChatCompletionResults makeResults(List<String> input) {
-            var responseIter = input.stream().map(String::toUpperCase).iterator();
+            var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -173,7 +174,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
-            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase()).iterator();
+            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
             return new StreamingUnifiedChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override

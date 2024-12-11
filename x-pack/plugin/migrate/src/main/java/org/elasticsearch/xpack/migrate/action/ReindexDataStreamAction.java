@@ -47,7 +47,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
      * The version before which we do not support writes in the _next_ major version of Elasticsearch. For example, Elasticsearch 10.x will
      * not support writing to indices created before version 9.0.0.
      */
-    private static final IndexVersion MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE = IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
+    private static final IndexVersion MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE = IndexVersions.V_8_0_0;
 
     public ReindexDataStreamAction() {
         super(NAME);

@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 public class MockAction implements LifecycleAction {
     public static final String NAME = "TEST_ACTION";
-    private List<Step> steps;
+    private final List<Step> steps;
 
     private static final ObjectParser<MockAction, Void> PARSER = new ObjectParser<>(NAME, MockAction::new);
     private final boolean safe;

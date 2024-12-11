@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -150,7 +149,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         ).stream()
             // Remove the frozen phase, we'll randomly re-add it later
             .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
-            .collect(Collectors.toList());
+            .toList();
 
         // let's order the phases so we can reason about actions in a previous phase in order to generate a random *valid* policy
         List<String> orderedPhases = new ArrayList<>(phaseNames.size());
@@ -300,7 +299,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                     () -> randomFrom(
                         TimeseriesLifecycleType.ORDERED_VALID_PHASES.stream()
                             .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
-                            .collect(Collectors.toList())
+                            .toList()
                     )
                 );
                 phases = new LinkedHashMap<>(phases);

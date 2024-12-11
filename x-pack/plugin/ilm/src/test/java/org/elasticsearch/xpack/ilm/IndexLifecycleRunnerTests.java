@@ -89,7 +89,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
@@ -248,7 +247,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<Step> waitForRolloverStepList = action.toSteps(client, phaseName, null)
             .stream()
             .filter(s -> s.getKey().name().equals(WaitForRolloverReadyStep.NAME))
-            .collect(toList());
+            .toList();
         assertThat(waitForRolloverStepList.size(), is(1));
         Step waitForRolloverStep = waitForRolloverStepList.get(0);
         StepKey stepKey = waitForRolloverStep.getKey();

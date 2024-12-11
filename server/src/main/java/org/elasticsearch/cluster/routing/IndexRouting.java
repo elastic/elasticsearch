@@ -167,7 +167,8 @@ public abstract class IndexRouting {
 
         @Override
         public void preProcess(IndexRequest indexRequest) {
-            // generate id if not already provided
+            // Generate id if not already provided.
+            // This is needed for routing, so it has to happen in pre-processing.
             final String id = indexRequest.id();
             if (id == null) {
                 if (shouldUseTimeBasedId(indexMode, creationVersion)) {
@@ -299,6 +300,8 @@ public abstract class IndexRouting {
 
         @Override
         public void postProcess(IndexRequest indexRequest) {
+            // Update the request with the routing hash, if needed.
+            // This needs to happen in post-processing, after the routing hash is calculated.
             if (trackTimeSeriesRoutingHash) {
                 indexRequest.routing(TimeSeriesRoutingHashFieldMapper.encode(hash));
             } else if (addIdWithRoutingHash) {

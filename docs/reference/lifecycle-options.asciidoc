@@ -1,0 +1,21 @@
+The data you store in {es} generally falls into one of two categories:
+
+* *Content*: a collection of items you want to search, such as a catalog of products
+* *Time series data*: a stream of continuously-generated timestamped data, such as log entries
+
+*Content* might be frequently updated,
+but the value of the content remains relatively constant over time.
+You want to be able to retrieve items quickly regardless of how old they are.
+
+*Time series data* keeps accumulating over time, so you need strategies for
+balancing the value of the data against the cost of storing it.
+As it ages, it tends to become less important and less-frequently accessed,
+so you can move it to less expensive, less performant hardware.
+For your oldest data, what matters is that you have access to the data.
+It's ok if queries take longer to complete.
+
+To help you manage your data, {es} offers you the following options:
+
+* <<index-lifecycle-management, {ilm-cap}>>
+* <<data-stream-lifecycle, Data stream lifecycle>>
+* {curator-ref-current}/about.html[Elastic Curator]

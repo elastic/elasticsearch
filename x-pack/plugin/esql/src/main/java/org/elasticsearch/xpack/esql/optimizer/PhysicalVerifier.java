@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -31,10 +33,14 @@ public final class PhysicalVerifier {
     /** Verifies the physical plan. */
     public Collection<Failure> verify(PhysicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
+        Failures depFailures = new Failures();
 
         plan.forEachDown(p -> {
-            // FIXME: re-enable
-            // DEPENDENCY_CHECK.checkPlan(p, failures);
+            if (p instanceof AggregateExec agg) {
+                var exclude = Expressions.references(agg.ordinalAttributes());
+                DEPENDENCY_CHECK.checkPlan(p, exclude, depFailures);
+                return;
+            }
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {
@@ -48,7 +54,12 @@ public final class PhysicalVerifier {
                     );
                 }
             }
+            DEPENDENCY_CHECK.checkPlan(p, depFailures);
         });
+
+        if (depFailures.hasFailures()) {
+            throw new IllegalStateException(depFailures.toString());
+        }
 
         return failures;
     }

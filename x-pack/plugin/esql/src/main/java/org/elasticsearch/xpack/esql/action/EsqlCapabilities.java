@@ -560,7 +560,12 @@ public class EsqlCapabilities {
         /**
          * Term function
          */
-        TERM_FUNCTION(Build.current().isSnapshot());
+        TERM_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES;
 
         private final boolean enabled;
 

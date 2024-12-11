@@ -97,7 +97,7 @@ public class MockGcsBlobStore {
             if (existing == null) {
                 throw failAndThrow("Attempted to update a non-existent resumable: " + uid);
             }
-            if (contentRange.start() >= contentRange.end()) {
+            if (contentRange.start() > contentRange.end()) {
                 throw failAndThrow("Invalid content range " + contentRange);
             }
             if (contentRange.start() > existing.contents.length()) {
@@ -108,7 +108,7 @@ public class MockGcsBlobStore {
                         + contentRange.start()
                 );
             }
-            if (contentRange.end() <= existing.contents.length()) {
+            if (contentRange.end() < existing.contents.length()) {
                 throw failAndThrow("Attempted to upload no new data");
             }
             final int offset = Math.toIntExact(existing.contents.length() - contentRange.start());

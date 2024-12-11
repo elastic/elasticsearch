@@ -247,7 +247,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     requestBody
                 );
 
-                if (appliedRange.end() != contentRange.end()) {
+                if (appliedRange.end() != contentRange.size() - 1) {
                     exchange.getResponseHeaders().add("Range", range);
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);

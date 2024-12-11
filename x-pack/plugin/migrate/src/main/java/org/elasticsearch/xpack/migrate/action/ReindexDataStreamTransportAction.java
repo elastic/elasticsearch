@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDat
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.TASK_ID_PREFIX;
+
 /*
  * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation
  *  of the persistent task, it responds with the persistent task id so that the user can monitor the persistent task.
@@ -87,6 +89,6 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     }
 
     private String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
-        return "reindex-data-stream-" + dataStreamName;
+        return TASK_ID_PREFIX + dataStreamName;
     }
 }

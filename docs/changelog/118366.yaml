@@ -1,0 +1,12 @@
+pr: 118366
+summary: Prevent boot if bind DN is set without password
+area: Authentication
+type: breaking
+issues: []
+breaking:
+  title: Prevent boot if bind DN is set without password
+  area: Authentication
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

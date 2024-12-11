@@ -621,7 +621,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testFailureStoreFromTemplateResolution() {
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(
                 Map.of(
                     "my-index-template",
@@ -646,10 +646,10 @@ public class TransportBulkActionTests extends ESTestCase {
                 )
             )
             .build();
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-index", metadata), nullValue());
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-enabled-fs", metadata), equalTo(true));
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-disabled-fs", metadata), equalTo(false));
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-no-fs", metadata), equalTo(false));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-index", projectMetadata), nullValue());
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-enabled-fs", projectMetadata), equalTo(true));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-disabled-fs", projectMetadata), equalTo(false));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-no-fs", projectMetadata), equalTo(false));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

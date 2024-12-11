@@ -348,7 +348,7 @@ public class MetadataIndexTemplateService {
                         composableTemplate,
                         globalRetentionSettings.get()
                     );
-                    validateDataStreamOptions(tempStateWithComponentTemplateAdded.metadata(), composableTemplateName, composableTemplate);
+                    validateDataStreamOptions(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
                     validateIndexTemplateV2(
                         tempProjectWithComponentTemplateAdded,
                         projectState.cluster().getMinTransportVersion(),
@@ -741,7 +741,7 @@ public class MetadataIndexTemplateService {
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
         validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get());
-        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
+        validateDataStreamOptions(projectMetadata, name, templateToValidate);
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, projectMetadata.componentTemplates());
@@ -844,8 +844,11 @@ public class MetadataIndexTemplateService {
     }
 
     // Visible for testing
-    static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
-        ResettableValue<DataStreamOptions.Template> dataStreamOptions = resolveDataStreamOptions(template, metadata.componentTemplates());
+    static void validateDataStreamOptions(ProjectMetadata projectMetadata, String indexTemplateName, ComposableIndexTemplate template) {
+        ResettableValue<DataStreamOptions.Template> dataStreamOptions = resolveDataStreamOptions(
+            template,
+            projectMetadata.componentTemplates()
+        );
         if (dataStreamOptions.get() != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(
@@ -1721,14 +1724,17 @@ public class MetadataIndexTemplateService {
     /**
      * Resolve the given v2 template into a {@link ResettableValue<DataStreamOptions>} object
      */
-    public static ResettableValue<DataStreamOptions.Template> resolveDataStreamOptions(final Metadata metadata, final String templateName) {
-        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+    public static ResettableValue<DataStreamOptions.Template> resolveDataStreamOptions(
+        final ProjectMetadata projectMetadata,
+        final String templateName
+    ) {
+        final ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve data stream options for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return ResettableValue.undefined();
         }
-        return resolveDataStreamOptions(template, metadata.componentTemplates());
+        return resolveDataStreamOptions(template, projectMetadata.componentTemplates());
     }
 
     /**

@@ -358,7 +358,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             mergedMapping,
             aliasesByName,
             lifecycle,
-            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+            resolveDataStreamOptions(simulatedState.metadata().getProject(), matchingTemplate)
         );
     }
 

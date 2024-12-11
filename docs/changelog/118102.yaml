@@ -1,5 +1,5 @@
 pr: 118102
-summary: ESQL: Enterprise license enforcement for CCS
+summary: "ESQL: Enterprise license enforcement for CCS"
 area: ES|QL
 type: enhancement
 issues: []

@@ -745,20 +745,6 @@ public final class IndexSettings {
     );
 
     /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
-     */
-    @Deprecated
-    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING = Setting.intSetting(
-        "index.max_adjacency_matrix_filters",
-        100,
-        2,
-        Property.Dynamic,
-        Property.IndexScope,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
-    );
-
-    /**
      * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
      * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
      * This setting is useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.

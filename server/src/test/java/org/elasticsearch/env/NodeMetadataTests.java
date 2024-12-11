@@ -12,7 +12,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -153,11 +152,9 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "Needs to be updated for 9.0 version bump")
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_9_0_0);
         final BuildVersion buildVersion = BuildVersion.fromVersionId(version.id());
 
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, buildVersion, IndexVersion.current()).upgradeToCurrentVersion();

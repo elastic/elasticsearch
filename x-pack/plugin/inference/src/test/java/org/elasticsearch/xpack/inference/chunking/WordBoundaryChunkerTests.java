@@ -72,10 +72,6 @@ public class WordBoundaryChunkerTests extends ESTestCase {
      * Use the chunk functions that return offsets where possible
      */
     List<String> textChunks(WordBoundaryChunker chunker, String input, int chunkSize, int overlap) {
-        if (input.isEmpty()) {
-            return List.of("");
-        }
-
         var chunkPositions = chunker.chunk(input, chunkSize, overlap);
         return chunkPositions.stream().map(p -> input.substring(p.start(), p.end())).collect(Collectors.toList());
     }
@@ -242,31 +238,31 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testBlankString() {
-        var chunks = new WordBoundaryChunker().chunk("   ", 100, 10);
+        var chunks = textChunks(new WordBoundaryChunker(), "   ", 100, 10);
         assertThat(chunks, hasSize(1));
         assertThat(chunks.get(0), Matchers.is("   "));
     }
 
     public void testSingleChar() {
-        var chunks = new WordBoundaryChunker().chunk("   b", 100, 10);
+        var chunks = textChunks(new WordBoundaryChunker(), "   b", 100, 10);
         assertThat(chunks, Matchers.contains("   b"));
 
-        chunks = new WordBoundaryChunker().chunk("b", 100, 10);
+        chunks = textChunks(new WordBoundaryChunker(), "b", 100, 10);
         assertThat(chunks, Matchers.contains("b"));
 
-        chunks = new WordBoundaryChunker().chunk(". ", 100, 10);
+        chunks = textChunks(new WordBoundaryChunker(), ". ", 100, 10);
         assertThat(chunks, Matchers.contains(". "));
 
-        chunks = new WordBoundaryChunker().chunk(" , ", 100, 10);
+        chunks = textChunks(new WordBoundaryChunker(), " , ", 100, 10);
         assertThat(chunks, Matchers.contains(" , "));
 
-        chunks = new WordBoundaryChunker().chunk(" ,", 100, 10);
+        chunks = textChunks(new WordBoundaryChunker(), " ,", 100, 10);
         assertThat(chunks, Matchers.contains(" ,"));
     }
 
     public void testSingleCharRepeated() {
         var input = "a".repeat(32_000);
-        var chunks = new WordBoundaryChunker().chunk(input, 100, 10);
+        var chunks = textChunks(new WordBoundaryChunker(), input, 100, 10);
         assertThat(chunks, Matchers.contains(input));
     }
 

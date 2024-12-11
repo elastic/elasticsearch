@@ -315,7 +315,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
-        verify(fileSettingsService, times(1)).onProcessFileChangesException(
+        verify(fileSettingsService).onProcessFileChangesException(
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
 

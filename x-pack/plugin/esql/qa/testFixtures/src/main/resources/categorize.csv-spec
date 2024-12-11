@@ -680,7 +680,6 @@ count:long | category:keyword | client_ip:ip
          4 | null             | 172.21.3.15
 ;
 
-
 multiple groupings with categorize and the same text field
 required_capability: categorize_multiple_groupings
 
@@ -695,4 +694,50 @@ count:long | category:keyword         | message:keyword
          1 | .*?Connected.+?to.*?     | Connected to 10.1.0.3
          3 | .*?Connection.+?error.*? | Connection error
          1 | .*?Disconnected.*?       | Disconnected
+;
+
+multiple additional complex groupings with categorize
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT(), duration=SUM(event_duration) BY category=CATEGORIZE(message), SUBSTRING(message, 1, 7), ip_part=TO_LONG(SUBSTRING(TO_STRING(client_ip), 8, 1)), hour=BUCKET(@timestamp, 1 HOUR)
+  | SORT ip_part, category
+;
+
+count:long | duration:long | category:keyword         | SUBSTRING(message, 1, 7):keyword | ip_part:long | hour:datetime
+         1 | 1232382       | .*?Disconnected.*?       | Disconn                          | 0            | 2023-10-23T13:00:00.000Z
+         2 | 6215122       | .*?Connected.+?to.*?     | Connect                          | 2            | 2023-10-23T12:00:00.000Z
+         1 | 1756467       | .*?Connected.+?to.*?     | Connect                          | 3            | 2023-10-23T13:00:00.000Z
+         3 | 14027356      | .*?Connection.+?error.*? | Connect                          | 3            | 2023-10-23T13:00:00.000Z
+;
+
+multiple groupings with categorize and some constants including null
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=MV_COUNT(VALUES(message)) BY category=CATEGORIZE(message), null, constant="constant"
+  | SORT category
+;
+
+count:integer | category:keyword         | null:null | constant:keyword
+            3 | .*?Connected.+?to.*?     | null      | constant
+            1 | .*?Connection.+?error.*? | null      | constant
+            1 | .*?Disconnected.*?       | null      | constant
+;
+
+multiple groupings with categorize and aggregation filters
+required_capability: categorize_multiple_groupings
+
+FROM employees
+  | STATS lang_low=AVG(languages) WHERE salary<=50000, lang_high=AVG(languages) WHERE salary>50000 BY category=CATEGORIZE(job_positions), gender
+  | SORT category, gender
+  | LIMIT 5
+;
+
+lang_low:double | lang_high:double | category:keyword  | gender:keyword
+            2.0 |              5.0 | .*?Accountant.*?  | F
+            3.0 |              2.5 | .*?Accountant.*?  | M
+            5.0 |              2.0 | .*?Accountant.*?  | null
+            3.0 |             3.25 | .*?Architect.*?   | F
+           3.75 |             null | .*?Architect.*?   | M
 ;

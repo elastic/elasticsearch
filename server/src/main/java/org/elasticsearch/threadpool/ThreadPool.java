@@ -941,7 +941,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         public Info(StreamInput in) throws IOException {
             name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
+            String typeAsString = in.readString();
+            if ("fixed_auto_queue_size".equals(typeAsString) || "direct".equals(typeAsString)) {
+                type = ThreadPoolType.FIXED;
+            } else {
+                type = ThreadPoolType.fromType(typeAsString);
+            }
+
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();

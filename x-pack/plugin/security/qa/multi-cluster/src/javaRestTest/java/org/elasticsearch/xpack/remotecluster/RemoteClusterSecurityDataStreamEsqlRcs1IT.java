@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -183,15 +184,15 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
         return settings.build();
     }
 
-    static void createDataStreamOnFulfillingCluster() throws IOException {
-        createDataStreamPolicy();
-        createDataStreamComponentTemplate();
-        createDataStreamIndexTemplate();
-        createDataStreamDocuments();
-        createDataStreamAlias();
+    static void createDataStreamOnFulfillingCluster() throws Exception {
+        createDataStreamPolicy(AbstractRemoteClusterSecurityTestCase::performRequestAgainstFulfillingCluster);
+        createDataStreamComponentTemplate(AbstractRemoteClusterSecurityTestCase::performRequestAgainstFulfillingCluster);
+        createDataStreamIndexTemplate(AbstractRemoteClusterSecurityTestCase::performRequestAgainstFulfillingCluster);
+        createDataStreamDocuments(AbstractRemoteClusterSecurityTestCase::performRequestAgainstFulfillingCluster);
+        createDataStreamAlias(AbstractRemoteClusterSecurityTestCase::performRequestAgainstFulfillingCluster);
     }
 
-    private static void createDataStreamPolicy() throws IOException {
+    private static void createDataStreamPolicy(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
         Request request = new Request("PUT", "_ilm/policy/my-lifecycle-policy");
         request.setJsonEntity("""
             {
@@ -214,10 +215,10 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
               }
             }""");
 
-        performRequestAgainstFulfillingCluster(request);
+        requestConsumer.apply(request);
     }
 
-    private static void createDataStreamComponentTemplate() throws IOException {
+    private static void createDataStreamComponentTemplate(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
         Request request = new Request("PUT", "_component_template/my-template");
         request.setJsonEntity("""
             {
@@ -241,10 +242,10 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
                    }
                 }
             }""");
-        performRequestAgainstFulfillingCluster(request);
+        requestConsumer.apply(request);
     }
 
-    private static void createDataStreamIndexTemplate() throws IOException {
+    private static void createDataStreamIndexTemplate(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
         Request request = new Request("PUT", "_index_template/my-index-template");
         request.setJsonEntity("""
             {
@@ -253,10 +254,10 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
                 "composed_of": ["my-template"],
                 "priority": 500
             }""");
-        performRequestAgainstFulfillingCluster(request);
+        requestConsumer.apply(request);
     }
 
-    private static void createDataStreamDocuments() throws IOException {
+    private static void createDataStreamDocuments(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
         Request request = new Request("POST", "logs-foo/_bulk");
         request.addParameter("refresh", "");
         request.setJsonEntity("""
@@ -265,10 +266,10 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
             { "create" : {} }
             { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17", "environment": "prod"} }
             """);
-        assertMap(entityAsMap(performRequestAgainstFulfillingCluster(request)), matchesMap().extraOk().entry("errors", false));
+        assertMap(entityAsMap(requestConsumer.apply(request)), matchesMap().extraOk().entry("errors", false));
     }
 
-    private static void createDataStreamAlias() throws IOException {
+    private static void createDataStreamAlias(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
         Request request = new Request("PUT", "_alias");
         request.setJsonEntity("""
             {
@@ -281,7 +282,7 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
                 }
               ]
             }""");
-        assertMap(entityAsMap(performRequestAgainstFulfillingCluster(request)), matchesMap().extraOk().entry("errors", false));
+        assertMap(entityAsMap(requestConsumer.apply(request)), matchesMap().extraOk().entry("errors", false));
     }
 
     static void doTestDataStreamsWithFlsAndDls() throws IOException {

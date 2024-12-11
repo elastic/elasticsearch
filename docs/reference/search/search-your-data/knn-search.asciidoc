@@ -1074,12 +1074,13 @@ the global top `k` matches across shards. You cannot set the
 ==== Oversampling and rescoring for quantized vectors
 
 When using <<dense-vector-quantization,quantized vectors>> for kNN search, you can optionally rescore results to balance performance and accuracy, by doing:
-* Oversampling: Retrieve more candidates per shard using approximate kNN
-* Rescoring: Use the original vector values for re-calculating the score on the oversampled candidates.
+
+* *Oversampling*: Retrieve more candidates per shard.
+* *Rescoring*: Use the original vector values for re-calculating the score on the oversampled candidates.
 
 As the non-quantized, original vectors are used to calculate the final score on the top results, rescoring combines:
 
-* The performance and memory gains of approximate retrieval using quantized vectors on the top candidates.
+* The performance and memory gains of approximate retrieval using quantized vectors for retrieving the top candidates.
 * The accuracy of using the original vectors for rescoring the top candidates.
 
 All forms of quantization will result in some accuracy loss and as the quantization level increases the accuracy loss will also increase.
@@ -1097,17 +1098,15 @@ There are three main ways to oversample and rescore:
 
 [discrete]
 [[dense-vector-knn-search-reranking-rescore-parameter]]
-===== Use the `rescore` option to rescore per shard
+===== Use the `rescore_vector` option to rescore per shard
 
 preview:[]
 
-You can use the `rescore` option to automatically perform reranking.
-When a rescore `oversample` parameter is specified, the approximate kNN search will retrieve the top `k * oversample` candidates per shard.
+You can use the `rescore_vector` option to automatically perform reranking.
+When a rescore `num_candidates_factor` parameter is specified, the approximate kNN search will retrieve the top `num_candidates * oversample` candidates per shard.
 It will then use the original vectors to rescore them, and return the top `k` results.
 
-`num_candidates` will not be affected by oversample, besides ensuring that there are at least `k * oversample` candidates per shard.
-
-Here is an example of using the `rescore` option with the `oversample` parameter:
+Here is an example of using the `rescore_vector` option with the `num_candidates_factor` parameter:
 
 [source,console]
 ----
@@ -1118,8 +1117,8 @@ POST image-index/_search
     "query_vector": [-5, 9, -12],
     "k": 10,
     "num_candidates": 100,
-    "rescore": {
-      "oversample": 2.0
+    "rescore_vector": {
+      "num_candidates_factor": 2.0
     }
   },
   "fields": [ "title", "file-type" ]
@@ -1130,18 +1129,19 @@ POST image-index/_search
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
 This example will:
-* Search using approximate kNN with `num_candidates` set to 100.
-* Rescore the top 20 (`k * oversample`) candidates per shard using the original vectors.
-* Return the top 10 (`k`) results from the rescored candidates.
+
+* Search using approximate kNN with `num_candidates` set to 200 (`num_candidates` * `num_candidates_factor`).
+* Rescore the top 200 candidates per shard using the original, non quantized vectors.
+* Merge the rescored canddidates from all shards, and return the top 10 (`k`) results.
 
 
 [discrete]
 [[dense-vector-knn-search-reranking-rescore-section]]
-===== Use the `rescore` section for top-level kNN search
+===== Use the `rescore_vector` section for top-level kNN search
 
 You can use the <<rescore, rescore section>> in the `_search` request to rescore the top results from a kNN search.
 
-Here is an example using the top level `knn` search with oversampling and using `rescore` to rerank the results:
+Here is an example using the top level `knn` search with oversampling and using `rescore_vector` to rerank the results:
 
 [source,console]
 --------------------------------------------------

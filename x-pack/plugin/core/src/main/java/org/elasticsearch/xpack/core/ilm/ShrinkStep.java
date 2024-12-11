@@ -30,8 +30,8 @@ public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
     private static final Logger logger = LogManager.getLogger(ShrinkStep.class);
 
-    private Integer numberOfShards;
-    private ByteSizeValue maxPrimaryShardSize;
+    private final Integer numberOfShards;
+    private final ByteSizeValue maxPrimaryShardSize;
 
     public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards, ByteSizeValue maxPrimaryShardSize) {
         super(key, nextStepKey, client);

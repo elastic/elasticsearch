@@ -172,7 +172,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             if (settings.hasValue(CACHE_SIZE_SETTING_NAME)) {
                 throw new IllegalArgumentException(
                     Strings.format(
-                        "Both [{}] and [{}] are set, please use [{}]",
+                        "Both [%s] and [%s] are set, please use [%s]",
                         CACHE_SIZE_SETTING_NAME,
                         CACHE_SIZE_SETTING_BWC_NAME,
                         CACHE_SIZE_SETTING_NAME

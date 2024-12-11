@@ -561,6 +561,18 @@ ct:long | yr:date_nanos
 8       | 2023-01-01T00:00:00.000000000Z 
 ;
 
+Bucket Date nanos by Year, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW());
+
+ct:long | yr:date_nanos
+8       | 2023-01-01T00:00:00.000000000Z 
+;
+
 Bucket Date nanos by Month
 required_capability: date_trunc_date_nanos
 required_capability: date_nanos_bucket
@@ -573,6 +585,29 @@ ct:long | mo:date_nanos
 8       | 2023-10-01T00:00:00.000000000Z 
 ;
 
+Bucket Date nanos by Month, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31");
+
+ct:long | mo:date_nanos
+8       | 2023-10-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Week, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31");
+
+ct:long | mo:date_nanos
+8       | 2023-10-23T00:00:00.000000000Z 
+;
 Bucket Date nanos by 10 minutes
 required_capability: date_trunc_date_nanos
 required_capability: date_nanos_bucket

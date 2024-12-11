@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,8 +79,63 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         } else if (child instanceof OrderBy orderBy) {
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
+        } else if (child instanceof Join join) {
+            return pushDownPastJoin(filter, join);
         }
         // cannot push past a Limit, this could change the tailing result set returned
+        return plan;
+    }
+
+    private record ScopedFilter(List<Expression> leftFilters, List<Expression> rightFilters, List<Expression> commonFilters) {}
+
+    // split the filter condition in 3 parts:
+    // 1. filter scoped to the left
+    // 2. filter scoped to the right
+    // 3. filter that requires both sides to be evaluated
+    private static ScopedFilter scopeFilter(List<Expression> filters, LogicalPlan left, LogicalPlan right) {
+        List<Expression> rest = new ArrayList<>(filters);
+        List<Expression> leftFilters = new ArrayList<>();
+        List<Expression> rightFilters = new ArrayList<>();
+
+        AttributeSet leftOutput = left.outputSet();
+        AttributeSet rightOutput = right.outputSet();
+
+        // first remove things that left scoped only
+        rest.removeIf(f -> f.references().subsetOf(leftOutput) && leftFilters.add(f));
+        // followed by right scoped only
+        rest.removeIf(f -> f.references().subsetOf(rightOutput) && rightFilters.add(f));
+        return new ScopedFilter(leftFilters, rightFilters, rest);
+    }
+
+    private static LogicalPlan pushDownPastJoin(Filter filter, Join join) {
+        LogicalPlan plan = filter;
+        // pushdown only through LEFT joins
+        // TODO: generalize this for other join types
+        if (join.config().type() == JoinTypes.LEFT) {
+            LogicalPlan left = join.left();
+            LogicalPlan right = join.right();
+
+            // split the filter condition in 3 parts:
+            // 1. filter scoped to the left
+            // 2. filter scoped to the right
+            // 3. filter that requires both sides to be evaluated
+            ScopedFilter scoped = scopeFilter(Predicates.splitAnd(filter.condition()), left, right);
+            // push the left scoped filter down to the left child, keep the rest intact
+            if (scoped.leftFilters.size() > 0) {
+                // push the filter down to the left child
+                left = new Filter(left.source(), left, Predicates.combineAnd(scoped.leftFilters));
+                // update the join with the new left child
+                join = (Join) join.replaceLeft(left);
+
+                // keep the remaining filters in place, otherwise return the new join
+                if (scoped.commonFilters.size() > 0 || scoped.rightFilters.size() > 0) {
+                    plan = filter.with(join, Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters, scoped.rightFilters)));
+                } else {
+                    plan = join;
+                }
+            }
+        }
+        // ignore the rest of the join
         return plan;
     }
 

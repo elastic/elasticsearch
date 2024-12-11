@@ -5695,7 +5695,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int""";
+            | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
@@ -5775,7 +5775,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | STATS MIN(emp_no) BY name""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
@@ -5843,6 +5843,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 .item(containsString("name"))
         );
     }
+
+    //
+    // Lookup JOIN
+    //
+    public void testLookupJoinPushDown() {
+        String query = """
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP JOIN int_number_names ON int
+            | WHERE int > 10
+            """;
+        var plan = optimizedPlan(query);
+        System.out.println(plan);
+    }
+
+    //
+    //
+    //
 
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());

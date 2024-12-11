@@ -472,7 +472,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
             var expectedResponses = Stream.concat(
-                input.stream().map(String::toUpperCase).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
+                input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
                 Stream.of("[DONE]")
             ).iterator();
             assertThat(events.size(), equalTo((input.size() + 1) * 2));

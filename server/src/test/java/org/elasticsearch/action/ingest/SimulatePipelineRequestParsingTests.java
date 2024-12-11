@@ -342,7 +342,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             requestContent,
             false,
             ingestService,
-            RestApiVersion.V_7
+            RestApiVersion.V_8
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));

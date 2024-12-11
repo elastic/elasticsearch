@@ -18,7 +18,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -40,7 +39,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
@@ -61,6 +59,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
+
+    public static final String RECOVERY_SOURCE_SIZE_NAME = "_recovery_source_size";
 
     public static final String CONTENT_TYPE = "_source";
 
@@ -310,17 +310,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
             onOrAfterDeprecateModeVersion(c.indexVersionCreated()) == false
         )
-    ) {
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
-            throws MapperParsingException {
-            assert name.equals(SourceFieldMapper.NAME) : name;
-            if (onOrAfterDeprecateModeVersion(parserContext.indexVersionCreated()) && node.containsKey("mode")) {
-                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
-            }
-            return super.parse(name, node, parserContext);
-        }
-    };
+    );
 
     static final class SourceFieldType extends MappedFieldType {
         private final boolean enabled;
@@ -337,7 +327,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -425,8 +415,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
-            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+                assert isSynthetic() : "recovery source should not be disabled on non-synthetic source";
+                /**
+                 * We use synthetic source for recovery, so we omit the recovery source.
+                 * Instead, we record only the size of the uncompressed source.
+                 * This size is used in {@link LuceneSyntheticSourceChangesSnapshot} to control memory
+                 * usage during the recovery process when loading a batch of synthetic sources.
+                 */
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, ref.length));
+            } else {
+                context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            }
         }
     }
 
@@ -453,16 +454,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
     }
 
-    /**
-     * Build something to load source {@code _source}.
-     */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
-        if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
-        }
-        return SourceLoader.FROM_STORED_SOURCE;
-    }
-
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
     }
@@ -484,8 +475,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     public static boolean onOrAfterDeprecateModeVersion(IndexVersion version) {
-        return version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER);
-        // Adjust versions after backporting.
-        // || version.between(IndexVersions.BACKPORT_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        return version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
+            || version.between(IndexVersions.V8_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 }

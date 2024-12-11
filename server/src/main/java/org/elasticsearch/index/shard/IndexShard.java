@@ -345,8 +345,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
+        var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
-            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats),
+            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
         this.bulkOperationListener = new ShardBulkStats();
@@ -2274,8 +2275,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
         final MappedFieldType mappedFieldType = mapperService().fieldType(fieldName);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
-            return ShardLongFieldRange.UNKNOWN; // field missing or not a date
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
+            return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
         if (mappedFieldType.isIndexed() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
@@ -2599,7 +2600,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         return getEngine().countChanges(source, fromSeqNo, toSeqNo);
@@ -2618,6 +2619,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param singleConsumer    true if the snapshot is accessed by only the thread that creates the snapshot. In this case, the
      *                          snapshot can enable some optimizations to improve the performance.
      * @param accessStats       true if the stats of the snapshot is accessed via {@link Translog.Snapshot#totalOperations()}
+     * @param maxChunkSize      The maximum allowable size, in bytes, for buffering source documents during recovery.
      */
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -2625,9 +2627,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, maxChunkSize);
     }
 
     public List<Segment> segments() {

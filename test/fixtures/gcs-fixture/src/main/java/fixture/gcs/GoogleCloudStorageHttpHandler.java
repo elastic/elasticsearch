@@ -24,6 +24,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -57,8 +58,6 @@ import static org.elasticsearch.core.Strings.format;
 public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
-
-    private static final Pattern RANGE_MATCHER = Pattern.compile("bytes=([0-9]*)-([0-9]*)");
 
     private final ConcurrentMap<String, BytesReference> blobs;
     private final String bucket;
@@ -131,19 +130,19 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Download Object https://cloud.google.com/storage/docs/request-body
                 BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
-                    final String range = exchange.getRequestHeaders().getFirst("Range");
+                    final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                     final long offset;
                     final long end;
-                    if (range == null) {
+                    if (rangeHeader == null) {
                         offset = 0L;
                         end = blob.length() - 1;
                     } else {
-                        Matcher matcher = RANGE_MATCHER.matcher(range);
-                        if (matcher.find() == false) {
-                            throw new AssertionError("Range bytes header does not match expected format: " + range);
+                        final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                        if (range == null) {
+                            throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
-                        offset = Long.parseLong(matcher.group(1));
-                        end = Long.parseLong(matcher.group(2));
+                        offset = range.start();
+                        end = range.end();
                     }
 
                     if (offset >= blob.length()) {

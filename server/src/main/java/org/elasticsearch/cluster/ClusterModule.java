@@ -139,7 +139,7 @@ public class ClusterModule extends AbstractModule {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        var nodeAllocationStatsProvider = new NodeAllocationStatsProvider(writeLoadForecaster);
+        var nodeAllocationStatsProvider = new NodeAllocationStatsProvider(writeLoadForecaster, clusterService.getClusterSettings());
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),

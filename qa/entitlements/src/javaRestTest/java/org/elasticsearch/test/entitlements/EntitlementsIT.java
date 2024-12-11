@@ -39,4 +39,11 @@ public class EntitlementsIT extends ESRestTestCase {
         );
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
+
+    public void testCheckCreateURLClassLoader() {
+        var exception = expectThrows(IOException.class, () -> {
+            client().performRequest(new Request("GET", "/_entitlement/_check_create_url_classloader"));
+        });
+        assertThat(exception.getMessage(), containsString("not_entitled_exception"));
+    }
 }

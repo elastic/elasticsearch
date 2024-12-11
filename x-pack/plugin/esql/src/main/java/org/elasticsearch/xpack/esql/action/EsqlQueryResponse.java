@@ -113,7 +113,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         }
         return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
@@ -132,7 +132,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(executionInfo);
         }
     }
@@ -196,8 +196,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 }
                 b.field("is_running", isRunning);
             }
-            if (executionInfo != null && executionInfo.overallTook() != null) {
-                b.field("took", executionInfo.overallTook().millis());
+            if (executionInfo != null) {
+                long tookInMillis = executionInfo.overallTook() == null
+                    ? executionInfo.tookSoFar().millis()
+                    : executionInfo.overallTook().millis();
+                b.field("took", tookInMillis);
             }
             if (dropNullColumns) {
                 b.append(ResponseXContentUtils.allColumns(columns, "all_columns"))

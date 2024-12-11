@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -117,8 +118,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -265,7 +271,9 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },
+            new FunctionDefinition[] {
+                def(Bucket.class, Bucket::new, "bucket", "bin"),
+                def(Categorize.class, Categorize::new, "categorize") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -349,6 +357,11 @@ public class EsqlFunctionRegistry {
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
                 def(StDistance.class, StDistance::new, "st_distance"),
+                def(StEnvelope.class, StEnvelope::new, "st_envelope"),
+                def(StXMax.class, StXMax::new, "st_xmax"),
+                def(StXMin.class, StXMin::new, "st_xmin"),
+                def(StYMax.class, StYMax::new, "st_ymax"),
+                def(StYMin.class, StYMin::new, "st_ymin"),
                 def(StX.class, StX::new, "st_x"),
                 def(StY.class, StY::new, "st_y") },
             // conditional
@@ -411,9 +424,9 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(Categorize.class, Categorize::new, "categorize"),
                 def(Kql.class, Kql::new, "kql"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
+                def(Term.class, Term::new, "term") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

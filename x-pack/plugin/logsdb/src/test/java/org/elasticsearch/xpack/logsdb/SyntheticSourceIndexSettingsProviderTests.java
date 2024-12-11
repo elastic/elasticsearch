@@ -18,6 +18,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpriseLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -39,18 +42,22 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     private SyntheticSourceIndexSettingsProvider provider;
     private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
 
-    private static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
+    static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
         return new LogsdbIndexModeSettingsProvider(Settings.builder().put("cluster.logsdb.enabled", enabled).build());
     }
 
     @Before
-    public void setup() {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+    public void setup() throws Exception {
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(any())).thenReturn(true);
         var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
+        var mockLicenseService = mock(LicenseService.class);
+        License license = createEnterpriseLicense();
+        when(mockLicenseService.getLicense()).thenReturn(license);
         syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
         provider = new SyntheticSourceIndexSettingsProvider(syntheticSourceLicenseService, im -> {
             newMapperServiceCounter.incrementAndGet();

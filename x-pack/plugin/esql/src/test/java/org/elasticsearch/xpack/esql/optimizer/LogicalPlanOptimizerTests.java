@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -1201,6 +1203,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(as.child()), is("first_name"));
 
         assertThat(Expressions.names(agg.groupings()), contains("first_name"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[CATEGORIZE(first_name{f}#18) AS cat],[SUM(salary{f}#22,true[BOOLEAN]) AS s, cat{r}#10]]
+     *   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testCombineProjectionWithCategorizeGrouping() {
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
+
+        var plan = plan("""
+            from test
+            | eval k = first_name, k1 = k
+            | stats s = sum(salary) by cat = CATEGORIZE(k1)
+            | keep s, cat
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.child(), instanceOf(EsRelation.class));
+
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "cat"));
+        assertThat(Expressions.names(agg.groupings()), contains("cat"));
+
+        var categorizeAlias = as(agg.groupings().get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var categorizeField = as(categorize.field(), FieldAttribute.class);
+        assertThat(categorizeField.name(), is("first_name"));
     }
 
     /**
@@ -3912,6 +3943,41 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[CATEGORIZE(CATEGORIZE(CONCAT(first_name, "abc")){r$}#18) AS CATEGORIZE(CONCAT(first_name, "abc"))],[CO
+     * UNT(salary{f}#13,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#3]]
+     *   \_Eval[[CONCAT(first_name{f}#9,[61 62 63][KEYWORD]) AS CATEGORIZE(CONCAT(first_name, "abc"))]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testNestedExpressionsInGroupsWithCategorize() {
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
+
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary) by CATEGORIZE(CONCAT(first_name, "abc"))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var categorizeAlias = as(groupings.get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var aggs = agg.aggregates();
+        assertThat(aggs.get(1), is(categorizeAlias.toAttribute()));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), Concat.class);
+
+        assertThat(evalFieldAlias.name(), is("CATEGORIZE(CONCAT(first_name, \"abc\"))"));
+        assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
+        assertThat(categorizeAlias.source(), is(evalFieldAlias.source()));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no{f}#6],[COUNT(__c_COUNT@1bd45f36{r}#16) AS c, emp_no{f}#6]]
      *   \_Eval[[salary{f}#11 + 1[INTEGER] AS __c_COUNT@1bd45f36]]
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
@@ -4754,7 +4820,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         e.forEachUp(node -> {
             if (node.children().size() == 0) {
-                result.set(result.get() || Expressions.isNull(node));
+                result.set(result.get() || Expressions.isGuaranteedNull(node));
             }
         });
 

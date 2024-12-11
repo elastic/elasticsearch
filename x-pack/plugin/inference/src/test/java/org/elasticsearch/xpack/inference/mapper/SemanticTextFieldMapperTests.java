@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
@@ -61,6 +61,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
@@ -1110,7 +1111,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
 
-        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, null);
+        return new ESToParentBlockJoinQuery(
+            new SparseVectorQueryWrapper(fieldName, queryBuilder.build()),
+            parentFilter,
+            ScoreMode.Total,
+            null
+        );
     }
 
     private static void assertChildLeafNestedDocument(
@@ -1130,7 +1136,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void assertSparseFeatures(LuceneDocument doc, String fieldName, int expectedCount) {
         int count = 0;
         for (IndexableField field : doc.getFields()) {
-            if (field instanceof FeatureField featureField) {
+            if (field instanceof XFeatureField featureField) {
                 assertThat(featureField.name(), equalTo(fieldName));
                 ++count;
             }

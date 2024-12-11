@@ -9,35 +9,27 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.AbstractTransportSetUpgradeModeAction;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
@@ -48,7 +40,6 @@ import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
@@ -58,12 +49,11 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 
-public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNodeAction<SetUpgradeModeAction.Request> {
+public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeModeAction {
 
     private static final Set<String> ML_TASK_NAMES = Set.of(JOB_TASK_NAME, DATAFEED_TASK_NAME, DATA_FRAME_ANALYTICS_TASK_NAME);
 
     private static final Logger logger = LogManager.getLogger(TransportSetUpgradeModeAction.class);
-    private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PersistentTasksClusterService persistentTasksClusterService;
     private final PersistentTasksService persistentTasksService;
     private final OriginSettingClient client;
@@ -79,69 +69,38 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         Client client,
         PersistentTasksService persistentTasksService
     ) {
-        super(
-            SetUpgradeModeAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            SetUpgradeModeAction.Request::new,
-            indexNameExpressionResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SetUpgradeModeAction.NAME, "ml", transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void masterOperation(
+    protected String featureName() {
+        return "ml-set-upgrade-mode";
+    }
+
+    @Override
+    protected boolean upgradeMode(ClusterState state) {
+        return MlMetadata.getMlMetadata(state).isUpgradeMode();
+    }
+
+    @Override
+    protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState currentState) {
+        logger.trace("Executing cluster state update");
+        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
+        builder.isUpgradeMode(request.enabled());
+        ClusterState.Builder newState = ClusterState.builder(currentState);
+        newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
+        return newState.build();
+    }
+
+    protected void upgradeModeSuccessfullyChanged(
         Task task,
-        SetUpgradeModeAction.Request request,
+        SetUpgradeModeActionRequest request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
-
-        // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
-        if (isRunning.compareAndSet(false, true) == false) {
-            String msg = "Attempted to set [upgrade_mode] to ["
-                + request.isEnabled()
-                + "] from ["
-                + MlMetadata.getMlMetadata(state).isUpgradeMode()
-                + "] while previous request was processing.";
-            logger.info(msg);
-            Exception detail = new IllegalStateException(msg);
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot change [upgrade_mode]. Previous request is still being processed.",
-                    RestStatus.TOO_MANY_REQUESTS,
-                    detail
-                )
-            );
-            return;
-        }
-
-        // Noop, nothing for us to do, simply return fast to the caller
-        if (request.isEnabled() == MlMetadata.getMlMetadata(state).isUpgradeMode()) {
-            logger.info("Upgrade mode noop");
-            isRunning.set(false);
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
-        logger.info(
-            "Starting to set [upgrade_mode] to [" + request.isEnabled() + "] from [" + MlMetadata.getMlMetadata(state).isUpgradeMode() + "]"
-        );
-
-        ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
-            logger.info("Completed upgrade mode request");
-            isRunning.set(false);
-            listener.onResponse(r);
-        }, e -> {
-            logger.info("Completed upgrade mode request but with failure", e);
-            isRunning.set(false);
-            listener.onFailure(e);
-        });
+        ActionListener<AcknowledgedResponse> wrappedListener
+    ) {
         final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.
@@ -201,71 +160,29 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
           </.2>
           </2>
          */
-        ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(acknowledgedResponse -> {
-            // State change was not acknowledged, we either timed out or ran into some exception
-            // We should not continue and alert failure to the end user
-            if (acknowledgedResponse.isAcknowledged() == false) {
-                logger.info("Cluster state update is NOT acknowledged");
-                wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
-                return;
-            }
+        if (tasksCustomMetadata == null || tasksCustomMetadata.tasks().isEmpty()) {
+            logger.info("No tasks to worry about after state update");
+            wrappedListener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
 
-            // There are no tasks to worry about starting/stopping
-            if (tasksCustomMetadata == null || tasksCustomMetadata.tasks().isEmpty()) {
-                logger.info("No tasks to worry about after state update");
-                wrappedListener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
-
-            // Did we change from disabled -> enabled?
-            if (request.isEnabled()) {
-                logger.info("Enabling upgrade mode, must isolate datafeeds");
-                isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
-            } else {
-                logger.info("Disabling upgrade mode, must wait for tasks to not have AWAITING_UPGRADE assignment");
-                persistentTasksService.waitForPersistentTasksCondition(
-                    // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
-                    persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
-                        .stream()
-                        .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
-                    request.ackTimeout(),
-                    ActionListener.wrap(r -> {
-                        logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");
-                        wrappedListener.onResponse(AcknowledgedResponse.TRUE);
-                    }, wrappedListener::onFailure)
-                );
-            }
-        }, wrappedListener::onFailure);
-
-        // <1> Change MlMetadata to indicate that upgrade_mode is now enabled
-        submitUnbatchedTask("ml-set-upgrade-mode", new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                logger.trace("Cluster update response built: " + acknowledged);
-                return AcknowledgedResponse.of(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                logger.trace("Executing cluster state update");
-                MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
-                builder.isUpgradeMode(request.isEnabled());
-                ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
-                return newState.build();
-            }
-        });
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(SetUpgradeModeAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        if (request.enabled()) {
+            logger.info("Enabling upgrade mode, must isolate datafeeds");
+            isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
+        } else {
+            logger.info("Disabling upgrade mode, must wait for tasks to not have AWAITING_UPGRADE assignment");
+            persistentTasksService.waitForPersistentTasksCondition(
+                // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
+                persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
+                    .stream()
+                    .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
+                request.ackTimeout(),
+                ActionListener.wrap(r -> {
+                    logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");
+                    wrappedListener.onResponse(AcknowledgedResponse.TRUE);
+                }, wrappedListener::onFailure)
+            );
+        }
     }
 
     /**

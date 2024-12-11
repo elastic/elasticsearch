@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
@@ -535,16 +534,13 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
             var returnDocs = randomBoolean();
-            settings.put(
-                ModelConfigurations.TASK_SETTINGS,
-                new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
-            );
+            settings.put(ModelConfigurations.TASK_SETTINGS, new HashMap<>(Map.of(RerankTaskSettings.RETURN_DOCUMENTS, returnDocs)));
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
                 assertThat(model, instanceOf(CustomElandRerankModel.class));
-                assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+                assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
                 assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
-                assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+                assertEquals(returnDocs, ((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
             service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, modelListener);
@@ -584,9 +580,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
                 assertThat(model, instanceOf(CustomElandRerankModel.class));
-                assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+                assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
                 assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
-                assertEquals(Boolean.TRUE, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+                assertEquals(Boolean.TRUE, ((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
             service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, modelListener);
@@ -902,7 +898,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
-            new ChunkingOptions(null, null),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
         );
@@ -973,7 +968,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
-            new ChunkingOptions(null, null),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
         );
@@ -1044,7 +1038,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
-            new ChunkingOptions(null, null),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
         );
@@ -1090,7 +1083,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
-            null,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
         );
@@ -1102,7 +1094,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
-            new ChunkingOptions(256, null),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
         );
@@ -1155,7 +1146,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar", "baz"),
             Map.of(),
             InputType.SEARCH,
-            new ChunkingOptions(null, null),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
         );
@@ -1228,7 +1218,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of(input),
             Map.of(),
             InputType.SEARCH,
-            new ChunkingOptions(null, null),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
         );
@@ -1257,14 +1246,11 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
             settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
             var returnDocs = randomBoolean();
-            settings.put(
-                ModelConfigurations.TASK_SETTINGS,
-                new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
-            );
+            settings.put(ModelConfigurations.TASK_SETTINGS, new HashMap<>(Map.of(RerankTaskSettings.RETURN_DOCUMENTS, returnDocs)));
 
             var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
-            assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
-            assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+            assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
+            assertEquals(returnDocs, ((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
         }
 
         // without task settings
@@ -1287,8 +1273,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
 
             var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
-            assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
-            assertTrue(((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+            assertThat(model.getTaskSettings(), instanceOf(RerankTaskSettings.class));
+            assertTrue(((RerankTaskSettings) model.getTaskSettings()).returnDocuments());
         }
     }
 
@@ -1343,7 +1329,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 taskType,
                 ElasticsearchInternalService.NAME,
                 new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
-                CustomElandRerankTaskSettings.DEFAULT_SETTINGS
+                RerankTaskSettings.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.TEXT_EMBEDDING) {
             var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model", null);
@@ -1536,20 +1522,30 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             )
         );
 
-        var e = expectThrows(
+        var e1 = expectThrows(
             ElasticsearchStatusException.class,
             () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.COMPLETION,
                 new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
             )
         );
-        assertThat(e.getMessage(), containsString("Chunking is not supported for task type [completion]"));
+        assertThat(e1.getMessage(), containsString("Chunking is not supported for task type [completion]"));
+
+        var e2 = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
+                TaskType.RERANK,
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+            )
+        );
+        assertThat(e2.getMessage(), containsString("Chunking is not supported for task type [rerank]"));
     }
 
     public void testIsDefaultId() {
         var service = createService(mock(Client.class));
         assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
         assertTrue(service.isDefaultId(".multilingual-e5-small-elasticsearch"));
+        assertTrue(service.isDefaultId(".rerank-v1-elasticsearch"));
         assertFalse(service.isDefaultId("foo"));
     }
 

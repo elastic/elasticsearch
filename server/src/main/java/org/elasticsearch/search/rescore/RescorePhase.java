@@ -73,10 +73,11 @@ public class RescorePhase {
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         } catch (ContextIndexSearcher.TimeExceededException e) {
-            if (context.request().allowPartialSearchResults() == false) {
-                throw new SearchTimeoutException(context.shardTarget(), "Time exceeded");
-            }
-            context.queryResult().searchTimedOut(true);
+            SearchTimeoutException.handleTimeout(
+                context.request().allowPartialSearchResults(),
+                context.shardTarget(),
+                context.queryResult()
+            );
         }
     }
 

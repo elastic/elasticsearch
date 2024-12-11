@@ -1781,7 +1781,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            TransportVersions.V_7_0_0
+            UNKNOWN_VERSION_ADDED
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotInProgressException.class,
@@ -1947,13 +1947,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.ingest.IngestPipelineException.class,
             org.elasticsearch.ingest.IngestPipelineException::new,
             182,
-            TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
+            TransportVersions.V_8_16_0
         ),
         INDEX_RESPONSE_WRAPPER_EXCEPTION(
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
             183,
-            TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
+            TransportVersions.V_8_16_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

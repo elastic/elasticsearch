@@ -38,6 +38,7 @@ ES|QL::
 * Fixing remote ENRICH by pushing the Enrich inside `FragmentExec` {es-pull}114665[#114665] (issue: {es-issue}105095[#105095])
 * Ignore cancellation exceptions {es-pull}117657[#117657]
 * Limit size of `Literal#toString` {es-pull}117842[#117842]
+* Opt into extra data stream resolution {es-pull}118378[#118378]
 * Use `SearchStats` instead of field.isAggregatable in data node planning {es-pull}115744[#115744] (issue: {es-issue}115737[#115737])
 * [ESQL] Fix Binary Comparisons on Date Nanos {es-pull}116346[#116346]
 * [ES|QL] To_DatePeriod and To_TimeDuration return better error messages on `union_type` fields {es-pull}114934[#114934]
@@ -47,6 +48,7 @@ Infra/CLI::
 
 Ingest Node::
 * Fix enrich cache size setting name {es-pull}117575[#117575]
+* Fix log message format bugs {es-pull}118354[#118354]
 * Fix reconstituting version string from components {es-pull}117213[#117213] (issue: {es-issue}116950[#116950])
 * Reducing error-level stack trace logging for normal events in `GeoIpDownloader` {es-pull}114924[#114924]
 
@@ -67,6 +69,7 @@ Machine Learning::
 Mapping::
 * Address mapping and compute engine runtime field issues {es-pull}117792[#117792] (issue: {es-issue}117644[#117644])
 * Always Emit Inference ID in Semantic Text Mapping {es-pull}117294[#117294]
+* Fix concurrency issue with `ReinitializingSourceProvider` {es-pull}118370[#118370] (issue: {es-issue}118238[#118238])
 * Fix false positive date detection with trailing dot {es-pull}116953[#116953] (issue: {es-issue}116946[#116946])
 * Parse the contents of dynamic objects for [subobjects:false] {es-pull}117762[#117762] (issue: {es-issue}117544[#117544])
 
@@ -123,7 +126,8 @@ Indices APIs::
 * Ensure class resource stream is closed in `ResourceUtils` {es-pull}116437[#116437]
 
 Inference::
-* [8.17] Add version prefix to Inference Service API path {es-pull}117366[#117366]
+* Add version prefix to Inference Service API path {es-pull}117366[#117366]
+* Update sparse text embeddings API route for Inference Service {es-pull}118368[#118368]
 
 Infra/Core::
 * Support for unsigned 64 bit numbers in Cpu stats {es-pull}114681[#114681] (issue: {es-issue}112274[#112274])

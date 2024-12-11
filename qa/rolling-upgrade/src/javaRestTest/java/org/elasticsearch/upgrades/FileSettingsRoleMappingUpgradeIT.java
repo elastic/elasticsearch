@@ -10,12 +10,12 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
@@ -73,12 +73,12 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
         () -> assumeTrue(
             "Only relevant when upgrading from a version before role mappings were stored in cluster state",
-            oldClusterHasFeature("gte_v8.7.0") && oldClusterHasFeature("gte_v8.15.0") == false
+            getOldClusterTestVersion().after(new Version(8, 7, 0)) && getOldClusterTestVersion().before(new Version(8, 15, 0)) == false
         )
     );
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(versionLimit).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(versionLimit).around(repoDirectory).around(cluster);
 
     public FileSettingsRoleMappingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

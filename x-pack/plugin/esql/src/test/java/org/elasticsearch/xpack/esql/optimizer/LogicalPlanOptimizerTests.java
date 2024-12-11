@@ -1300,7 +1300,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushdownLimitsPastLeftJoin() {
         var leftChild = emptySource();
-        var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);;
+        var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
@@ -1315,10 +1315,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var optimizedPlan = new PushDownAndCombineLimits().rule(limit);
 
-        assertEquals(
-            join.replaceChildren(limit.replaceChild(join.left()), join.right()),
-            optimizedPlan
-        );
+        assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
     }
 
     public void testMultipleCombineLimits() {

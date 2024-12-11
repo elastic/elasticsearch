@@ -11,13 +11,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class FrozenIndicesFeatureSetUsage extends XPackFeatureSet.Usage {
+public class FrozenIndicesFeatureSetUsage extends XPackFeatureUsage {
 
     private final int numberOfFrozenIndices;
 
@@ -28,7 +28,7 @@ public class FrozenIndicesFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

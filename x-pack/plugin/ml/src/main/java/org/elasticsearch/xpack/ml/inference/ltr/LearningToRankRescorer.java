@@ -35,6 +35,7 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public class LearningToRankRescorer implements Rescorer {
 
+    private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
     public static final LearningToRankRescorer INSTANCE = new LearningToRankRescorer();
     private static final Logger logger = LogManager.getLogger(LearningToRankRescorer.class);
 
@@ -78,7 +79,12 @@ public class LearningToRankRescorer implements Rescorer {
         List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
         List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
+        int count = 0;
         while (hitUpto < hitsToRescore.length) {
+            if (count % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
+            count++;
             final ScoreDoc hit = hitsToRescore[hitUpto];
             final int docID = hit.doc;
             while (docID >= endDoc) {
@@ -106,6 +112,9 @@ public class LearningToRankRescorer implements Rescorer {
             hitUpto++;
         }
         for (int i = 0; i < hitsToRescore.length; i++) {
+            if (i % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
             Map<String, Object> features = docFeatures.get(i);
             try {
                 InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learningToRankConfig);

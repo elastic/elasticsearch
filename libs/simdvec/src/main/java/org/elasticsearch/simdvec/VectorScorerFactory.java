@@ -13,7 +13,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.util.Optional;
 
@@ -39,7 +39,7 @@ public interface VectorScorerFactory {
     Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        RandomAccessQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     );
 
@@ -52,9 +52,5 @@ public interface VectorScorerFactory {
      * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getInt7SQVectorScorer(
-        VectorSimilarityFunction sim,
-        RandomAccessQuantizedByteVectorValues values,
-        float[] queryVector
-    );
+    Optional<RandomVectorScorer> getInt7SQVectorScorer(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector);
 }

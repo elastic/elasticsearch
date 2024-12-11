@@ -1,6 +1,6 @@
 steps:
   - label: sanity-check
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files precommit
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints precommit
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -9,7 +9,7 @@ steps:
       buildDirectory: /dev/shm/bk
   - wait: null
   - label: part1
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart1
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart1
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -17,7 +17,7 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part2
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart2
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -25,7 +25,7 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part3
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart3
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -33,7 +33,7 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part4
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart4
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart4
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -41,7 +41,7 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part5
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart5
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart5
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -51,12 +51,11 @@ steps:
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
         matrix:
           setup:
             BWC_VERSION:
-              - 7.17.13
               - 8.9.1
               - 8.10.0
         agents:
@@ -67,7 +66,7 @@ steps:
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkRestCompat
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkRestCompat
     timeout_in_minutes: 300
     agents:
       provider: gcp

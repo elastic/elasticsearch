@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,8 +71,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             // make between 0 and 5 different values of the same type
             String fieldName = randomValueOtherThanMany(
                 choice -> choice.equals(GEO_POINT_FIELD_NAME)
+                    || choice.equals(BINARY_FIELD_NAME)
                     || choice.equals(GEO_POINT_ALIAS_FIELD_NAME)
                     || choice.equals(INT_RANGE_FIELD_NAME)
+                    || choice.equals(DATE_ALIAS_FIELD_NAME)
                     || choice.equals(DATE_RANGE_FIELD_NAME)
                     || choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 AbstractQueryTestCase::getRandomFieldName
@@ -114,6 +117,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME)
+                || queryBuilder.fieldName().equals(INT_ALIAS_FIELD_NAME)
                 || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
                 || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME)
                 || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
@@ -315,6 +319,38 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         Exception e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format(Locale.getDefault(), """
             { "terms" : { "foo" : [ "q", "%s" ] } }""", longTerm)));
         assertThat(e.getMessage(), containsString("term starting with [aaaaa"));
+    }
+
+    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
+        QueryBuilder query = new TermsQueryBuilder("_tier", "data_frozen");
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new TermsQueryBuilder("_tier", "data_frozen"));
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
     }
 
     @Override

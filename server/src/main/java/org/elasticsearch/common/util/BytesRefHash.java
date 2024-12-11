@@ -48,7 +48,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            this.hashes = bigArrays.newIntArray(capacity, false);
+            this.hashes = bigArrays.newIntArray(maxSize, false);
             this.bytesRefs = new BytesRefArray(capacity, bigArrays);
             success = true;
         } finally {
@@ -98,7 +98,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            this.hashes = bigArrays.newIntArray(bytesRefs.size() + 1, false);
+            this.hashes = bigArrays.newIntArray(maxSize, false);
             this.bytesRefs = BytesRefArray.takeOwnershipOf(bytesRefs);
             success = true;
         } finally {
@@ -182,7 +182,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     private void append(long id, BytesRef key, int code) {
         assert size == id;
         bytesRefs.append(key);
-        hashes = bigArrays.grow(hashes, id + 1);
         hashes.set(id, code);
     }
 
@@ -211,6 +210,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            hashes = bigArrays.resize(hashes, maxSize);
         }
         assert size < maxSize;
         return set(key, rehash(code), size);

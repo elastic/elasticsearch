@@ -67,6 +67,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
@@ -1706,7 +1707,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch("metrics-foo").addFetchField(new FieldAndFormat(DEFAULT_TIMESTAMP_FIELD, "epoch_millis")).setSize(totalDocs),
             resp -> {
-                assertEquals(totalDocs, resp.getHits().getTotalHits().value);
+                assertEquals(totalDocs, resp.getHits().getTotalHits().value());
                 SearchHit[] hits = resp.getHits().getHits();
                 assertEquals(totalDocs, hits.length);
 
@@ -2027,7 +2028,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     static void verifyDocs(String dataStream, long expectedNumHits, List<String> expectedIndices) {
         assertResponse(prepareSearch(dataStream).setSize((int) expectedNumHits), resp -> {
-            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(expectedNumHits));
             Arrays.stream(resp.getHits().getHits()).forEach(hit -> assertTrue(expectedIndices.contains(hit.getIndex())));
         });
     }
@@ -2447,9 +2448,10 @@ public class DataStreamIT extends ESIntegTestCase {
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
                         .aliases(aliases)
                         .lifecycle(lifecycle)
+                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(withFailureStore))
                 )
                 .metadata(metadata)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();

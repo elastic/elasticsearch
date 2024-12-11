@@ -13,8 +13,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
+
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.IPINFO_PREFIX;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.getIpinfoDatabase;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.getIpinfoLookup;
+import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindDatabase;
+import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindLookup;
 
 final class IpDataLookupFactories {
 
@@ -26,69 +33,28 @@ final class IpDataLookupFactories {
         IpDataLookup create(List<String> properties);
     }
 
-    private static final String CITY_DB_SUFFIX = "-City";
-    private static final String COUNTRY_DB_SUFFIX = "-Country";
-    private static final String ASN_DB_SUFFIX = "-ASN";
-    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
-    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
-    private static final String DOMAIN_DB_SUFFIX = "-Domain";
-    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
-    private static final String ISP_DB_SUFFIX = "-ISP";
-
-    @Nullable
-    private static Database getMaxmindDatabase(final String databaseType) {
-        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-            return Database.City;
-        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-            return Database.Country;
-        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-            return Database.Asn;
-        } else if (databaseType.endsWith(ANONYMOUS_IP_DB_SUFFIX)) {
-            return Database.AnonymousIp;
-        } else if (databaseType.endsWith(CONNECTION_TYPE_DB_SUFFIX)) {
-            return Database.ConnectionType;
-        } else if (databaseType.endsWith(DOMAIN_DB_SUFFIX)) {
-            return Database.Domain;
-        } else if (databaseType.endsWith(ENTERPRISE_DB_SUFFIX)) {
-            return Database.Enterprise;
-        } else if (databaseType.endsWith(ISP_DB_SUFFIX)) {
-            return Database.Isp;
-        } else {
-            return null; // no match was found
-        }
-    }
-
     /**
      * Parses the passed-in databaseType and return the Database instance that is
      * associated with that databaseType.
      *
      * @param databaseType the database type String from the metadata of the database file
-     * @return the Database instance that is associated with the databaseType
+     * @return the Database instance that is associated with the databaseType (or null)
      */
     @Nullable
     static Database getDatabase(final String databaseType) {
         Database database = null;
 
         if (Strings.hasText(databaseType)) {
-            database = getMaxmindDatabase(databaseType);
+            final String databaseTypeLowerCase = databaseType.toLowerCase(Locale.ROOT);
+            if (databaseTypeLowerCase.startsWith(IPINFO_PREFIX)) {
+                database = getIpinfoDatabase(databaseTypeLowerCase); // all lower case!
+            } else {
+                // for historical reasons, fall back to assuming maxmind-like type parsing
+                database = getMaxmindDatabase(databaseType);
+            }
         }
 
         return database;
-    }
-
-    @Nullable
-    static Function<Set<Database.Property>, IpDataLookup> getMaxmindLookup(final Database database) {
-        return switch (database) {
-            case City -> MaxmindIpDataLookups.City::new;
-            case Country -> MaxmindIpDataLookups.Country::new;
-            case Asn -> MaxmindIpDataLookups.Asn::new;
-            case AnonymousIp -> MaxmindIpDataLookups.AnonymousIp::new;
-            case ConnectionType -> MaxmindIpDataLookups.ConnectionType::new;
-            case Domain -> MaxmindIpDataLookups.Domain::new;
-            case Enterprise -> MaxmindIpDataLookups.Enterprise::new;
-            case Isp -> MaxmindIpDataLookups.Isp::new;
-            default -> null;
-        };
     }
 
     static IpDataLookupFactory get(final String databaseType, final String databaseFile) {
@@ -97,7 +63,14 @@ final class IpDataLookupFactories {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
-        final Function<Set<Database.Property>, IpDataLookup> factoryMethod = getMaxmindLookup(database);
+        final Function<Set<Database.Property>, IpDataLookup> factoryMethod;
+        final String databaseTypeLowerCase = databaseType.toLowerCase(Locale.ROOT);
+        if (databaseTypeLowerCase.startsWith(IPINFO_PREFIX)) {
+            factoryMethod = getIpinfoLookup(database);
+        } else {
+            // for historical reasons, fall back to assuming maxmind-like types
+            factoryMethod = getMaxmindLookup(database);
+        }
 
         if (factoryMethod == null) {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");

@@ -45,12 +45,14 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -114,7 +116,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, FakeMlPlugin.class);
+        return List.of(XPackClientPlugin.class, InferencePlugin.class, FakeMlPlugin.class);
     }
 
     @Override
@@ -194,14 +196,16 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private void assertSparseEmbeddingLuceneQuery(Query query) {
         Query innerQuery = assertOuterBooleanQuery(query);
-        assertThat(innerQuery, instanceOf(BooleanQuery.class));
+        assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
+        assertThat(((SparseVectorQueryWrapper) innerQuery).getTermsQuery(), instanceOf(BooleanQuery.class));
 
-        BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
+        BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
-            assertThat(c.getOccur(), equalTo(SHOULD));
-            assertThat(c.getQuery(), instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) c.getQuery()).getBoost(), equalTo(TOKEN_WEIGHT));
+            assertThat(c.occur(), equalTo(SHOULD));
+            assertThat(c.query(), instanceOf(BoostQuery.class));
+            assertThat(((BoostQuery) c.query()).getBoost(), equalTo(TOKEN_WEIGHT));
         });
     }
 
@@ -223,7 +227,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         List<BooleanClause> outerMustClauses = new ArrayList<>();
         List<BooleanClause> outerFilterClauses = new ArrayList<>();
         for (BooleanClause clause : outerBooleanQuery.clauses()) {
-            BooleanClause.Occur occur = clause.getOccur();
+            BooleanClause.Occur occur = clause.occur();
             if (occur == MUST) {
                 outerMustClauses.add(clause);
             } else if (occur == FILTER) {
@@ -236,7 +240,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(outerMustClauses.size(), equalTo(1));
         assertThat(outerFilterClauses.size(), equalTo(1));
 
-        return outerMustClauses.get(0).getQuery();
+        return outerMustClauses.get(0).query();
     }
 
     @Override

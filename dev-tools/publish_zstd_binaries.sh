@@ -79,8 +79,8 @@ build_linux_jar() {
 }
 
 echo 'Building Linux jars...'
-LINUX_ARM_JAR=$(build_linux_jar "linux/amd64" "x86-64")
-LINUX_X86_JAR=$(build_linux_jar "linux/arm64" "aarch64")
+LINUX_ARM_JAR=$(build_linux_jar "linux/arm64" "aarch64")
+LINUX_X86_JAR=$(build_linux_jar "linux/amd64" "x86-64")
 
 build_windows_jar() {
   ARTIFACT="$TEMP/zstd-$VERSION-windows-x86-64.jar"

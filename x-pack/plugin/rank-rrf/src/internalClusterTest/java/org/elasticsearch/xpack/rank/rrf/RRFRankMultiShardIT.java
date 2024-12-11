@@ -136,7 +136,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testTotalDocsSmallerThanSize() {
         float[] queryVector = { 0.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null, null);
         assertResponse(
             prepareSearch("tiny_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))
@@ -167,23 +167,23 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testBM25AndKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
                 .setKnnSearch(List.of(knnSearch))
                 .setQuery(
                     QueryBuilders.boolQuery()
-                        .should(QueryBuilders.termQuery("text0", "500").boost(11.0f))
-                        .should(QueryBuilders.termQuery("text0", "499").boost(10.0f))
-                        .should(QueryBuilders.termQuery("text0", "498").boost(9.0f))
-                        .should(QueryBuilders.termQuery("text0", "497").boost(8.0f))
-                        .should(QueryBuilders.termQuery("text0", "496").boost(7.0f))
-                        .should(QueryBuilders.termQuery("text0", "495").boost(6.0f))
-                        .should(QueryBuilders.termQuery("text0", "494").boost(5.0f))
-                        .should(QueryBuilders.termQuery("text0", "493").boost(4.0f))
-                        .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                        .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(11.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(10.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(9.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(8.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(7.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(6.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(5.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "493")).boost(4.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
                 )
                 .addFetchField("vector_asc")
                 .addFetchField("text0")
@@ -208,8 +208,8 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultipleOnlyKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(true)
@@ -218,7 +218,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .addFetchField("text0")
                 .setSize(19),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -260,24 +260,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(false)
                 .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
                 .setQuery(
                     QueryBuilders.boolQuery()
-                        .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                        .should(QueryBuilders.termQuery("text0", "499").boost(20.0f))
-                        .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                        .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                        .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                        .should(QueryBuilders.termQuery("text0", "485").boost(5.0f))
-                        .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                        .should(QueryBuilders.termQuery("text0", "506").boost(3.0f))
-                        .should(QueryBuilders.termQuery("text0", "505").boost(2.0f))
-                        .should(QueryBuilders.termQuery("text0", "511").boost(9.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(20.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "485")).boost(5.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "506")).boost(3.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "505")).boost(2.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "511")).boost(9.0f))
                 )
                 .addFetchField("vector_asc")
                 .addFetchField("vector_desc")
@@ -332,30 +332,30 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testBM25AndKnnWithBucketAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(true)
                 .setKnnSearch(List.of(knnSearch))
                 .setQuery(
                     QueryBuilders.boolQuery()
-                        .should(QueryBuilders.termQuery("text0", "500").boost(11.0f))
-                        .should(QueryBuilders.termQuery("text0", "499").boost(10.0f))
-                        .should(QueryBuilders.termQuery("text0", "498").boost(9.0f))
-                        .should(QueryBuilders.termQuery("text0", "497").boost(8.0f))
-                        .should(QueryBuilders.termQuery("text0", "496").boost(7.0f))
-                        .should(QueryBuilders.termQuery("text0", "495").boost(6.0f))
-                        .should(QueryBuilders.termQuery("text0", "494").boost(5.0f))
-                        .should(QueryBuilders.termQuery("text0", "493").boost(4.0f))
-                        .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                        .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(11.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(10.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(9.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(8.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(7.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(6.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(5.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "493")).boost(4.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
                 )
                 .addFetchField("vector_asc")
                 .addFetchField("text0")
                 .setSize(11)
                 .addAggregation(AggregationBuilders.terms("sums").field("int")),
             response -> {
-                assertEquals(101, response.getHits().getTotalHits().value);
+                assertEquals(101, response.getHits().getTotalHits().value());
                 assertEquals(11, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -389,8 +389,8 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultipleOnlyKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(false)
@@ -457,24 +457,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(true)
                 .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
                 .setQuery(
                     QueryBuilders.boolQuery()
-                        .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                        .should(QueryBuilders.termQuery("text0", "499").boost(20.0f))
-                        .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                        .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                        .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                        .should(QueryBuilders.termQuery("text0", "485").boost(5.0f))
-                        .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                        .should(QueryBuilders.termQuery("text0", "506").boost(3.0f))
-                        .should(QueryBuilders.termQuery("text0", "505").boost(2.0f))
-                        .should(QueryBuilders.termQuery("text0", "511").boost(9.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(20.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "485")).boost(5.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "506")).boost(3.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "505")).boost(2.0f))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "511")).boost(9.0f))
                 )
                 .addFetchField("vector_asc")
                 .addFetchField("vector_desc")
@@ -483,7 +483,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .addAggregation(AggregationBuilders.terms("sums").field("int"))
                 .setStats("search"),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -554,28 +554,28 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                         List.of(
                             new SubSearchSourceBuilder(
                                 QueryBuilders.boolQuery()
-                                    .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                                    .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
-                                    .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                                    .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                                    .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                                    .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
-                                    .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                                    .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                                    .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
-                                    .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(9.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(5.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "490")).boost(1.0f))
                             ),
                             new SubSearchSourceBuilder(
                                 QueryBuilders.boolQuery()
-                                    .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
-                                    .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
-                                    .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                    .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                    .should(QueryBuilders.termQuery("text1", "502").boost(5.0f))
-                                    .should(QueryBuilders.termQuery("text1", "499").boost(4.0f))
-                                    .should(QueryBuilders.termQuery("text1", "800").boost(3.0f))
-                                    .should(QueryBuilders.termQuery("text1", "201").boost(2.0f))
-                                    .should(QueryBuilders.termQuery("text1", "492").boost(1.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "508")).boost(9.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "304")).boost(8.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "501")).boost(7.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "504")).boost(6.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "502")).boost(5.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "499")).boost(4.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "800")).boost(3.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "201")).boost(2.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "492")).boost(1.0f))
                             )
                         )
                     )
@@ -625,28 +625,28 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                         List.of(
                             new SubSearchSourceBuilder(
                                 QueryBuilders.boolQuery()
-                                    .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                                    .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
-                                    .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                                    .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                                    .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                                    .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
-                                    .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                                    .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                                    .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
-                                    .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(9.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(5.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "490")).boost(1.0f))
                             ),
                             new SubSearchSourceBuilder(
                                 QueryBuilders.boolQuery()
-                                    .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
-                                    .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
-                                    .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                    .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                    .should(QueryBuilders.termQuery("text1", "502").boost(5.0f))
-                                    .should(QueryBuilders.termQuery("text1", "499").boost(4.0f))
-                                    .should(QueryBuilders.termQuery("text1", "801").boost(3.0f))
-                                    .should(QueryBuilders.termQuery("text1", "201").boost(2.0f))
-                                    .should(QueryBuilders.termQuery("text1", "492").boost(1.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "508")).boost(9.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "304")).boost(8.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "501")).boost(7.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "504")).boost(6.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "502")).boost(5.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "499")).boost(4.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "801")).boost(3.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "201")).boost(2.0f))
+                                    .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "492")).boost(1.0f))
                             )
                         )
                     )
@@ -704,7 +704,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testMultiBM25AndSingleKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -713,28 +713,28 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                                .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "490")).boost(1.0f))
                         ),
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "508")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "304")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "501")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "504")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "492")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "502")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "499")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "800")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "201")).boost(1.0f))
                         )
                     )
                 )
@@ -762,7 +762,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testMultiBM25AndSingleKnnWithAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -771,28 +771,28 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                                .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "490")).boost(1.0f))
                         ),
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "508")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "304")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "501")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "504")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "492")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "502")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "499")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "800")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "201")).boost(1.0f))
                         )
                     )
                 )
@@ -837,8 +837,8 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultiBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -847,28 +847,28 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                                .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "490")).boost(1.0f))
                         ),
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "508")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "304")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "501")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "504")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "492")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "502")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "499")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "800")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "201")).boost(1.0f))
                         )
                     )
                 )
@@ -899,8 +899,8 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultiBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null, null);
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -909,28 +909,28 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
-                                .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "500")).boost(10.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "499")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "498")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "497")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "496")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "495")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "494")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "492")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "491")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text0", "490")).boost(1.0f))
                         ),
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
-                                .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
-                                .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
-                                .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
-                                .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
-                                .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
-                                .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "508")).boost(9.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "304")).boost(8.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "501")).boost(7.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "504")).boost(6.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "492")).boost(5.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "502")).boost(4.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "499")).boost(3.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "800")).boost(2.0f))
+                                .should(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("text1", "201")).boost(1.0f))
                         )
                     )
                 )
@@ -979,7 +979,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         // the first result should be the one present in both queries (i.e. doc with text0: 10 and vector: [10]) and the other ones
         // should only match the knn query
         float[] queryVector = { 9f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null).queryName("my_knn_search");
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null).queryName("my_knn_search");
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))
@@ -1045,7 +1045,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         // in this test we try knn with a query on an unknown field that would be rewritten to MatchNoneQuery
         // so we expect results and explanations only for the first part
         float[] queryVector = { 9f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null).queryName("my_knn_search");
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null).queryName("my_knn_search");
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))
@@ -1112,7 +1112,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         // while the other one would produce a match.
         // So, we'd have a total of 3 queries, a (rewritten) MatchNoneQuery, a TermQuery, and a kNN query
         float[] queryVector = { 9f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null).queryName("my_knn_search");
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null).queryName("my_knn_search");
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))

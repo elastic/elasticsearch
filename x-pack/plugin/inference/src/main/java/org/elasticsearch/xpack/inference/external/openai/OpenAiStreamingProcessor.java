@@ -18,10 +18,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
@@ -110,26 +108,12 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
     private static final String CHOICES_FIELD = "choices";
     private static final String DELTA_FIELD = "delta";
     private static final String CONTENT_FIELD = "content";
-    private static final String FINISH_REASON_FIELD = "finish_reason";
-    private static final String STOP_MESSAGE = "stop";
     private static final String DONE_MESSAGE = "[done]";
 
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-
-        var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
-        for (ServerSentEvent event : item) {
-            if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                try {
-                    var delta = parse(parserConfig, event);
-                    delta.forEachRemaining(results::offer);
-                } catch (Exception e) {
-                    log.warn("Failed to parse event from inference provider: {}", event);
-                    throw e;
-                }
-            }
-        }
+        var results = parseEvent(item, OpenAiStreamingProcessor::parse, parserConfig, log);
 
         if (results.isEmpty()) {
             upstream().request(1);
@@ -138,7 +122,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
         }
     }
 
-    private Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
+    private static Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
         throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
             return Collections.emptyIterator();
@@ -162,21 +146,27 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
 
                 currentToken = parser.nextToken();
-                if (currentToken == XContentParser.Token.END_OBJECT) {
-                    consumeUntilObjectEnd(parser); // end choices
-                    return ""; // stopped
+
+                // continue until the end of delta
+                while (currentToken != null && currentToken != XContentParser.Token.END_OBJECT) {
+                    if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
+                        parser.skipChildren();
+                    }
+
+                    if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
+                        parser.nextToken();
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                        var content = parser.text();
+                        consumeUntilObjectEnd(parser); // end delta
+                        consumeUntilObjectEnd(parser); // end choices
+                        return content;
+                    }
+
+                    currentToken = parser.nextToken();
                 }
 
-                if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
-                    parser.nextToken();
-                } else {
-                    positionParserAtTokenAfterField(parser, CONTENT_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
-                }
-                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                var content = parser.text();
-                consumeUntilObjectEnd(parser); // end delta
                 consumeUntilObjectEnd(parser); // end choices
-                return content;
+                return ""; // stopped
             }).stream()
                 .filter(Objects::nonNull)
                 .filter(Predicate.not(String::isEmpty))

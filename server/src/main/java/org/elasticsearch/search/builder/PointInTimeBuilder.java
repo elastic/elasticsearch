@@ -63,7 +63,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     }
 
     public PointInTimeBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BINARY_PIT_ID)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             encodedId = in.readBytesReference();
         } else {
             encodedId = new BytesArray(Base64.getUrlDecoder().decode(in.readString()));
@@ -73,7 +73,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BINARY_PIT_ID)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBytesReference(encodedId);
         } else {
             out.writeString(Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(encodedId)));

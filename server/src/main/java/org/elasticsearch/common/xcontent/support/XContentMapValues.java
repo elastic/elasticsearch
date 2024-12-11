@@ -288,8 +288,8 @@ public class XContentMapValues {
             return defaultValue;
         }
         var aut = Regex.simpleMatchToAutomaton(patterns);
-        aut = makeMatchDotsInFieldNames(aut);
-        return new CharacterRunAutomaton(aut, MAX_DETERMINIZED_STATES);
+        aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        return new CharacterRunAutomaton(aut);
     }
 
     /** Make matches on objects also match dots in field names.

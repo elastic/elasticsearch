@@ -582,8 +582,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             builder.startObject(Fields.HITS);
             if (totalHits != null) {
                 builder.startObject(Fields.TOTAL);
-                builder.field("value", totalHits.value);
-                builder.field("relation", totalHits.relation == TotalHits.Relation.EQUAL_TO ? "eq" : "gte");
+                builder.field("value", totalHits.value());
+                builder.field("relation", totalHits.relation() == TotalHits.Relation.EQUAL_TO ? "eq" : "gte");
                 builder.endObject();
             }
             if (events != null) {

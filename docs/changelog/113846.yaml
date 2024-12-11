@@ -1,6 +1,0 @@
-pr: 113846
-summary: Don't validate internal stats if they are empty
-area: Aggregations
-type: bug
-issues:
- - 113811

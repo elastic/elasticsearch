@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -31,6 +33,7 @@ public final class MappingParser {
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
 
     MappingParser(
         Supplier<MappingParserContext> mappingParserContextSupplier,
@@ -124,7 +127,10 @@ public final class MappingParser {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
 
-        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
+        // TODO this should be the final value once `_source.mode` mapping parameter is not used anymore
+        // and it should not be reassigned below.
+        // For now it is still possible to set `_source.mode` so this is correct.
+        boolean isSourceSynthetic = SourceFieldMapper.isSynthetic(mappingParserContext.getIndexSettings());
         boolean isDataStream = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
@@ -141,6 +147,12 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
+                if (reason == MergeReason.INDEX_TEMPLATE
+                    && SourceFieldMapper.NAME.equals(fieldName)
+                    && fieldNodeMap.containsKey("mode")
+                    && SourceFieldMapper.onOrAfterDeprecateModeVersion(mappingParserContext.indexVersionCreated())) {
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
+                }
                 MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();

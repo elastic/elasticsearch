@@ -46,7 +46,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState = new BulkRequest.IncrementalState(in);
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
@@ -151,20 +151,20 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.field(ERRORS, hasFailures());
-            ob.field(TOOK, tookInMillis);
+        return ChunkedToXContent.builder(params).object(ob -> ob.append((b, p) -> {
+            b.field(ERRORS, hasFailures());
+            b.field(TOOK, tookInMillis);
             if (ingestTookInMillis != BulkResponse.NO_INGEST_TOOK) {
-                ob.field(INGEST_TOOK, ingestTookInMillis);
+                b.field(INGEST_TOOK, ingestTookInMillis);
             }
-            ob.array(ITEMS, Iterators.forArray(responses));
-        });
+            return b;
+        }).array(ITEMS, Iterators.forArray(responses)));
     }
 }

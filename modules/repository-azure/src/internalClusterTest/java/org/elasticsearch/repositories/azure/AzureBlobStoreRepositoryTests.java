@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
+import fixture.azure.MockAzureBlobStore;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -53,13 +53,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_OPERATIONS_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -89,7 +87,9 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             .put(super.repositorySettings(repoName))
             .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
             .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
-            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
+            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test")
+            .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), randomIntBetween(5, 256))
+            .put(AzureRepository.Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.getKey(), randomIntBetween(1, 10));
         if (randomBoolean()) {
             settingsBuilder.put(AzureRepository.Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
         }
@@ -182,7 +182,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an Azure endpoint")
     private static class AzureBlobStoreHttpHandler extends AzureHttpHandler implements BlobStoreHttpHandler {
         AzureBlobStoreHttpHandler(final String account, final String container) {
-            super(account, container, null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */);
+            super(
+                account,
+                container,
+                null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */,
+                MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
+            );
         }
     }
 
@@ -222,7 +227,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
-        private final Set<String> seenRequestIds = ConcurrentCollections.newConcurrentSet();
 
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
             super(delegate);
@@ -230,13 +234,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
-            // Same request id is a retry
-            // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-ncnbi/817da997-30d2-4cd3-972f-a0073e4e98f7
-            // Do not count retries since the client side request stats do not track them yet.
-            // See https://github.com/elastic/elasticsearch/issues/104443
-            if (false == seenRequestIds.add(headers.getFirst("X-ms-client-request-id"))) {
-                return;
-            }
             if (GET_BLOB_PATTERN.test(request)) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*/*", request)) {
@@ -249,6 +246,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 trackRequest("PutBlockList");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutBlob");
+            } else if (Regex.simpleMatch("POST /*/*?*comp=batch*", request)) {
+                trackRequest("BlobBatch");
             }
         }
 
@@ -279,10 +278,22 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
-        try (BlobStore store = newBlobStore()) {
+        // Test with a smaller batch size here
+        final int deleteBatchSize = randomIntBetween(1, 30);
+        final String repositoryName = randomRepositoryName();
+        createRepository(
+            repositoryName,
+            Settings.builder()
+                .put(repositorySettings(repositoryName))
+                .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), deleteBatchSize)
+                .build(),
+            true
+        );
+        try (BlobStore store = newBlobStore(repositoryName)) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            List<String> blobsToDelete = new ArrayList<>();
-            for (int i = 0; i < 10; i++) {
+            final int toDeleteCount = randomIntBetween(deleteBatchSize, 3 * deleteBatchSize);
+            final List<String> blobsToDelete = new ArrayList<>();
+            for (int i = 0; i < toDeleteCount; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
                 container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
@@ -371,14 +382,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             final AzureBlobStore blobStore = (AzureBlobStore) blobStoreRepository.blobStore();
-            final Map<AzureBlobStore.StatsKey, LongAdder> statsCollectors = blobStore.getMetricsRecorder().opsCounters;
+            final Map<AzureBlobStore.StatsKey, AzureBlobStore.StatsCounter> statsCounters = blobStore.getMetricsRecorder().statsCounters;
 
             final List<Measurement> metrics = Measurement.combine(
-                getTelemetryPlugin(nodeName).getLongCounterMeasurement(METRIC_OPERATIONS_TOTAL)
+                getTelemetryPlugin(nodeName).getLongCounterMeasurement(METRIC_REQUESTS_TOTAL)
             );
 
             assertThat(
-                statsCollectors.keySet().stream().map(AzureBlobStore.StatsKey::operation).collect(Collectors.toSet()),
+                statsCounters.keySet().stream().map(AzureBlobStore.StatsKey::operation).collect(Collectors.toSet()),
                 equalTo(
                     metrics.stream()
                         .map(m -> AzureBlobStore.Operation.fromKey((String) m.attributes().get("operation")))
@@ -395,8 +406,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                     operation,
                     OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
-                assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
-                assertThat(nodeName + "/" + statsKey + " has correct sum", metric.getLong(), equalTo(statsCollectors.get(statsKey).sum()));
+                assertThat(nodeName + "/" + statsKey + " exists", statsCounters, hasKey(statsKey));
+                assertThat(
+                    nodeName + "/" + statsKey + " has correct sum",
+                    metric.getLong(),
+                    equalTo(statsCounters.get(statsKey).requests().sum())
+                );
                 aggregatedMetrics.compute(statsKey.operation(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });
         }

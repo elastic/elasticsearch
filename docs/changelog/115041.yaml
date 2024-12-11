@@ -1,0 +1,6 @@
+pr: 115041
+summary: Increase default `queue_capacity` to 10_000 and decrease max `queue_capacity`
+  to 100_000
+area: Machine Learning
+type: enhancement
+issues: []

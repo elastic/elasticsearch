@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
@@ -37,6 +38,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -50,6 +52,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -652,6 +655,62 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
+        "index.recovery.use_synthetic_source",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled == false) {
+                    return;
+                }
+
+                // Verify if synthetic source is enabled on the index; fail if it is not
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
+                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                                SourceFieldMapper.Mode.SYNTHETIC.name(),
+                                sourceMode.name()
+                            )
+                        );
+                    }
+                }
+
+                // Verify that all nodes can handle this setting
+                var version = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is unavailable on this cluster because some nodes are running older "
+                                + "versions that do not support it. Please upgrade all nodes to the latest version "
+                                + "and try again.",
+                            RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, SETTING_INDEX_VERSION_CREATED, MODE);
+                return res.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
@@ -822,6 +881,8 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
+    private final boolean recoverySourceEnabled;
+    private final boolean recoverySourceSyntheticEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -982,7 +1043,9 @@ public final class IndexSettings {
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
-        indexMappingSourceMode = scopedSettings.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+        recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
+        recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1664,6 +1727,21 @@ public final class IndexSettings {
 
     public SourceFieldMapper.Mode getIndexMappingSourceMode() {
         return indexMappingSourceMode;
+    }
+
+    /**
+     * @return Whether recovery source should be enabled if needed.
+     *         Note that this is a node setting, and this setting is not sourced from index settings.
+     */
+    public boolean isRecoverySourceEnabled() {
+        return recoverySourceEnabled;
+    }
+
+    /**
+     * @return Whether recovery source should always be bypassed in favor of using synthetic source.
+     */
+    public boolean isRecoverySourceSyntheticEnabled() {
+        return recoverySourceSyntheticEnabled;
     }
 
     /**

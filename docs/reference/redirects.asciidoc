@@ -1927,3 +1927,23 @@ Refer to <<remote-clusters>>.
 === Configure roles and users for remote clusters
 
 Refer to <<remote-clusters>>.
+
+[role="exclude",id="put-geoip-database-api"]
+=== Create or update geoip database configuration API
+
+Refer to <<put-ip-location-database-api>>.
+
+[role="exclude",id="get-geoip-database-api"]
+=== Get geoip database configuration
+
+Refer to <<get-ip-location-database-api>>.
+
+[role="exclude",id="delete-geoip-database-api"]
+=== Delete geoip database configuration API
+
+Refer to <<delete-ip-location-database-api>>.
+
+[role="exclude",id="knn-search-api"]
+=== Delete _knn_search API
+
+Refer to <<search-api-knn>>.

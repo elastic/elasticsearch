@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -15,7 +16,14 @@ public abstract class TypedAttribute extends Attribute {
 
     private final DataType dataType;
 
-    protected TypedAttribute(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+    protected TypedAttribute(
+        Source source,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
         super(source, name, nullability, id, synthetic);
         this.dataType = dataType;
     }

@@ -138,13 +138,13 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public DeleteResult delete(OperationPurpose purpose) {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         return blobStore.deleteBlobDirectory(purpose, keyPath);
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
+        blobStore.deleteBlobs(purpose, new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return blobNames.hasNext();
@@ -180,7 +180,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     private boolean skipRegisterOperation(ActionListener<?> listener) {
-        return skipCas(listener) || skipIfNotPrimaryOnlyLocationMode(listener);
+        return skipIfNotPrimaryOnlyLocationMode(listener);
     }
 
     private boolean skipIfNotPrimaryOnlyLocationMode(ActionListener<?> listener) {

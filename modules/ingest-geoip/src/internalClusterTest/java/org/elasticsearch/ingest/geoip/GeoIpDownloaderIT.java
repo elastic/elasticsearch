@@ -41,7 +41,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
@@ -67,6 +66,7 @@ import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -256,8 +256,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         res -> {
                             try {
                                 TotalHits totalHits = res.getHits().getTotalHits();
-                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-                                assertEquals(size, totalHits.value);
+                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation());
+                                assertEquals(size, totalHits.value());
                                 assertEquals(size, res.getHits().getHits().length);
 
                                 List<byte[]> data = new ArrayList<>();
@@ -494,7 +494,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        SimulatePipelineRequest simulateRequest = new SimulatePipelineRequest(bytes, XContentType.JSON);
+        SimulatePipelineRequest simulateRequest = jsonSimulatePipelineRequest(bytes);
         simulateRequest.setId("_id");
         // Avoid executing on a coordinating only node, because databases are not available there and geoip processor won't do any lookups.
         // (some test seeds repeatedly hit such nodes causing failures)

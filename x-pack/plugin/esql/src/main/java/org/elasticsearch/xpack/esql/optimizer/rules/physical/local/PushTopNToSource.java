@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -24,14 +25,12 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * We handle two main scenarios here:
@@ -59,9 +58,10 @@ import java.util.function.Predicate;
  * </ol>
  */
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
+
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
-        Pushable pushable = evaluatePushable(topNExec, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats()));
+        Pushable pushable = evaluatePushable(topNExec, LucenePushdownPredicates.from(ctx.searchStats()));
         return pushable.rewrite(topNExec);
     }
 
@@ -79,17 +79,6 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     record NoOpPushable() implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
             return topNExec;
-        }
-    }
-
-    /**
-     * TODO: Consider deleting this case entirely. We do not know if this is ever hit.
-     */
-    record PushableExchangeExec(ExchangeExec exchangeExec, EsQueryExec queryExec) implements Pushable {
-        public PhysicalPlan rewrite(TopNExec topNExec) {
-            var sorts = buildFieldSorts(topNExec.order());
-            var limit = topNExec.limit();
-            return exchangeExec.replaceChild(queryExec.withSorts(sorts).withLimit(limit));
         }
     }
 
@@ -133,20 +122,13 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
-    private static Pushable evaluatePushable(TopNExec topNExec, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static Pushable evaluatePushable(TopNExec topNExec, LucenePushdownPredicates lucenePushdownPredicates) {
         PhysicalPlan child = topNExec.child();
         if (child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
-            && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
+            && canPushDownOrders(topNExec.order(), lucenePushdownPredicates)) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
-        }
-        if (child instanceof ExchangeExec exchangeExec
-            && exchangeExec.child() instanceof EsQueryExec queryExec
-            && queryExec.canPushSorts()
-            && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
-            // When we have an exchange between the FROM and the SORT, we also only allow pushing down if the sort is on a field
-            return new PushableExchangeExec(exchangeExec, queryExec);
         }
         if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec && queryExec.canPushSorts()) {
             // When we have an EVAL between the FROM and the SORT, we consider pushing down if the sort is on a field and/or
@@ -167,7 +149,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
-                if (LucenePushDownUtils.isPushableFieldAttribute(order.child(), hasIdenticalDelegate)) {
+                if (lucenePushdownPredicates.isPushableFieldAttribute(order.child())) {
                     pushableSorts.add(
                         new EsQueryExec.FieldSort(
                             ((FieldAttribute) order.child()).exactAttribute(),
@@ -175,6 +157,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             order.nullsPosition()
                         )
                     );
+                } else if (lucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
+                    pushableSorts.add(new EsQueryExec.ScoreSort(order.direction()));
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
                     Attribute resolvedAttribute = aliasReplacedBy.resolve(referenceAttribute, referenceAttribute);
                     if (distances.containsKey(resolvedAttribute.id())) {
@@ -188,7 +172,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             break;
                         }
                     } else if (aliasReplacedBy.resolve(referenceAttribute, referenceAttribute) instanceof FieldAttribute fieldAttribute
-                        && LucenePushDownUtils.isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate)) {
+                        && lucenePushdownPredicates.isPushableFieldAttribute(fieldAttribute)) {
                             // If the SORT refers to a reference to a pushable field, we can push it down
                             pushableSorts.add(
                                 new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
@@ -203,23 +187,32 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     break;
                 }
             }
-            // TODO: We can push down partial sorts where `pushableSorts.size() < orders.size()`, but that should involve benchmarks
-            if (pushableSorts.size() > 0 && pushableSorts.size() == orders.size()) {
+            if (pushableSorts.isEmpty() == false) {
                 return new PushableCompoundExec(evalExec, queryExec, pushableSorts);
             }
         }
         return NO_OP;
     }
 
-    private static boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> LucenePushDownUtils.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+        return orders.stream()
+            .allMatch(
+                o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child())
+                    || lucenePushdownPredicates.isPushableMetadataAttribute(o.child())
+            );
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {
         List<EsQueryExec.Sort> sorts = new ArrayList<>(orders.size());
         for (Order o : orders) {
-            sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
+            if (o.child() instanceof FieldAttribute fa) {
+                sorts.add(new EsQueryExec.FieldSort(fa.exactAttribute(), o.direction(), o.nullsPosition()));
+            } else if (o.child() instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name())) {
+                sorts.add(new EsQueryExec.ScoreSort(o.direction()));
+            } else {
+                assert false : "unexpected ordering on expression type " + o.child().getClass();
+            }
         }
         return sorts;
     }

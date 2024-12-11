@@ -202,7 +202,11 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
                 }
             };
         }
-        return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+        LeafCollector leafCollector = new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+        if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
+            leafCollector = ScoreCachingWrappingScorer.wrap(leafCollector);
+        }
+        return leafCollector;
     }
 
     private static FilterScorable wrapToIgnoreMinCompetitiveScore(Scorable scorer) {
@@ -263,9 +267,6 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {
-            if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
-                scorer = ScoreCachingWrappingScorer.wrap(scorer);
-            }
             // Ignore calls to setMinCompetitiveScore so that if the top docs collector
             // wants to skip low-scoring hits, the aggs collector still sees all hits.
             // this is important also for terminate_after in case used when total hits tracking is early terminated.

@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -65,9 +66,22 @@ public class WordBoundaryChunkerTests extends ESTestCase {
         NUM_WORDS_IN_TEST_TEXT = wordCount;
     }
 
+    /**
+     * Utility method for testing.
+     * Use the chunk functions that return offsets where possible
+     */
+    List<String> textChunks(WordBoundaryChunker chunker, String input, int chunkSize, int overlap) {
+        if (input.isEmpty()) {
+            return List.of("");
+        }
+
+        var chunkPositions = chunker.chunk(input, chunkSize, overlap);
+        return chunkPositions.stream().map(p -> input.substring(p.start(), p.end())).collect(Collectors.toList());
+    }
+
     public void testSingleSplit() {
         var chunker = new WordBoundaryChunker();
-        var chunks = chunker.chunk(TEST_TEXT, 10_000, 0);
+        var chunks = textChunks(chunker, TEST_TEXT, 10_000, 0);
         assertThat(chunks, hasSize(1));
         assertEquals(TEST_TEXT, chunks.get(0));
     }
@@ -136,7 +150,7 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testInvalidChunkingSettingsProvided() {
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomNonNegativeInt(), 0);
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomIntBetween(20, 300), 0);
         assertThrows(IllegalArgumentException.class, () -> { new WordBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
     }
 
@@ -168,11 +182,11 @@ public class WordBoundaryChunkerTests extends ESTestCase {
         }
         var whiteSpacedText = input.toString().stripTrailing();
 
-        var chunks = new WordBoundaryChunker().chunk(whiteSpacedText, 20, 10);
+        var chunks = textChunks(new WordBoundaryChunker(), whiteSpacedText, 20, 10);
         assertChunkContents(chunks, numWords, 20, 10);
-        chunks = new WordBoundaryChunker().chunk(whiteSpacedText, 10, 4);
+        chunks = textChunks(new WordBoundaryChunker(), whiteSpacedText, 10, 4);
         assertChunkContents(chunks, numWords, 10, 4);
-        chunks = new WordBoundaryChunker().chunk(whiteSpacedText, 15, 3);
+        chunks = textChunks(new WordBoundaryChunker(), whiteSpacedText, 15, 3);
         assertChunkContents(chunks, numWords, 15, 3);
     }
 
@@ -217,28 +231,28 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testEmptyString() {
-        var chunks = new WordBoundaryChunker().chunk("", 10, 5);
-        assertThat(chunks, contains(""));
+        var chunks = textChunks(new WordBoundaryChunker(), "", 10, 5);
+        assertThat(chunks.toString(), chunks, contains(""));
     }
 
     public void testWhitespace() {
-        var chunks = new WordBoundaryChunker().chunk(" ", 10, 5);
+        var chunks = textChunks(new WordBoundaryChunker(), " ", 10, 5);
         assertThat(chunks, contains(" "));
     }
 
     public void testPunctuation() {
         int chunkSize = 1;
-        var chunks = new WordBoundaryChunker().chunk("Comma, separated", chunkSize, 0);
+        var chunks = textChunks(new WordBoundaryChunker(), "Comma, separated", chunkSize, 0);
         assertThat(chunks, contains("Comma", ", separated"));
 
-        chunks = new WordBoundaryChunker().chunk("Mme. Thénardier", chunkSize, 0);
+        chunks = textChunks(new WordBoundaryChunker(), "Mme. Thénardier", chunkSize, 0);
         assertThat(chunks, contains("Mme", ". Thénardier"));
 
-        chunks = new WordBoundaryChunker().chunk("Won't you chunk", chunkSize, 0);
+        chunks = textChunks(new WordBoundaryChunker(), "Won't you chunk", chunkSize, 0);
         assertThat(chunks, contains("Won't", " you", " chunk"));
 
         chunkSize = 10;
-        chunks = new WordBoundaryChunker().chunk("Won't you chunk", chunkSize, 0);
+        chunks = textChunks(new WordBoundaryChunker(), "Won't you chunk", chunkSize, 0);
         assertThat(chunks, contains("Won't you chunk"));
     }
 

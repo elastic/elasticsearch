@@ -1819,7 +1819,15 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+            shard.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            ).close();
         }
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
@@ -1837,7 +1845,15 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+            shard.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            ).close();
         }
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(2));
@@ -2793,9 +2809,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits.value, 1);
+            assertEquals(search.totalHits.value(), 1);
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits.value, 1);
+            assertEquals(search.totalHits.value(), 1);
         }
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
         closeShards(shard);
@@ -2815,9 +2831,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
             TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits.value, 0);
+            assertEquals(search.totalHits.value(), 0);
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits.value, 1);
+            assertEquals(search.totalHits.value(), 1);
         }
         try (Engine.GetResult getResult = newShard.get(new Engine.Get(false, false, "1"))) {
             assertTrue(getResult.exists());

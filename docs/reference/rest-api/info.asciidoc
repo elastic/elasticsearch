@@ -172,6 +172,10 @@ Example response:
       "universal_profiling": {
          "available": true,
          "enabled": true
+      },
+      "logsdb": {
+        "available": true,
+        "enabled": false
       }
    },
    "tagline" : "You know, for X"

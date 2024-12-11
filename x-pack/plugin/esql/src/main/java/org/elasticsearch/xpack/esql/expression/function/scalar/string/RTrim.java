@@ -34,7 +34,7 @@ public class RTrim extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RTrim", RTrim::new);
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
+        returnType = { "keyword" },
         description = "Removes trailing whitespaces from a string.",
         examples = @Example(file = "string", tag = "rtrim")
     )

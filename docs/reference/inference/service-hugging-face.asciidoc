@@ -32,6 +32,26 @@ Available task types:
 [[infer-service-hugging-face-api-request-body]]
 ==== {api-request-body-title}
 
+`chunking_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=chunking-settings]
+
+`max_chunking_size`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
+
+`overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-overlap]
+
+`sentence_overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-sentence-overlap]
+
+`strategy`:::
+(Optional, string)
+include::inference-shared.asciidoc[tag=chunking-settings-strategy]
+
 `service`::
 (Required, string)
 The type of service supported for the specified task type. In this case, 

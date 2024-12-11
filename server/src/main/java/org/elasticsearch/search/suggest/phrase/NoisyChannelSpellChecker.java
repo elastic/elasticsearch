@@ -70,7 +70,7 @@ final class NoisyChannelSpellChecker {
                 if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
                     TermStats termStats = generator.termStats(term);
-                    if (termStats.docFreq > 0) {
+                    if (termStats.docFreq() > 0) {
                         currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), termStats, realWordLikelihood));
                     }
                 } else {

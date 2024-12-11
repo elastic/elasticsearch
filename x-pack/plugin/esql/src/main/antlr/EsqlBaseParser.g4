@@ -54,6 +54,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? joinCommand
     ;
 
 whereCommand
@@ -68,7 +69,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
+    | matchBooleanExpression                                                     #matchExpression
     ;
 
 regexBooleanExpression
@@ -77,7 +78,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : valueExpression DEV_MATCH queryString=string
+    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
     ;
 
 valueExpression
@@ -105,9 +106,7 @@ functionExpression
     ;
 
 functionName
-    // Additional function identifiers that are already a reserved word in the language
-    : {this.isDevVersion()}? DEV_MATCH
-    | identifierOrParameter
+    : identifierOrParameter
     ;
 
 dataType
@@ -123,8 +122,7 @@ fields
     ;
 
 field
-    : booleanExpression
-    | qualifiedName ASSIGN booleanExpression
+    : (qualifiedName ASSIGN)? booleanExpression
     ;
 
 fromCommand
@@ -132,8 +130,7 @@ fromCommand
     ;
 
 indexPattern
-    : clusterString COLON indexString
-    | indexString
+    : (clusterString COLON)? indexString
     ;
 
 clusterString
@@ -159,7 +156,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
+    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=aggFields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -167,7 +164,15 @@ evalCommand
     ;
 
 statsCommand
-    : STATS stats=fields? (BY grouping=fields)?
+    : STATS stats=aggFields? (BY grouping=fields)?
+    ;
+
+aggFields
+    : aggField (COMMA aggField)*
+    ;
+
+aggField
+    : field (WHERE booleanExpression)?
     ;
 
 qualifiedName
@@ -189,7 +194,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
-    | parameter
+    | {this.isDevVersion()}? parameter
     ;
 
 constant
@@ -212,7 +217,7 @@ parameter
 
 identifierOrParameter
     : identifier
-    | parameter
+    | {this.isDevVersion()}? parameter
     ;
 
 limitCommand
@@ -316,5 +321,21 @@ lookupCommand
     ;
 
 inlinestatsCommand
-    : DEV_INLINESTATS stats=fields (BY grouping=fields)?
+    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+joinCommand
+    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition
+    ;
+
+joinTarget
+    : index=identifier (AS alias=identifier)?
+    ;
+
+joinCondition
+    : ON joinPredicate (COMMA joinPredicate)*
+    ;
+
+joinPredicate
+    : valueExpression
     ;

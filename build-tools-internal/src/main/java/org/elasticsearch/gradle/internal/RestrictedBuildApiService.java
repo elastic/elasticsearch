@@ -53,8 +53,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":plugins:repository-hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:store-smb");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-unavailable-clusters");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:logging-config");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
         map.put(LegacyRestTestBasePlugin.class, ":qa:remote-clusters");
@@ -65,7 +63,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-ingest-with-all-dependencies");
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-plugins");
         map.put(LegacyRestTestBasePlugin.class, ":qa:system-indices");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:unconfigured-node-name");
         map.put(LegacyRestTestBasePlugin.class, ":qa:verify-version-constants");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-apm-integration");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-delayed-aggs");
@@ -73,7 +70,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-error-query");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-latency-simulating-directory");
         map.put(LegacyRestTestBasePlugin.class, ":test:yaml-rest-runner");
-        map.put(LegacyRestTestBasePlugin.class, ":distribution:archives:integ-test-zip");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:core");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:fleet");

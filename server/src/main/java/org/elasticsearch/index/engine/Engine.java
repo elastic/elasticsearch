@@ -58,7 +58,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -117,8 +116,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING) // TODO: Remove sync_id in 9.0
-    public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
@@ -940,14 +937,15 @@ public abstract class Engine implements Closeable {
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
     /**
-     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
-     * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
+     * @deprecated This method is deprecated will and be removed once #114618 is applied to the serverless repository.
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
+    @Deprecated
     public abstract Translog.Snapshot newChangesSnapshot(
         String source,
         long fromSeqNo,
@@ -956,6 +954,23 @@ public abstract class Engine implements Closeable {
         boolean singleConsumer,
         boolean accessStats
     ) throws IOException;
+
+    /**
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
+     * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
+     */
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats,
+        long maxChunkSize
+    ) throws IOException {
+        // TODO: Remove this default implementation once the deprecated newChangesSnapshot is removed
+        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
+    }
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)

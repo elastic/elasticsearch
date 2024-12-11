@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MultiMatchQueryParser;
@@ -45,11 +44,7 @@ import java.util.TreeMap;
 public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
-    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported."
-        + " The [multi_match] query can skip block of documents efficiently if the total number of hits is not tracked";
-    private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency").withAllDeprecated(
-        CUTOFF_FREQUENCY_DEPRECATION_MSG
-    ).forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
+
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final int DEFAULT_PHRASE_SLOP = MatchQueryParser.DEFAULT_PHRASE_SLOP;
@@ -129,7 +124,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
          */
         BOOL_PREFIX(MatchQueryParser.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
 
-        private MatchQueryParser.Type matchQueryType;
+        private final MatchQueryParser.Type matchQueryType;
         private final float tieBreaker;
         private final ParseField parseField;
 
@@ -654,15 +649,12 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                    && CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        throw new ParsingException(parser.getTokenLocation(), CUTOFF_FREQUENCY_DEPRECATION_MSG);
-                    } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "[" + NAME + "] query does not support [" + currentFieldName + "]"
-                        );
-                    }
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
+                }
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),

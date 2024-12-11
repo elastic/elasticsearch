@@ -24,6 +24,8 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.transport.Transports;
@@ -147,11 +149,15 @@ public abstract class IndexRouting {
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
+        private final IndexVersion creationVersion;
+        private final IndexMode indexMode;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
+            this.creationVersion = metadata.getCreationVersion();
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
+            this.indexMode = metadata.getIndexMode();
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
@@ -161,10 +167,23 @@ public abstract class IndexRouting {
             // generate id if not already provided
             final String id = indexRequest.id();
             if (id == null) {
-                indexRequest.autoGenerateId();
+                if (shouldUseTimeBasedId(indexMode, creationVersion)) {
+                    indexRequest.autoGenerateTimeBasedId();
+                } else {
+                    indexRequest.autoGenerateId();
+                }
             } else if (id.isEmpty()) {
                 throw new IllegalArgumentException("if _id is specified it must not be empty");
             }
+        }
+
+        private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
+            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+        }
+
+        private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
+            return creationVersion.between(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                || creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID);
         }
 
         @Override

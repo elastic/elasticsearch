@@ -68,7 +68,7 @@ public class EmbeddingRequestChunker {
     private final EmbeddingType embeddingType;
     private final ChunkingSettings chunkingSettings;
 
-    private List<List<String>> chunkedInputs;
+    private List<ChunkOffsetsAndInput> chunkedOffsets;
     private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> floatResults;
     private List<AtomicArray<List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>>> byteResults;
     private List<AtomicArray<List<SparseEmbeddingResults.Embedding>>> sparseResults;
@@ -109,7 +109,7 @@ public class EmbeddingRequestChunker {
     }
 
     private void splitIntoBatchedRequests(List<String> inputs) {
-        Function<String, List<String>> chunkFunction;
+        Function<String, List<Chunker.ChunkOffset>> chunkFunction;
         if (chunkingSettings != null) {
             var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
             chunkFunction = input -> chunker.chunk(input, chunkingSettings);
@@ -118,7 +118,7 @@ public class EmbeddingRequestChunker {
             chunkFunction = input -> chunker.chunk(input, wordsPerChunk, chunkOverlap);
         }
 
-        chunkedInputs = new ArrayList<>(inputs.size());
+        chunkedOffsets = new ArrayList<>(inputs.size());
         switch (embeddingType) {
             case FLOAT -> floatResults = new ArrayList<>(inputs.size());
             case BYTE -> byteResults = new ArrayList<>(inputs.size());
@@ -128,18 +128,19 @@ public class EmbeddingRequestChunker {
 
         for (int i = 0; i < inputs.size(); i++) {
             var chunks = chunkFunction.apply(inputs.get(i));
-            int numberOfSubBatches = addToBatches(chunks, i);
+            var offSetsAndInput = new ChunkOffsetsAndInput(chunks, inputs.get(i));
+            int numberOfSubBatches = addToBatches(offSetsAndInput, i);
             // size the results array with the expected number of request/responses
             switch (embeddingType) {
                 case FLOAT -> floatResults.add(new AtomicArray<>(numberOfSubBatches));
                 case BYTE -> byteResults.add(new AtomicArray<>(numberOfSubBatches));
                 case SPARSE -> sparseResults.add(new AtomicArray<>(numberOfSubBatches));
             }
-            chunkedInputs.add(chunks);
+            chunkedOffsets.add(offSetsAndInput);
         }
     }
 
-    private int addToBatches(List<String> chunks, int inputIndex) {
+    private int addToBatches(ChunkOffsetsAndInput chunk, int inputIndex) {
         BatchRequest lastBatch;
         if (batchedRequests.isEmpty()) {
             lastBatch = new BatchRequest(new ArrayList<>());
@@ -157,16 +158,24 @@ public class EmbeddingRequestChunker {
 
         if (freeSpace > 0) {
             // use any free space in the previous batch before creating new batches
-            int toAdd = Math.min(freeSpace, chunks.size());
-            lastBatch.addSubBatch(new SubBatch(chunks.subList(0, toAdd), new SubBatchPositionsAndCount(inputIndex, chunkIndex++, toAdd)));
+            int toAdd = Math.min(freeSpace, chunk.offsets().size());
+            lastBatch.addSubBatch(
+                new SubBatch(
+                    new ChunkOffsetsAndInput(chunk.offsets().subList(0, toAdd), chunk.input()),
+                    new SubBatchPositionsAndCount(inputIndex, chunkIndex++, toAdd)
+                )
+            );
         }
 
         int start = freeSpace;
-        while (start < chunks.size()) {
-            int toAdd = Math.min(maxNumberOfInputsPerBatch, chunks.size() - start);
+        while (start < chunk.offsets().size()) {
+            int toAdd = Math.min(maxNumberOfInputsPerBatch, chunk.offsets().size() - start);
             var batch = new BatchRequest(new ArrayList<>());
             batch.addSubBatch(
-                new SubBatch(chunks.subList(start, start + toAdd), new SubBatchPositionsAndCount(inputIndex, chunkIndex++, toAdd))
+                new SubBatch(
+                    new ChunkOffsetsAndInput(chunk.offsets().subList(start, start + toAdd), chunk.input()),
+                    new SubBatchPositionsAndCount(inputIndex, chunkIndex++, toAdd)
+                )
             );
             batchedRequests.add(batch);
             start += toAdd;
@@ -324,7 +333,7 @@ public class EmbeddingRequestChunker {
         public void onFailure(Exception e) {
             var errorResult = new ErrorChunkedInferenceResults(e);
             for (var pos : positions) {
-                errors.setOnce(pos.inputIndex(), errorResult);
+                errors.set(pos.inputIndex(), errorResult);
             }
 
             if (resultCount.incrementAndGet() == totalNumberOfRequests) {
@@ -333,8 +342,8 @@ public class EmbeddingRequestChunker {
         }
 
         private void sendResponse() {
-            var response = new ArrayList<ChunkedInferenceServiceResults>(chunkedInputs.size());
-            for (int i = 0; i < chunkedInputs.size(); i++) {
+            var response = new ArrayList<ChunkedInferenceServiceResults>(chunkedOffsets.size());
+            for (int i = 0; i < chunkedOffsets.size(); i++) {
                 if (errors.get(i) != null) {
                     response.add(errors.get(i));
                 } else {
@@ -348,9 +357,9 @@ public class EmbeddingRequestChunker {
 
     private ChunkedInferenceServiceResults mergeResultsWithInputs(int resultIndex) {
         return switch (embeddingType) {
-            case FLOAT -> mergeFloatResultsWithInputs(chunkedInputs.get(resultIndex), floatResults.get(resultIndex));
-            case BYTE -> mergeByteResultsWithInputs(chunkedInputs.get(resultIndex), byteResults.get(resultIndex));
-            case SPARSE -> mergeSparseResultsWithInputs(chunkedInputs.get(resultIndex), sparseResults.get(resultIndex));
+            case FLOAT -> mergeFloatResultsWithInputs(chunkedOffsets.get(resultIndex).toChunkText(), floatResults.get(resultIndex));
+            case BYTE -> mergeByteResultsWithInputs(chunkedOffsets.get(resultIndex).toChunkText(), byteResults.get(resultIndex));
+            case SPARSE -> mergeSparseResultsWithInputs(chunkedOffsets.get(resultIndex).toChunkText(), sparseResults.get(resultIndex));
         };
     }
 
@@ -428,7 +437,7 @@ public class EmbeddingRequestChunker {
         }
 
         public List<String> inputs() {
-            return subBatches.stream().flatMap(s -> s.requests().stream()).collect(Collectors.toList());
+            return subBatches.stream().flatMap(s -> s.requests().toChunkText().stream()).collect(Collectors.toList());
         }
     }
 
@@ -441,9 +450,15 @@ public class EmbeddingRequestChunker {
      */
     record SubBatchPositionsAndCount(int inputIndex, int chunkIndex, int embeddingCount) {}
 
-    record SubBatch(List<String> requests, SubBatchPositionsAndCount positions) {
-        public int size() {
-            return requests.size();
+    record SubBatch(ChunkOffsetsAndInput requests, SubBatchPositionsAndCount positions) {
+        int size() {
+            return requests.offsets().size();
+        }
+    }
+
+    record ChunkOffsetsAndInput(List<Chunker.ChunkOffset> offsets, String input) {
+        List<String> toChunkText() {
+            return offsets.stream().map(o -> input.substring(o.start(), o.end())).collect(Collectors.toList());
         }
     }
 }

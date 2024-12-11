@@ -18,4 +18,20 @@ include::{esql-specs}/docs.csv-spec[tag=rlike]
 |===
 include::{esql-specs}/docs.csv-spec[tag=rlike-result]
 |===
+
+Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
+The escape character is backslash `\`. Since also backslash is a special character in string literals,
+it will require further escaping.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=rlikeEscapingSingleQuotes]
+----
+
+To reduce the overhead of escaping, we suggest using triple quotes strings `"""`
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=rlikeEscapingTripleQuotes]
+----
 // end::body[]

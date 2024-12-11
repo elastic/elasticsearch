@@ -70,7 +70,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .settings(settings(IndexVersion.current()))
             .numberOfShards(10)
             .numberOfReplicas(1)
-            .eventIngestedRange(eventIngestedRangeInput, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE);
+            .eventIngestedRange(eventIngestedRangeInput, TransportVersions.V_8_15_0);
 
         ClusterStateTestRecord result = createAndSerializeClusterState(indexMetadataBuilder, TransportVersion.current());
 
@@ -90,7 +90,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(
             TransportVersions.V_7_0_0,
             TransportVersions.V_8_0_0,
-            TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED  // version before EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_15_0)
         );
         {
             IndexLongFieldRange eventIngestedRangeInput = randomFrom(

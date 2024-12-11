@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -44,6 +46,7 @@ import java.util.TreeMap;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
+    private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
     public static final FeatureFlag SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto");
 
@@ -682,12 +685,35 @@ public class ObjectMapper extends Mapper {
                     // replaces an existing one.
                     if (objectMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE) {
                         putMergedMapper(mergedMappers, mergeWithMapper);
+                    } else if (isConflictingDynamicMapping(objectMergeContext, mergeWithMapper, mergeIntoMapper)) {
+                        logger.trace(
+                            "ignoring conflicting dynamic mapping update for field={} current_type={} new_type={}",
+                            mergeIntoMapper.fullPath(),
+                            mergeIntoMapper.typeName(),
+                            mergeWithMapper.typeName()
+                        );
                     } else {
                         putMergedMapper(mergedMappers, mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                     }
                 }
             }
             return Map.copyOf(mergedMappers);
+        }
+
+        /*
+         * We're ignoring the field if a dynamic mapping update tries to define a conflicting field type.
+         * This is caused by another index request with a different value racing to update the mappings.
+         * After updating the mappings, the index request will be re-tried and sees the updated mappings for this field.
+         * The updated mappings will then be taken into account when parsing the document
+         * (for example by coercing the value, ignore_malformed values, or failing the index request due to a type conflict).
+         */
+        private static boolean isConflictingDynamicMapping(
+            MapperMergeContext objectMergeContext,
+            Mapper mergeWithMapper,
+            Mapper mergeIntoMapper
+        ) {
+            return objectMergeContext.getMapperBuilderContext().getMergeReason().isAutoUpdate()
+                && mergeIntoMapper.typeName().equals(mergeWithMapper.typeName()) == false;
         }
 
         private static void putMergedMapper(Map<String, Mapper> mergedMappers, @Nullable Mapper merged) {

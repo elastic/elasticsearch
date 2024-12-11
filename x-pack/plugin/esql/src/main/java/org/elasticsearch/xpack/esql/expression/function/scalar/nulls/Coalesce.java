@@ -53,6 +53,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "boolean",
             "cartesian_point",
             "cartesian_shape",
+            "date_nanos",
             "date",
             "geo_point",
             "geo_shape",
@@ -60,7 +61,6 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
@@ -73,6 +73,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "date_nanos",
                 "date",
                 "geo_point",
                 "geo_shape",
@@ -90,6 +91,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "date_nanos",
                 "date",
                 "geo_point",
                 "geo_shape",
@@ -142,12 +144,12 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
         for (int position = 0; position < children().size(); position++) {
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = children().get(position).dataType().noText();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
                 children().get(position),
-                t -> t == dataType,
+                t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
                 dataType.typeName()

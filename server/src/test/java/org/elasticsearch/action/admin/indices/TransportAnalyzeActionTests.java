@@ -13,6 +13,7 @@ import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -85,7 +87,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 final CharacterRunAutomaton stopset;
 
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(name, settings);
+                    super(name);
                     if (settings.hasValue("stopword")) {
                         this.stopset = new CharacterRunAutomaton(Automata.makeString(settings.get("stopword")));
                     } else {
@@ -247,6 +249,32 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals(15, tokens.get(3).getEndOffset());
         assertEquals(3, tokens.get(3).getPosition());
         assertEquals("<ALPHANUM>", tokens.get(3).getType());
+    }
+
+    public void testAnalyzerWithTwoTextsAndNoIndexName() throws IOException {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+
+        for (String analyzer : Arrays.asList("standard", "simple", "stop", "keyword", "whitespace", "classic")) {
+            request.analyzer(analyzer);
+            request.text("a a", "b b");
+
+            AnalyzeAction.Response analyzeIndex = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokensIndex = analyzeIndex.getTokens();
+
+            AnalyzeAction.Response analyzeNoIndex = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokensNoIndex = analyzeNoIndex.getTokens();
+
+            assertEquals(tokensIndex.size(), tokensNoIndex.size());
+            for (int i = 0; i < tokensIndex.size(); i++) {
+                AnalyzeAction.AnalyzeToken withIndex = tokensIndex.get(i);
+                AnalyzeAction.AnalyzeToken withNoIndex = tokensNoIndex.get(i);
+
+                assertEquals(withIndex.getStartOffset(), withNoIndex.getStartOffset());
+                assertEquals(withIndex.getEndOffset(), withNoIndex.getEndOffset());
+                assertEquals(withIndex.getPosition(), withNoIndex.getPosition());
+                assertEquals(withIndex.getType(), withNoIndex.getType());
+            }
+        }
     }
 
     public void testWithIndexAnalyzers() throws IOException {
@@ -460,8 +488,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text(text);
         request.analyzer("standard");
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount)
         );
         assertEquals(
@@ -477,8 +505,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request2.text(text);
         request2.analyzer("standard");
         request2.explain(true);
-        IllegalStateException e2 = expectThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException e2 = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportAnalyzeAction.analyze(request2, registry, null, maxTokenCount)
         );
         assertEquals(
@@ -506,8 +534,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text(text);
         request.analyzer("standard");
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportAnalyzeAction.analyze(request, registry, null, idxMaxTokenCount)
         );
         assertEquals(

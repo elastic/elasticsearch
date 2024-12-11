@@ -52,16 +52,32 @@ public class MapperFeatures implements FeatureSpecification {
             IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
             TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
-            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
+            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT,
+            DenseVectorFieldMapper.BBQ_FORMAT
         );
     }
+
+    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
+        "mapper.constant_keyword.synthetic_source_write_fix"
+    );
+
+    public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
+    public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
-            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION
+            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+            SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
+            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
+            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
+            META_FETCH_FIELDS_ERROR_CODE_CHANGED,
+            SPARSE_VECTOR_STORE_SUPPORT
         );
     }
 }

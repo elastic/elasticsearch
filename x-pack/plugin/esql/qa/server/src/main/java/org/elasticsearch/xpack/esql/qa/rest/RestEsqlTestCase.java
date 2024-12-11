@@ -31,7 +31,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,7 +54,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntFunction;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 import static java.util.Map.entry;
@@ -81,9 +82,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String TEST_INDEX_NAME = "rest-esql-test";
 
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
-
-    private static final List<String> NO_WARNINGS = List.of();
-    private static final List<Pattern> NO_WARNINGS_REGEX = List.of();
 
     private static final String MAPPING_ALL_TYPES;
 
@@ -352,21 +350,21 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null, mode));
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
+        assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|', mode));
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
+        assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null, mode));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
@@ -378,7 +376,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Content-Type", mediaType);
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
-        HttpEntity entity = performRequest(request, NO_WARNINGS, NO_WARNINGS_REGEX);
+        HttpEntity entity = performRequest(request, new AssertWarnings.NoWarnings());
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
     }
@@ -397,9 +395,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "long",
             // TODO: https://github.com/elastic/elasticsearch/issues/102935
             // "unsigned_long",
-            // TODO: https://github.com/elastic/elasticsearch/issues/100130
-            // "half_float",
-            // "float",
+            "half_float",
+            "float",
             "double",
             "scaled_float"
         );
@@ -430,11 +427,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             for (String truePredicate : trueForSingleValuesPredicates) {
                 String comparison = fieldWithType + truePredicate;
                 var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), comparison));
-                List<String> expectedWarnings = List.of(
-                    "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                AssertWarnings assertWarnings = new AssertWarnings.ExactStrings(
+                    List.of(
+                        "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                    )
                 );
-                var result = runEsql(query, expectedWarnings, NO_WARNINGS_REGEX, mode);
+                var result = runEsql(query, assertWarnings, mode);
 
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(
@@ -504,7 +503,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         for (String p : predicates) {
             var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), p));
-            var result = runEsql(query, List.of(), NO_WARNINGS_REGEX, mode);
+            var result = runEsql(query, new AssertWarnings.NoWarnings(), mode);
             var values = as(result.get("values"), ArrayList.class);
             assertThat(
                 format(null, "Comparison [{}] should return all rows with single values.", p),
@@ -670,6 +669,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         bulkLoadTestData(10);
         // positive
         var query = requestObjectBuilder().query(
@@ -680,12 +683,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         )
             .params(
-                "[{\"n1\" : {\"value\" : \"integer\" , \"kind\" : \"identifier\"}},"
-                    + "{\"n2\" : {\"value\" : \"short\" , \"kind\" : \"identifier\"}}, "
-                    + "{\"n3\" : {\"value\" : \"double\" , \"kind\" : \"identifier\"}},"
-                    + "{\"n4\" : {\"value\" : \"boolean\" , \"kind\" : \"identifier\"}}, "
-                    + "{\"n5\" : {\"value\" : \"xx*\" , \"kind\" : \"pattern\"}}, "
-                    + "{\"fn1\" : {\"value\" : \"max\" , \"kind\" : \"identifier\"}}]"
+                "[{\"n1\" : {\"identifier\" : \"integer\"}}, {\"n2\" : {\"identifier\" : \"short\"}}, "
+                    + "{\"n3\" : {\"identifier\" : \"double\"}}, {\"n4\" : {\"identifier\" : \"boolean\"}}, "
+                    + "{\"n5\" : {\"pattern\" : \"xx*\"}}, {\"fn1\" : {\"identifier\" : \"max\"}}]"
             );
         Map<String, Object> result = runEsql(query);
         Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
@@ -724,10 +724,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 ResponseException.class,
                 () -> runEsqlSync(
                     requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
-                        .params(
-                            "[{\"n1\" : {\"value\" : \"integer\" , \"kind\" : \"identifier\"}},"
-                                + "{\"n2\" : {\"value\" : \"short\" , \"kind\" : \"identifier\"}}]"
-                        )
+                        .params("[{\"n1\" : {\"identifier\" : \"integer\"}}, {\"n2\" : {\"identifier\" : \"short\"}}]")
                 )
             );
             error = re.getMessage();
@@ -747,9 +744,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 () -> runEsqlSync(
                     requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
                         .params(
-                            "[{\"n1\" : {\"value\" : \"`n1`\" , \"kind\" : \"identifier\"}},"
-                                + "{\"n2\" : {\"value\" : \"`n2`\" , \"kind\" : \"identifier\"}}, "
-                                + "{\"n3\" : {\"value\" : \"`n3`\" , \"kind\" : \"identifier\"}}]"
+                            "[{\"n1\" : {\"identifier\" : \"`n1`\"}}, {\"n2\" : {\"identifier\" : \"`n2`\"}}, "
+                                + "{\"n3\" : {\"identifier\" : \"`n3`\"}}]"
                         )
                 )
             );
@@ -777,7 +773,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 ResponseException.class,
                 () -> runEsqlSync(
                     requestObjectBuilder().query(format(null, "from {} | ?cmd {}", testIndexName(), command.getValue()))
-                        .params("[{\"cmd\" : {\"value\" : \"" + command.getKey() + "\", \"kind\" : \"identifier\"}}]")
+                        .params("[{\"cmd\" : {\"identifier\" : \"" + command.getKey() + "\"}}]")
                 )
             );
             error = re.getMessage();
@@ -851,6 +847,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      *     query. It's part of the "configuration" of the query.
      * </p>
      */
+    @AwaitsFix(bugUrl = "Disabled temporarily until JOIN implementation is completed")
     public void testInlineStatsNow() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
@@ -998,74 +995,43 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
-        return runEsql(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX, mode);
+        return runEsql(requestObject, new AssertWarnings.NoWarnings(), mode);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlSync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
+        return runEsqlSync(requestObject, new AssertWarnings.NoWarnings());
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlAsync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
+        return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
-    static Map<String, Object> runEsql(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex,
-        Mode mode
-    ) throws IOException {
+    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
         if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
+            return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
         } else {
-            return runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
+            return runEsqlSync(requestObject, assertWarnings);
         }
     }
 
-    public static Map<String, Object> runEsqlSync(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex
-    ) throws IOException {
-        requestObject.build();
-        Request request = prepareRequest(SYNC);
-        String mediaType = attachBody(requestObject, request);
+    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
+        Request request = prepareRequestWithOptions(requestObject, SYNC);
 
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
-        options.addHeader("Content-Type", mediaType);
-
-        if (randomBoolean()) {
-            options.addHeader("Accept", mediaType);
-        } else {
-            request.addParameter("format", requestObject.contentType().queryParameter());
-        }
-        request.setOptions(options);
-
-        HttpEntity entity = performRequest(request, expectedWarnings, expectedWarningsRegex);
+        HttpEntity entity = performRequest(request, assertWarnings);
         return entityToMap(entity, requestObject.contentType());
+    }
+
+    public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
+        return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
     }
 
     public static Map<String, Object> runEsqlAsync(
         RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex
+        boolean keepOnCompletion,
+        AssertWarnings assertWarnings
     ) throws IOException {
-        addAsyncParameters(requestObject);
-        requestObject.build();
-        Request request = prepareRequest(ASYNC);
-        String mediaType = attachBody(requestObject, request);
-
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
-        options.addHeader("Content-Type", mediaType);
-
-        if (randomBoolean()) {
-            options.addHeader("Accept", mediaType);
-        } else {
-            request.addParameter("format", requestObject.contentType().queryParameter());
-        }
-        request.setOptions(options);
+        addAsyncParameters(requestObject, keepOnCompletion);
+        Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
         if (shouldLog()) {
             LOGGER.info("REQUEST={}", request);
@@ -1077,7 +1043,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Object initialColumns = null;
         Object initialValues = null;
         var json = entityToMap(entity, requestObject.contentType());
-        checkKeepOnCompletion(requestObject, json);
+        checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
@@ -1090,7 +1056,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
                 assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
             }
-            assertWarnings(response, expectedWarnings, expectedWarningsRegex);
+            assertWarnings(response, assertWarnings);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
@@ -1100,7 +1066,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
-                assertWarnings(response, expectedWarnings, expectedWarningsRegex);
+                assertWarnings(response, assertWarnings);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1117,7 +1083,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
-            getRequest.setOptions(options);
+            getRequest.setOptions(request.getOptions());
             response = performRequest(getRequest);
             entity = response.getEntity();
         }
@@ -1130,9 +1096,69 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValues, result.get("values"));
         }
 
-        assertWarnings(response, expectedWarnings, expectedWarningsRegex);
+        assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
+    }
+
+    public void testAsyncGetWithoutContentType() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var requestObject = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+
+        addAsyncParameters(requestObject, true);
+        Request request = prepareRequestWithOptions(requestObject, ASYNC);
+
+        if (shouldLog()) {
+            LOGGER.info("REQUEST={}", request);
+        }
+
+        Response response = performRequest(request);
+        HttpEntity entity = response.getEntity();
+
+        var json = entityToMap(entity, requestObject.contentType());
+        checkKeepOnCompletion(requestObject, json, true);
+        String id = (String) json.get("id");
+        // results won't be returned since keepOnCompletion is true
+        assertThat(id, is(not(emptyOrNullString())));
+
+        // issue an "async get" request with no Content-Type
+        Request getRequest = prepareAsyncGetRequest(id);
+        response = performRequest(getRequest);
+        entity = response.getEntity();
+        var result = entityToMap(entity, XContentType.JSON);
+
+        ListMatcher values = matchesList();
+        for (int i = 0; i < count; i++) {
+            values = values.item(matchesList().item("keyword" + i).item(i));
+        }
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                matchesList().item(matchesMap().entry("name", "keyword").entry("type", "keyword"))
+                    .item(matchesMap().entry("name", "integer").entry("type", "integer"))
+            ).entry("values", values).entry("took", greaterThanOrEqualTo(0)).entry("id", id).entry("is_running", false)
+        );
+
+    }
+
+    static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
+        requestObject.build();
+        Request request = prepareRequest(mode);
+        String mediaType = attachBody(requestObject, request);
+
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
+        options.addHeader("Content-Type", mediaType);
+
+        if (randomBoolean()) {
+            options.addHeader("Accept", mediaType);
+        } else {
+            request.addParameter("format", requestObject.contentType().queryParameter());
+        }
+        request.setOptions(options);
+        return request;
     }
 
     // Removes async properties, otherwise consuming assertions would need to handle sync and async differences
@@ -1155,17 +1181,20 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    static void addAsyncParameters(RequestObjectBuilder requestObject) throws IOException {
+    static void addAsyncParameters(RequestObjectBuilder requestObject, boolean keepOnCompletion) throws IOException {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
-        requestObject.keepOnCompletion(randomBoolean());
+        requestObject.keepOnCompletion(keepOnCompletion);
         requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
-    static void checkKeepOnCompletion(RequestObjectBuilder requestObject, Map<String, Object> json) {
+    static void checkKeepOnCompletion(RequestObjectBuilder requestObject, Map<String, Object> json, boolean keepOnCompletion) {
         if (requestObject.keepOnCompletion()) {
+            assertTrue(keepOnCompletion);
             assertThat((String) json.get("id"), not(emptyOrNullString()));
+        } else {
+            assertFalse(keepOnCompletion);
         }
     }
 
@@ -1183,14 +1212,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(404, response.getStatusLine().getStatusCode());
     }
 
-    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter) throws IOException {
-        Request request = prepareRequest(SYNC);
+    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
+        throws IOException {
+        Request request = prepareRequest(mode);
+        if (mode == ASYNC) {
+            addAsyncParameters(builder, randomBoolean());
+        }
         String mediaType = attachBody(builder.build(), request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Content-Type", mediaType);
 
-        if (randomBoolean()) {
+        boolean addParam = randomBoolean();
+        if (addParam) {
             request.addParameter("format", format);
         } else {
             switch (format) {
@@ -1204,8 +1238,75 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
         request.setOptions(options);
 
-        HttpEntity entity = performRequest(request, NO_WARNINGS, NO_WARNINGS_REGEX);
-        return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        if (shouldLog()) {
+            LOGGER.info("REQUEST={}", request);
+        }
+
+        Response response = performRequest(request);
+        HttpEntity entity = assertWarnings(response, new AssertWarnings.NoWarnings());
+
+        // get the content, it could be empty because the request might have not completed
+        String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        String id = response.getHeader("X-Elasticsearch-Async-Id");
+
+        if (mode == SYNC) {
+            assertThat(id, is(emptyOrNullString()));
+            return initialValue;
+        }
+
+        if (id == null) {
+            // no id returned from an async call, must have completed immediately and without keep_on_completion
+            assertThat(builder.keepOnCompletion(), either(nullValue()).or(is(false)));
+            assertNull(response.getHeader("is_running"));
+            // the content cant be empty
+            assertThat(initialValue, not(emptyOrNullString()));
+            return initialValue;
+        } else {
+            // async may not return results immediately, so may need an async get
+            assertThat(id, is(not(emptyOrNullString())));
+            String isRunning = response.getHeader("X-Elasticsearch-Async-Is-Running");
+            if ("?0".equals(isRunning)) {
+                // must have completed immediately so keep_on_completion must be true
+                assertThat(builder.keepOnCompletion(), is(true));
+            } else {
+                // did not return results immediately, so we will need an async get
+                // Also, different format modes return different results.
+                switch (format) {
+                    case "txt" -> assertThat(initialValue, emptyOrNullString());
+                    case "csv" -> {
+                        assertEquals(initialValue, "\r\n");
+                        initialValue = "";
+                    }
+                    case "tsv" -> {
+                        assertEquals(initialValue, "\n");
+                        initialValue = "";
+                    }
+                }
+            }
+            // issue a second request to "async get" the results
+            Request getRequest = prepareAsyncGetRequest(id);
+            if (delimiter != null) {
+                getRequest.addParameter("delimiter", String.valueOf(delimiter));
+            }
+            // If the `format` parameter is not added, the GET request will return a response
+            // with the `Content-Type` type due to the lack of an `Accept` header.
+            if (addParam) {
+                getRequest.addParameter("format", format);
+            }
+            // if `addParam` is false, `options` will already have an `Accept` header
+            getRequest.setOptions(options);
+            response = performRequest(getRequest);
+            entity = assertWarnings(response, new AssertWarnings.NoWarnings());
+        }
+        String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+
+        // assert initial contents, if any, are the same as async get contents
+        if (initialValue != null && initialValue.isEmpty() == false) {
+            assertEquals(initialValue, newValue);
+        }
+
+        assertDeletable(id);
+        return newValue;
     }
 
     private static Request prepareRequest(Mode mode) {
@@ -1237,9 +1338,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return mediaType;
     }
 
-    private static HttpEntity performRequest(Request request, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex)
-        throws IOException {
-        return assertWarnings(performRequest(request), allowedWarnings, allowedWarningsRegex);
+    private static HttpEntity performRequest(Request request, AssertWarnings assertWarnings) throws IOException {
+        return assertWarnings(performRequest(request), assertWarnings);
     }
 
     private static Response performRequest(Request request) throws IOException {
@@ -1252,13 +1352,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return response;
     }
 
-    private static HttpEntity assertWarnings(Response response, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex) {
+    private static HttpEntity assertWarnings(Response response, AssertWarnings assertWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        EsqlTestUtils.assertWarnings(warnings, allowedWarnings, allowedWarningsRegex);
+        assertWarnings.assertWarnings(warnings);
         return response.getEntity();
     }
 

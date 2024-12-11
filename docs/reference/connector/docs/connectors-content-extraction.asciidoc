@@ -90,7 +90,7 @@ include::_connectors-list-local-content-extraction.asciidoc[]
 Self-hosted content extraction is handled by a *separate* extraction service.
 
 The versions for the extraction service do not align with the Elastic stack.
-For version `8.11.x`, you should use extraction service version `0.3.x`.
+For versions after `8.11.x` (including {version}), you should use extraction service version `0.3.x`.
 
 You can run the service with the following command:
 
@@ -183,7 +183,7 @@ Be aware that the self-managed connector will download files with randomized fil
 For that reason, we recommend using a dedicated directory for self-hosted extraction.
 
 [discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-example]
-======= Example
+*Example*
 
 1. For this example, we will be using `/app/files` as both our local directory and our container directory.
 When you run the extraction service docker container, you can mount the directory as a volume using the command-line option `-v /app/files:/app/files`.
@@ -228,7 +228,7 @@ When using self-hosted extraction from a dockerized self-managed connector, ther
 * The self-managed connector and the extraction service will also need to share a volume. You can decide what directory inside these docker containers the volume will be mounted onto, but the directory must be the same for both docker containers.
 
 [discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized-example]
-======= Example
+*Example*
 
 1. First, set up a volume for the two docker containers to share.
 This will be where files are downloaded into and then extracted from.

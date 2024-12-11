@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -51,7 +50,7 @@ public class RolloverStep extends AsyncActionStep {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
+            logger.trace("{} has lifecycle complete set, skipping {}", indexMetadata.getIndex(), RolloverStep.NAME);
             listener.onResponse(null);
             return;
         }
@@ -81,8 +80,7 @@ public class RolloverStep extends AsyncActionStep {
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias "
                                 + "pointing to the group of indices being rolled over",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
@@ -106,8 +104,7 @@ public class RolloverStep extends AsyncActionStep {
             if (indexMetadata.getAliases().containsKey(rolloverAlias) == false) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "%s [%s] does not point to index [%s]",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             rolloverAlias,
@@ -126,9 +123,7 @@ public class RolloverStep extends AsyncActionStep {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (targetFailureStore) {
             rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                    .build()
+                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
             );
         }
         // We don't wait for active shards when we perform the rollover because the

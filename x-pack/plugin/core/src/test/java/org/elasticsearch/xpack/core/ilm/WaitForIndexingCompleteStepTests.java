@@ -66,7 +66,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.getInformationContext(), nullValue());
     }
 
     public void testConditionMetNotAFollowerIndex() {
@@ -83,7 +83,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.getInformationContext(), nullValue());
     }
 
     public void testConditionNotMet() {
@@ -105,9 +105,9 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), notNullValue());
+        assertThat(result.getInformationContext(), notNullValue());
         WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-            .getInfomationContext();
+            .getInformationContext();
         assertThat(
             info.getMessage(),
             equalTo(
@@ -123,6 +123,6 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), clusterState);
         assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.getInformationContext(), nullValue());
     }
 }

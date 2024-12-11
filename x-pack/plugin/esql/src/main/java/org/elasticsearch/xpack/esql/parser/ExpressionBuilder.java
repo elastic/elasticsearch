@@ -15,7 +15,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -26,7 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -44,6 +43,8 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -439,7 +440,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // use the fast run variant
             result = new UnresolvedNamePattern(
                 src,
-                new CharacterRunAutomaton(Operations.concatenate(list)),
+                new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
                 patternString.toString(),
                 nameString.toString()
             );
@@ -612,9 +613,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        if (ctx.DEV_MATCH() != null) {
-            return ctx.DEV_MATCH().getText();
-        }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
@@ -629,13 +627,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
-        Source source = source(ctx);
-        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        return castToType(source(ctx), ctx.primaryExpression(), ctx.dataType());
+    }
+
+    private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
+        DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);
         var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
         if (converterToFactory == null) {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
-        Expression expr = expression(ctx.primaryExpression());
+        Expression expr = expression(parseTree);
         return converterToFactory.apply(source, expr);
     }
 
@@ -742,9 +743,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
+        return visitField(ctx, source(ctx));
+    }
+
+    private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        var source = source(ctx);
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
@@ -752,6 +756,36 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
         return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
+    }
+
+    @Override
+    public NamedExpression visitAggField(EsqlBaseParser.AggFieldContext ctx) {
+        Source source = source(ctx);
+        Alias field = visitField(ctx.field(), source);
+        var filterExpression = ctx.booleanExpression();
+
+        if (filterExpression != null) {
+            Expression condition = expression(filterExpression);
+            Expression child = field.child();
+            // basic check as the filter can be specified only on a function (should be an aggregate but we can't determine that yet)
+            if (field.child().anyMatch(Function.class::isInstance)) {
+                field = field.replaceChild(new FilteredExpression(field.source(), child, condition));
+            }
+            // allow condition only per aggregated function
+            else {
+                throw new ParsingException(
+                    condition.source(),
+                    "WHERE clause allowed only for aggregate functions [{}]",
+                    field.sourceText()
+                );
+            }
+        }
+        return field;
+    }
+
+    @Override
+    public List<Alias> visitAggFields(EsqlBaseParser.AggFieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.aggField(), Alias.class) : new ArrayList<>();
     }
 
     /**
@@ -780,7 +814,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
-                    ne = new Alias(source(ctx), name, value);
+                    ne = new Alias(source(field), name, value);
                 }
                 list.add(ne);
             }
@@ -892,14 +926,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), "MATCH operator currently requires a snapshot build");
+
+        final Expression matchFieldExpression;
+        if (ctx.fieldType != null) {
+            matchFieldExpression = castToType(source(ctx), ctx.fieldExp, ctx.fieldType);
+        } else {
+            matchFieldExpression = expression(ctx.fieldExp);
         }
-        return new MatchQueryPredicate(
-            source(ctx),
-            expression(ctx.valueExpression()),
-            visitString(ctx.queryString).fold().toString(),
-            null
-        );
+
+        return new Match(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
     }
 }

@@ -35,9 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.core.RestApiVersion.V_8;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
-
 public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata> {
 
     private final String name;
@@ -379,9 +376,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             indexTemplateMetadata.settings().toXContent(builder, params);
             builder.endObject();
 
-            if (builder.getRestApiVersion().matches(onOrAfter(V_8))) {
-                includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
-            }
+            includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
 
             CompressedXContent m = indexTemplateMetadata.mappings();
             if (m != null) {

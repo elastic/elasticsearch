@@ -249,12 +249,11 @@ public class XPackLicenseState {
             case BASIC:
             case STANDARD:
             case GOLD:
+            case PLATINUM:
                 switch (currentMode) {
-                    case PLATINUM:
-                        return new String[] {};
                     case TRIAL:
                     case ENTERPRISE:
-                        return new String[] { "ES|QL cross-cluster search requires an enterprise license." };
+                        return new String[] { "ES|QL cross-cluster search will be disabled." };
                 }
                 break;
         }

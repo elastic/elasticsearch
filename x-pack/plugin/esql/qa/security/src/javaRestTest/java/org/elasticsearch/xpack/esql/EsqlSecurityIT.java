@@ -87,9 +87,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
+        Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
         String mapping = """
             "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}}
             """;
+
         createIndex("index", Settings.EMPTY, mapping);
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
@@ -110,6 +112,16 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
 
+        createIndex("lookup-user1", lookupSettings, mapping);
+        indexDocument("lookup-user1", 1, 12.0, "engineering");
+        indexDocument("lookup-user1", 2, 31.0, "sales");
+        refresh("lookup-user1");
+
+        createIndex("lookup-user2", lookupSettings, mapping);
+        indexDocument("lookup-user2", 1, 32.0, "marketing");
+        indexDocument("lookup-user2", 2, 40.0, "sales");
+        refresh("lookup-user2");
+
         if (aliasExists("second-alias") == false) {
             Request aliasRequest = new Request("POST", "_aliases");
             aliasRequest.setJsonEntity("""
@@ -119,6 +131,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
                           "add": {
                             "alias": "first-alias",
                             "index": "index-user1",
+                            "filter": {
+                                "term": {
+                                    "org": "sales"
+                                }
+                            }
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "lookup-first-alias",
+                            "index": "lookup-user1",
                             "filter": {
                                 "term": {
                                     "org": "sales"
@@ -512,20 +535,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexAllowed() throws Exception {
-        Response resp = runESQLCommand("metadata1_read2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `index-user2` ON value | KEEP x, org");
+        Response resp = runESQLCommand(
+            "metadata1_read2",
+            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org"
+        );
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
-        assertThat(respMap.get("columns"), equalTo(List.of(
-            Map.of("name", "x", "type", "double"),
-            Map.of("name", "org", "type", "keyword")
-        )));
-        assertThat(respMap.get("values"), equalTo(List.of(List.of(
-            40.0, "sales"
-        ))));
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
         /* TODO: Aliases don't work yet for LOOKUP JOIN
         // Alias, should find the index and the row
-        resp = runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `first-alias` ON value | KEEP x, org");
+        resp = runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(
@@ -537,7 +561,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ))));
 
         // Alias, for a row that's filtered out
-        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN `first-alias` ON value | KEEP x, org");
+        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(
@@ -554,25 +578,25 @@ public class EsqlSecurityIT extends ESRestTestCase {
         // TODO: It should throw "unauthorized for user..." instead
         var resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `index-user1` ON value | KEEP x")
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
-        assertThat(resp.getMessage(),containsString("Unknown index [index-user1]"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
         // TODO: It should throw "unauthorized for user..." instead
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `index-user1` ON value | KEEP x")
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
-        assertThat(resp.getMessage(),containsString("Unknown index [index-user1]"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
         // TODO: It should throw "unauthorized for user..." instead
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `index-user1` ON value | KEEP x")
+            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
-        assertThat(resp.getMessage(),containsString("Unknown index [index-user1]"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 

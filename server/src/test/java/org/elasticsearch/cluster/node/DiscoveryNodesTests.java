@@ -435,7 +435,6 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         assertEquals(Version.fromString("5.0.17"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("1.6.0"), build.getMinNodeVersion());
-        assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());  // doesn't include 1.6.0 observer
         assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());   // doesn't include 2000199 observer
         assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());            // also includes observers
     }

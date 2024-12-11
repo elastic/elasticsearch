@@ -91,6 +91,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
+     * <p>
+     *     Keys must be in the same order as the IDs returned by {@link #nonEmpty()}.
+     * </p>
      */
     public abstract Block[] getKeys();
 
@@ -100,6 +103,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
      * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
      * know if there actually were any {@code true} or {@code false} values received.
+     * <p>
+     *     IDs must be in the same order as the keys returned by {@link #getKeys()}.
+     * </p>
      */
     public abstract IntVector nonEmpty();
 

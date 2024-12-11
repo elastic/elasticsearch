@@ -43,6 +43,8 @@ import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.rest.MethodHandlers;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -198,7 +200,11 @@ class Elasticsearch {
             SubscribableListener.class,
             RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
-            VectorUtil.class
+            VectorUtil.class,
+            // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
+            // it now (before SM) to be sure
+            RequestHandlerRegistry.class,
+            MethodHandlers.class
         );
 
         // load the plugin Java modules and layers now for use in entitlements

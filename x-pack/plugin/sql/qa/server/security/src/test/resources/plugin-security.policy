@@ -5,5 +5,5 @@ grant {
 
   //// Required by ssl subproject:
   // Required for the net client to setup ssl rather than use global ssl.
-  permission java.lang.RuntimePermission "setFactory";
+  //permission java.lang.RuntimePermission "setFactory";
 };

@@ -1,6 +1,6 @@
 grant {
   // required to configure the custom mailcap for watcher
-  permission java.lang.RuntimePermission "setFactory";
+  // permission java.lang.RuntimePermission "setFactory";
 
   // needed when sending emails for javax.activation
   // otherwise a classnotfound exception is thrown due to trying

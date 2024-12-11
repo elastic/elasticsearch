@@ -278,19 +278,31 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void performUpgradedClusterOperations(String dataStreamName) throws IOException {
-        Request reindexRequest = new Request("POST", "/_reindex_data_stream?source=" + dataStreamName);
+    private void performUpgradedClusterOperations(String dataStreamName) throws Exception {
+        Request reindexRequest = new Request("POST", "/_migration/reindex");
+        reindexRequest.setJsonEntity(Strings.format("""
+            {
+              "mode": "upgrade",
+              "source": {
+                "index": "%s"
+              }
+            }""", dataStreamName));
         Response reindexResponse = client().performRequest(reindexRequest);
         assertOK(reindexResponse);
-        Request statusRequest = new Request("GET", "/_reindex_data_stream_status/reindex-data-stream-" + dataStreamName + "?pretty");
-        Response statusResponse = client().performRequest(statusRequest);
-        Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
-            JsonXContent.jsonXContent,
-            statusResponse.getEntity().getContent(),
-            false
-        );
-        assertOK(statusResponse);
-        assertThat(statusResponseMap.get("successes"), equalTo(11));
+        assertBusy(() -> {
+            Request statusRequest = new Request("GET", "_migration/reindex/" + dataStreamName + "/_status");
+            Response statusResponse = client().performRequest(statusRequest);
+            Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                statusResponse.getEntity().getContent(),
+                false
+            );
+            assertOK(statusResponse);
+            assertThat(statusResponseMap.get("successes"), equalTo(11));
+        });
+        Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
+        Response cancelResponse = client().performRequest(cancelRequest);
+        assertOK(cancelResponse);
     }
 
     private static void performOldClustertOperations(String templateName, String dataStreamName) throws IOException {

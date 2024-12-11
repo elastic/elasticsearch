@@ -6,6 +6,5 @@ issues: []
 deprecation:
   title: Enhancement/v7 critical deprecation logging
   area: REST API
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: This changes the V_7 API deprecation logging level to CRITICAL.
+  impact: Any usage of deprecated V_7 API features will now be logged at the CRITICAL level. This does not change functionality.

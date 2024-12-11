@@ -18,9 +18,10 @@ import java.util.Set;
 public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
+    public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED, LUCENE_10_0_0_UPGRADE);
+        return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED, LUCENE_10_0_0_UPGRADE, LUCENE_10_1_0_UPGRADE);
     }
 }

@@ -574,7 +574,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexForbidden() {
-        // TODO: Shouldn't this only work on lookup indices?
         // TODO: It should throw "unauthorized for user..." instead
         var resp = expectThrows(
             ResponseException.class,

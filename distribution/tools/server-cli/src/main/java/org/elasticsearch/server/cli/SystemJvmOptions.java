@@ -26,7 +26,7 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean useEntitlements = Boolean.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        boolean useEntitlements = true; //Boolean.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
         return Stream.of(
             Stream.of(
                 /*

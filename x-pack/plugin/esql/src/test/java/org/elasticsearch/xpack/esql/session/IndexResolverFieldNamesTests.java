@@ -1053,7 +1053,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | rename emp_no as r1, r1 as r2, r2 as r3
             | keep first_name, r3
             """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO asking for more shouldn't
-                                                                                                         // hurt. Can we do better?
+        // hurt. Can we do better?
         // Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
@@ -1063,7 +1063,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | rename emp_no as r1, r1 as r2, r2 as r3, first_name as r1
             | keep r1, r3
             """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO asking for more shouldn't
-                                                                                                         // hurt. Can we do better?
+        // hurt. Can we do better?
         // Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
@@ -1143,7 +1143,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval languages = languages + 1
             | limit 5
             | keep l*""", Set.of("languages", "languages.*", "l*"));// subtlety here. Keeping only "languages*" can remove any other "l*"
-                                                                    // named fields
+        // named fields
     }
 
     public void testBasicWildcardKeep() {
@@ -1316,25 +1316,25 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
             | enrich languages_policy
-            | keep emp_no"""), Set.of("language_name"));
+            | keep emp_no""", Set.of("language_name"));
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
     }
 
     public void testDissectOverwriteName() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
             | dissect first_name "%{first_name} %{more}"
-            | keep emp_no, first_name, more"""), Set.of());
+            | keep emp_no, first_name, more""", Set.of());
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
     public void testEnrichOnDefaultField() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
-            | enrich languages_policy"""), Set.of("language_name"));
+            | enrich languages_policy""", Set.of("language_name"));
         assertThat(fieldNames, equalTo(ALL_FIELDS));
     }
 
@@ -1345,7 +1345,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));
             return;
         }
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Set.of());
+        Set<String> fieldNames = fieldNames(query, Set.of());
         assertThat(
             fieldNames,
             equalTo(
@@ -1363,8 +1363,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
+        EsqlSession.ListenerResult listenerResult = new EsqlSession.ListenerResult(null);
+        return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, listenerResult).fieldNames();
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Collections.emptySet());
+        Set<String> fieldNames = fieldNames(query, Collections.emptySet());
         assertThat(fieldNames, equalTo(expected));
     }
 }

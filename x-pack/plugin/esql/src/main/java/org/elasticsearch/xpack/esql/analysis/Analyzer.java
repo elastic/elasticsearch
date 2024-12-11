@@ -198,7 +198,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            return resolveIndex(plan, plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution() : context.indexResolution());
+            return resolveIndex(
+                plan,
+                plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution().get(plan.table().index()) : context.indexResolution()
+            );
         }
 
         private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {

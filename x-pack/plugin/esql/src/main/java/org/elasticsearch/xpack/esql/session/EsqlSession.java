@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
@@ -77,10 +76,12 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -282,10 +283,10 @@ public class EsqlSession {
             return;
         }
 
-        TriFunction<IndexResolution, IndexResolution, EnrichResolution, LogicalPlan> analyzeAction = (indices, lookupIndices, policies) -> {
+        Function<ListenerResult, LogicalPlan> analyzeAction = (l) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, indices, lookupIndices, policies),
+                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
                 verifier
             );
             LogicalPlan plan = analyzer.analyze(parsed);
@@ -303,97 +304,71 @@ public class EsqlSession {
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();
 
-        SubscribableListener.<EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l))
-            .<ListenerResult>andThen((l, enrichResolution) -> {
-                // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-                var enrichMatchFields = enrichResolution.resolvedEnrichPolicies()
-                    .stream()
-                    .map(ResolvedEnrichPolicy::matchField)
-                    .collect(Collectors.toSet());
-                // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
-                var fieldNames = fieldNames(parsed, enrichMatchFields);
-                ListenerResult listenerResult = new ListenerResult(null, null, enrichResolution, fieldNames);
+        var listener = SubscribableListener.<EnrichResolution>newForked(
+            l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
+        ).<ListenerResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
+        // first resolve the lookup indices, then the main indices
+        // if (indices.size() > 1) {
+        // // Note: JOINs on more than one index are not yet supported
+        // listener.onFailure(new MappingException("More than one LOOKUP JOIN is not supported"));
+        // }
+        for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
+            listener = listener.andThen((l, listenerResult) -> { preAnalyzeLookupIndices(lookupIndex, listenerResult, l); });
+        }
+        listener.<ListenerResult>andThen((l, listenerResult) -> {
+            // resolve the main indices
+            preAnalyzeIndices(preAnalysis.indices, executionInfo, listenerResult, requestFilter, l);
+        }).<ListenerResult>andThen((l, listenerResult) -> {
+            // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
+            // invalid index resolution to updateExecutionInfo
+            if (listenerResult.indices.isValid()) {
+                // CCS indices and skip_unavailable cluster values can stop the analysis right here
+                if (analyzeCCSIndices(executionInfo, targetClusters, unresolvedPolicies, listenerResult, logicalPlanListener, l)) return;
+            }
+            // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
+            l.onResponse(listenerResult);
+        }).<ListenerResult>andThen((l, listenerResult) -> {
+            // first attempt (maybe the only one) at analyzing the plan
+            analyzeAndMaybeRetry(analyzeAction, requestFilter, listenerResult, logicalPlanListener, l);
+        }).<ListenerResult>andThen((l, listenerResult) -> {
+            assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
 
-                // first resolve the lookup indices, then the main indices
-                preAnalyzeLookupIndices(preAnalysis.lookupIndices, listenerResult, l);
-            })
-            .<ListenerResult>andThen((l, listenerResult) -> {
-                // resolve the main indices
-                preAnalyzeIndices(preAnalysis.indices, executionInfo, listenerResult, requestFilter, l);
-            })
-            .<ListenerResult>andThen((l, listenerResult) -> {
-                // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
-                // invalid index resolution to updateExecutionInfo
-                if (listenerResult.indices.isValid()) {
-                    // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                    if (analyzeCCSIndices(executionInfo, targetClusters, unresolvedPolicies, listenerResult, logicalPlanListener, l))
-                        return;
-                }
-                // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
-                l.onResponse(listenerResult);
-            })
-            .<ListenerResult>andThen((l, listenerResult) -> {
-                // first attempt (maybe the only one) at analyzing the plan
-                analyzeAndMaybeRetry(analyzeAction, requestFilter, listenerResult, logicalPlanListener, l);
-            })
-            .<ListenerResult>andThen((l, listenerResult) -> {
-                assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
+            // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
+            // resolving one more time (the first attempt failed and the query had a filter)
+            for (String clusterAlias : executionInfo.clusterAliases()) {
+                executionInfo.swapCluster(clusterAlias, (k, v) -> null);
+            }
 
-                // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
-                // resolving one more time (the first attempt failed and the query had a filter)
-                for (String clusterAlias : executionInfo.clusterAliases()) {
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> null);
-                }
-
-                // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-                preAnalyzeIndices(preAnalysis.indices, executionInfo, listenerResult, null, l);
-            })
-            .<LogicalPlan>andThen((l, listenerResult) -> {
-                assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
-                LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-                LogicalPlan plan;
-                try {
-                    plan = analyzeAction.apply(listenerResult.indices, listenerResult.lookupIndices, listenerResult.enrichResolution);
-                } catch (Exception e) {
-                    l.onFailure(e);
-                    return;
-                }
-                LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-                l.onResponse(plan);
-            })
-            .addListener(logicalPlanListener);
+            // here the requestFilter is set to null, performing the pre-analysis after the first step failed
+            preAnalyzeIndices(preAnalysis.indices, executionInfo, listenerResult, null, l);
+        }).<LogicalPlan>andThen((l, listenerResult) -> {
+            assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
+            LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+            LogicalPlan plan;
+            try {
+                plan = analyzeAction.apply(listenerResult);
+            } catch (Exception e) {
+                l.onFailure(e);
+                return;
+            }
+            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
+            l.onResponse(plan);
+        }).addListener(logicalPlanListener);
     }
 
-    private void preAnalyzeLookupIndices(List<TableInfo> indices, ListenerResult listenerResult, ActionListener<ListenerResult> listener) {
-        if (indices.size() > 1) {
-            // Note: JOINs on more than one index are not yet supported
-            listener.onFailure(new MappingException("More than one LOOKUP JOIN is not supported"));
-        } else if (indices.size() == 1) {
-            TableInfo tableInfo = indices.get(0);
-            TableIdentifier table = tableInfo.id();
-            // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-            indexResolver.resolveAsMergedMapping(
-                table.index(),
-                listenerResult.fieldNames,
-                null,
-                listener.map(indexResolution -> listenerResult.withLookupIndexResolution(indexResolution))
-            );
-            // TODO: Verify that the resolved index actually has indexMode: "lookup"
-        } else {
-            try {
-                // No lookup indices specified
-                listener.onResponse(
-                    new ListenerResult(
-                        listenerResult.indices,
-                        IndexResolution.invalid("[none specified]"),
-                        listenerResult.enrichResolution,
-                        listenerResult.fieldNames
-                    )
-                );
-            } catch (Exception ex) {
-                listener.onFailure(ex);
-            }
-        }
+    private void preAnalyzeLookupIndices(TableInfo tableInfo, ListenerResult listenerResult, ActionListener<ListenerResult> listener) {
+        TableIdentifier table = tableInfo.id();
+        Set<String> fieldNames = listenerResult.wildcardJoinIndices().contains(table.index())
+            ? IndexResolver.ALL_FIELDS
+            : listenerResult.fieldNames;
+        // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+        indexResolver.resolveAsMergedMapping(
+            table.index(),
+            fieldNames,
+            null,
+            listener.map(indexResolution -> listenerResult.addLookupIndexResolution(table.index(), indexResolution))
+        );
+        // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
 
     private void preAnalyzeIndices(
@@ -443,12 +418,7 @@ public class EsqlSession {
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
-                    new ListenerResult(
-                        IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())),
-                        listenerResult.lookupIndices,
-                        listenerResult.enrichResolution,
-                        listenerResult.fieldNames
-                    )
+                    listenerResult.withIndexResolution(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())))
                 );
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
@@ -462,14 +432,7 @@ public class EsqlSession {
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(
-                    new ListenerResult(
-                        IndexResolution.invalid("[none specified]"),
-                        listenerResult.lookupIndices,
-                        listenerResult.enrichResolution,
-                        listenerResult.fieldNames
-                    )
-                );
+                listener.onResponse(listenerResult.withIndexResolution(IndexResolution.invalid("[none specified]")));
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }
@@ -514,7 +477,7 @@ public class EsqlSession {
     }
 
     private static void analyzeAndMaybeRetry(
-        TriFunction<IndexResolution, IndexResolution, EnrichResolution, LogicalPlan> analyzeAction,
+        Function<ListenerResult, LogicalPlan> analyzeAction,
         QueryBuilder requestFilter,
         ListenerResult listenerResult,
         ActionListener<LogicalPlan> logicalPlanListener,
@@ -526,7 +489,7 @@ public class EsqlSession {
         LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
 
         try {
-            plan = analyzeAction.apply(listenerResult.indices, listenerResult.lookupIndices, listenerResult.enrichResolution);
+            plan = analyzeAction.apply(listenerResult);
         } catch (Exception e) {
             if (e instanceof VerificationException ve) {
                 LOGGER.debug(
@@ -554,10 +517,24 @@ public class EsqlSession {
         logicalPlanListener.onResponse(plan);
     }
 
-    static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
+    private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<ListenerResult> l) {
+        try {
+            // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
+            var enrichMatchFields = enrichResolution.resolvedEnrichPolicies()
+                .stream()
+                .map(ResolvedEnrichPolicy::matchField)
+                .collect(Collectors.toSet());
+            // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
+            l.onResponse(fieldNames(parsed, enrichMatchFields, new ListenerResult(enrichResolution)));
+        } catch (Exception ex) {
+            l.onFailure(ex);
+        }
+    }
+
+    static ListenerResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, ListenerResult listenerResult) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
-            return IndexResolver.ALL_FIELDS;
+            return listenerResult.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -568,7 +545,7 @@ public class EsqlSession {
             projectAll.set(true);
         });
         if (projectAll.get()) {
-            return IndexResolver.ALL_FIELDS;
+            return listenerResult.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
         AttributeSet references = new AttributeSet();
@@ -576,6 +553,7 @@ public class EsqlSession {
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         AttributeSet keepCommandReferences = new AttributeSet();
         AttributeSet keepJoinReferences = new AttributeSet();
+        Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -596,8 +574,13 @@ public class EsqlSession {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     keepJoinReferences.addAll(usingJoinType.columns());
                 }
-                // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                keepJoinReferences.addAll(keepCommandReferences);
+                if (keepCommandReferences.isEmpty()) {
+                    // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
+                    wildcardJoinIndices.add(((UnresolvedRelation) join.right()).table().index());
+                } else {
+                    // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
+                    keepJoinReferences.addAll(keepCommandReferences);
+                }
             } else {
                 references.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
@@ -632,6 +615,10 @@ public class EsqlSession {
         });
         // Add JOIN ON column references afterward to avoid Alias removal
         references.addAll(keepJoinReferences);
+        // If any JOIN commands need wildcard field-caps calls, persist the index names
+        if (wildcardJoinIndices.isEmpty() == false) {
+            listenerResult = listenerResult.withWildcardJoinIndices(wildcardJoinIndices);
+        }
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
@@ -640,12 +627,12 @@ public class EsqlSession {
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return IndexResolver.INDEX_METADATA_FIELD;
+            return listenerResult.withFieldNames(IndexResolver.INDEX_METADATA_FIELD);
         } else {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            return fieldNames;
+            return listenerResult.withFieldNames(fieldNames);
         }
     }
 
@@ -704,22 +691,36 @@ public class EsqlSession {
         return plan;
     }
 
-    private record ListenerResult(
+    record ListenerResult(
         IndexResolution indices,
-        IndexResolution lookupIndices,
+        Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
-        Set<String> fieldNames
+        Set<String> fieldNames,
+        Set<String> wildcardJoinIndices
     ) {
+        ListenerResult(EnrichResolution newEnrichResolution) {
+            this(null, new HashMap<>(), newEnrichResolution, Set.of(), Set.of());
+        }
+
         ListenerResult withEnrichResolution(EnrichResolution newEnrichResolution) {
-            return new ListenerResult(indices(), lookupIndices(), newEnrichResolution, fieldNames());
+            return new ListenerResult(indices(), lookupIndices(), newEnrichResolution, fieldNames(), wildcardJoinIndices());
         }
 
         ListenerResult withIndexResolution(IndexResolution newIndexResolution) {
-            return new ListenerResult(newIndexResolution, lookupIndices(), enrichResolution(), fieldNames());
+            return new ListenerResult(newIndexResolution, lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices());
         }
 
-        ListenerResult withLookupIndexResolution(IndexResolution newIndexResolution) {
-            return new ListenerResult(indices(), newIndexResolution, enrichResolution(), fieldNames());
+        ListenerResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
+            lookupIndices.put(index, newIndexResolution);
+            return this;
+        }
+
+        ListenerResult withFieldNames(Set<String> newFields) {
+            return new ListenerResult(indices(), lookupIndices(), enrichResolution(), newFields, wildcardJoinIndices());
+        }
+
+        public ListenerResult withWildcardJoinIndices(Set<String> wildcardJoinIndices) {
+            return new ListenerResult(indices(), lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices);
         }
     }
 }

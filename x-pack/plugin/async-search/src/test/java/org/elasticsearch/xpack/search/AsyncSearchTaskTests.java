@@ -159,6 +159,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 thread.start();
             }
             assertFalse(latch.await(numThreads * 2, TimeUnit.MILLISECONDS));
+            task.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             latch.await();
@@ -187,6 +188,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     public void testWithFailureAndGetResponseFailureDuringReduction() throws InterruptedException {
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         try (AsyncSearchTask task = createAsyncSearchTask()) {
+            task.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             task.getSearchProgressActionListener()
                 .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             InternalAggregations aggs = InternalAggregations.from(
@@ -258,6 +260,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
             int totalShards = numShards + numSkippedShards;
+            task.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {
@@ -289,6 +292,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
             int totalShards = numShards + numSkippedShards;
+            task.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {
@@ -329,6 +333,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
             int totalShards = numShards + numSkippedShards;
+            task.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {
@@ -363,6 +368,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
             int totalShards = numShards + numSkippedShards;
+            task.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
@@ -391,6 +397,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     latch.countDown();
                 }
             }, TimeValue.timeValueMillis(500L));
+            asyncSearchTask.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             asyncSearchTask.getSearchProgressActionListener()
                 .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             assertTrue(latch.await(1000, TimeUnit.SECONDS));
@@ -402,6 +409,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         throwOnSchedule = true;
         AtomicReference<Exception> failure;
         try (AsyncSearchTask asyncSearchTask = createAsyncSearchTask()) {
+            asyncSearchTask.getSearchProgressActionListener().onSearchStart(SearchResponse.Clusters.EMPTY);
             asyncSearchTask.getSearchProgressActionListener()
                 .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             CountDownLatch latch = new CountDownLatch(1);

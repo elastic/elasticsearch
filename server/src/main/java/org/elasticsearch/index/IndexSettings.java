@@ -688,7 +688,11 @@ public final class IndexSettings {
 
                 // Verify that all nodes can handle this setting
                 var version = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)) {
+                if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
+                    && version.between(
+                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
+                        IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                    ) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,

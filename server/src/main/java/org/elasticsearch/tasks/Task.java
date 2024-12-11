@@ -45,6 +45,7 @@ public class Task implements Traceable {
     public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     public static final String TRACE_STATE = "tracestate";
+    public static final String PROJECT_ID = "project.id";
 
     /**
      * Used internally to pass the apm trace context between the nodes
@@ -64,7 +65,8 @@ public class Task implements Traceable {
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,
         TRACE_ID,
-        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
+        PROJECT_ID
     );
 
     private final long id;

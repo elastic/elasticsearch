@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -24,7 +26,11 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -34,6 +40,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -46,9 +53,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
+    private static final String mappingString = """
+        {
+          "_doc":{
+            "dynamic":"strict",
+            "properties":{
+              "foo1":{
+                "type":"text"
+              }
+            }
+          }
+        }
+        """;
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MigratePlugin.class, ReindexPlugin.class, MockTransportService.TestPlugin.class);
+        return List.of(MigratePlugin.class, ReindexPlugin.class, MockTransportService.TestPlugin.class, DataStreamsPlugin.class);
     }
 
     public void testDestIndexDeletedIfExists() throws Exception {
@@ -200,25 +220,13 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
             .build();
 
-        String mappingString = """
-            {
-              "_doc":{
-                "dynamic":"strict",
-                "properties":{
-                  "foo1":{
-                    "type":"text"
-                  }
-                }
-              }
-            }
-            """;
-        CompressedXContent mappings = CompressedXContent.fromJSON(mappingString);
-
         // Create template with settings and mappings
+        var template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs-*"))
+            .template(new Template(settings, CompressedXContent.fromJSON(mappingString), null))
+            .build();
         var request = new TransportPutComposableIndexTemplateAction.Request("logs-template");
-        request.indexTemplate(
-            ComposableIndexTemplate.builder().indexPatterns(List.of("logs-*")).template(new Template(settings, mappings, null)).build()
-        );
+        request.indexTemplate(template);
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
 
         var sourceIndex = "logs-" + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -247,8 +255,98 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         }
     }
 
+    private static final String TSDB_MAPPING = """
+        {
+          "_doc":{
+            "properties": {
+              "@timestamp" : {
+                "type": "date"
+              },
+              "metricset": {
+                "type": "keyword",
+                "time_series_dimension": true
+              }
+            }
+          }
+        }""";
+
+    private static final String TSDB_DOC = """
+        {
+            "@timestamp": "$time",
+            "metricset": "pod",
+            "k8s": {
+                "pod": {
+                    "name": "dog",
+                    "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9",
+                    "ip": "10.10.55.3",
+                    "network": {
+                        "tx": 1434595272,
+                        "rx": 530605511
+                    }
+                }
+            }
+        }
+        """;
+
+    public void testTsdbStartEndSet() throws Exception {
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (randomBoolean()) {
+            templateSettings.put("index.routing_path", "metricset");
+        }
+        var mapping = new CompressedXContent(TSDB_MAPPING);
+
+        // create template
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
+                .template(new Template(templateSettings.build(), mapping, null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
+        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+
+        // index doc
+        Instant time = Instant.now();
+        String backingIndexName;
+        {
+            var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.source(TSDB_DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            var indexResponse = client().index(indexRequest).actionGet();
+            backingIndexName = indexResponse.getIndex();
+        }
+
+        var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndexName))
+            .actionGet()
+            .getSettings()
+            .get(backingIndexName);
+        Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(sourceSettings);
+        Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(sourceSettings);
+
+        // sanity check start/end time on source
+        assertNotNull(startTime);
+        assertNotNull(endTime);
+        assertTrue(endTime.isAfter(startTime));
+
+        // force a rollover so can call reindex and delete
+        var rolloverRequest = new RolloverRequest("k8s", null);
+        var rolloverResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+        var newBackingIndexName = rolloverResponse.getNewIndex();
+
+        // call reindex on the original backing index
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndexName))
+            .actionGet()
+            .getDestIndex();
+
+        var destSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet().getSettings().get(destIndex);
+        var destStart = IndexSettings.TIME_SERIES_START_TIME.get(destSettings);
+        var destEnd = IndexSettings.TIME_SERIES_END_TIME.get(destSettings);
+
+        assertEquals(startTime, destStart);
+        assertEquals(endTime, destEnd);
+    }
+
     // TODO check logsdb/tsdb work
-    // TODO check tsdb start/end time correct
     // TODO check other metadata
     // TODO test that does not fail on create if index exists after delete (Not sure how to do this since relies on race condition)
     // TODO error on set read-only if don't have perms
@@ -273,5 +371,9 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
         indicesAdmin().refresh(new RefreshRequest(index)).actionGet();
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 }

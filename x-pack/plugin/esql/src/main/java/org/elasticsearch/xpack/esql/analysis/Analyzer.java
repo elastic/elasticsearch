@@ -675,7 +675,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
-            if (ua.customMessage()) {
+            // We need add check childrenOutput here to judge if the attribute can be resolved or not.
+            if (ua.customMessage() && childrenOutput.stream().noneMatch(a -> a.name().equals(ua.name()))) {
                 return ua;
             }
             return resolveAttribute(ua, childrenOutput, logger);
@@ -959,7 +960,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Collection<Attribute> attrList,
         java.util.function.Function<List<String>, String> messageProducer
     ) {
-        if (ua.customMessage()) {
+        // If we found matches size is not empty, we should return the matches
+        if (ua.customMessage() && matches.isEmpty()) {
             return List.of();
         }
         // none found - add error message

@@ -1,103 +1,117 @@
 [[task-queue-backlog]]
 === Task queue backlog
 
-A backlogged task queue can prevent tasks from completing and put the cluster
-into an unhealthy state. Resource constraints, a large number of tasks being
-triggered at once, and long running tasks can all contribute to a backlogged
-task queue.
+*******************************
+*Product:* Elasticsearch +
+*Deployment type:* Elastic Cloud (hosted or self-managed), self-managed +
+*Versions:* All
+*******************************
+
+A backlogged task queue can prevent tasks from completing and lead to an 
+unhealthy cluster state. Contributing factors include resource constraints, 
+a large number of tasks triggered at once, and long-running tasks.
 
 [discrete]
 [[diagnose-task-queue-backlog]]
-==== Diagnose a task queue backlog
+==== Diagnose a backlogged task queue
 
 **Check the thread pool status**
 
 A <<high-cpu-usage,depleted thread pool>> can result in
 <<rejected-requests,rejected requests>>. 
 
-Thread pool depletion might be restricted to a specific <<data-tiers,data tier>>. If <<hotspotting,hot spotting>> is occuring, one node might experience depletion faster than other nodes, leading to performance issues and a growing task backlog.
-
-You can use the <<cat-thread-pool,cat thread pool API>> to see the number of
-active threads in each thread pool and how many tasks are queued, how many
-have been rejected, and how many have completed.
+Use the <<cat-thread-pool,cat thread pool API> to monitor
+active threads, queued tasks, rejections, and completed tasks:
 
 [source,console]
 ----
 GET /_cat/thread_pool?v&s=t,n&h=type,name,node_name,active,queue,rejected,completed
 ----
 
-The `active` and `queue` statistics are instantaneous while the `rejected` and
-`completed` statistics are cumulative from node startup.
+* Look for high `active` and `queue` metrics, which indicate potential bottlenecks.
+* Analyze whether thread pool issues are specific to a <<data-tiers,data tier>> or
+caused by uneven node resource utilization such as <<hotspotting,hot spotting>>.
 
-**Inspect the hot threads on each node**
+[discrete]
+[[diagnose-hot-thread]]
+**Inspect hot threads on each node**
 
-If a particular thread pool queue is backed up, you can periodically poll the
-<<cluster-nodes-hot-threads,Nodes hot threads>> API to determine if the thread
-has sufficient resources to progress and gauge how quickly it is progressing.
+If a particular thread pool queue is backed up, periodically poll the
+<<cluster-nodes-hot-threads,nodes hot threads API>> to gauge the thread's
+progression and ensure it has sufficient resources:
 
 [source,console]
 ----
 GET /_nodes/hot_threads
 ----
 
-**Look for long running node tasks**
+**Identify long-running node tasks**
 
-Long-running tasks can also cause a backlog. You can use the <<tasks,task
-management>> API to get information about the node tasks that are running.
-Check the `running_time_in_nanos` to identify tasks that are taking an
-excessive amount of time to complete.
+Long-running tasks can also cause a backlog. Use the <<tasks,task
+management API>> to check for excessive `running_time_in_nanos` values:
 
 [source,console]
 ----
 GET /_tasks?pretty=true&human=true&detailed=true
 ----
 
-If a particular `action` is suspected, you can filter the tasks further. The most common long-running tasks are <<docs-bulk,bulk index>>- or search-related.
+You can filter on a specific `action`, such as <<docs-bulk,bulk indexing>> or search-related tasks.
 
-* Filter for <<docs-bulk,bulk index>> actions:
+* Filter on <<docs-bulk,bulk index>> actions:
 +
 [source,console]
 ----
 GET /_tasks?human&detailed&actions=indices:data/write/bulk
 ----
 
-* Filter for search actions:
+* Filter on search actions:
 +
 [source,console]
 ----
 GET /_tasks?human&detailed&actions=indices:data/write/search
 ----
 
-The API response may contain additional tasks columns, including `description` and `header`, which provides the task parameters, target, and requestor. You can use this information to perform further diagnosis.
+**Look for long-running cluster tasks**
 
-**Look for long running cluster tasks**
-
-A task backlog might also appear as a delay in synchronizing the cluster state. You
-can use the <<cluster-pending,cluster pending tasks API>> to get information
-about the pending cluster state sync tasks that are running. 
+Use the <<cluster-pending,cluster pending tasks API>> to identify delays
+in cluster state synchronization: 
 
 [source,console]
 ----
 GET /_cluster/pending_tasks
 ----
 
-Check the `timeInQueue` to identify tasks that are taking an excessive amount 
-of time to complete.
+Tasks with a high `timeInQueue` value are likely contributing to the backlog.
 
 [discrete]
 [[resolve-task-queue-backlog]]
-==== Resolve a task queue backlog
+==== Recommendations
 
 **Increase available resources** 
 
-If tasks are progressing slowly and the queue is backing up, 
-you might need to take steps to <<reduce-cpu-usage>>. 
+<<reduce-cpu-usage>> or increase thread pool sizes. 
 
-In some cases, increasing the thread pool size might help.
-For example, the `force_merge` thread pool defaults to a single thread.
-Increasing the size to 2 might help reduce a backlog of force merge requests.
+For example, the `force_merge` thread pool defaults to a single thread. 
+Increasing the size to 2 in `elasticsearch.yml` might help reduce a backlog 
+of force merge requests:
+
+[source,yaml]
+----
+thread_pool.force_merge.size: 2
+----
+
+For more information, see <<settings>>.
 
 **Cancel stuck tasks**
 
-If you find the active task's hot thread isn't progressing and there's a backlog, 
-consider canceling the task. 
+If an active task's <<diagnose-hot-thread,hot thread>> shows no progress, consider canceling the task.
+
+[discrete]
+==== Resources
+
+Related symptoms:
+
+* <<high-cpu-usage,High CPU usage>>
+* <<rejected-requests,Rejected requests>>
+
+// TODO add link to standard Additional resources when that topic exists

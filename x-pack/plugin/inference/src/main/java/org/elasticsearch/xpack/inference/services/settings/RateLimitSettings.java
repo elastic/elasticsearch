@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,16 +51,15 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }
 
-    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithTooltip(String tooltip) {
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(String description) {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             FIELD_NAME + "." + REQUESTS_PER_MINUTE_FIELD,
-            new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+            new SettingsConfiguration.Builder().setDescription(description)
                 .setLabel("Rate Limit")
-                .setOrder(6)
                 .setRequired(false)
                 .setSensitive(false)
-                .setTooltip(tooltip)
+                .setUpdatable(false)
                 .setType(SettingsConfigurationFieldType.INTEGER)
                 .build()
         );
@@ -69,7 +67,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfiguration() {
-        return RateLimitSettings.toSettingsConfigurationWithTooltip("Minimize the number of rate limit errors.");
+        return RateLimitSettings.toSettingsConfigurationWithDescription("Minimize the number of rate limit errors.");
     }
 
     /**

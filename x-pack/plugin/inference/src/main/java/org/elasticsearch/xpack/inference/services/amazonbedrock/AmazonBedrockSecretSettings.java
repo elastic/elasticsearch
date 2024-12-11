@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -129,23 +128,21 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
                 configurationMap.put(
                     ACCESS_KEY_FIELD,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("A valid AWS access key that has permissions to use Amazon Bedrock.")
                         .setLabel("Access Key")
-                        .setOrder(1)
                         .setRequired(true)
                         .setSensitive(true)
-                        .setTooltip("A valid AWS access key that has permissions to use Amazon Bedrock.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
                 configurationMap.put(
                     SECRET_KEY_FIELD,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("A valid AWS secret key that is paired with the access_key.")
                         .setLabel("Secret Key")
-                        .setOrder(2)
                         .setRequired(true)
                         .setSensitive(true)
-                        .setTooltip("A valid AWS secret key that is paired with the access_key.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );

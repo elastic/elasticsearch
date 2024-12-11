@@ -107,7 +107,7 @@ public class RemoteClusterSecurityDataStreamEsqlIT extends AbstractRemoteCluster
         NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
     })).around(fulfillingCluster).around(queryCluster);
 
-    public void testDataStreamWithDls() throws Exception {
+    public void testDataStreamsWithDls() throws Exception {
         configureRemoteCluster();
         createDataStream();
         MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));

@@ -293,9 +293,9 @@ public class FileSettingsServiceTests extends ESTestCase {
     public void testInvalidJSON() throws Exception {
         // Chop off the functionality so we don't run too much of the actual cluster logic that we're not testing
         doNothing().when(controller).updateErrorState(any());
-        doAnswer((Answer<Void>) invocation -> {
-            throw new AssertionError("Parse error should happen before this process method is called");
-        }).when(controller).process(any(), any(ReservedStateChunk.class), any(), any());
+        doAnswer(
+            (Answer<Void>) invocation -> { throw new AssertionError("Parse error should happen before this process method is called"); }
+        ).when(controller).process(any(), any(ReservedStateChunk.class), any(), any());
 
         // Don't really care about the initial state
         Files.createDirectories(fileSettingsService.watchedFileDir());

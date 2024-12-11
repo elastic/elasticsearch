@@ -282,6 +282,11 @@ public final class Automatons {
         return determinize(res);
     }
 
+    public static Automaton unionAndDeterminize(Automaton a1, Automaton a2) {
+        Automaton res = union(a1, a2);
+        return determinize(res);
+    }
+
     public static Automaton minusAndDeterminize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, maxDeterminizedStates);
         return determinize(res);

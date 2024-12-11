@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.hamcrest.core.IsSame;
@@ -19,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -155,6 +158,23 @@ public class FieldPermissionsTests extends ESTestCase {
         );
     }
 
+    public void testAllBuiltinMetadataFieldsEitherAllowlistedOrExcluded() {
+        // add new fields that shouldn't be exposed under FLS by default here
+        final Set<String> excludedFields = Set.of();
+        final Set<String> categorizedFields = Sets.union(excludedFields, FieldPermissions.METADATA_FIELDS_ALLOWLIST);
+
+        final Set<String> builtinMetadataFields = IndicesModule.getBuiltInMetadataFields();
+        final Set<String> uncategorizedFields = Sets.difference(builtinMetadataFields, categorizedFields);
+        assertThat(
+            "Several metadata fields are neither allowlisted nor explicitly excluded from allowlist "
+                + uncategorizedFields
+                + ". Add them to the allowlist [FieldPermissions.METADATA_FIELDS_ALLOWLIST] "
+                + "if the field should be exposed under FLS by default. Add it to [excludedFields] otherwise.",
+            uncategorizedFields,
+            is(empty())
+        );
+    }
+
     public void testWriteCacheKeyWillDistinguishBetweenDefinitionAndLimitedByDefinition() throws IOException {
         // The overall same grant/except sets but are come from either:
         // 1. Just the definition
@@ -227,6 +247,50 @@ public class FieldPermissionsTests extends ESTestCase {
         // Just limited by is the same as definition because limitFieldPermissions uses limited-by definition if the original
         // permission is match all
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(true));
+    }
+
+    public void testLegacyExcludeForUnderscoredFields() {
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "abc" }))
+            ).run("abc"),
+            is(false)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_abc" }))
+            ).run("abc"),
+            is(true)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
+            ).run("_abc"),
+            is(false)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
+            ).run("_id"),
+            is(true)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
+            ).run("_id"),
+            is(true)
+        );
+
+        assertThat(
+            new CharacterRunAutomaton(
+                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
+            ).run("_abc"),
+            is(false)
+        );
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

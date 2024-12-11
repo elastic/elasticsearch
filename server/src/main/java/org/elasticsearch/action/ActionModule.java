@@ -256,7 +256,6 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -826,9 +825,6 @@ public class ActionModule extends AbstractModule {
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
         Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (handler instanceof BaseRestHandler baseRestHandler && threadPool != null) {
-                baseRestHandler.setThreadContext(threadPool.getThreadContext());
-            }
             if (restFilter.test(handler)) {
                 if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
                     catActions.add(catAction);

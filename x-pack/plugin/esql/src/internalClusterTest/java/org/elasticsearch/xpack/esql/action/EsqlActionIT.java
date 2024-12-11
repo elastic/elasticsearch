@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -1673,17 +1674,32 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         String sourceMode = randomBoolean() ? "stored" : "synthetic";
         Settings.Builder settings = indexSettings(1, 0).put(indexSettings()).put("index.mapping.source.mode", sourceMode);
         client().admin().indices().prepareCreate("test-script").setMapping(mapping).setSettings(settings).get();
-        for (int i = 0; i < 10; i++) {
+        int numDocs = 256;
+        for (int i = 0; i < numDocs; i++) {
             index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-" + i, "meter", 10000 * i));
         }
         refresh("test-script");
-        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 |  LIMIT 10")) {
+
+        var pragmas = randomPragmas();
+        if (canUseQueryPragmas()) {
+            Settings.Builder pragmaSettings = Settings.builder().put(pragmas.getSettings());
+            pragmaSettings.put("task_concurrency", 10);
+            pragmaSettings.put("data_partitioning", "doc");
+            pragmas = new QueryPragmas(pragmaSettings.build());
+        }
+        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
-            assertThat(k1Column, contains(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L));
+            assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));
-            assertThat(k2Column, contains(null, null, null, null, null, null, null, null, null, null));
+            assertThat(k2Column, equalTo(Collections.nCopies(numDocs, null)));
             List<Object> meterColumn = Iterators.toList(resp.column(2));
-            assertThat(meterColumn, contains(0.0, 10000.0, 20000.0, 30000.0, 40000.0, 50000.0, 60000.0, 70000.0, 80000.0, 90000.0));
+            var expectedMeterColumn = new ArrayList<>(numDocs);
+            double val = 0.0;
+            for (int i = 0; i < numDocs; i++) {
+                expectedMeterColumn.add(val);
+                val += 10000.0;
+            }
+            assertThat(meterColumn, equalTo(expectedMeterColumn));
         }
     }
 

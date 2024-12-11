@@ -30,7 +30,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Replace with just RestApiVersion.values() when V8 no longer exists
     public static final List<RestApiVersion> REST_API_VERSIONS_POST_V8 = Stream.of(RestApiVersion.values())
-        .filter(v -> v.major > RestApiVersion.V_8.major)
+        .filter(v -> v.matches(RestApiVersion.onOrAfter(RestApiVersion.V_9)))
         .toList();
 
     public void testParserCannotBeReusedAfterFailure() {

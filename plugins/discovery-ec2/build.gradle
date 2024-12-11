@@ -6,8 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
@@ -27,12 +26,6 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:2.10.10"
-}
-
-restResources {
-  restApi {
-    include '_common', 'cluster', 'nodes'
-  }
 }
 
 tasks.named("dependencyLicenses").configure {

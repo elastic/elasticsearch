@@ -75,7 +75,7 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
     }
 
     @Override
-    public String getName() {
+    public String getQueryName() {
         return MatchQueryBuilder.NAME;
     }
 

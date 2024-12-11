@@ -18,4 +18,9 @@ public class MockQueryRewriteInterceptor implements QueryRewriteInterceptor {
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
         return queryBuilder;
     }
+
+    @Override
+    public String getQueryName() {
+        return this.getClass().getSimpleName();
+    }
 }

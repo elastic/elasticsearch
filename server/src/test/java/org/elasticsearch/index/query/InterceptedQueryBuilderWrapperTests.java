@@ -13,15 +13,17 @@ import org.elasticsearch.test.ESTestCase;
 
 public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
 
-    public void testInterceptedQueryBuildersAreUnwrapped() {
+    public void testQueryNameReturnsWrappedQueryBuilder() {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
         InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(matchAllQueryBuilder);
-        assertNotEquals(matchAllQueryBuilder, interceptedQueryBuilderWrapper);
-        assertEquals(matchAllQueryBuilder, interceptedQueryBuilderWrapper.queryBuilder);
-        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper2 = new InterceptedQueryBuilderWrapper(interceptedQueryBuilderWrapper);
-        assertNotEquals(matchAllQueryBuilder, interceptedQueryBuilderWrapper2);
-        assertEquals(interceptedQueryBuilderWrapper, interceptedQueryBuilderWrapper2);
-        assertEquals(matchAllQueryBuilder, interceptedQueryBuilderWrapper2.queryBuilder);
+        QueryBuilder namedQuery = interceptedQueryBuilderWrapper.queryName(randomAlphaOfLengthBetween(5, 10));
+        assertTrue(namedQuery instanceof InterceptedQueryBuilderWrapper);
     }
 
+    public void testQueryBoostReturnsWrappedQueryBuilder() {
+        MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
+        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(matchAllQueryBuilder);
+        QueryBuilder boostedQuery = interceptedQueryBuilderWrapper.boost(randomFloat());
+        assertTrue(boostedQuery instanceof InterceptedQueryBuilderWrapper);
+    }
 }

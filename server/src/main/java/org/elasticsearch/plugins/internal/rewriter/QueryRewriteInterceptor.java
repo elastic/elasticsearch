@@ -30,25 +30,25 @@ public interface QueryRewriteInterceptor {
     QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
 
     /**
-     * Implementing classes should override this with the name of the query that is being
-     * intercepted.
+     * Name of the query to be intercepted and rewritten.
      */
-    default String getName() {
-        return null;
-    }
+    String getQueryName();
 
     static QueryRewriteInterceptor multi(Map<String, QueryRewriteInterceptor> interceptors) {
-        if (interceptors.isEmpty()) {
-            return (context, queryBuilder) -> queryBuilder;
-        }
-        return new CompositeQueryRewriteInterceptor(interceptors);
+        return interceptors.isEmpty() ? new NoOpQueryRewriteInterceptor() : new CompositeQueryRewriteInterceptor(interceptors);
     }
 
     class CompositeQueryRewriteInterceptor implements QueryRewriteInterceptor {
+        final String NAME = "composite";
         private final Map<String, QueryRewriteInterceptor> interceptors;
 
         private CompositeQueryRewriteInterceptor(Map<String, QueryRewriteInterceptor> interceptors) {
             this.interceptors = interceptors;
+        }
+
+        @Override
+        public String getQueryName() {
+            return NAME;
         }
 
         @Override
@@ -58,6 +58,18 @@ public interface QueryRewriteInterceptor {
                 return interceptor.interceptAndRewrite(context, queryBuilder);
             }
             return queryBuilder;
+        }
+    }
+
+    class NoOpQueryRewriteInterceptor implements QueryRewriteInterceptor {
+        @Override
+        public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+            return queryBuilder;
+        }
+
+        @Override
+        public String getQueryName() {
+            return null;
         }
     }
 }

@@ -9,9 +9,30 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
 
 public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
+
+    private TestThreadPool threadPool;
+    private NoOpClient client;
+
+    @Before
+    public void setup() {
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool);
+    }
+
+    @After
+    public void cleanup() {
+        threadPool.close();
+    }
 
     public void testQueryNameReturnsWrappedQueryBuilder() {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
@@ -30,4 +51,35 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
         assertTrue(boostedQuery instanceof InterceptedQueryBuilderWrapper);
         assertEquals(boost, boostedQuery.boost(), 0.0001f);
     }
+
+    public void testRewrite() throws IOException {
+        QueryRewriteContext context = new QueryRewriteContext(null, client, null);
+        context.setQueryRewriteInterceptor(myMatchInterceptor);
+
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("field", "value");
+        QueryBuilder rewritten = termQueryBuilder.rewrite(context);
+        assertTrue(rewritten instanceof TermQueryBuilder);
+
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("field", "value");
+        rewritten = matchQueryBuilder.rewrite(context);
+        assertTrue(rewritten instanceof InterceptedQueryBuilderWrapper);
+        assertTrue(((InterceptedQueryBuilderWrapper) rewritten).queryBuilder instanceof MatchQueryBuilder);
+        MatchQueryBuilder rewrittenMatchQueryBuilder = (MatchQueryBuilder) ((InterceptedQueryBuilderWrapper) rewritten).queryBuilder;
+        assertEquals("intercepted", rewrittenMatchQueryBuilder.value());
+    }
+
+    private final QueryRewriteInterceptor myMatchInterceptor = new QueryRewriteInterceptor() {
+        @Override
+        public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+            if (queryBuilder instanceof MatchQueryBuilder matchQueryBuilder) {
+                return new MatchQueryBuilder(matchQueryBuilder.fieldName(), "intercepted");
+            }
+            return queryBuilder;
+        }
+
+        @Override
+        public String getQueryName() {
+            return MatchQueryBuilder.NAME;
+        }
+    };
 }

@@ -1141,7 +1141,7 @@ This example will:
 
 You can use the <<rescore, rescore section>> in the `_search` request to rescore the top results from a kNN search.
 
-Here is an example using the top level `knn` search with oversampling and using `rescore_vector` to rerank the results:
+Here is an example using the top level `knn` search with oversampling and using `rescore` to rerank the results:
 
 [source,console]
 --------------------------------------------------

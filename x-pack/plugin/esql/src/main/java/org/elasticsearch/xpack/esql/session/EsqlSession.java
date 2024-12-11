@@ -374,7 +374,7 @@ public class EsqlSession {
             // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
             indexResolver.resolveAsMergedMapping(
                 table.index(),
-                Set.of("*"), // TODO: for LOOKUP JOIN, this currently declares all lookup index fields relevant and might fetch too many.
+                listenerResult.fieldNames,
                 null,
                 listener.map(indexResolution -> listenerResult.withLookupIndexResolution(indexResolution))
             );
@@ -593,10 +593,11 @@ public class EsqlSession {
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 references.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
-                keepJoinReferences.addAll(join.config().matchFields());  // TODO: why is this empty
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     keepJoinReferences.addAll(usingJoinType.columns());
                 }
+                // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
+                keepJoinReferences.addAll(keepCommandReferences);
             } else {
                 references.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
@@ -720,5 +721,5 @@ public class EsqlSession {
         ListenerResult withLookupIndexResolution(IndexResolution newIndexResolution) {
             return new ListenerResult(indices(), newIndexResolution, enrichResolution(), fieldNames());
         }
-    };
+    }
 }

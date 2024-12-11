@@ -318,6 +318,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testUnifiedCompletionInference
   issue: https://github.com/elastic/elasticsearch/issues/118405
+- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
+  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
+  issue: https://github.com/elastic/elasticsearch/issues/118220
 
 # Examples:
 #

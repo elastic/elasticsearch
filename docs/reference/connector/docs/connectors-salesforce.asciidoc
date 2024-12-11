@@ -200,7 +200,7 @@ Once the permissions are set, assign the Profiles, Permission Set or Permission 
 Follow these steps in Salesforce:
 
 1. Navigate to `Administration` under the `Users` section.
-2. Select `Users` and choose the user to set the permissions to. 
+2. Select `Users` and choose the user to set the permissions to.
 3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
 
 [discrete#es-connectors-salesforce-sync-rules]
@@ -249,7 +249,7 @@ Allowed values are *SOQL* and *SOSL*.
 [
   {
     "query": "FIND {Salesforce} IN ALL FIELDS",
-    "language": "SOSL" 
+    "language": "SOSL"
   }
 ]
 ----
@@ -381,7 +381,13 @@ See <<es-connectors-content-extraction,content extraction>> for more specifics o
 [discrete#es-connectors-salesforce-known-issues]
 ===== Known issues
 
-There are currently no known issues for this connector.
+* *DLS feature is "type-level" not "document-level"*
++
+Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects.
+Instead, if a given user/group can have access to _any_ Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for _all_ of the Objects of that type.
+See https://github.com/elastic/connectors/issues/3028 for more details.
++
+
 Refer to <<es-connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-salesforce-security]
@@ -396,7 +402,7 @@ This connector is built with the {connectors-python}[Elastic connector framework
 
 View the {connectors-python}/connectors/sources/salesforce.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============
 
 
@@ -598,7 +604,7 @@ Once the permissions are set, assign the Profiles, Permission Set or Permission 
 Follow these steps in Salesforce:
 
 1. Navigate to `Administration` under the `Users` section.
-2. Select `Users` and choose the user to set the permissions to. 
+2. Select `Users` and choose the user to set the permissions to.
 3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
 
 [discrete#es-connectors-salesforce-client-sync-rules]
@@ -648,7 +654,7 @@ Allowed values are *SOQL* and *SOSL*.
 [
   {
     "query": "FIND {Salesforce} IN ALL FIELDS",
-    "language": "SOSL" 
+    "language": "SOSL"
   }
 ]
 ----
@@ -781,7 +787,13 @@ See <<es-connectors-content-extraction,content extraction>> for more specifics o
 [discrete#es-connectors-salesforce-client-known-issues]
 ===== Known issues
 
-There are currently no known issues for this connector.
+* *DLS feature is "type-level" not "document-level"*
++
+Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects.
+Instead, if a given user/group can have access to _any_ Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for _all_ of the Objects of that type.
+See https://github.com/elastic/connectors/issues/3028 for more details.
++
+
 Refer to <<es-connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-salesforce-client-security]
@@ -797,5 +809,5 @@ This connector is built with the {connectors-python}[Elastic connector framework
 View the {connectors-python}/connectors/sources/salesforce.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============

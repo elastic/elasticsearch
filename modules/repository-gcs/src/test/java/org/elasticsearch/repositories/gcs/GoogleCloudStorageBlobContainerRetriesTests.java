@@ -59,9 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -369,14 +366,14 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
                     assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
-                    final int rangeStart = getContentRangeStart(range);
-                    final int rangeEnd = getContentRangeEnd(range);
+                    final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(range);
+                    final int rangeStart = Math.toIntExact(contentRange.start());
+                    final int rangeEnd = Math.toIntExact(contentRange.end());
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
                     assertThat(new BytesArray(data, rangeStart, rangeEnd - rangeStart + 1), is(requestBody));
                     bytesReceived.updateAndGet(existing -> Math.max(existing, rangeEnd));
 
-                    final Integer limit = getContentRangeLimit(range);
-                    if (limit != null) {
+                    if (contentRange.size() != null) {
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
                     } else {

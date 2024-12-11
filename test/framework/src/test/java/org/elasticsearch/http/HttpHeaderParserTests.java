@@ -50,4 +50,42 @@ public class HttpHeaderParserTests extends ESTestCase {
     public void testParseRangeHeaderSuffixLengthNotMatched() {
         assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
     }
+
+    public void testParseContentRangeHeaderFull() {
+        final long start = randomLongBetween(0, 10_000);
+        final long end = randomLongBetween(start, start + 10_000);
+        final long size = randomLongBetween(end, Long.MAX_VALUE);
+        assertEquals(
+            new HttpHeaderParser.ContentRange(start, end, size),
+            HttpHeaderParser.parseContentRangeHeader("bytes " + start + "-" + end + "/" + size)
+        );
+    }
+
+    public void testParseContentRangeHeaderNoSize() {
+        final long start = randomLongBetween(0, 10_000);
+        final long end = randomLongBetween(start, start + 10_000);
+        assertEquals(
+            new HttpHeaderParser.ContentRange(start, end, null),
+            HttpHeaderParser.parseContentRangeHeader("bytes " + start + "-" + end + "/*")
+        );
+    }
+
+    public void testParseContentRangeHeaderNoRange() {
+        final long size = randomNonNegativeLong();
+        assertEquals(new HttpHeaderParser.ContentRange(null, null, size), HttpHeaderParser.parseContentRangeHeader("bytes */" + size));
+    }
+
+    public void testParseNoRangeOrSize() {
+        assertEquals(new HttpHeaderParser.ContentRange(null, null, null), HttpHeaderParser.parseContentRangeHeader("bytes */*"));
+    }
+
+    public void testToString() {
+        final long start = randomLongBetween(0, 10_000);
+        final long end = randomLongBetween(start, start + 10_000);
+        final long size = randomLongBetween(end, Long.MAX_VALUE);
+        assertEquals("bytes */*", new HttpHeaderParser.ContentRange(null, null, null).toString());
+        assertEquals("bytes */" + size, new HttpHeaderParser.ContentRange(null, null, size).toString());
+        assertEquals("bytes " + start + "-" + end + "/*", new HttpHeaderParser.ContentRange(start, end, null).toString());
+        assertEquals("bytes " + start + "-" + end + "/" + size, new HttpHeaderParser.ContentRange(start, end, size).toString());
+    }
 }

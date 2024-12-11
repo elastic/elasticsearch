@@ -75,8 +75,12 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         var errorEntity = errorParseFunction.apply(result);
 
         if (errorEntity.errorStructureFound()) {
-            // we don't really know what happened because the status code was 200 so we'll just retry
-            throw new RetryException(true, buildError(SERVER_ERROR_OBJECT, request, result, errorEntity));
+            // We don't really know what happened because the status code was 200 so we'll return a failure and let the
+            // client retry if necessary
+            // If we did want to retry here, we'll need to determine if this was a streaming request, if it was
+            // we shouldn't retry because that would replay the entire streaming request and the client would get
+            // duplicate chunks back
+            throw new RetryException(false, buildError(SERVER_ERROR_OBJECT, request, result, errorEntity));
         }
     }
 

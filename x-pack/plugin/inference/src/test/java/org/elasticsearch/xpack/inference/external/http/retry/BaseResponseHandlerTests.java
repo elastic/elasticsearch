@@ -89,7 +89,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
             )
         );
 
-        assertTrue(exception.shouldRetry());
+        assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
             is("Received an error response for request from inference entity id [abc] status [200]")
@@ -123,7 +123,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
             )
         );
 
-        assertTrue(exception.shouldRetry());
+        assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
             is("Received an error response for request from inference entity id [abc] status [200]. Error message: [a message]")

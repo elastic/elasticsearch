@@ -597,13 +597,12 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                         hasShardResponse.set(true);
                                         for (Object result : response.results) {
                                             if (result instanceof SearchPhaseResult searchPhaseResult) {
-                                                results.consumeResult(
-                                                    searchPhaseResult,
-                                                    () -> finishShardAndMaybePhase(searchPhaseResult.getSearchShardTarget().getShardId())
-                                                );
+                                                results.consumeResult(searchPhaseResult, () -> {
+                                                    successfulOps.incrementAndGet();
+                                                    finishShardAndMaybePhase(searchPhaseResult.getSearchShardTarget().getShardId());
+                                                });
                                             }
                                         }
-                                        successfulOps.addAndGet(successfulShards);
                                     }
                                 }
 

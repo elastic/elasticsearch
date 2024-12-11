@@ -60,7 +60,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), is(nullValue()));
+        assertThat(result.getInformationContext(), is(nullValue()));
     }
 
     public void testStepIncompleteIfIndexIsTheDataStreamWriteIndex() {
@@ -95,7 +95,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         String expectedIndexName = indexToOperateOn.getIndex().getName();
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInformationContext();
         assertThat(
             info.getMessage(),
             is(
@@ -162,6 +162,6 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), is(nullValue()));
+        assertThat(result.getInformationContext(), is(nullValue()));
     }
 }

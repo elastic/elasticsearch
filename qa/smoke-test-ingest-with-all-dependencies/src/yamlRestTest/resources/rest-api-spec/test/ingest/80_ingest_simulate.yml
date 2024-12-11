@@ -1720,3 +1720,62 @@ setup:
   - match: { docs.0.doc._source.foo: 3 }
   - match: { docs.0.doc._source.bar: "some text value" }
   - not_exists: docs.0.doc.error
+
+---
+"Test ignored_fields":
+  # In this test, we make sure that when the index template is a data stream template, simulate ingest works the same whether the data
+  # stream has been created or not -- either way, we expect it to use the template rather than the data stream / index mappings and settings.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.ignored.fields"]
+      reason: "ingest simulate ignored fields added in 8.18"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: nonexistent
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "simulate-test",
+                "_id": "y9Es_JIBiw6_GgN-U0qy",
+                "_score": 1,
+                "_source": {
+                  "abc": "sfdsfsfdsfsfdsfsfdsfsfdsfsfdsf"
+                }
+              }
+            ],
+            "index_template_substitutions": {
+              "ind_temp": {
+                "index_patterns": ["simulate-test"],
+                "composed_of": ["simulate-test"]
+              }
+            },
+            "component_template_substitutions": {
+              "simulate-test": {
+                "template": {
+                  "mappings": {
+                    "dynamic": false,
+                    "properties": {
+                      "abc": {
+                        "type": "keyword",
+                        "ignore_above": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simulate-test" }
+  - match: { docs.0.doc._source.abc: "sfdsfsfdsfsfdsfsfdsfsfdsfsfdsf" }
+  - match: { docs.0.doc.ignored_fields: ["abc"] }
+  - not_exists: docs.0.doc.error

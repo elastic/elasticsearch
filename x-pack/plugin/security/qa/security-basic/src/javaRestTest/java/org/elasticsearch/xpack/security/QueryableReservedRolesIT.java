@@ -92,8 +92,8 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         final String[] allReservedRoles = ReservedRolesStore.names().toArray(new String[0]);
         assertQuery(client(), """
             { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
-            """, 31, roles -> {
-            assertThat(roles, iterableWithSize(31));
+            """, allReservedRoles.length, roles -> {
+            assertThat(roles, iterableWithSize(allReservedRoles.length));
             for (var role : roles) {
                 assertThat((String) role.get("name"), is(oneOf(allReservedRoles)));
             }

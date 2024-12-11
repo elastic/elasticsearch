@@ -60,7 +60,8 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     @Override
     public QueryBuilder queryName(String queryName) {
-        return new InterceptedQueryBuilderWrapper(queryBuilder.queryName(queryName));
+        queryBuilder.queryName(queryName);
+        return this;
     }
 
     @Override
@@ -75,7 +76,8 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     @Override
     public QueryBuilder boost(float boost) {
-        return new InterceptedQueryBuilderWrapper(queryBuilder.boost(boost));
+        queryBuilder.boost(boost);
+        return this;
     }
 
     @Override

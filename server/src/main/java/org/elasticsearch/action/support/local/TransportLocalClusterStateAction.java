@@ -21,12 +21,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.concurrent.Executor;
 
@@ -124,5 +128,19 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
     private boolean isTaskCancelled(Task task) {
         return task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
+    }
+
+    // Remove the BWC support for the deprecated ?local parameter.
+    // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    public static void consumeDeprecatedLocalParameter(ToXContent.Params params) {
+        if (params.paramAsBoolean("local", false)) {
+            DeprecationLogger.getLogger(TransportLocalClusterStateAction.class)
+                .critical(
+                    DeprecationCategory.API,
+                    "TransportLocalClusterStateAction-local-parameter",
+                    "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+                );
+        }
     }
 }

@@ -506,7 +506,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         keepAliveReaper.cancel();
     }
 
-    // Wraps the listener to avoid sending StackTrace if error_trace is set to false
+    /**
+     * Wraps the listener to avoid sending StackTraces back to the coordinating
+     * node if the `error_trace` header is set to {@code false}. Upon reading we
+     * default to {@code true} to maintain the same behavior as before the change,
+     * due to older nodes not being able to specify whether it needs stack traces.
+     *
+     * @param <T> the type of the response
+     * @param listener the action listener to be wrapped
+     * @return the wrapped action listener
+     */
     <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener) {
         String header = threadPool.getThreadContext().getHeaderOrDefault("error_trace", "true");
         if (header.equals("false")) {

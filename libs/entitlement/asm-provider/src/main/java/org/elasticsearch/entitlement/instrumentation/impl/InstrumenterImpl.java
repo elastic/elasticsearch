@@ -25,7 +25,6 @@ import org.objectweb.asm.Type;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
-import java.util.logging.LogManager;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -156,7 +155,7 @@ public class InstrumenterImpl implements Instrumenter {
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
-                    System.out.println("Will instrument method " + name);
+                    // LOGGER.debug("Will instrument method {}", key);
                     return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
                 } else {
                     // LOGGER.trace("Will not instrument method {}", key);

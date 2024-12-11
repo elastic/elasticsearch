@@ -290,7 +290,7 @@ public abstract class IndexRouting {
             addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(routingPaths), null, true);
         }
 
         public boolean matchesField(String fieldName) {

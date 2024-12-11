@@ -565,7 +565,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     private Settings generateLogsdbSettings(Settings settings) throws IOException {
         Metadata metadata = Metadata.EMPTY_METADATA;
         var result = provider.getAdditionalIndexSettings(
-            null,
+            DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
             IndexMode.LOGSDB,
             metadata,

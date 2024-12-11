@@ -76,10 +76,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     ) {
         var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, settings);
         if (logsdbSettings != Settings.EMPTY) {
-            settings = Settings.builder()
-                .put(logsdbSettings)
-                .put(settings)
-                .build();
+            settings = Settings.builder().put(logsdbSettings).put(settings).build();
         }
 
         // This index name is used when validating component and index templates, we should skip this check in that case.
@@ -90,16 +87,15 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             indexName,
             dataStreamName
         );
-        if (syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
-            var builder = Settings.builder();
-            if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, settings, combinedTemplateMappings)) {
-                LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-                builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
-            }
+        if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, settings, combinedTemplateMappings)
+            && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
+            LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
+            var builder = Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
             if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
                 builder.put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
             }
-            return builder.keys().isEmpty() ? Settings.EMPTY : builder.build();
+            return builder.build();
         } else if (templateIndexMode == IndexMode.LOGSDB
             || logsdbSettings != Settings.EMPTY
             || LogsdbIndexModeSettingsProvider.resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == IndexMode.LOGSDB) {

@@ -40,6 +40,7 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
     private final List<GroupSpec> specs;
     private final AggregatorMode aggregatorMode;
+    private final Block[] blocks;
     private final CategorizeBlockHash categorizeBlockHash;
     private final PackedValuesBlockHash packedValuesBlockHash;
 
@@ -53,6 +54,7 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.aggregatorMode = aggregatorMode;
+        blocks = new Block[specs.size()];
 
         List<GroupSpec> delegateSpecs = new ArrayList<>();
         delegateSpecs.add(new GroupSpec(0, ElementType.INT));
@@ -75,7 +77,6 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         try (IntBlock categories = getCategories(page)) {
-            Block[] blocks = new Block[specs.size()];
             blocks[0] = categories;
             for (int i = 1; i < specs.size(); i++) {
                 blocks[i] = page.getBlock(specs.get(i).channel());

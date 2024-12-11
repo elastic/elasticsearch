@@ -89,13 +89,13 @@ public class VectorSimilarityFloatValueSource extends DoubleValuesSource impleme
         if (o == null || getClass() != o.getClass()) return false;
         VectorSimilarityFloatValueSource that = (VectorSimilarityFloatValueSource) o;
         return Objects.equals(field, that.field)
-            && Objects.deepEquals(target, that.target)
+            && Arrays.equals(target, that.target)
             && vectorSimilarityFunction == that.vectorSimilarityFunction;
     }
 
     @Override
     public String toString() {
-        return "VectorSimilarityFloatValueSource(" + field + ", " + Arrays.toString(target) + ", " + vectorSimilarityFunction + ")";
+        return "VectorSimilarityFloatValueSource(" + field + ", [" + target[0] + ",...], " + vectorSimilarityFunction + ")";
     }
 
     @Override

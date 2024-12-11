@@ -37,7 +37,7 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     // Oversample is required as of now as it is the only field in the rescore vector
     private final float numCandidatesFactor;
 
-    public RescoreVectorBuilder(Float numCandidatesFactor) {
+    public RescoreVectorBuilder(float numCandidatesFactor) {
         Objects.requireNonNull(numCandidatesFactor, "[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be set");
         if (numCandidatesFactor < MIN_OVERSAMPLE) {
             throw new IllegalArgumentException("[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
@@ -79,7 +79,7 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         return Objects.hashCode(numCandidatesFactor);
     }
 
-    public Float numCandidatesFactor() {
+    public float numCandidatesFactor() {
         return numCandidatesFactor;
     }
 }

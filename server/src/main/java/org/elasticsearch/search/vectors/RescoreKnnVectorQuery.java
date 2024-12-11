@@ -109,7 +109,7 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         if (o == null || getClass() != o.getClass()) return false;
         RescoreKnnVectorQuery that = (RescoreKnnVectorQuery) o;
         return Objects.equals(fieldName, that.fieldName)
-            && Objects.deepEquals(floatTarget, that.floatTarget)
+            && Arrays.equals(floatTarget, that.floatTarget)
             && vectorSimilarityFunction == that.vectorSimilarityFunction
             && Objects.equals(k, that.k)
             && Objects.equals(innerQuery, that.innerQuery);

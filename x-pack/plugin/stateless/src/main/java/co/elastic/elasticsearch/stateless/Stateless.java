@@ -69,6 +69,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersiste
 import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -308,6 +309,7 @@ public class Stateless extends Plugin
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
+    private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<ShardSizeCollector> shardSizeCollector = new SetOnce<>();
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
@@ -528,6 +530,8 @@ public class Stateless extends Plugin
         components.add(refreshThrottlingService);
 
         if (hasIndexRole) {
+            var hollowShardsService = setAndGet(this.hollowShardsService, new HollowShardsService(settings, clusterService));
+            components.add(hollowShardsService);
             Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(false);
         } else if (hasSearchRole) {
             Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(
@@ -971,7 +975,9 @@ public class Stateless extends Plugin
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
-            StatelessCommitService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
+            HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
+            HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
+            HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
             USE_INDEX_REFRESH_BLOCK_SETTING
         );
     }

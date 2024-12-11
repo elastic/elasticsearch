@@ -272,14 +272,14 @@ public class InputStreamIndexInputTests extends ESTestCase {
         InputStreamIndexInput is = new InputStreamIndexInput(countingInput, limit);
         is.readNBytes(initialReadBytes);
         assertThat(is.skip(skipBytes), equalTo((long) skipBytesExpected));
-        long expectedActualBytesRead = Math.min(Math.min(initialReadBytes, limit), bytes);
-        assertThat(countingInput.getBytesRead(), equalTo(expectedActualBytesRead));
+        long expectedActualInitialBytesRead = Math.min(Math.min(initialReadBytes, limit), bytes);
+        assertThat(countingInput.getBytesRead(), equalTo(expectedActualInitialBytesRead));
 
         int remainingBytes = Math.min(bytes, limit) - seekExpected;
         for (int i = seekExpected; i < seekExpected + remainingBytes; i++) {
             assertThat(is.read(), equalTo(i));
         }
-        assertThat(countingInput.getBytesRead(), equalTo(expectedActualBytesRead + remainingBytes));
+        assertThat(countingInput.getBytesRead(), equalTo(expectedActualInitialBytesRead + remainingBytes));
     }
 
     protected static class CountingReadBytesIndexInput extends FilterIndexInput {

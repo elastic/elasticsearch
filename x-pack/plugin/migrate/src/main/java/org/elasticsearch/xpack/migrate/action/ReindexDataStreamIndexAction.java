@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIndexAction.Response> {
 
-    public static final String NAME = "indices:admin/data_stream/index/reindex";
+    public static final String NAME = "indices:admin/migration/index/reindex";
 
     public static final ActionType<Response> INSTANCE = new ReindexDataStreamIndexAction();
 

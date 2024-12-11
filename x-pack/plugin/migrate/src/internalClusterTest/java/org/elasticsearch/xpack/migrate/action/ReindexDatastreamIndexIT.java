@@ -161,6 +161,32 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
 
+    public void testReadOnlyAddedBack() {
+
+        // Create source index with read-only and/or block-writes
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        boolean isReadOnly = randomBoolean();
+        boolean isBlockWrites = randomBoolean();
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_READ_ONLY, isReadOnly)
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, isBlockWrites)
+            .build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        // assert read-only settings added back to dest index
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        assertEquals(isReadOnly, Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
+        assertEquals(isBlockWrites, Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
+
+        removeReadOnly(sourceIndex);
+        removeReadOnly(destIndex);
+    }
+
     // TODO error on set read-only if don't have perms
     // TODO check settings added after
     // TODO check tsdb start/end time correct
@@ -168,6 +194,14 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
     // TODO check logsdb/tsdb work
     // TODO settings and mappings that come from template
     // TODO test that does not fail on create if index exists after delete (Not sure how to do this since relies on race condition)
+
+    static void removeReadOnly(String index) {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_READ_ONLY, false)
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, false)
+            .build();
+        assertTrue(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet().isAcknowledged());
+    }
 
     static void indexDocs(String index, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();

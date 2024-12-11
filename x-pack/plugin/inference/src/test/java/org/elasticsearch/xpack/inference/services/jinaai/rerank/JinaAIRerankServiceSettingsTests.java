@@ -34,9 +34,10 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     public static JinaAIRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
         return new JinaAIRerankServiceSettings(
+            new JinaAIServiceSettings(
             randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
             randomFrom(new String[] { null, randomAlphaOfLength(10) }),
-            rateLimitSettings
+            rateLimitSettings)
         );
     }
 
@@ -44,7 +45,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
         var url = "http://www.abc.com";
         var model = "model";
 
-        var serviceSettings = new JinaAIRerankServiceSettings(url, model, null);
+        var serviceSettings = new JinaAIRerankServiceSettings(new JinaAIServiceSettings(url, model, null));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -55,7 +56,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 "url":"http://www.abc.com",
                 "model_id":"model",
                 "rate_limit": {
-                    "requests_per_minute": 10000
+                    "requests_per_minute": 2000
                 }
             }
             """));
@@ -80,7 +81,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     protected JinaAIRerankServiceSettings mutateInstanceForVersion(JinaAIRerankServiceSettings instance, TransportVersion version) {
         if (version.before(TransportVersions.V_8_15_0)) {
             // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
-            return new JinaAIRerankServiceSettings(instance.uri(), instance.modelId(), JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS);
+            return new JinaAIRerankServiceSettings(new JinaAIServiceSettings(instance.getCommonSettings().uri(), instance.modelId(), JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
         }
         return instance;
     }

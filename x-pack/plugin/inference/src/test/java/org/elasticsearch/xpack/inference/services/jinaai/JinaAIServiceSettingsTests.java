@@ -45,21 +45,10 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     private static JinaAIServiceSettings createRandom(String url) {
-        SimilarityMeasure similarityMeasure = null;
-        Integer dims = null;
-        var isTextEmbeddingModel = randomBoolean();
-        if (isTextEmbeddingModel) {
-            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-            dims = 1024;
-        }
-        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         var model = randomBoolean() ? randomAlphaOfLength(15) : null;
 
         return new JinaAIServiceSettings(
             ServiceUtils.createOptionalUri(url),
-            similarityMeasure,
-            dims,
-            maxInputTokens,
             model,
             RateLimitSettingsTests.createRandom()
         );
@@ -67,21 +56,12 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     public void testFromMap() {
         var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
                     model
                 )
@@ -91,27 +71,18 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null))
         );
     }
 
     public void testFromMap_WithRateLimit() {
         var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
                     RateLimitSettings.FIELD_NAME,
@@ -126,9 +97,6 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
             is(
                 new JinaAIServiceSettings(
                     ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
                     model,
                     new RateLimitSettings(3)
                 )
@@ -138,21 +106,12 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     public void testFromMap_WhenUsingModelId() {
         var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     JinaAIServiceSettings.MODEL_ID,
                     model
                 )
@@ -162,27 +121,18 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null))
         );
     }
 
     public void testFromMap_PrefersModelId_OverModel() {
         var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
                     "old_model",
                     JinaAIServiceSettings.MODEL_ID,
@@ -194,7 +144,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null))
         );
     }
 
@@ -235,27 +185,8 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         );
     }
 
-    public void testFromMap_InvalidSimilarity_ThrowsError() {
-        var similarity = "by_size";
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> JinaAIServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)),
-                ConfigurationParseContext.PERSISTENT
-            )
-        );
-
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(
-                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
-                    + "must be one of [cosine, dot_product, l2_norm];"
-            )
-        );
-    }
-
     public void testXContent_WritesModelId() throws IOException {
-        var entity = new JinaAIServiceSettings((String) null, null, null, null, "modelId", new RateLimitSettings(1));
+        var entity = new JinaAIServiceSettings((String) null, "modelId", new RateLimitSettings(1));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

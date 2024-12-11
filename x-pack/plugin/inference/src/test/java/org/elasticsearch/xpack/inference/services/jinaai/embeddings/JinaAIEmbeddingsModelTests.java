@@ -112,10 +112,9 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
-            TaskType.TEXT_EMBEDDING,
             "service",
             new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null)
+                new JinaAIServiceSettings(url, model, null), SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit
             ),
             taskSettings,
             chunkingSettings,
@@ -133,10 +132,9 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
-            TaskType.TEXT_EMBEDDING,
             "service",
             new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null)
+                new JinaAIServiceSettings(url, model, null), SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit
             ),
             taskSettings,
             null,
@@ -155,9 +153,8 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
-            TaskType.TEXT_EMBEDDING,
             "service",
-            new JinaAIEmbeddingsServiceSettings(new JinaAIServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model, null)),
+            new JinaAIEmbeddingsServiceSettings(new JinaAIServiceSettings(url, model, null), similarityMeasure, dimensions, tokenLimit),
             taskSettings,
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))

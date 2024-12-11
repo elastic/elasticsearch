@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.jinaai.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -37,8 +40,7 @@ public class JinaAIRerankModel extends JinaAIModel {
     }
 
     public JinaAIRerankModel(
-        String modelId,
-        TaskType taskType,
+        String inferenceId,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -46,8 +48,7 @@ public class JinaAIRerankModel extends JinaAIModel {
         ConfigurationParseContext context
     ) {
         this(
-            modelId,
-            taskType,
+            inferenceId,
             service,
             JinaAIRerankServiceSettings.fromMap(serviceSettings, context),
             JinaAIRerankTaskSettings.fromMap(taskSettings),
@@ -58,17 +59,16 @@ public class JinaAIRerankModel extends JinaAIModel {
     // should only be used for testing
     JinaAIRerankModel(
         String modelId,
-        TaskType taskType,
         String service,
         JinaAIRerankServiceSettings serviceSettings,
         JinaAIRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, TaskType.RERANK, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings
+            serviceSettings.getCommonSettings()
         );
     }
 
@@ -109,7 +109,7 @@ public class JinaAIRerankModel extends JinaAIModel {
 
     @Override
     public URI uri() {
-        return getServiceSettings().uri();
+        return getServiceSettings().getCommonSettings().uri();
     }
 
     public static class Configuration {

@@ -152,7 +152,6 @@ public class JinaAIService extends SenderService {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new JinaAIEmbeddingsModel(
                 inferenceEntityId,
-                taskType,
                 NAME,
                 serviceSettings,
                 taskSettings,
@@ -160,7 +159,7 @@ public class JinaAIService extends SenderService {
                 secretSettings,
                 context
             );
-            case RERANK -> new JinaAIRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+            case RERANK -> new JinaAIRerankModel(inferenceEntityId, NAME, serviceSettings, taskSettings, secretSettings, context);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -303,16 +302,17 @@ public class JinaAIService extends SenderService {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var maxInputTokens = serviceSettings.maxInputTokens();
 
             var updatedServiceSettings = new JinaAIEmbeddingsServiceSettings(
                 new JinaAIServiceSettings(
                     serviceSettings.getCommonSettings().uri(),
-                    similarityToUse,
-                    embeddingSize,
-                    serviceSettings.getCommonSettings().maxInputTokens(),
                     serviceSettings.getCommonSettings().modelId(),
                     serviceSettings.getCommonSettings().rateLimitSettings()
-                )
+                ),
+                similarityToUse,
+                embeddingSize,
+                maxInputTokens
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);

@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -48,79 +50,45 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
-
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
+        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
         // We need to extract/remove those fields to avoid unknown service settings errors
         extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         removeAsType(map, DIMENSIONS, Integer.class);
         removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            JinaAIService.NAME,
-            context
-        );
-
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new JinaAIRerankServiceSettings(uri, modelId, rateLimitSettings);
+        return new JinaAIRerankServiceSettings(commonServiceSettings);
     }
 
-    private final URI uri;
+    private final JinaAIServiceSettings commonSettings;
 
-    private final String modelId;
-
-    private final RateLimitSettings rateLimitSettings;
-
-    public JinaAIRerankServiceSettings(@Nullable URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this.uri = uri;
-        this.modelId = modelId;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-    }
-
-    public JinaAIRerankServiceSettings(@Nullable String url, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this(createOptionalUri(url), modelId, rateLimitSettings);
+    public JinaAIRerankServiceSettings(
+        JinaAIServiceSettings commonSettings
+    ) {
+        this.commonSettings = commonSettings;
     }
 
     public JinaAIRerankServiceSettings(StreamInput in) throws IOException {
-        this.uri = createOptionalUri(in.readOptionalString());
-
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            // An older node sends these fields, so we need to skip them to progress through the serialized data
-            in.readOptionalEnum(SimilarityMeasure.class);
-            in.readOptionalVInt();
-            in.readOptionalVInt();
-        }
-
-        this.modelId = in.readOptionalString();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.commonSettings = new JinaAIServiceSettings(in);
     }
 
-    public URI uri() {
-        return uri;
+    public JinaAIServiceSettings getCommonSettings() {
+        return commonSettings;
     }
 
     @Override
     public String modelId() {
-        return modelId;
+        return commonSettings.modelId();
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+        return commonSettings.rateLimitSettings();
     }
+
 
     @Override
     public String getWriteableName() {
@@ -131,7 +99,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        toXContentFragmentOfExposedFields(builder, params);
+        builder = commonSettings.toXContentFragment(builder, params);
 
         builder.endObject();
         return builder;
@@ -139,16 +107,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
-
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
-
-        rateLimitSettings.toXContent(builder, params);
-
+        commonSettings.toXContentFragmentOfExposedFields(builder, params);
         return builder;
     }
 
@@ -159,36 +118,19 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
-
-        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            // An old node expects this data to be present, so we need to send at least the booleans
-            // indicating that the fields are not set
-            out.writeOptionalEnum(null);
-            out.writeOptionalVInt(null);
-            out.writeOptionalVInt(null);
-        }
-
-        out.writeOptionalString(modelId);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        commonSettings.writeTo(out);
     }
 
     @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        JinaAIRerankServiceSettings that = (JinaAIRerankServiceSettings) object;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        JinaAIRerankServiceSettings that = (JinaAIRerankServiceSettings) o;
+        return Objects.equals(commonSettings, that.commonSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings);
+        return Objects.hash(commonSettings);
     }
 }

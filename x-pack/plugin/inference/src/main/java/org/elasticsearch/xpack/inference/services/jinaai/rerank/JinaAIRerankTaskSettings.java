@@ -36,9 +36,8 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
     public static final String NAME = "jinaai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
-    public static final String MAX_CHUNKS_PER_DOC = "max_chunks_per_doc";
 
-    static final JinaAIRerankTaskSettings EMPTY_SETTINGS = new JinaAIRerankTaskSettings(null, null, null);
+    static final JinaAIRerankTaskSettings EMPTY_SETTINGS = new JinaAIRerankTaskSettings(null, null);
 
     public static JinaAIRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -54,18 +53,12 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
             ModelConfigurations.TASK_SETTINGS,
             validationException
         );
-        Integer maxChunksPerDoc = extractOptionalPositiveInteger(
-            map,
-            MAX_CHUNKS_PER_DOC,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return of(topNDocumentsOnly, returnDocuments, maxChunksPerDoc);
+        return of(topNDocumentsOnly, returnDocuments);
     }
 
     /**
@@ -82,38 +75,32 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
                 : originalSettings.getTopNDocumentsOnly(),
             requestTaskSettings.getReturnDocuments() != null
                 ? requestTaskSettings.getReturnDocuments()
-                : originalSettings.getReturnDocuments(),
-            requestTaskSettings.getMaxChunksPerDoc() != null
-                ? requestTaskSettings.getMaxChunksPerDoc()
-                : originalSettings.getMaxChunksPerDoc()
+                : originalSettings.getReturnDocuments()
         );
     }
 
-    public static JinaAIRerankTaskSettings of(Integer topNDocumentsOnly, Boolean returnDocuments, Integer maxChunksPerDoc) {
-        return new JinaAIRerankTaskSettings(topNDocumentsOnly, returnDocuments, maxChunksPerDoc);
+    public static JinaAIRerankTaskSettings of(Integer topNDocumentsOnly, Boolean returnDocuments) {
+        return new JinaAIRerankTaskSettings(topNDocumentsOnly, returnDocuments);
     }
 
     private final Integer topNDocumentsOnly;
     private final Boolean returnDocuments;
-    private final Integer maxChunksPerDoc;
 
     public JinaAIRerankTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalInt(), in.readOptionalBoolean(), in.readOptionalInt());
+        this(in.readOptionalInt(), in.readOptionalBoolean());
     }
 
     public JinaAIRerankTaskSettings(
         @Nullable Integer topNDocumentsOnly,
-        @Nullable Boolean doReturnDocuments,
-        @Nullable Integer maxChunksPerDoc
+        @Nullable Boolean doReturnDocuments
     ) {
         this.topNDocumentsOnly = topNDocumentsOnly;
         this.returnDocuments = doReturnDocuments;
-        this.maxChunksPerDoc = maxChunksPerDoc;
     }
 
     @Override
     public boolean isEmpty() {
-        return topNDocumentsOnly == null && returnDocuments == null && maxChunksPerDoc == null;
+        return topNDocumentsOnly == null && returnDocuments == null;
     }
 
     @Override
@@ -124,9 +111,6 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
         }
         if (returnDocuments != null) {
             builder.field(RETURN_DOCUMENTS, returnDocuments);
-        }
-        if (maxChunksPerDoc != null) {
-            builder.field(MAX_CHUNKS_PER_DOC, maxChunksPerDoc);
         }
         builder.endObject();
         return builder;
@@ -146,7 +130,6 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(topNDocumentsOnly);
         out.writeOptionalBoolean(returnDocuments);
-        out.writeOptionalInt(maxChunksPerDoc);
     }
 
     @Override
@@ -155,13 +138,12 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIRerankTaskSettings that = (JinaAIRerankTaskSettings) o;
         return Objects.equals(returnDocuments, that.returnDocuments)
-            && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly)
-            && Objects.equals(maxChunksPerDoc, that.maxChunksPerDoc);
+            && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(returnDocuments, topNDocumentsOnly, maxChunksPerDoc);
+        return Objects.hash(returnDocuments, topNDocumentsOnly);
     }
 
     public static String invalidInputTypeMessage(InputType inputType) {
@@ -178,10 +160,6 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
 
     public Boolean getReturnDocuments() {
         return returnDocuments;
-    }
-
-    public Integer getMaxChunksPerDoc() {
-        return maxChunksPerDoc;
     }
 
     @Override

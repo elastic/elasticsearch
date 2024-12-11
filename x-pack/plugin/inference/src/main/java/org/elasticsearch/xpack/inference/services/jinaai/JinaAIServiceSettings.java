@@ -50,10 +50,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
@@ -75,7 +71,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
             throw validationException;
         }
 
-        return new JinaAIServiceSettings(uri, similarity, dims, maxInputTokens, modelId(oldModelId, modelId), rateLimitSettings);
+        return new JinaAIServiceSettings(uri, modelId(oldModelId, modelId), rateLimitSettings);
     }
 
     private static String modelId(@Nullable String model, @Nullable String modelId) {
@@ -83,54 +79,29 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     }
 
     private final URI uri;
-    private final SimilarityMeasure similarity;
-    private final Integer dimensions;
-    private final Integer maxInputTokens;
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
     public JinaAIServiceSettings(
         @Nullable URI uri,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens,
         @Nullable String modelId,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
-        this.similarity = similarity;
-        this.dimensions = dimensions;
-        this.maxInputTokens = maxInputTokens;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public JinaAIServiceSettings(
         @Nullable String url,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens,
         @Nullable String modelId,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
-    }
-
-    public JinaAIServiceSettings(
-        @Nullable String url,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dimensions,
-        @Nullable String modelId,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(createOptionalUri(url), similarity, dimensions, null, modelId, rateLimitSettings);
+        this(createOptionalUri(url), modelId, rateLimitSettings);
     }
 
     public JinaAIServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
         modelId = in.readOptionalString();
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
@@ -142,7 +113,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     // should only be used for testing, public because it's accessed outside of the package
     public JinaAIServiceSettings() {
-        this((URI) null, null, null, null, null, null);
+        this((URI) null, null, null);
     }
 
     @Override
@@ -152,20 +123,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     public URI uri() {
         return uri;
-    }
-
-    @Override
-    public SimilarityMeasure similarity() {
-        return similarity;
-    }
-
-    @Override
-    public Integer dimensions() {
-        return dimensions;
-    }
-
-    public Integer maxInputTokens() {
-        return maxInputTokens;
     }
 
     @Override
@@ -197,15 +154,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
-        if (similarity != null) {
-            builder.field(SIMILARITY, similarity);
-        }
-        if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
-        }
-        if (maxInputTokens != null) {
-            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
-        }
         if (modelId != null) {
             builder.field(MODEL_ID, modelId);
         }
@@ -223,9 +171,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
-        out.writeOptionalVInt(dimensions);
-        out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
@@ -239,15 +184,12 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIServiceSettings that = (JinaAIServiceSettings) o;
         return Objects.equals(uri, that.uri)
-            && Objects.equals(similarity, that.similarity)
-            && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
+        return Objects.hash(uri, modelId, rateLimitSettings);
     }
 }

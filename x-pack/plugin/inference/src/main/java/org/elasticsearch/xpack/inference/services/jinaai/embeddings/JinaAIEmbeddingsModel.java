@@ -40,7 +40,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
 
     public JinaAIEmbeddingsModel(
         String inferenceId,
-        TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -50,7 +49,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     ) {
         this(
             inferenceId,
-            taskType,
             service,
             JinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
@@ -62,7 +60,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     // should only be used for testing
     JinaAIEmbeddingsModel(
         String modelId,
-        TaskType taskType,
         String service,
         JinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
@@ -70,7 +67,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings()

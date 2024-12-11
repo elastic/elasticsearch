@@ -18,8 +18,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,22 +40,39 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
     public static JinaAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
+        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new JinaAIEmbeddingsServiceSettings(commonServiceSettings);
+        return new JinaAIEmbeddingsServiceSettings(commonServiceSettings, similarity, dims, maxInputTokens);
     }
 
     private final JinaAIServiceSettings commonSettings;
+    private final SimilarityMeasure similarity;
+    private final Integer dimensions;
+    private final Integer maxInputTokens;
 
-    public JinaAIEmbeddingsServiceSettings(JinaAIServiceSettings commonSettings) {
+    public JinaAIEmbeddingsServiceSettings(
+        JinaAIServiceSettings commonSettings,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens
+    ) {
         this.commonSettings = commonSettings;
+        this.similarity = similarity;
+        this.dimensions = dimensions;
+        this.maxInputTokens = maxInputTokens;
     }
 
     public JinaAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        commonSettings = new JinaAIServiceSettings(in);
+        this.commonSettings = new JinaAIServiceSettings(in);
+        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        this.dimensions = in.readOptionalVInt();
+        this.maxInputTokens = in.readOptionalVInt();
     }
 
     public JinaAIServiceSettings getCommonSettings() {
@@ -53,12 +81,16 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public SimilarityMeasure similarity() {
-        return commonSettings.similarity();
+        return similarity;
     }
 
     @Override
     public Integer dimensions() {
-        return commonSettings.dimensions();
+        return dimensions;
+    }
+
+    public Integer maxInputTokens() {
+        return maxInputTokens;
     }
 
     @Override
@@ -75,8 +107,16 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        commonSettings.toXContentFragment(builder, params);
-
+        builder = commonSettings.toXContentFragment(builder, params);
+        if (similarity != null) {
+            builder.field(SIMILARITY, similarity);
+        }
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
+        }
+        if (maxInputTokens != null) {
+            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+        }
         builder.endObject();
         return builder;
     }
@@ -96,6 +136,9 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalVInt(dimensions);
+        out.writeOptionalVInt(maxInputTokens);
     }
 
     @Override
@@ -103,11 +146,14 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIEmbeddingsServiceSettings that = (JinaAIEmbeddingsServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings);
+        return Objects.equals(commonSettings, that.commonSettings) 
+        && Objects.equals(similarity, that.similarity)
+        && Objects.equals(dimensions, that.dimensions)
+        && Objects.equals(maxInputTokens, that.maxInputTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings);
+        return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens);
     }
 }

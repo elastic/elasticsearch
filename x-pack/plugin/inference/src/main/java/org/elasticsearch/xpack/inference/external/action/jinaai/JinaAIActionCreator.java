@@ -52,7 +52,7 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
         var overriddenModel = JinaAIRerankModel.of(model, taskSettings);
         var requestCreator = JinaAIRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.getServiceSettings().uri(),
+            overriddenModel.getServiceSettings().getCommonSettings().uri(),
             "JinaAI rerank"
         );
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);

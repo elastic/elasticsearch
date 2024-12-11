@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -36,9 +37,18 @@ import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<JinaAIEmbeddingsServiceSettings> {
     public static JinaAIEmbeddingsServiceSettings createRandom() {
+        SimilarityMeasure similarityMeasure = null;
+        Integer dims = null;
+        var isTextEmbeddingModel = randomBoolean();
+        if (isTextEmbeddingModel) {
+            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
+            dims = 1024;
+        }
+        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+
         var commonSettings = JinaAIServiceSettingsTests.createRandom();
 
-        return new JinaAIEmbeddingsServiceSettings(commonSettings);
+        return new JinaAIEmbeddingsServiceSettings(commonSettings, similarityMeasure, dims, maxInputTokens);
     }
 
     public void testFromMap() {
@@ -69,7 +79,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null)
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens
                 )
             )
         );
@@ -103,7 +113,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null)
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens
                 )
             )
         );
@@ -139,23 +149,43 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null)
+                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
+                    SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens
                 )
+            )
+        );
+    }
+
+    public void testFromMap_InvalidSimilarity_ThrowsError() {
+        var similarity = "by_size";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> JinaAIEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
+                    + "must be one of [cosine, dot_product, l2_norm];"
             )
         );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAIEmbeddingsServiceSettings(
-            new JinaAIServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3))
+            new JinaAIServiceSettings("url", "model_id", new RateLimitSettings(3)), SimilarityMeasure.COSINE, 5, 10
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
         assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+            {"url":"url","model_id":"model_id",""" + """
+            "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10}"""));
     }
 
     @Override

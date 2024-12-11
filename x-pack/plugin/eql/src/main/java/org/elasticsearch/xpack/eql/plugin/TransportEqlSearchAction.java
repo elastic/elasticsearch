@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -144,7 +145,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             false,
             task.getExecutionId().getEncoded(),
             true,
-            true
+            true,
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 
@@ -231,6 +233,12 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.indicesOptions(),
                 request.fetchSize(),
                 request.maxSamplesPerKey(),
+                request.allowPartialSearchResults() == null
+                    ? defaultAllowPartialSearchResults(clusterService)
+                    : request.allowPartialSearchResults(),
+                request.allowPartialSequenceResults() == null
+                    ? defaultAllowPartialSequenceResults(clusterService)
+                    : request.allowPartialSequenceResults(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task
@@ -244,12 +252,34 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         }
     }
 
+    private static boolean defaultAllowPartialSearchResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
+    }
+
+    private static boolean defaultAllowPartialSequenceResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
+    }
+
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.totalHits());
         if (id != null) {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), id.getEncoded(), false, false);
+            return new EqlSearchResponse(
+                hits,
+                results.tookTime().getMillis(),
+                results.timedOut(),
+                id.getEncoded(),
+                false,
+                false,
+                results.shardFailures()
+            );
         } else {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut());
+            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), results.shardFailures());
         }
     }
 

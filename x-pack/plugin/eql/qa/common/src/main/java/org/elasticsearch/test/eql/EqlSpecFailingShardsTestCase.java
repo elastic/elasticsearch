@@ -11,11 +11,25 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.List;
 
-import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
+import static org.elasticsearch.test.eql.DataLoader.TEST_INDEX;
+import static org.elasticsearch.test.eql.DataLoader.TEST_SHARD_FAILURES_INDEX;
 
-public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
+public abstract class EqlSpecFailingShardsTestCase extends BaseEqlSpecTestCase {
 
-    public EqlSampleTestCase(
+    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
+    public static List<Object[]> readTestSpecs() throws Exception {
+
+        // Load EQL validation specs
+        return asArray(EqlSpecLoader.load("/test_failing_shards.toml"));
+    }
+
+    @Override
+    protected String tiebreaker() {
+        return "serial_event_id";
+    }
+
+    // constructor for "local" rest tests
+    public EqlSpecFailingShardsTestCase(
         String query,
         String name,
         List<long[]> eventIds,
@@ -27,7 +41,7 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
         Boolean expectShardFailures
     ) {
         this(
-            TEST_SAMPLE,
+            TEST_INDEX + "," + TEST_SHARD_FAILURES_INDEX,
             query,
             name,
             eventIds,
@@ -40,7 +54,8 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
         );
     }
 
-    public EqlSampleTestCase(
+    // constructor for multi-cluster tests
+    public EqlSpecFailingShardsTestCase(
         String index,
         String query,
         String name,
@@ -48,7 +63,7 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
         String[] joinKeys,
         Integer size,
         Integer maxSamplesPerKey,
-        Boolean allowPartialSearchResults,
+        Boolean allowPartialSearch,
         Boolean allowPartialSequenceResults,
         Boolean expectShardFailures
     ) {
@@ -60,30 +75,9 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
             joinKeys,
             size,
             maxSamplesPerKey,
-            allowPartialSearchResults,
+            allowPartialSearch,
             allowPartialSequenceResults,
             expectShardFailures
         );
-    }
-
-    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
-    public static List<Object[]> readTestSpecs() throws Exception {
-        return asArray(EqlSpecLoader.load("/test_sample.toml"));
-    }
-
-    @Override
-    protected String tiebreaker() {
-        return null;
-    }
-
-    @Override
-    protected String idField() {
-        return "id";
-    }
-
-    @Override
-    protected int requestFetchSize() {
-        // a more relevant fetch_size value for Samples, from algorithm point of view, so we'll mostly test this value
-        return frequently() ? 2 : super.requestFetchSize();
     }
 }

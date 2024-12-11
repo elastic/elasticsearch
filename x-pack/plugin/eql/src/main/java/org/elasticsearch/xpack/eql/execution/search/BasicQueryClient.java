@@ -46,12 +46,14 @@ public class BasicQueryClient implements QueryClient {
     final Client client;
     final String[] indices;
     final List<FieldAndFormat> fetchFields;
+    private final boolean allowPartialSearchResults;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
         this.fetchFields = cfg.fetchFields();
+        this.allowPartialSearchResults = cfg.allowPartialSearchResults();
     }
 
     @Override
@@ -60,11 +62,11 @@ public class BasicQueryClient implements QueryClient {
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
 
-        SearchRequest search = prepareRequest(searchSource, false, indices);
-        search(search, searchLogListener(listener, log));
+        SearchRequest search = prepareRequest(searchSource, false, allowPartialSearchResults, indices);
+        search(search, allowPartialSearchResults, searchLogListener(listener, log, allowPartialSearchResults));
     }
 
-    protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
+    protected void search(SearchRequest search, boolean allowPartialSearchResults, ActionListener<SearchResponse> listener) {
         if (cfg.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
@@ -77,7 +79,7 @@ public class BasicQueryClient implements QueryClient {
         client.search(search, listener);
     }
 
-    protected void search(MultiSearchRequest search, ActionListener<MultiSearchResponse> listener) {
+    protected void search(MultiSearchRequest search, boolean allowPartialSearchResults, ActionListener<MultiSearchResponse> listener) {
         if (cfg.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
@@ -91,7 +93,7 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
 
-        client.multiSearch(search, multiSearchLogListener(listener, log));
+        client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));
     }
 
     @Override
@@ -147,11 +149,11 @@ public class BasicQueryClient implements QueryClient {
                 builder.runtimeMappings(cfg.runtimeMappings());
             }
 
-            SearchRequest search = prepareRequest(builder, false, entry.getKey());
+            SearchRequest search = prepareRequest(builder, false, allowPartialSearchResults, entry.getKey());
             multiSearchBuilder.add(search);
         }
 
-        search(multiSearchBuilder.request(), listener.delegateFailureAndWrap((delegate, r) -> {
+        search(multiSearchBuilder.request(), allowPartialSearchResults, listener.delegateFailureAndWrap((delegate, r) -> {
             for (MultiSearchResponse.Item item : r.getResponses()) {
                 // check for failures
                 if (item.isFailure()) {
@@ -187,6 +189,6 @@ public class BasicQueryClient implements QueryClient {
             request.indices(indices);
             multiSearchBuilder.add(request);
         }
-        search(multiSearchBuilder.request(), listener);
+        search(multiSearchBuilder.request(), allowPartialSearchResults, listener);
     }
 }

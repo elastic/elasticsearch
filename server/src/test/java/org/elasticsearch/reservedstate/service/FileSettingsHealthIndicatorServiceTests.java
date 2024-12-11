@@ -40,8 +40,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
         healthIndicatorService = new FileSettingsHealthIndicatorService();
     }
 
-    public void testInitiallyGreen() {
-    }
+    public void testInitiallyGreen() {}
 
     public void testStartAndStop() {
         assertEquals(

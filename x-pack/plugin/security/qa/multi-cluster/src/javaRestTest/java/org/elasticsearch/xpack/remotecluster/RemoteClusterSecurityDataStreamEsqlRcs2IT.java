@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -15,15 +14,14 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.createDataStreamOnFulfillingCluster;
-import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.runESQLCommandAgainstQueryCluster;
+import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.createUserAndRoleOnQueryCluster;
+import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.doTestDataStreamsWithFlsAndDls;
 
 // TODO consolidate me with RemoteClusterSecurityDataStreamEsqlRcs1IT
 public class RemoteClusterSecurityDataStreamEsqlRcs2IT extends AbstractRemoteClusterSecurityTestCase {
@@ -101,55 +99,28 @@ public class RemoteClusterSecurityDataStreamEsqlRcs2IT extends AbstractRemoteClu
         NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
     })).around(fulfillingCluster).around(queryCluster);
 
-    public void testDataStreamsWithDls() throws Exception {
+    public void testDataStreamsWithDlsAndFls() throws Exception {
         configureRemoteCluster();
         createDataStreamOnFulfillingCluster();
-        MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));
-        MapMatcher oneResult = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(1)));
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
-            twoResults
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(
-                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")
-            ),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            twoResults
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            oneResult
-        );
+        setupAdditionalUsersAndRoles();
 
-        assertMap(
-            entityAsMap(
-                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-foo | STATS COUNT(*)")
-            ),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-* | STATS COUNT(*)")),
-            oneResult
-        );
+        doTestDataStreamsWithFlsAndDls();
+    }
+
+    private void setupAdditionalUsersAndRoles() throws IOException {
+        createUserAndRoleOnQueryCluster("fls_user_logs_pattern", "fls_user_logs_pattern", """
+            {
+              "indices": [{"names": [""], "privileges": ["read"]}],
+              "remote_indices": [
+                {
+                  "names": ["logs-*"],
+                  "privileges": ["read"],
+                  "field_security": {
+                    "grant": ["@timestamp", "data_stream.namespace"]
+                  },
+                  "clusters": ["*"]
+                }
+              ]
+            }""");
     }
 }

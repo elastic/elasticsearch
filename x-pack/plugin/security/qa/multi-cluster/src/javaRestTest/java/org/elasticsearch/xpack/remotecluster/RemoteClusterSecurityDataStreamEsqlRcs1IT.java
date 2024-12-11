@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -22,6 +23,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -68,57 +70,67 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testDataStreamsWithDls() throws Exception {
+    public void testDataStreamsWithDlsAndFls() throws Exception {
         configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, true, randomBoolean(), randomBoolean());
         createDataStreamOnFulfillingCluster();
+        setupAdditionalUsersAndRoles();
 
-        MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));
-        MapMatcher oneResult = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(1)));
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
-            twoResults
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(
-                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")
-            ),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            twoResults
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
-            oneResult
-        );
+        doTestDataStreamsWithFlsAndDls();
+    }
 
-        assertMap(
-            entityAsMap(
-                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-foo | STATS COUNT(*)")
-            ),
-            oneResult
-        );
-        assertMap(
-            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-* | STATS COUNT(*)")),
-            oneResult
-        );
+    private void setupAdditionalUsersAndRoles() throws IOException {
+        createUserAndRoleOnQueryCluster("fls_user_logs_pattern", "fls_user_logs_pattern", """
+            {
+              "indices": [
+                {
+                  "names": ["logs-*"],
+                  "privileges": ["read"],
+                  "field_security": {
+                    "grant": ["@timestamp", "data_stream.namespace"]
+                  }
+                }
+              ]
+            }""");
+        createUserAndRoleOnFulfillingCluster("fls_user_logs_pattern", "fls_user_logs_pattern", """
+            {
+              "indices": [
+                {
+                  "names": ["logs-*"],
+                  "privileges": ["read"],
+                  "field_security": {
+                    "grant": ["@timestamp", "data_stream.namespace"]
+                  }
+                }
+              ]
+            }""");
+    }
+
+    static void createUserAndRoleOnQueryCluster(String username, String roleName, String roleJson) throws IOException {
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+        putRoleRequest.setJsonEntity(roleJson);
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final var putUserRequest = new Request("PUT", "/_security/user/" + username);
+        putUserRequest.setJsonEntity(Strings.format("""
+            {
+              "password": "%s",
+              "roles" : ["%s"]
+            }""", PASS, roleName));
+        assertOK(adminClient().performRequest(putUserRequest));
+    }
+
+    static void createUserAndRoleOnFulfillingCluster(String username, String roleName, String roleJson) throws IOException {
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+        putRoleRequest.setJsonEntity(roleJson);
+        assertOK(performRequestAgainstFulfillingCluster(putRoleRequest));
+
+        final var putUserRequest = new Request("PUT", "/_security/user/" + username);
+        putUserRequest.setJsonEntity(Strings.format("""
+            {
+              "password": "%s",
+              "roles" : ["%s"]
+            }""", PASS, roleName));
+        assertOK(performRequestAgainstFulfillingCluster(putUserRequest));
     }
 
     static Response runESQLCommandAgainstQueryCluster(String user, String command) throws IOException {
@@ -135,7 +147,9 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(json));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
         request.addParameter("error_trace", "true");
-        return adminClient().performRequest(request);
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        return response;
     }
 
     static void addRandomPragmas(XContentBuilder builder) throws IOException {
@@ -219,7 +233,8 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
                            },
                            "data_stream": {
                                "properties": {
-                                   "namespace": {"type": "keyword"}
+                                   "namespace": {"type": "keyword"},
+                                   "environment": {"type": "keyword"}
                                }
                            }
                        }
@@ -246,9 +261,9 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
         request.addParameter("refresh", "");
         request.setJsonEntity("""
             { "create" : {} }
-            { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16"} }
+            { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16", "environment": "dev"} }
             { "create" : {} }
-            { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17"} }
+            { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17", "environment": "prod"} }
             """);
         assertMap(entityAsMap(performRequestAgainstFulfillingCluster(request)), matchesMap().extraOk().entry("errors", false));
     }
@@ -267,5 +282,120 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
               ]
             }""");
         assertMap(entityAsMap(performRequestAgainstFulfillingCluster(request)), matchesMap().extraOk().entry("errors", false));
+    }
+
+    static void doTestDataStreamsWithFlsAndDls() throws IOException {
+        // DLS
+        MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));
+        MapMatcher oneResult = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(1)));
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
+            twoResults
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-foo | STATS COUNT(*)")
+            ),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            twoResults
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_16_only", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_pattern", "FROM my_remote_cluster:logs-* | STATS COUNT(*)")),
+            oneResult
+        );
+
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-foo | STATS COUNT(*)")
+            ),
+            oneResult
+        );
+        assertMap(
+            entityAsMap(runESQLCommandAgainstQueryCluster("logs_foo_after_2021_alias", "FROM my_remote_cluster:alias-* | STATS COUNT(*)")),
+            oneResult
+        );
+
+        // FLS
+        // logs_foo_all does not have FLS restrictions so should be able to access all fields
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-foo | SORT data_stream.namespace | LIMIT 1")
+            ),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "@timestamp").entry("type", "date"),
+                        matchesMap().entry("name", "data_stream.environment").entry("type", "keyword"),
+                        matchesMap().entry("name", "data_stream.namespace").entry("type", "keyword")
+                    )
+                )
+        );
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster("logs_foo_all", "FROM my_remote_cluster:logs-* | SORT data_stream.namespace | LIMIT 1")
+            ),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "@timestamp").entry("type", "date"),
+                        matchesMap().entry("name", "data_stream.environment").entry("type", "keyword"),
+                        matchesMap().entry("name", "data_stream.namespace").entry("type", "keyword")
+                    )
+                )
+        );
+
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster(
+                    "fls_user_logs_pattern",
+                    "FROM my_remote_cluster:logs-foo | SORT data_stream.namespace | LIMIT 1"
+                )
+            ),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "@timestamp").entry("type", "date"),
+                        matchesMap().entry("name", "data_stream.namespace").entry("type", "keyword")
+                    )
+                )
+        );
+        assertMap(
+            entityAsMap(
+                runESQLCommandAgainstQueryCluster(
+                    "fls_user_logs_pattern",
+                    "FROM my_remote_cluster:logs-* | SORT data_stream.namespace | LIMIT 1"
+                )
+            ),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "@timestamp").entry("type", "date"),
+                        matchesMap().entry("name", "data_stream.namespace").entry("type", "keyword")
+                    )
+                )
+        );
     }
 }

@@ -108,7 +108,7 @@ public final class RepositoriesModule {
                         "the snapshot was created with Elasticsearch version ["
                             + version.toReleaseVersion()
                             + "] which is below the current versions minimum index compatibility version ["
-                            + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
+                            + IndexVersions.MINIMUM_READONLY_COMPATIBLE.toReleaseVersion()
                             + "]"
                     );
                 }

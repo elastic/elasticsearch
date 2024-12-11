@@ -11,11 +11,12 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.translog.Translog;
 
 /**
  * An interface to provide instances of document parsing observer and reporter
  */
-public interface DocumentParsingProvider {
+public interface DocumentParsingProvider extends XContentMeteringParserDecoratorSupplier {
     DocumentParsingProvider EMPTY_INSTANCE = new DocumentParsingProvider() {
     };
 
@@ -35,12 +36,5 @@ public interface DocumentParsingProvider {
      */
     default DocumentSizeAccumulator createDocumentSizeAccumulator() {
         return DocumentSizeAccumulator.EMPTY_INSTANCE;
-    }
-
-    /**
-     * @return an observer
-     */
-    default <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
-        return XContentMeteringParserDecorator.NOOP;
     }
 }

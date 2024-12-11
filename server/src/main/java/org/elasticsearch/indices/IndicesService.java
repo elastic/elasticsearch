@@ -135,6 +135,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecoratorSupplier;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -175,6 +177,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -234,6 +237,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
+    private final XContentMeteringParserDecoratorSupplier parserDecoratorSupplier;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
@@ -286,6 +290,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = builder.mapperRegistry;
+        this.parserDecoratorSupplier = builder.parserDecoratorSupplier;
         this.namedWriteableRegistry = builder.namedWriteableRegistry;
         indexingMemoryController = new IndexingMemoryController(
             settings,
@@ -752,7 +757,8 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories,
             loadSlowLogFieldProvider(),
             mapperMetrics,
-            searchOperationListeners
+            searchOperationListeners,
+            parserDecoratorSupplier
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -831,7 +837,8 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories,
             loadSlowLogFieldProvider(),
             mapperMetrics,
-            searchOperationListeners
+            searchOperationListeners,
+            XContentMeteringParserDecoratorSupplier.NOOP
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);

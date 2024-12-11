@@ -213,7 +213,7 @@ public class DownsampleAction implements LifecycleAction {
         // upgrade was performed resume the ILM execution and complete the downsample action after upgrade.)
         NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, downsampleKey);
 
-        // Prepare the lifecycleState by generating the name of the target index, that subsequest steps will use.
+        // Prepare the lifecycleState by generating the name of the target index, that subsequent steps will use.
         DownsamplePrepareLifeCycleStateStep generateDownsampleIndexNameStep = new DownsamplePrepareLifeCycleStateStep(
             generateDownsampleIndexNameKey,
             downsampleKey,

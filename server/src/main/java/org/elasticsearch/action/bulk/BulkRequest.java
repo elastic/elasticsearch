@@ -65,8 +65,6 @@ public class BulkRequest extends ActionRequest
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
-    private static final int REQUEST_OVERHEAD = 50;
-
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
@@ -85,7 +83,7 @@ public class BulkRequest extends ActionRequest
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
 
-    private long sizeInBytes = 0;
+    private long sizeInBytes = SHALLOW_SIZE;
 
     public BulkRequest() {}
 
@@ -167,7 +165,7 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        sizeInBytes += request.ramBytesUsed();
         indices.add(request.index());
         return this;
     }
@@ -184,15 +182,7 @@ public class BulkRequest extends ActionRequest
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        if (request.doc() != null) {
-            sizeInBytes += request.doc().source().length();
-        }
-        if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().source().length();
-        }
-        if (request.script() != null) {
-            sizeInBytes += request.script().getIdOrCode().length() * 2;
-        }
+        sizeInBytes += request.ramBytesUsed();
         indices.add(request.index());
         return this;
     }
@@ -205,7 +195,7 @@ public class BulkRequest extends ActionRequest
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        sizeInBytes += REQUEST_OVERHEAD;
+        sizeInBytes += request.ramBytesUsed();
         indices.add(request.index());
         return this;
     }
@@ -484,7 +474,7 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        return estimatedSizeInBytes();
     }
 
     public Set<String> getIndices() {

@@ -70,6 +70,7 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
@@ -123,6 +124,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
+    public static final int NUM_CANDS_OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -1216,7 +1218,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private enum VectorIndexType {
-        HNSW("hnsw") {
+        HNSW("hnsw", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1243,7 +1245,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT8_HNSW("int8_hnsw") {
+        INT8_HNSW("int8_hnsw", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1275,7 +1277,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT4_HNSW("int4_hnsw") {
+        INT4_HNSW("int4_hnsw", true) {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -1306,7 +1308,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims % 2 == 0;
             }
         },
-        FLAT("flat") {
+        FLAT("flat", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1323,7 +1325,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT8_FLAT("int8_flat") {
+        INT8_FLAT("int8_flat", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
@@ -1345,7 +1347,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT4_FLAT("int4_flat") {
+        INT4_FLAT("int4_flat", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
@@ -1367,7 +1369,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims % 2 == 0;
             }
         },
-        BBQ_HNSW("bbq_hnsw") {
+        BBQ_HNSW("bbq_hnsw", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1394,7 +1396,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims >= BBQ_MIN_DIMS;
             }
         },
-        BBQ_FLAT("bbq_flat") {
+        BBQ_FLAT("bbq_flat", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1417,9 +1419,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private final String name;
+        private final boolean quantized;
 
-        VectorIndexType(String name) {
+        VectorIndexType(String name, boolean quantized) {
             this.name = name;
+            this.quantized = quantized;
         }
 
         abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
@@ -1427,6 +1431,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract boolean supportsElementType(ElementType elementType);
 
         public abstract boolean supportsDimension(int dims);
+
+        public boolean isQuantized() {
+            return quantized;
+        }
 
         @Override
         public String toString() {
@@ -2000,6 +2008,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             Integer k,
             int numCands,
+            Float numCandsFactor,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2011,9 +2020,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
-                case FLOAT -> createKnnFloatQuery(queryVector.asFloatVector(), k, numCands, filter, similarityThreshold, parentFilter);
+                case FLOAT -> createKnnFloatQuery(
+                    queryVector.asFloatVector(),
+                    k,
+                    numCands,
+                    numCandsFactor,
+                    filter,
+                    similarityThreshold,
+                    parentFilter
+                );
                 case BIT -> createKnnBitQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
             };
+        }
+
+        private boolean needsRescore(Float rescoreOversample) {
+            return rescoreOversample != null && (indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized());
         }
 
         private Query createKnnBitQuery(
@@ -2069,6 +2090,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             Integer k,
             int numCands,
+            Float numCandsFactor,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2088,9 +2110,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             }
+
+            Integer adjustedK = k;
+            int adjustedNumCands = numCands;
+            if (needsRescore(numCandsFactor)) {
+                // Get all candidates, get top k as part of rescoring
+                adjustedK = null;
+                // numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
+                adjustedNumCands = Math.min((int) Math.ceil(numCands * numCandsFactor), NUM_CANDS_OVERSAMPLE_LIMIT);
+            }
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, k, numCands, filter);
+                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
+                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
+            if (needsRescore(numCandsFactor)) {
+                knnQuery = new RescoreKnnVectorQuery(
+                    name(),
+                    queryVector,
+                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
+                    k,
+                    knnQuery
+                );
+            }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,

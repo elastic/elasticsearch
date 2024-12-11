@@ -45,6 +45,7 @@ public final class SearchCapabilities {
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
+    private static final String KNN_QUANTIZED_VECTOR_RESCORE = "knn_quantized_vector_rescore";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -57,6 +58,7 @@ public final class SearchCapabilities {
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
         capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
         capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
+        capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE);
         if (RankVectorsFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(RANK_VECTORS_FIELD_MAPPER);
             capabilities.add(RANK_VECTORS_SCRIPT_ACCESS);

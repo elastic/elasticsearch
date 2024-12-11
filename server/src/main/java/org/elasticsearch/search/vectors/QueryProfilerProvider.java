@@ -18,7 +18,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
  * must provide an implementation for profile() to store profiling information in the {@link QueryProfiler}.
  */
 
-public interface ProfilingQuery {
+public interface QueryProfilerProvider {
 
     /**
      * Store the profiling information in the {@link QueryProfiler}

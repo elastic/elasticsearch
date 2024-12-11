@@ -122,7 +122,8 @@ public class IndexVersions {
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT = def(8_519_00_0, Version.LUCENE_9_12_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID_BACKPORT = def(8_520_00_0, Version.LUCENE_9_12_0);
     public static final IndexVersion DEPRECATE_SOURCE_MODE_MAPPER = def(8_521_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_12_1 = def(8_522_00_0, Version.LUCENE_9_12_1);
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT = def(8_522_00_0, Version.LUCENE_9_12_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_12_1 = def(8_523_00_0, Version.LUCENE_9_12_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

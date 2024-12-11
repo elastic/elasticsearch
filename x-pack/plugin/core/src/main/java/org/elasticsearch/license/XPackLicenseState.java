@@ -245,6 +245,10 @@ public class XPackLicenseState {
     }
 
     private static String[] esqlAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        /*
+         * Provide an acknowledgement warning to customers that downgrade from Trial or Enterprise to a lower
+         * license level (Basic, Standard, Gold or Premium) that they will no longer be able to do CCS in ES|QL.
+         */
         switch (newMode) {
             case BASIC:
             case STANDARD:

@@ -117,7 +117,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             assertThat(status.totalIndices(), equalTo(backingIndexCount));
             assertThat(status.totalIndicesToBeUpgraded(), equalTo(0));
         });
-        CancelReindexDataStreamAction.Response cancelResponse = client().execute(
+        AcknowledgedResponse cancelResponse = client().execute(
             CancelReindexDataStreamAction.INSTANCE,
             new CancelReindexDataStreamAction.Request(dataStreamName)
         ).actionGet();

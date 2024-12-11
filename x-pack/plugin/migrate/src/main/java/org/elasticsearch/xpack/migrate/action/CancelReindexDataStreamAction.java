@@ -9,47 +9,23 @@ package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class CancelReindexDataStreamAction extends ActionType<CancelReindexDataStreamAction.Response> {
+public class CancelReindexDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static final CancelReindexDataStreamAction INSTANCE = new CancelReindexDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/reindex_cancel";
 
     public CancelReindexDataStreamAction() {
         super(NAME);
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        public Response() {
-            super();
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("acknowledged", true);
-            builder.endObject();
-            return builder;
-        }
     }
 
     public static class Request extends ActionRequest implements IndicesRequest {

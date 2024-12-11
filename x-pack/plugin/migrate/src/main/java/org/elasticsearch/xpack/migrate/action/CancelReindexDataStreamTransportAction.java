@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -24,13 +25,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction.Request;
-import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction.Response;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 
 import java.util.Map;
 import java.util.Optional;
 
-public class CancelReindexDataStreamTransportAction extends HandledTransportAction<Request, Response> {
+public class CancelReindexDataStreamTransportAction extends HandledTransportAction<Request, AcknowledgedResponse> {
     private final ClusterService clusterService;
     private final TransportService transportService;
 
@@ -46,7 +46,7 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
         String index = request.getIndex();
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
         PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
@@ -70,7 +70,7 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
     /*
      * This method cancels the persistent task with id persistentTaskId. It assumes that the task is running on this node.
      */
-    private void cancelTaskOnThisNode(String persistentTaskId, ActionListener<Response> listener) {
+    private void cancelTaskOnThisNode(String persistentTaskId, ActionListener<AcknowledgedResponse> listener) {
         ReindexDataStreamTask runningTask = getRunningPersistentTaskFromTaskManager(persistentTaskId);
         if (runningTask == null) {
             listener.onFailure(
@@ -84,7 +84,7 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
             );
         } else {
             runningTask.markAsCompleted();
-            listener.onResponse(new Response());
+            listener.onResponse(AcknowledgedResponse.TRUE);
         }
     }
 
@@ -108,7 +108,12 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
      * This forwards this CancelReindexDataStreamAction request to the node with id nodeId, since the task can only be canceled on the node
      * where it is running.
      */
-    private void runActionOnNodeWithTaskIfPossible(Task thisTask, Request request, String nodeId, ActionListener<Response> listener) {
+    private void runActionOnNodeWithTaskIfPossible(
+        Task thisTask,
+        Request request,
+        String nodeId,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         if (node == null) {
             listener.onFailure(
@@ -127,7 +132,7 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
                 CancelReindexDataStreamAction.NAME,
                 nodeRequest,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, Response::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

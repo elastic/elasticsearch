@@ -58,7 +58,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         createdIndexVersion.set(indexVersion);
     }
 
-    private boolean supportSyntheticSourceDemotion() {
+    private boolean supportFallbackToStoredSource() {
         return mapperServiceFactory.get() != null;
     }
 
@@ -75,24 +75,21 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         IndexMode templateIndexMode,
         final Metadata metadata,
         final Instant resolvedAt,
-        Settings indexTemplateAndCreateRequestSettings,
+        Settings settings,
         final List<CompressedXContent> combinedTemplateMappings
     ) {
         Settings.Builder settingsBuilder = null;
         if (isLogsdbEnabled
             && dataStreamName != null
-            && resolveIndexMode(indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey())) == null
+            && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
             && matchesLogsPattern(dataStreamName)) {
             settingsBuilder = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            if (supportSyntheticSourceDemotion()) {
-                indexTemplateAndCreateRequestSettings = Settings.builder()
-                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
-                    .put(indexTemplateAndCreateRequestSettings)
-                    .build();
+            if (supportFallbackToStoredSource()) {
+                settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).put(settings).build();
             }
         }
 
-        if (supportSyntheticSourceDemotion()) {
+        if (supportFallbackToStoredSource()) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             boolean isTemplateValidation = "validate-index-name".equals(indexName);
@@ -101,12 +98,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 indexName,
                 dataStreamName
             );
-            if (newIndexHasSyntheticSourceUsage(
-                indexName,
-                templateIndexMode,
-                indexTemplateAndCreateRequestSettings,
-                combinedTemplateMappings
-            ) && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
+            if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, settings, combinedTemplateMappings)
+                && syntheticSourceLicenseService.fallbackToStoredSource(
+                    isTemplateValidation,
+                    legacyLicensedUsageOfSyntheticSourceAllowed
+                )) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
                 if (settingsBuilder == null) {
                     settingsBuilder = Settings.builder();

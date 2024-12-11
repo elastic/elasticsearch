@@ -27,7 +27,7 @@ dependencies {
   api "org.opensaml:opensaml-saml-api:${versions.opensaml}"
   api "org.opensaml:opensaml-saml-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-messaging-api:${versions.opensaml}"
-  api " :opensaml-messaging-impl:${versions.opensaml}"
+  api "org.opensaml:opensaml-messaging-impl:${versions.opensaml}"
   api project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
   api "org.opensaml:opensaml-security-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-api:${versions.opensaml}"

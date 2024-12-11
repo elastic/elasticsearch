@@ -1436,6 +1436,6 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertEquals(expectedstepInfoValue, newLifecycleState.stepInfo());
         assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
         assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
-        assertEquals(newLifecycleState.stepTime(), newLifecycleState.stepTime());
+        assertEquals(oldLifecycleState.stepTime(), newLifecycleState.stepTime());
     }
 }

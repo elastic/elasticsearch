@@ -1,0 +1,5 @@
+pr: 118380
+summary: Restore original "is within leaf" value in `SparseVectorFieldMapper`
+area: Mapping
+type: bug
+issues: []

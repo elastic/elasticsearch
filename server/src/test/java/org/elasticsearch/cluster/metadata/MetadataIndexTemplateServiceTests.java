@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -1806,12 +1807,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .indexPatterns(List.of("my-index"))
             .componentTemplates(List.of("ct-with-data-stream-options"))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().componentTemplates(Map.of("ct-with-data-stream-options", componentTemplate)))
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(Map.of("ct-with-data-stream-options", componentTemplate))
             .build();
         Exception exception = expectThrows(
             Exception.class,
-            () -> metadataIndexTemplateService.validateIndexTemplateV2("name", globalIndexTemplate, clusterState)
+            () -> metadataIndexTemplateService.validateIndexTemplateV2(project, TransportVersion.current(), "name", globalIndexTemplate)
         );
         assertThat(
             exception.getMessage(),
@@ -1888,10 +1889,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .version(1L)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
-        state = service.addIndexTemplateV2(state, true, "my-template", it);
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
 
-        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(state.metadata(), "my-template")
-            .mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
+            state.metadata().getProject(projectId),
+            "my-template"
+        ).mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
         assertThat(resolvedDataStreamOptions, resolvedDataStreamOptions == null ? nullValue() : equalTo(expected));
     }
 

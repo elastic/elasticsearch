@@ -37,10 +37,7 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
         try {
             queryRewriteContext.setQueryRewriteInterceptor(null);
             QueryBuilder rewritten = queryBuilder.rewrite(queryRewriteContext);
-            if (rewritten != queryBuilder) {
-                return new InterceptedQueryBuilderWrapper(rewritten);
-            }
-            return this;
+            return rewritten != queryBuilder ? new InterceptedQueryBuilderWrapper(rewritten) : this;
         } finally {
             queryRewriteContext.setQueryRewriteInterceptor(queryRewriteInterceptor);
         }
@@ -63,7 +60,7 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     @Override
     public QueryBuilder queryName(String queryName) {
-        return queryBuilder.queryName(queryName);
+        return new InterceptedQueryBuilderWrapper(queryBuilder.queryName(queryName));
     }
 
     @Override
@@ -78,7 +75,7 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     @Override
     public QueryBuilder boost(float boost) {
-        return queryBuilder.boost(boost);
+        return new InterceptedQueryBuilderWrapper(queryBuilder.boost(boost));
     }
 
     @Override

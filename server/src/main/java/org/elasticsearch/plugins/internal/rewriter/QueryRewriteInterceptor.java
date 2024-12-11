@@ -41,13 +41,13 @@ public interface QueryRewriteInterceptor {
         if (interceptors.isEmpty()) {
             return (context, queryBuilder) -> queryBuilder;
         }
-        return new Multi(interceptors);
+        return new CompositeQueryRewriteInterceptor(interceptors);
     }
 
-    class Multi implements QueryRewriteInterceptor {
-        final Map<String, QueryRewriteInterceptor> interceptors;
+    class CompositeQueryRewriteInterceptor implements QueryRewriteInterceptor {
+        private final Map<String, QueryRewriteInterceptor> interceptors;
 
-        private Multi(Map<String, QueryRewriteInterceptor> interceptors) {
+        private CompositeQueryRewriteInterceptor(Map<String, QueryRewriteInterceptor> interceptors) {
             this.interceptors = interceptors;
         }
 

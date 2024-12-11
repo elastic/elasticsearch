@@ -25,17 +25,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ArchiveCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
+public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public ArchiveCompatibilityIT(Version version) {
+    public LuceneCompatibilityIT(Version version) {
         super(version);
     }
 
-    public void testRestoreArchive() throws Exception {
+    public void testRestoreIndex() throws Exception {
         final String repository = suffix("repository");
         final String snapshot = suffix("snapshot");
         final String index = suffix("index");
@@ -93,7 +93,7 @@ public class ArchiveCompatibilityIT extends AbstractLuceneIndexCompatibilityTest
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
             var restoredIndex = suffix("index-restored");
-            logger.fatal("--> restoring index [{}] as archive [{}]", index, restoredIndex);
+            logger.debug("--> restoring index [{}] as archive [{}]", index, restoredIndex);
 
             // Restoring the archive will fail as Elasticsearch does not support reading N-2 yet
             var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");

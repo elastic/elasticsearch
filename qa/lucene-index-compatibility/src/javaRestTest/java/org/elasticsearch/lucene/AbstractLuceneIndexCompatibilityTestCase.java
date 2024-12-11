@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -88,6 +89,10 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
 
     @Before
     public void maybeUpgrade() throws Exception {
+        // We want to use this test suite for the V9 upgrade, but we are not fully committed to necessarily having N-2 support
+        // in V10, so we add a check here to ensure we'll revisit this decision once V10 exists.
+        assertThat("Explicit check that N-2 version is Elasticsearch 7", VERSION_MINUS_2.getMajor(), equalTo(7));
+
         var currentVersion = clusterVersion();
         if (currentVersion.before(clusterVersion)) {
             try {

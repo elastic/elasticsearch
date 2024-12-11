@@ -255,14 +255,15 @@ public class BwcVersions implements Serializable {
     public List<Version> getReadOnlyIndexCompatible() {
         // Lucene can read indices in version N-2
         int compatibleMajor = currentVersion.getMajor() - 2;
-        return versions.stream()
-            .filter(v -> v.getMajor() == compatibleMajor)
-            .sorted(Comparator.naturalOrder())
-            .toList();
+        return versions.stream().filter(v -> v.getMajor() == compatibleMajor).sorted(Comparator.naturalOrder()).toList();
     }
 
     public void withLatestReadOnlyIndexCompatible(Consumer<Version> versionAction) {
-        versionAction.accept(getReadOnlyIndexCompatible().getLast());
+        var compatibleVersions = getReadOnlyIndexCompatible();
+        if (compatibleVersions == null || compatibleVersions.isEmpty()) {
+            throw new IllegalStateException("No read-only compatible version found.");
+        }
+        versionAction.accept(compatibleVersions.getLast());
     }
 
     /**

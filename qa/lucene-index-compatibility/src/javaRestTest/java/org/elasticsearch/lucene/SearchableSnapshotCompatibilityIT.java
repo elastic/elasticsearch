@@ -37,6 +37,8 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
         super(version);
     }
 
+    // TODO Add a test to mount the N-2 index on N-1 and then search it on N
+
     public void testSearchableSnapshot() throws Exception {
         final String repository = suffix("repository");
         final String snapshot = suffix("snapshot");
@@ -95,7 +97,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
             var mountedIndex = suffix("index-mounted");
-            logger.fatal("--> mounting index [{}] as [{}]", index, mountedIndex);
+            logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
 
             // Mounting the index will fail as Elasticsearch does not support reading N-2 yet
             var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_mount");

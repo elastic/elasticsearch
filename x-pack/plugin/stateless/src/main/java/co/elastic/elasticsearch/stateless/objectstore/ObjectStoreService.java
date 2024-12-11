@@ -1190,7 +1190,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         protected void doRun() throws Exception {
             boolean success = false;
             try {
-                getObjectStore().blobStore().deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream().iterator());
+                getObjectStore().blobStore()
+                    .blobContainer(BlobPath.EMPTY)
+                    .deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream().iterator());
                 SHARD_FILES_DELETES_LOGGER.debug(() -> format("deleted shard files %s", blobPathStream().toList()));
                 success = true;
             } finally {

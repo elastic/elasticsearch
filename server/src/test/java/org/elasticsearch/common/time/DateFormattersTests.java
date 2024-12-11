@@ -477,23 +477,31 @@ public class DateFormattersTests extends ESTestCase {
         }
 
         {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> formatter.toDateMathParser().parse(".200", supplier, true, ZoneId.of("UTC")));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse(".200", supplier, true, ZoneId.of("UTC"))
+            );
             assertThat(e.getMessage().split(":")[0], is("failed to parse date field [.200] with format [epoch_millis]"));
         }
         {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> formatter.toDateMathParser().parse("-.200", supplier, true, ZoneId.of("UTC")));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("-.200", supplier, true, ZoneId.of("UTC"))
+            );
             assertThat(e.getMessage().split(":")[0], is("failed to parse date field [-.200] with format [epoch_millis]"));
         }
         {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> formatter.toDateMathParser().parse(".200", supplier, false, ZoneId.of("UTC")));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse(".200", supplier, false, ZoneId.of("UTC"))
+            );
             assertThat(e.getMessage().split(":")[0], is("failed to parse date field [.200] with format [epoch_millis]"));
         }
         {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> formatter.toDateMathParser().parse("-.200", supplier, false, ZoneId.of("UTC")));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("-.200", supplier, false, ZoneId.of("UTC"))
+            );
             assertThat(e.getMessage().split(":")[0], is("failed to parse date field [-.200] with format [epoch_millis]"));
         }
     }

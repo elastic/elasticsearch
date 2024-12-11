@@ -171,16 +171,23 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {
-        this(format,
+        this(
+            format,
             printer,
             Arrays.copyOf(roundupParsers, roundupParsers.length, DateTimeParser[].class),
             Arrays.copyOf(parsers, parsers.length, DateTimeParser[].class),
-            true);
+            true
+        );
     }
 
-    private JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers,
-                              boolean doValidate) {
-        if(doValidate) {
+    private JavaDateFormatter(
+        String format,
+        DateTimePrinter printer,
+        DateTimeParser[] roundupParsers,
+        DateTimeParser[] parsers,
+        boolean doValidate
+    ) {
+        if (doValidate) {
             if (format.contains("||")) {
                 throw new IllegalArgumentException("This class cannot handle multiple format specifiers");
             }

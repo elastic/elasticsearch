@@ -246,8 +246,7 @@ class EpochTime {
     };
 
     // this supports seconds without any fraction
-    private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
-        .optionalStart()
+    private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder().optionalStart()
         .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
         .optionalEnd()
         .appendValue(UNSIGNED_SECONDS, 1, 19, SignStyle.NOT_NEGATIVE)
@@ -257,8 +256,7 @@ class EpochTime {
         .toFormatter(Locale.ROOT);
 
     // this supports seconds ending in dot
-    private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
-        .optionalStart()
+    private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder().optionalStart()
         .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
         .optionalEnd()
         .appendValue(UNSIGNED_SECONDS, 1, 19, SignStyle.NOT_NEGATIVE)
@@ -273,39 +271,33 @@ class EpochTime {
         new JavaTimeDateTimeParser(SECONDS_FORMATTER2)
     );
 
-    public static final DateTimeFormatter MILLISECONDS_FORMATTER_BASE = new DateTimeFormatterBuilder()
-        .optionalStart()
+    public static final DateTimeFormatter MILLISECONDS_FORMATTER_BASE = new DateTimeFormatterBuilder().optionalStart()
         .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
         .optionalEnd()
         .appendValue(UNSIGNED_MILLIS, 1, 19, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT);
 
-
     // FIXME: clean these up and append one to the other
     // this supports milliseconds
-    public static final DateTimeFormatter MILLISECONDS_FORMATTER = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER_BASE)
+    public static final DateTimeFormatter MILLISECONDS_FORMATTER = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
         .optionalStart()
         .appendFraction(NANOS_OF_MILLI, 0, 6, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds
-    public static final DateTimeFormatter MILLISECONDS_PARSER_W_NANOS = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER_BASE)
+    public static final DateTimeFormatter MILLISECONDS_PARSER_W_NANOS = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
         .appendFraction(NANOS_OF_MILLI, 0, 6, true)
         .toFormatter(Locale.ROOT);
 
     // we need an additional parser to detect the difference between user provided nanos and defaulted ones because of the necessity
     // ... to parse the two differently in the round up case
-    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER_BASE)
+    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
         .toFormatter(Locale.ROOT);
 
     // we need an additional parser to detect the difference between user provided nanos and defaulted ones because of the necessity
     // ... to parse the two differently in the round up case
-    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS_ROUNDING = new DateTimeFormatterBuilder()
-        .optionalStart()
+    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS_ROUNDING = new DateTimeFormatterBuilder().optionalStart()
         .appendText(ROUNDED_SIGN_FIELD, Map.of(-2L, "~"))
         .optionalEnd()
         .append(MILLISECONDS_FORMATTER_BASE)
@@ -314,22 +306,21 @@ class EpochTime {
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
-    private static final DateTimeFormatter MILLISECONDS_PARSER_ENDING_IN_PERIOD = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER_BASE)
-        .appendLiteral('.')
-        .toFormatter(Locale.ROOT);
+    private static final DateTimeFormatter MILLISECONDS_PARSER_ENDING_IN_PERIOD = new DateTimeFormatterBuilder().append(
+        MILLISECONDS_FORMATTER_BASE
+    ).appendLiteral('.').toFormatter(Locale.ROOT);
 
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
         new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER),
-        new JavaTimeDateTimeParser[]{
+        new JavaTimeDateTimeParser[] {
             new JavaTimeDateTimeParser(MILLISECONDS_PARSER_WO_NANOS_ROUNDING),
             new JavaTimeDateTimeParser(MILLISECONDS_PARSER_W_NANOS),
-            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_ENDING_IN_PERIOD)},
-        new JavaTimeDateTimeParser[]{
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_ENDING_IN_PERIOD) },
+        new JavaTimeDateTimeParser[] {
             new JavaTimeDateTimeParser(MILLISECONDS_PARSER_WO_NANOS),
             new JavaTimeDateTimeParser(MILLISECONDS_PARSER_W_NANOS),
-            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_ENDING_IN_PERIOD)}
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_ENDING_IN_PERIOD) }
     );
 
     private abstract static class EpochField implements TemporalField {

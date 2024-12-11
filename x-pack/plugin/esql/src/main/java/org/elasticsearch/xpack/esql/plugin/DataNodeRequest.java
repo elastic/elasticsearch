@@ -119,6 +119,11 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

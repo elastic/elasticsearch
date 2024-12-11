@@ -39,10 +39,18 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
         super(new InternalQueryProfileTree());
     }
 
-    public void setVectorOpsCount(long vectorOpsCount) {
-        this.vectorOpsCount = vectorOpsCount;
+    /**
+     * Adds a number of vector operations to the current count
+     * @param vectorOpsCount number of vector ops to add to the profiler
+     */
+    public void addVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount += vectorOpsCount;
     }
 
+    /**
+     * Retrieves the number of vector operations performed by the queries
+     * @return number of vector operations performed by the queries
+     */
     public long getVectorOpsCount() {
         return this.vectorOpsCount;
     }

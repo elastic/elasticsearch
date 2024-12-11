@@ -206,7 +206,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
     }
 
-    public void testLogsdbOverrideRouteOnSortFields() throws IOException {
+    public void testLogsdbRouteOnSortFields() throws IOException {
         Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("{ \"transient\": { \"cluster.logsdb.enabled\": true } }");
         assertOK(client().performRequest(request));
@@ -257,7 +257,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
-        assertEquals("false", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
-        assertFalse(settings.containsKey(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
+        assertEquals("true", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
+        assertEquals(List.of("host.name", "message"), settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
     }
 }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -46,9 +45,7 @@ public final class RankEvalRequest extends ActionRequest implements IndicesReque
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            searchType = SearchType.fromId(in.readByte());
-        }
+        searchType = SearchType.fromId(in.readByte());
     }
 
     RankEvalRequest() {}
@@ -127,9 +124,7 @@ public final class RankEvalRequest extends ActionRequest implements IndicesReque
         rankingEvaluationSpec.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeByte(searchType.id());
-        }
+        out.writeByte(searchType.id());
     }
 
     @Override

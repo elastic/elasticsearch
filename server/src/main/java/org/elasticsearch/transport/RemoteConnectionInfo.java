@@ -18,8 +18,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -49,25 +47,14 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
-            modeInfo = mode.getReader().read(input);
-            initialConnectionTimeout = input.readTimeValue();
-            clusterAlias = input.readString();
-            skipUnavailable = input.readBoolean();
-            if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                hasClusterCredentials = input.readBoolean();
-            } else {
-                hasClusterCredentials = false;
-            }
+        RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
+        modeInfo = mode.getReader().read(input);
+        initialConnectionTimeout = input.readTimeValue();
+        clusterAlias = input.readString();
+        skipUnavailable = input.readBoolean();
+        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            hasClusterCredentials = input.readBoolean();
         } else {
-            List<String> seedNodes = Arrays.asList(input.readStringArray());
-            int connectionsPerCluster = input.readVInt();
-            initialConnectionTimeout = input.readTimeValue();
-            int numNodesConnected = input.readVInt();
-            clusterAlias = input.readString();
-            skipUnavailable = input.readBoolean();
-            modeInfo = new SniffConnectionStrategy.SniffModeInfo(seedNodes, connectionsPerCluster, numNodesConnected);
             hasClusterCredentials = false;
         }
     }
@@ -90,24 +77,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeEnum(modeInfo.modeType());
-            modeInfo.writeTo(out);
-            out.writeTimeValue(initialConnectionTimeout);
-        } else {
-            if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
-                SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) this.modeInfo;
-                out.writeStringCollection(sniffInfo.seedNodes);
-                out.writeVInt(sniffInfo.maxConnectionsPerCluster);
-                out.writeTimeValue(initialConnectionTimeout);
-                out.writeVInt(sniffInfo.numNodesConnected);
-            } else {
-                out.writeStringArray(new String[0]);
-                out.writeVInt(0);
-                out.writeTimeValue(initialConnectionTimeout);
-                out.writeVInt(0);
-            }
-        }
+        out.writeEnum(modeInfo.modeType());
+        modeInfo.writeTo(out);
+        out.writeTimeValue(initialConnectionTimeout);
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {

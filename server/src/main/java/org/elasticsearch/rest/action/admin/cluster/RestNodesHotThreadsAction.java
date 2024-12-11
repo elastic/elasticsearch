@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -78,20 +79,22 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
             new Route(GET, "/_nodes/{nodeId}/hot_threads"),
 
             Route.builder(GET, "/_cluster/nodes/hot_threads")
-                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS, RestApiVersion.V_7)
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build(),
             Route.builder(GET, "/_cluster/nodes/{nodeId}/hot_threads")
-                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS, RestApiVersion.V_7)
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build(),
             Route.builder(GET, "/_cluster/nodes/hotthreads")
-                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS, RestApiVersion.V_7)
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build(),
             Route.builder(GET, "/_cluster/nodes/{nodeId}/hotthreads")
-                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS, RestApiVersion.V_7)
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build(),
-            Route.builder(GET, "/_nodes/hotthreads").deprecated(DEPRECATED_MESSAGE_NODES_HOTTHREADS, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_nodes/hotthreads")
+                .deprecated(DEPRECATED_MESSAGE_NODES_HOTTHREADS, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
             Route.builder(GET, "/_nodes/{nodeId}/hotthreads")
-                .deprecated(DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS, RestApiVersion.V_7)
+                .deprecated(DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build()
         );
     }

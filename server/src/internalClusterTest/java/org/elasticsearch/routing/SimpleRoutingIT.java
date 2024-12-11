@@ -141,14 +141,20 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> search with wrong routing, should not find");
         for (int i = 0; i < 5; i++) {
-            assertHitCount(prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()), 0);
-            assertHitCount(prepareSearch().setSize(0).setRouting("1").setQuery(QueryBuilders.matchAllQuery()), 0);
+            assertHitCount(
+                0,
+                prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()),
+                prepareSearch().setSize(0).setRouting("1").setQuery(QueryBuilders.matchAllQuery())
+            );
         }
 
         logger.info("--> search with correct routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertHitCount(prepareSearch().setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()), 1);
-            assertHitCount(prepareSearch().setSize(0).setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()), 1);
+            assertHitCount(
+                1,
+                prepareSearch().setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()),
+                prepareSearch().setSize(0).setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery())
+            );
         }
 
         String secondRoutingValue = "1";

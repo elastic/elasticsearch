@@ -683,9 +683,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")), 1);
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1"))
+        );
     }
 
     public void testDynamicRuntimeObjectFields() {
@@ -722,10 +725,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1")), 1);
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1"))
+        );
 
         Exception exception = expectThrows(DocumentParsingException.class, prepareIndex("test").setSource("obj.runtime", "value"));
         assertThat(

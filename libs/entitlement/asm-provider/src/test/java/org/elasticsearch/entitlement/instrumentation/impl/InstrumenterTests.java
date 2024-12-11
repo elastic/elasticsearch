@@ -140,7 +140,7 @@ public class InstrumenterTests extends ESTestCase {
             assertSame(InstrumenterTests.class, callerClass);
             assertThat(
                 that.getClass().getName(),
-                startsWith("org.elasticsearch.entitlement.instrumentation.impl.SyntheticInstrumenterTests$TestClassToInstrument")
+                startsWith("org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests$TestClassToInstrument")
             );
             assertEquals(123, arg);
             assertEquals("def", anotherArg);

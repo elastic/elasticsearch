@@ -56,14 +56,12 @@ DELETE _index_template/my-index-template
 If you have the required https://www.elastic.co/subscriptions[subscription], `logsdb` index mode uses <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
 field. Instead, the document source is synthesized from doc values or stored fields upon document retrieval. 
 
-Before using synthetic source, make sure to review the <<synthetic-source,restrictions>>. 
+If you don't have the required https://www.elastic.co/subscriptions[subscription], `logsdb` mode uses the original `_source` field.
 
-When working with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
+Before using synthetic source, make sure to review the <<synthetic-source-restrictions,restrictions>>. Note also that when working with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
 are preserved for <<synthetic-source,synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,
 which retains both duplicate values and the order of entries. However, the exact structure of
-array elements and objects is not necessarily retained. Preserving duplicates and ordering can be critical for some log fields, such as DNS A records, HTTP headers, and log entries that represent sequential or repeated events. 
-
-If you don't have the required https://www.elastic.co/subscriptions[subscription], `logsdb` mode uses the original `_source` field.
+array elements and objects is not necessarily retained.
 
 [discrete]
 [[logsdb-sort-settings]]
@@ -72,7 +70,7 @@ If you don't have the required https://www.elastic.co/subscriptions[subscription
 In `logsdb` index mode, the following sort settings are applied by default:
 
 `index.sort.field`: `["host.name", "@timestamp"]`::
-Indices are sorted by `host.name` and `@timestamp` by default. For data streams, the `@timestamp` field is automatically injected if it is not present.
+Indices are sorted by `host.name` and `@timestamp` by default. The `@timestamp` field is automatically injected if it is not present.
 
 `index.sort.order`: `["desc", "desc"]`::
 Both `host.name` and `@timestamp` are sorted in descending (`desc`) order, prioritizing the latest data.
@@ -87,18 +85,33 @@ You can override these default sort settings. For example, to sort on different 
 and change the order, manually configure `index.sort.field` and `index.sort.order`. For more details, see
 <<index-modules-index-sorting>>.
 
-When using the default sort settings, the `host.name` field is automatically injected into the index mappings as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and
-retrieved based on the `host.name` and `@timestamp` fields.
+When using the default sort settings, the `host.name` field is automatically injected into the index mappings as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and retrieved based on the `host.name` and `@timestamp` fields.
 
 NOTE: If `subobjects` is set to `true` (default), the `host` field is mapped as an object field
 named `host` with a `name` child field of type `keyword`. If `subobjects` is set to `false`,
 a single `host.name` field is mapped as a `keyword` field.
 
-To apply different sort settings, update the data stream's component templates, and then 
-perform or wait for an index <<data-streams-rollover,rollover>>.
+To apply different sort settings to an existing data stream, update the data stream's component templates, and then 
+perform or wait for a <<data-streams-rollover,rollover>>.
 
-NOTE: For <<data-streams, data streams>>, the `@timestamp` field is automatically injected if it's not already present. If you apply custom sort settings, the `@timestamp` field is injected into the mappings but is not
+NOTE: In `logsdb` mode, the `@timestamp` field is automatically injected if it's not already present. If you apply custom sort settings, the `@timestamp` field is injected into the mappings but is not
 automatically added to the list of sort fields.
+
+[discrete]
+[[logsdb-host-name]]
+==== Existing data streams
+
+If you're enabling `logsdb` index mode on a data stream that already exists, make sure to check mappings and sorting. The `logsdb` mode automatically maps `host.name` as a keyword if it's included in the sort settings. If a `host.name` field already exists but has a different type, mapping errors might occur, preventing `logsdb` mode from being fully applied. 
+
+To avoid mapping conflicts, consider these options:
+
+* **Adjust mappings:** Check your existing mappings to ensure that `host.name` is mapped as a keyword.
+
+* **Change sorting:** If needed, you can remove `host.name` from the sort settings and use a different set of fields. Sorting by `@timestamp` can be a good fallback.
+
+* **Switch to a different <<index-mode-setting,index mode>>**: If resolving `host.name` mapping conflicts is not feasible, you can choose not to use `logsdb` mode.
+
+IMPORTANT: On existing data streams, `logsdb` mode is applied on <<data-streams-rollover,rollover>> (automatic or manual). 
 
 [discrete]
 [[logsdb-specialized-codecs]]
@@ -172,7 +185,7 @@ NOTE: When automatically injected, `host.name` and `@timestamp` count toward the
 
 [discrete]
 [[logsdb-nodocvalue-fields]]
-=== Fields without doc values
+=== Fields without `doc_values`
 
 When the `logsdb` index mode uses synthetic `_source` and `doc_values` are disabled for a field in the mapping,
 {es} might set the `store` setting to `true` for that field. This ensures that the field's

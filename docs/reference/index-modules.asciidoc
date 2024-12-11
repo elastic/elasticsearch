@@ -113,9 +113,9 @@ Index mode supports the following values:
 
 `standard`::: Standard indexing with default settings.
 
-`tsds`::: Index mode optimized for storage of metrics. For more information, see <<tsds-index-settings>>.
+`tsds`::: _(data streams only)_ Index mode optimized for storage of metrics. For more information, see <<tsds-index-settings>>.
 
-`logsdb`::: Index mode optimized for <<logs-data-stream,logs>>.
+`logsdb`::: _(data streams only)_ Index mode optimized for <<logs-data-stream,logs>>.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 

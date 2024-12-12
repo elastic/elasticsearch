@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.List;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;

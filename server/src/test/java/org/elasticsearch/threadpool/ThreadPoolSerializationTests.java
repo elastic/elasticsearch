@@ -37,7 +37,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPoolType = randomFrom(ThreadPool.ThreadPoolType.values());
+        threadPoolType = randomFrom(ThreadPool.ThreadPoolType.FIXED, ThreadPool.ThreadPoolType.SCALING);
     }
 
     public void testThatQueueSizeSerializationWorks() throws Exception {

@@ -17,10 +17,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-
-import java.util.Locale;
 
 /**
  * Deletes a single index.
@@ -64,8 +63,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                 );
                 return;
             } else if (isFailureStoreWriteIndex || dataStream.getWriteIndex().getName().equals(indexName)) {
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "index [%s] is the%s write index for data stream [%s]. "
                         + "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the"
                         + " index will resume the execution of the policy as the index will not be the data stream's write index anymore",

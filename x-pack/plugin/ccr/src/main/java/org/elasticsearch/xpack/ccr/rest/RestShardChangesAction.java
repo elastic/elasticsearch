@@ -89,7 +89,7 @@ public class RestShardChangesAction extends BaseRestHandler {
         final var pollTimeout = restRequest.paramAsTime(POLL_TIMEOUT_PARAM_NAME, DEFAULT_POLL_TIMEOUT);
         final var maxOperationsCount = restRequest.paramAsInt(MAX_OPERATIONS_COUNT_PARAM_NAME, DEFAULT_MAX_OPERATIONS_COUNT);
 
-        final CompletableFuture<String> indexUUIDCompletableFUture = asyncGetIndexUUID(
+        final CompletableFuture<String> indexUUIDCompletableFuture = asyncGetIndexUUID(
             client,
             indexName,
             client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
@@ -100,9 +100,9 @@ public class RestShardChangesAction extends BaseRestHandler {
             client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
         );
 
-        return channel -> CompletableFuture.allOf(indexUUIDCompletableFUture, shardStatsCompletableFuture).thenRun(() -> {
+        return channel -> CompletableFuture.allOf(indexUUIDCompletableFuture, shardStatsCompletableFuture).thenRun(() -> {
             try {
-                final String indexUUID = indexUUIDCompletableFUture.get(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                final String indexUUID = indexUUIDCompletableFuture.get(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 final ShardStats shardStats = shardStatsCompletableFuture.get(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 final ShardId shardId = shardStats.getShardRouting().shardId();
                 final String expectedHistoryUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);

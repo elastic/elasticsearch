@@ -495,6 +495,7 @@ null
 ;
 
 evalDateParseWithTimezone
+required_capability: date_parse_tz
 row s = "12/Jul/2022:10:24:10 +0900" | eval d = date_parse("dd/MMM/yyyy:HH:mm:ss Z", s);
 
 s:keyword                  | d:datetime
@@ -502,6 +503,7 @@ s:keyword                  | d:datetime
 ;
 
 evalDateParseWithTimezone2
+required_capability: date_parse_tz
 row s1 = "12/Jul/2022:10:24:10 +0900", s2 = "2022/12/07 09:24:10 +0800"
 | eval d1 = date_parse("dd/MMM/yyyy:HH:mm:ss Z", s1), d2 = date_parse("yyyy/dd/MM HH:mm:ss Z", s2)
 | eval eq = d1 == d2
@@ -513,6 +515,7 @@ d1:datetime              | eq:boolean
 ;
 
 evalDateParseWithAndWithoutTimezone
+required_capability: date_parse_tz
 row s = "2022/12/07 09:24:10", format="yyyy/dd/MM HH:mm:ss"
 | eval no_tz = date_parse(format, s)
 | eval with_tz = date_parse(concat(format, " Z"), concat(s, " +0900"))
@@ -524,6 +527,7 @@ s:keyword           | no_tz:datetime           | with_tz:datetime
 ;
 
 evalDateParseWithOtherTimezoneSpecifiers
+required_capability: date_parse_tz
 row s = "2022/12/07 09:24:10", format="yyyy/dd/MM HH:mm:ss"
 | eval with_tz1 = date_parse(concat(format, " Z"), concat(s, " +0900"))
 | eval with_tz2 = date_parse(concat(format, " x"), concat(s, " +09"))

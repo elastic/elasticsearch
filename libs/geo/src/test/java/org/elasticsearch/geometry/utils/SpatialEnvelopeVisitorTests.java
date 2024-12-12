@@ -49,6 +49,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     public void testVisitGeoShapeWrap() {
         for (int i = 0; i < 1000; i++) {
             var geometry = GeometryTestUtils.randomGeometryWithoutCircle(0, true);
+            // TODO this should be WRAP instead
             var bbox = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.NO_WRAP);
             assertNotNull(bbox);
             assertTrue(i + ": " + geometry, bbox.isPresent());

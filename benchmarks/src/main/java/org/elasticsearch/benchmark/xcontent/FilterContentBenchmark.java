@@ -170,7 +170,7 @@ public class FilterContentBenchmark {
             includes = null;
             excludes = filters;
         }
-        return XContentParserConfiguration.EMPTY.withFiltering(includes, excludes, matchDotsInFieldNames);
+        return XContentParserConfiguration.EMPTY.withFiltering(null, includes, excludes, matchDotsInFieldNames);
     }
 
     private BytesReference filter(XContentParserConfiguration contentParserConfiguration) throws IOException {

@@ -26,7 +26,9 @@ import org.junit.Assert;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,7 +41,9 @@ public class ProjectStateObserverTests extends ESTestCase {
         final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId));
         final int otherProjectCount = randomIntBetween(1, 5);
         for (int i = 0; i < otherProjectCount; i++) {
-            metadataBuilder.put(ProjectMetadata.builder(randomProjectIdOrDefault()));
+            final ProjectId otherId = randomUniqueProjectId();
+            assertThat("Other projects must not be the same as the main project", otherId, not(equalTo(projectId)));
+            metadataBuilder.put(ProjectMetadata.builder(otherId));
         }
         final Metadata metadata = metadataBuilder.generateClusterUuidIfNeeded().build();
 

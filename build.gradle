@@ -294,7 +294,10 @@ allprojects {
     if (project.path.contains(":distribution:docker")) {
       enabled = false
     }
-
+    if (project.path.contains(":libs:cli")) {
+      // ensure we resolve p2 dependencies for the spotless eclipse formatter
+      dependsOn "spotlessJavaCheck"
+    }
   }
 
   plugins.withId('lifecycle-base') {

@@ -26,6 +26,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -51,6 +53,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -78,7 +82,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testVersionConflictsMetrics() {
+    public void testNoVersionConflictsMetricsForGets() {
         final String dataNode = internalCluster().startNode();
         ensureStableCluster(1);
 
@@ -88,18 +92,52 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 .orElseThrow();
         plugin.resetMeter();
 
-        // test version conflicts are counted when retrieving from the translog
         assertAcked(prepareCreate("index_no_refresh", Settings.builder().put("index.refresh_interval", "-1")));
+        assertAcked(prepareCreate("index_with_refresh"));
 
-        var indexResponse1 = client(dataNode).index(new IndexRequest("index_no_refresh").id("doc_id_1").source(Map.of())).actionGet();
+        for (String indexName : List.of("index_no_refresh", "index_with_refresh")) {
+            client(dataNode).index(new IndexRequest(indexName).id("1").source(Map.of())).actionGet();
+            // test version conflicts are counted when getting from the translog
+            if (randomBoolean()) {
+                // this get has the side effect of tracking translog location in the live version map,
+                // which potentially influences the engine conflict exception path
+                client(dataNode).get(new GetRequest(indexName, "1").realtime(randomBoolean())).actionGet();
+            }
+            {
+                var e = expectThrows(
+                        VersionConflictEngineException.class,
+                        () -> client(dataNode).get(
+                                new GetRequest(indexName, "1").version(10)
+                                        .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                        ).actionGet()
+                );
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+            if (randomBoolean()) {
+                client(dataNode).get(new GetRequest(indexName, "1").realtime(false)).actionGet();
+            }
+            client(dataNode).admin().indices().prepareRefresh(indexName).get();
+            {
+                var e = expectThrows(
+                        VersionConflictEngineException.class,
+                        () -> client(dataNode).get(
+                                new GetRequest("index_no_refresh", "1").version(5)
+                                        .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                                        .realtime(false)
+                        ).actionGet()
+                );
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+        }
 
-        var getResponse1 = client(dataNode).get(new GetRequest("index_no_refresh", "doc_id_1")).actionGet();
+        // simulate async apm `polling` call for metrics
+        plugin.collect();
 
-        var indexResponse2 = client(dataNode).index(new IndexRequest("index_no_refresh").id("doc_id_2").source(Map.of())).actionGet();
-
-        var getResponse2 = client(dataNode).get(new GetRequest("index_no_refresh", "doc_id_2")).actionGet();
-
-        getResponse2.toString();
+        List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement("es.indexing.indexing.failed.total");
+        // there are no indexing failures reported because only gets generated conflicts
+        assertThat(measurements, iterableWithSize(2));
+        assertThat(measurements.get(0).value(), is(0L));
+        assertThat(measurements.get(1).value(), is(0L));
     }
 
     public void testNodeIndexingMetricsArePublishing() {

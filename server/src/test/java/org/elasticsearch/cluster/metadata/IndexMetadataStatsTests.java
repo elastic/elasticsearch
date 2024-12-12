@@ -113,7 +113,21 @@ public class IndexMetadataStatsTests extends ESTestCase {
         commonStats.getIndexing()
             .getTotal()
             .add(
-                new IndexingStats.Stats(0, 0, 0, 0, 0, 0, 0, 0, false, 0, totalIndexingTimeSinceShardStartedInNanos, totalActiveTimeInNanos)
+                new IndexingStats.Stats(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    0,
+                    totalIndexingTimeSinceShardStartedInNanos,
+                    totalActiveTimeInNanos
+                )
             );
         return new ShardStats(shardRouting, commonStats, null, null, null, null, null, false, false, 0);
     }

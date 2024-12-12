@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,6 +47,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
+        .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)
         .build();
 
     @Override

@@ -15,12 +15,22 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * This is a workaround for when compute engine executes concurrently with data partitioning by docid.
+ * This class exists as a workaround for using SourceProvider in the compute engine.
+ * <p>
+ * The main issue is when compute engine executes concurrently with data partitioning by docid (inter segment parallelization).
+ * A {@link SourceProvider} can only be used by a single thread and this wrapping source provider ensures that each thread uses
+ * its own {@link SourceProvider}.
+ * <p>
+ * Additionally, this source provider protects against going backwards, which the synthetic source provider can't handle.
  */
 final class ReinitializingSourceProvider implements SourceProvider {
 
     private PerThreadSourceProvider perThreadProvider;
     private final Supplier<SourceProvider> sourceProviderFactory;
+
+    // Keeping track of last seen doc and if current doc is before last seen doc then source provider is initialized:
+    // (when source mode is synthetic then _source is read from doc values and doc values don't support going backwards)
+    private int lastSeenDocId;
 
     ReinitializingSourceProvider(Supplier<SourceProvider> sourceProviderFactory) {
         this.sourceProviderFactory = sourceProviderFactory;
@@ -30,11 +40,12 @@ final class ReinitializingSourceProvider implements SourceProvider {
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         var currentThread = Thread.currentThread();
         PerThreadSourceProvider provider = perThreadProvider;
-        if (provider == null || provider.creatingThread != currentThread) {
+        if (provider == null || provider.creatingThread != currentThread || doc < lastSeenDocId) {
             provider = new PerThreadSourceProvider(sourceProviderFactory.get(), currentThread);
             this.perThreadProvider = provider;
         }
-        return perThreadProvider.source.getSource(ctx, doc);
+        lastSeenDocId = doc;
+        return provider.source.getSource(ctx, doc);
     }
 
     private record PerThreadSourceProvider(SourceProvider source, Thread creatingThread) {

@@ -1942,3 +1942,8 @@ Refer to <<get-ip-location-database-api>>.
 === Delete geoip database configuration API
 
 Refer to <<delete-ip-location-database-api>>.
+
+[role="exclude",id="knn-search-api"]
+=== Delete _knn_search API
+
+Refer to <<search-api-knn>>.

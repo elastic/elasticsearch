@@ -36,7 +36,7 @@ the `cosine` measures are equivalent.
 ------------------------------------------------------------
 PUT _inference/sparse_embedding/elser_embeddings <1>
 {
-  "service": "elser",
+  "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1
@@ -206,7 +206,7 @@ PUT _inference/text_embedding/google_vertex_ai_embeddings <1>
 <2> A valid service account in JSON format for the Google Vertex AI API.
 <3> For the list of the available models, refer to the https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Text embeddings API] page.
 <4> The name of the location to use for the {infer} task. Refer to https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations[Generative AI on Vertex AI locations] for available locations.
-<5> The name of the project to use for the {infer} task. 
+<5> The name of the project to use for the {infer} task.
 
 // end::google-vertex-ai[]
 

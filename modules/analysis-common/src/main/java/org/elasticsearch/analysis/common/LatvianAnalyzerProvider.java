@@ -22,7 +22,7 @@ public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Latvi
     private final LatvianAnalyzer analyzer;
 
     LatvianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new LatvianAnalyzer(
             Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

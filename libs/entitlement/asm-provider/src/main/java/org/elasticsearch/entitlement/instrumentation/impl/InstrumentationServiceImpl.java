@@ -100,13 +100,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
 
         final String targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
         if (targetClassName.isBlank()) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "Checker method %s has no class name",
-                    checkerMethodName
-                )
-            );
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Checker method %s has no class name", checkerMethodName));
         }
 
         final List<String> targetParameterTypes;

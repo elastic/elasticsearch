@@ -1,0 +1,110 @@
+// Tests to validate maps as inputs to functions, these functions are under snapshot only
+
+mapCountEval
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| EVAL c = map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[3.0, 4.0]})
+;
+
+x:integer |c:long
+1         |5
+;
+
+mapCountWhereTrue
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| WHERE map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[1, 2]}) > 0
+;
+
+x:integer
+1
+;
+
+mapCountWhereFalse
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| WHERE map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":["a", "b"]}) < 0
+;
+
+x:integer
+;
+
+mapCountSort
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| SORT map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[true, false]})
+;
+
+x:integer
+1
+;
+
+mapCountStats
+required_capability: optional_named_argument_map_for_function
+ROW x = 1
+| STATS c = count(*) BY map_count({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[3.0, 4.0]})
+| KEEP c
+;
+
+c:long
+1
+;
+
+mapKeysEvalIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| EVAL k = map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[3.0, 4.0]})
+| WHERE emp_no == 10001
+| KEEP emp_no, k
+;
+
+emp_no:integer |k:keyword
+10001          |"option1, option2, option3, option4, option5"
+;
+
+mapKeysWhereTrueIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| WHERE map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[1, 2]}) like "option*"
+  AND emp_no == 10001
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+;
+
+mapKeysWhereFalseIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| WHERE map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":["a", "b"]}) like "false*"
+  AND emp_no == 10001
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+mapKeysSortIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| SORT emp_no, map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[true, false]}) desc
+| KEEP emp_no
+| LIMIT 2
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mapKeysStatsIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| STATS c = count(*) BY map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[3.0, 4.0]})
+| KEEP c
+;
+
+c:long
+100
+;

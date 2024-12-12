@@ -11,8 +11,10 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -24,6 +26,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -123,6 +126,18 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     static Literal literalStrings(String... strings) {
         return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
+    }
+
+    static MapExpression mapExpression(Map<String, Object> keyValuePairs) {
+        List<EntryExpression> ees = new ArrayList<>(keyValuePairs.size());
+        for (Map.Entry<String, Object> entry : keyValuePairs.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            DataType type = (value instanceof List<?> l) ? DataType.fromJava(l.get(0)) : DataType.fromJava(value);
+            EntryExpression ee = new EntryExpression(EMPTY, new Literal(EMPTY, key, DataType.KEYWORD), new Literal(EMPTY, value, type));
+            ees.add(ee);
+        }
+        return new MapExpression(EMPTY, ees);
     }
 
     void expectError(String query, String errorMessage) {

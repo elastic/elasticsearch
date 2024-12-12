@@ -19,6 +19,7 @@ public class ExpressionCoreWritables {
         entries.addAll(expressions());
         entries.addAll(namedExpressions());
         entries.addAll(attributes());
+        entries.addAll(mapExpressions());
         return entries;
     }
 
@@ -44,5 +45,9 @@ public class ExpressionCoreWritables {
 
     public static List<NamedWriteableRegistry.Entry> attributes() {
         return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
+    }
+
+    public static List<NamedWriteableRegistry.Entry> mapExpressions() {
+        return List.of(EntryExpression.ENTRY, MapExpression.ENTRY);
     }
 }

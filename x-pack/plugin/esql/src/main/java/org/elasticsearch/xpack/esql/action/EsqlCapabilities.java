@@ -569,7 +569,12 @@ public class EsqlCapabilities {
         /**
          * Additional types for match function and operator
          */
-        MATCH_ADDITIONAL_TYPES;
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

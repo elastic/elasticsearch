@@ -54,7 +54,6 @@ public class TransportVersions {
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
-    public static final TransportVersion V_7_5_0 = def(7_05_00_99);
     public static final TransportVersion V_7_6_0 = def(7_06_00_99);
     public static final TransportVersion V_7_7_0 = def(7_07_00_99);
     public static final TransportVersion V_7_8_0 = def(7_08_00_99);

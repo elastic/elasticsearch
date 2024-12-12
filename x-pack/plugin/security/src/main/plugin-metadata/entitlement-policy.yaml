@@ -1,0 +1,2 @@
+org.elasticsearch.xcore:
+  - set_https_connection_properties # for CommandLineHttpClient

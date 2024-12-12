@@ -129,7 +129,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId) throws IllegalArgumentException {
+    static long process(BytesRef val, BytesRef formatter) throws IllegalArgumentException {
         return dateTimeToLong(val.utf8ToString(), toFormatter(formatter));
     }
 
@@ -151,7 +151,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
             }
         }
         ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
-        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, zone);
+        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator);
     }
 
     private static DateFormatter toFormatter(Object format) {

@@ -523,6 +523,19 @@ s:keyword           | no_tz:datetime           | with_tz:datetime
 2022/12/07 09:24:10 | 2022-07-12T09:24:10.000Z | 2022-07-12T00:24:10.000Z
 ;
 
+evalDateParseWithOtherTimezoneSpecifiers
+row s = "2022/12/07 09:24:10", format="yyyy/dd/MM HH:mm:ss"
+| eval with_tz1 = date_parse(concat(format, " Z"), concat(s, " +0900"))
+| eval with_tz2 = date_parse(concat(format, " x"), concat(s, " +09"))
+| eval with_tz3 = date_parse(concat(format, " X"), concat(s, " +0900"))
+| eval with_tz4 = date_parse(concat(format, " O"), concat(s, " GMT+9"))
+| keep s, with_tz*
+;
+
+s:keyword           | with_tz1:datetime        | with_tz2:datetime        | with_tz3:datetime        | with_tz4:datetime        
+2022/12/07 09:24:10 | 2022-07-12T00:24:10.000Z | 2022-07-12T00:24:10.000Z | 2022-07-12T00:24:10.000Z | 2022-07-12T00:24:10.000Z
+;
+
 evalDateParseDynamic
 from employees | where emp_no == 10039 or emp_no == 10040 | sort emp_no 
 | eval birth_date_string = date_format("yyyy-MM-dd", birth_date)

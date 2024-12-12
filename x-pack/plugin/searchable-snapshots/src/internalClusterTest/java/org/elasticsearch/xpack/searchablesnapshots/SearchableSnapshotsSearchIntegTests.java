@@ -123,7 +123,7 @@ public class SearchableSnapshotsSearchIntegTests extends BaseFrozenSearchableSna
             assertThat(searchResponse.getFailedShards(), equalTo(0));
             assertThat(searchResponse.getSkippedShards(), equalTo(0));
             assertThat(searchResponse.getTotalShards(), equalTo(20));
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(4L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L));
         });
     }
 }

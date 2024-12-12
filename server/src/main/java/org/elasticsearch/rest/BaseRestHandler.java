@@ -272,7 +272,7 @@ public abstract class BaseRestHandler implements RestHandler {
         return responseParams();
     }
 
-    protected void setErrorTraceTransportHeader(RestRequest r, ThreadContext c) {
+    protected static void setErrorTraceTransportHeader(RestRequest r, ThreadContext c) {
         // set whether data nodes should send back stack trace based on the `error_trace` query parameter
         if (c != null) {
             c.putHeader("error_trace", r.param("error_trace", ERROR_TRACE_DEFAULT));

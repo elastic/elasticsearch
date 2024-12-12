@@ -97,7 +97,7 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        setErrorTraceTransportHeader(request, client.threadPool().getThreadContext());
+        BaseRestHandler.setErrorTraceTransportHeader(request, client.threadPool().getThreadContext());
         SearchRequest searchRequest = new SearchRequest();
         // access the BwC param, but just drop it
         // this might be set by old clients

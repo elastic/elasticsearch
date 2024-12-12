@@ -74,7 +74,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        setErrorTraceTransportHeader(request, client.threadPool().getThreadContext());
+        BaseRestHandler.setErrorTraceTransportHeader(request, client.threadPool().getThreadContext());
         final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

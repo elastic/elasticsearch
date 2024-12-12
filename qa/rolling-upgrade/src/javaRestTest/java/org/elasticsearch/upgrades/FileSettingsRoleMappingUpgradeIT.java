@@ -74,7 +74,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
         () -> assumeTrue(
             "Only relevant when upgrading from a version before role mappings were stored in cluster state",
-            getOldClusterTestVersion().after(new Version(8, 7, 0)) && getOldClusterTestVersion().before(new Version(8, 15, 0)) == false
+            getOldClusterTestVersion().after(new Version(8, 7, 0)) && getOldClusterTestVersion().before(new Version(8, 15, 0))
         )
     );
 

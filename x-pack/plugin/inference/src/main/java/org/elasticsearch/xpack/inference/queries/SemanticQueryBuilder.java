@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -53,16 +54,18 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField LENIENT_FIELD = new ParseField("lenient");
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        args -> new SemanticQueryBuilder((String) args[0], (String) args[1])
+        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2])
     );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), LENIENT_FIELD);
         declareStandardFields(PARSER);
     }
 
@@ -71,8 +74,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
     private final InferenceResults inferenceResults;
     private final boolean noInferenceResults;
+    private final Boolean lenient;
 
     public SemanticQueryBuilder(String fieldName, String query) {
+        this(fieldName, query, null);
+    }
+
+    public SemanticQueryBuilder(String fieldName, String query, Boolean lenient) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -84,6 +92,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResults = null;
         this.inferenceResultsSupplier = null;
         this.noInferenceResults = false;
+        this.lenient = lenient;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
@@ -93,6 +102,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         this.noInferenceResults = in.readBoolean();
         this.inferenceResultsSupplier = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
+            this.lenient = in.readOptionalBoolean();
+        } else {
+            this.lenient = null;
+        }
     }
 
     @Override
@@ -104,6 +118,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         out.writeString(query);
         out.writeOptionalNamedWriteable(inferenceResults);
         out.writeBoolean(noInferenceResults);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
+            out.writeOptionalBoolean(lenient);
+        }
     }
 
     private SemanticQueryBuilder(
@@ -119,6 +136,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResultsSupplier = inferenceResultsSupplier;
         this.inferenceResults = inferenceResults;
         this.noInferenceResults = noInferenceResults;
+        this.lenient = other.lenient;
     }
 
     @Override
@@ -140,6 +158,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), query);
+        if (lenient != null) {
+            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -167,6 +188,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
 
             return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
+        } else if (lenient != null && lenient) {
+            return new MatchNoneQueryBuilder();
         } else {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"

@@ -565,7 +565,12 @@ public class EsqlCapabilities {
         /**
          * Additional types for match function and operator
          */
-        MATCH_ADDITIONAL_TYPES;
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Full text functions can be used in disjunctions
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
 
         private final boolean enabled;
 

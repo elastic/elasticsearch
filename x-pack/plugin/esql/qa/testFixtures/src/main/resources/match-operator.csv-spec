@@ -104,7 +104,7 @@ book_no:keyword | title:text
 
 
 matchWithDisjunction
-required_capability: match_function
+required_capability: match_operator
 
 from books
 | where author : "Vonnegut" or author : "Guinane" 
@@ -120,7 +120,7 @@ book_no:keyword | author:text
 ;
 
 matchWithDisjunctionAndFiltersConjunction
-required_capability: match_function
+required_capability: match_operator
 
 from books
 | where (author : "Vonnegut" or author : "Guinane") and year > 1997
@@ -133,7 +133,8 @@ book_no:keyword | author:text       | year:integer
 ;
 
 matchWithDisjunctionAndConjunction
-required_capability: match_function
+required_capability: match_operator
+required_capability: full_text_functions_disjunctions
 
 from books
 | where (author : "Vonnegut" or author : "Marquez") and description : "realism"
@@ -144,7 +145,8 @@ book_no:keyword
 ;
 
 matchWithDisjunctionIncludingConjunction
-required_capability: match_function
+required_capability: match_operator
+required_capability: full_text_functions_disjunctions
 
 from books
 | where author : "Vonnegut" or (author : "Marquez" and description : "realism")
@@ -158,7 +160,6 @@ book_no:keyword
 8956
 3950
 ;
-
 
 matchWithFunctionPushedToLucene
 required_capability: match_operator_colon
@@ -277,7 +278,7 @@ count(*): long  | author.keyword:keyword
 ;
 
 testMatchBooleanField
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -293,7 +294,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerField
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -305,7 +306,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleField
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -317,7 +318,7 @@ emp_no:integer | salary_change:double
 ;  
 
 testMatchLongField
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from date_nanos
@@ -329,7 +330,7 @@ num:long
 ;
 
 testMatchUnsignedLongField
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from ul_logs
@@ -341,7 +342,7 @@ bytes_out:unsigned_long
 ;
 
 testMatchIpFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from sample_data
@@ -353,7 +354,7 @@ client_ip:ip   | message:keyword
 ;
 
 testMatchDateFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from date_nanos
@@ -365,7 +366,7 @@ millis:date
 ;
 
 testMatchDateNanosFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from date_nanos
@@ -377,7 +378,7 @@ nanos:date_nanos
 ;
 
 testMatchBooleanFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -393,7 +394,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -405,7 +406,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -417,7 +418,7 @@ emp_no:integer | salary_change:double
 ;
 
 testMatchLongFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from date_nanos
@@ -429,7 +430,7 @@ num:long
 ;
 
 testMatchUnsignedLongFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from ul_logs
@@ -441,7 +442,7 @@ bytes_out:unsigned_long
 ;
 
 testMatchVersionFieldAsString
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from apps 
@@ -453,7 +454,7 @@ bbbbb        | 2.1
 ;
 
 testMatchIntegerAsDouble
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees 
@@ -466,7 +467,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleAsIntegerField
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees
@@ -481,7 +482,7 @@ emp_no:integer | height:double
 ;
 
 testMatchMultipleFieldTypes
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible 
@@ -498,7 +499,7 @@ emp_as_int:integer | name_as_kw:keyword
 
 
 testMatchMultipleFieldTypesKeywordText
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible 
@@ -513,7 +514,7 @@ Kazuhito
 ;
 
 testMatchMultipleFieldTypesDoubleFloat
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -532,7 +533,7 @@ emp_no:integer | height_dbl:double
 ;
 
 testMatchMultipleFieldTypesBooleanKeyword
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -549,7 +550,7 @@ true
 ;
 
 testMatchMultipleFieldTypesLongUnsignedLong
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible  
@@ -564,7 +565,7 @@ avg_worked_seconds_ul:unsigned_long
 ;
 
 testMatchMultipleFieldTypesDateNanosDate
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -579,7 +580,7 @@ hire_date_nanos:date_nanos
 ;
 
 testMatchWithWrongFieldValue
-required_capability: match_function
+required_capability: match_operator
 required_capability: match_additional_types
 
 from employees,employees_incompatible

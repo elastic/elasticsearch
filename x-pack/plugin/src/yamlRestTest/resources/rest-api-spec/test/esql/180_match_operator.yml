@@ -181,7 +181,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:19: Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. [:] operator can't be used as part of an or condition" }
+  - match: { error.reason: "Found 1 problem\nline 1:19: Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. [:] operator can be used as part of an OR condition, but only if other full text functions are used as part of the condition" }
 
 ---
 "match within eval":

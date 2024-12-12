@@ -146,6 +146,7 @@ book_no:keyword | author:text       | year:integer
 
 matchWithDisjunctionAndConjunction
 required_capability: match_function
+required_capability: full_text_functions_disjunctions
 
 from books
 | where (match(author, "Vonnegut") or match(author, "Marquez")) and match(description, "realism")
@@ -157,6 +158,7 @@ book_no:keyword
 
 matchWithDisjunctionIncludingConjunction
 required_capability: match_function
+required_capability: full_text_functions_disjunctions
 
 from books
 | where match(author, "Vonnegut") or (match(author, "Marquez") and match(description, "realism"))

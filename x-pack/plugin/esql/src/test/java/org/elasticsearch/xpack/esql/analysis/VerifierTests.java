@@ -1168,12 +1168,14 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFilter() throws Exception {
         assertEquals(
             "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
-                + "[:] operator can't be used as part of an or condition",
+                + "[:] operator can be used as part of an OR condition, " +
+                "but only if other full text functions are used as part of the condition",
             error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. " + "[:] operator can't be used as part of an or condition",
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. [:] operator can be used as part of an OR " +
+                "condition, but only if other full text functions are used as part of the condition",
             error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
     }
@@ -1417,7 +1419,7 @@ public class VerifierTests extends ESTestCase {
                 "1:19: Invalid condition [{} or length(first_name) > 12]. "
                     + "[{}] "
                     + functionType
-                    + " can't be used as part of an or condition",
+                    + " can be used as part of an OR condition, but only if other full text functions are used as part of the condition",
                 functionInvocation,
                 functionName
             ),
@@ -1426,30 +1428,30 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
+                "1:20: Invalid condition [{} or first_name is not null]. "
                     + "[{}] "
                     + functionType
-                    + " can't be used as part of an or condition",
+                    + " can be used as part of an OR condition, but only if other full text functions are used as part of the condition",
                 functionInvocation,
                 functionName
             ),
             error(
                 "from test | where ("
                     + functionInvocation
-                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
+                    + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
             )
         );
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
+                "1:19: Invalid condition [{} or (last_name is not null and first_name is null)]. "
                     + "[{}] "
                     + functionType
-                    + " can't be used as part of an or condition",
+                    + " can be used as part of an OR condition, but only if other full text functions are used as part of the condition",
                 functionInvocation,
                 functionName
             ),
-            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
+            error("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)")
         );
     }
 

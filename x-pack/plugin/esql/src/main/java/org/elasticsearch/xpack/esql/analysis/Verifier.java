@@ -784,10 +784,10 @@ public class Verifier {
             boolean right = checkFullTextSearchInDisjunctions(or.right());
             if (left ^ right) {
                 Holder<String> elementName = new Holder<>();
-                if (right) {
-                    or.left().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
-                } else {
+                if (left) {
                     or.right().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
+                } else {
+                    or.left().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
                 }
                 failures.add(
                     fail(

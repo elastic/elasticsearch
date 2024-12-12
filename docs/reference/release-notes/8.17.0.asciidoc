@@ -5,6 +5,19 @@ coming[8.17.0]
 
 Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
 
+[[license-8.17.0]]
+[float]
+=== License changes
+
+[float] 
+==== Change to synthetic `_source` licensing
+
+Starting with this release, the <<synthetic-source,synthetic `_source`>> feature is available exclusively with the Enterprise subscription. Synthetic `_source` is used in logs data streams (`logsdb` index mode), time series data streams (TSDS, using `time_series` index mode), application performance monitoring (APM), and Universal Profiling. 
+
+If you are using these capabilities and are not on an Enterprise license, the change will result in increased storage requirements for new data, as the synthetic `_source` setting will be ignored. Existing indices that used synthetic `_source` will remain seamlessly accessible. 
+
+Refer to the subscription page for https://www.elastic.co/subscriptions/cloud[Elastic Cloud] and {subscriptions}[Elastic Stack/self-managed] for the breakdown of available features and their associated subscription tiers. For further details and subscription options, contact your Elastic sales representative or https://www.elastic.co/contact[contact us]. 
+
 [[bug-8.17.0]]
 [float]
 === Bug fixes

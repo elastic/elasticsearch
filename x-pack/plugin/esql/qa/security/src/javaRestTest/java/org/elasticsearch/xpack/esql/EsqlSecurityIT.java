@@ -252,22 +252,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testUnauthorizedIndices() throws IOException {
         ResponseException error;
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testInsufficientPrivilege() {
-        Exception error = expectThrows(Exception.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
         logger.info("error", error);
         assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
@@ -574,15 +579,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexForbidden() {
-        // TODO: It should throw "unauthorized for user..." instead
         var resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        // TODO: It should throw "unauthorized for user..." instead
         resp = expectThrows(
             ResponseException.class,
             () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
@@ -590,7 +593,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        // TODO: It should throw "unauthorized for user..." instead
         resp = expectThrows(
             ResponseException.class,
             () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")

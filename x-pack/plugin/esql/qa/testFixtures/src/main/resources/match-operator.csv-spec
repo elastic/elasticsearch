@@ -102,6 +102,64 @@ book_no:keyword | title:text
 7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
 ;
 
+
+matchWithDisjunction
+required_capability: match_function
+
+from books
+| where author : "Vonnegut" or author : "Guinane" 
+| keep book_no, author;
+ignoreOrder:true
+
+book_no:keyword | author:text
+2464            | Kurt Vonnegut  
+6970            | Edith Vonnegut 
+8956            | Kurt Vonnegut  
+3950            | Kurt Vonnegut  
+4382            | Carole Guinane 
+;
+
+matchWithDisjunctionAndFiltersConjunction
+required_capability: match_function
+
+from books
+| where (author : "Vonnegut" or author : "Guinane") and year > 1997
+| keep book_no, author, year;
+ignoreOrder:true
+
+book_no:keyword | author:text       | year:integer
+6970            | Edith Vonnegut    | 1998
+4382            | Carole Guinane    | 2001
+;
+
+matchWithDisjunctionAndConjunction
+required_capability: match_function
+
+from books
+| where (author : "Vonnegut" or author : "Marquez") and description : "realism"
+| keep book_no;
+
+book_no:keyword
+4814
+;
+
+matchWithDisjunctionIncludingConjunction
+required_capability: match_function
+
+from books
+| where author : "Vonnegut") or (author : "Marquez" and description : "realism")
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2464
+6970
+4814
+8956
+3950
+;
+
+
 matchWithFunctionPushedToLucene
 required_capability: match_operator_colon
 

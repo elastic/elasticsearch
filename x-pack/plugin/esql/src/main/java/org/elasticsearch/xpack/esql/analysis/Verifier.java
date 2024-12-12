@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -773,35 +774,53 @@ public class Verifier {
      * @param typeNameProvider provider for the type name to add in the failure message
      * @param failures         failures collection to add to
      */
-    private static void checkNotPresentInDisjunctions(
+    private static void checkFullTextSearchDisjunctions(
         Expression condition,
         java.util.function.Function<FullTextFunction, String> typeNameProvider,
         Set<Failure> failures
     ) {
         condition.forEachUp(Or.class, or -> {
-            checkNotPresentInDisjunctions(or.left(), or, typeNameProvider, failures);
-            checkNotPresentInDisjunctions(or.right(), or, typeNameProvider, failures);
+            boolean left = checkFullTextSearchInDisjunctions(or.left());
+            boolean right = checkFullTextSearchInDisjunctions(or.right());
+            if (left ^ right) {
+                Holder<String> elementName = new Holder<>();
+                if (right) {
+                    or.left().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
+                } else {
+                    or.right().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
+                }
+                failures.add(
+                    fail(
+                        or,
+                        "Invalid condition [{}]. {} can be used as part of an OR condition, "
+                            + "but only if other full text functions are used as part of the condition",
+                        or.sourceText(),
+                        elementName.get()
+                    )
+                );
+            }
         });
     }
 
     /**
-     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
      *
-     * @param parentExpression parent expression to add to the failure message
-     * @param or               disjunction that is being checked
-     * @param failures         failures collection to add to
+     * @param expression parent expression to add to the failure message
+     * @return true if all children are full text functions or negations of full text functions, false otherwise
      */
-    private static void checkNotPresentInDisjunctions(
-        Expression parentExpression,
-        Or or,
-        java.util.function.Function<FullTextFunction, String> elementName,
-        Set<Failure> failures
-    ) {
-        parentExpression.forEachDown(FullTextFunction.class, ftp -> {
-            failures.add(
-                fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
-            );
-        });
+    private static boolean checkFullTextSearchInDisjunctions(Expression expression) {
+        if (expression instanceof FullTextFunction) {
+            return false;
+        } else if (expression instanceof Not || expression instanceof BinaryLogic) {
+            for (Expression child : expression.children()) {
+                if (checkFullTextSearchInDisjunctions(child)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -871,7 +890,7 @@ public class Verifier {
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
-            checkNotPresentInDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
+            checkFullTextSearchDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {

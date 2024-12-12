@@ -1453,6 +1453,47 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFullTextFunctionsDisjunctions() {
+        checkWithFullTextFunctionsDisjunctions("MATCH", "match(last_name, \"Smith\")", "function");
+        checkWithFullTextFunctionsDisjunctions(":", "last_name : \"Smith\"", "operator");
+        checkWithFullTextFunctionsDisjunctions("QSTR", "qstr(\"last_name: Smith\")", "function");
+
+        assumeTrue("KQL function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+        checkWithFullTextFunctionsDisjunctions("KQL", "kql(\"last_name: Smith\")", "function");
+    }
+
+    private void checkWithFullTextFunctionsDisjunctions(String functionName, String functionInvocation, String functionType) {
+        passes("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
+        passes("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
+        passes("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        passes("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
+        passes("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
+
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [{} or length(first_name) > 10]. [{}] {} can be used as part of an OR condition, "
+                    + "but only if other full text functions are used as part of the condition",
+                functionInvocation,
+                functionName,
+                functionType
+            ),
+            error("from test | where " + functionInvocation + " or length(first_name) > 10")
+        );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [{} or (match(last_name, \"Anneke\") and length(first_name) > 10)]."
+                    + " [{}] {} can be used as part of an OR condition, "
+                    + "but only if other full text functions are used as part of the condition",
+                functionInvocation,
+                functionName,
+                functionType
+            ),
+            error("from test | where " + functionInvocation + " or (match(last_name, \"Anneke\") and length(first_name) > 10)")
+        );
+    }
+
     public void testQueryStringFunctionWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
     }

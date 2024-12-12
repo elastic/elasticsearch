@@ -334,7 +334,9 @@ public class IndexNameExpressionResolver {
             // Parse a potential selector from the expression
             ResolvedExpression partiallyResolvedExpression = SelectorResolver.parseExpression(context, baseExpression);
             baseExpression = partiallyResolvedExpression.resource();
-            IndexComponentSelector selector = partiallyResolvedExpression.selector();
+            IndexComponentSelector selector = partiallyResolvedExpression.selector() == null
+                ? context.options.selectorOptions().defaultSelector()
+                : partiallyResolvedExpression.selector();
 
             // Resolve date math
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
@@ -354,7 +356,7 @@ public class IndexNameExpressionResolver {
                 );
 
                 if (context.getOptions().allowNoIndices() == false && matchingResources.isEmpty()) {
-                    throw notFoundException(combineSelector(baseExpression, selector));
+                    throw notFoundException(ResolvedExpression.combineSelector(baseExpression, partiallyResolvedExpression.selector()));
                 }
 
                 if (isExclusion) {
@@ -2087,10 +2089,9 @@ public class IndexNameExpressionResolver {
 
         /**
          * Parses an index expression for a selector suffix. If a suffix is present and supported by the index options, the
-         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the default
-         * selector is retrieved from the context and combined with the expression. If suffixes are present but not supported by the index
-         * options, this will throw {@link IndexNotFoundException}. When suffixes are not allowed by the context, the selector returned will
-         * be null.
+         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the selector returned will
+         * be null. If suffixes are present but not supported by the index options, this will throw {@link IndexNotFoundException}. When
+         * suffixes are not allowed by the context, the selector returned will be null.
          * @param context Context object
          * @param expression The expression to check for selectors
          * @return A resolved expression, optionally paired with a selector if present and supported.
@@ -2098,11 +2099,7 @@ public class IndexNameExpressionResolver {
         public static ResolvedExpression parseExpression(Context context, String expression) {
             return parseAndTransformSelector(expression, (baseExpression, selector) -> {
                 if (context.options.allowSelectors()) {
-                    // if selector was not present in the expression, use the defaults for the API
-                    IndexComponentSelector resolvedSelector = selector == null
-                        ? context.options.selectorOptions().defaultSelector()
-                        : selector;
-                    return new ResolvedExpression(baseExpression, resolvedSelector);
+                    return new ResolvedExpression(baseExpression, selector);
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.
                     ensureNoSelectorsProvided(expression, selector);

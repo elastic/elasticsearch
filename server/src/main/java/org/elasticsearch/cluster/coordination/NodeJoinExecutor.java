@@ -139,8 +139,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
         Map<String, CompatibilityVersions> compatibilityVersionsMap = new HashMap<>(newState.compatibilityVersions());
-        Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures());
-        Set<String> allAssumedNodesFeatures = calculateAllAssumedClusterFeatures(newState.nodes(), nodeFeatures);
+        Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures()); // as present in cluster state
+        Set<String> effectiveClusterFeatures = calculateEffectiveClusterFeatures(newState.nodes(), nodeFeatures);
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -176,7 +176,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
-                        Set<String> assumedNewNodeFeatures = enforceNodeFeatureBarrier(node, allAssumedNodesFeatures, features);
+                        Set<String> newNodeEffectiveFeatures = enforceNodeFeatureBarrier(node, effectiveClusterFeatures, features);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
@@ -185,8 +185,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
                         // store the actual node features here, not including assumed features, as this is persisted in cluster state
                         nodeFeatures.put(node.getId(), features);
+                        effectiveClusterFeatures.retainAll(newNodeEffectiveFeatures);
 
-                        allAssumedNodesFeatures.retainAll(assumedNewNodeFeatures);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -360,7 +360,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    private Set<String> calculateAllAssumedClusterFeatures(DiscoveryNodes nodes, Map<String, Set<String>> nodeFeatures) {
+    /**
+     * Calculate the cluster's effective features. This includes all features that are assumed on any nodes in the cluster,
+     * that are also present across the whole cluster as a result.
+     */
+    private Set<String> calculateEffectiveClusterFeatures(DiscoveryNodes nodes, Map<String, Set<String>> nodeFeatures) {
         if (featureService.featuresCanBeAssumedForNodes(nodes)) {
             Set<String> assumedFeatures = featureService.getNodeFeatures()
                 .values()
@@ -373,7 +377,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             nodeFeatures = new HashMap<>(nodeFeatures);
             for (var node : nodes.getNodes().entrySet()) {
                 if (featureService.featuresCanBeAssumedForNode(node.getValue())) {
-                    nodeFeatures.compute(node.getKey(), (k, v) -> {
+                    assert nodeFeatures.containsKey(node.getKey()) : "Node " + node.getKey() + " does not have any features";
+                    nodeFeatures.computeIfPresent(node.getKey(), (k, v) -> {
                         var newFeatures = new HashSet<>(v);
                         return newFeatures.addAll(assumedFeatures) ? newFeatures : v;
                     });
@@ -495,9 +500,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      *
      * @return The set of features that this node has (including assumed features)
      */
-    private Set<String> enforceNodeFeatureBarrier(DiscoveryNode node, Set<String> existingNodesFeatures, Set<String> newNodeFeatures) {
+    private Set<String> enforceNodeFeatureBarrier(DiscoveryNode node, Set<String> effectiveClusterFeatures, Set<String> newNodeFeatures) {
         // prevent join if it does not have one or more features that all other nodes have
-        Set<String> missingFeatures = new HashSet<>(existingNodesFeatures);
+        Set<String> missingFeatures = new HashSet<>(effectiveClusterFeatures);
         missingFeatures.removeAll(newNodeFeatures);
 
         if (missingFeatures.isEmpty()) {
@@ -520,7 +525,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     // and it should be assumed to still be in the cluster
                     newNodeFeatures.add(feature);
                 }
-                // even if we don't remove it, still continue, so the set in the exception message below is accurate
+                // even if we don't remove it, still continue, so the exception message below is accurate
             }
         }
 

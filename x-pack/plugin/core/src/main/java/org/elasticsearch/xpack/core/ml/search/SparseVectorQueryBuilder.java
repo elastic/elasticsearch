@@ -143,6 +143,14 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return queryVectors;
     }
 
+    public String getInferenceId() {
+        return inferenceId;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
     public boolean shouldPruneTokens() {
         return shouldPruneTokens;
     }

@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -78,9 +78,8 @@ public class CopySettingsStep extends ClusterStateActionStep {
         String targetIndexName = targetIndexNameSupplier.apply(sourceIndexName, sourceIndexMetadata.getLifecycleExecutionState());
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
         if (targetIndexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "index [%s] is being referenced by ILM action [%s] on step [%s] but " + "it doesn't exist",
+            String errorMessage = Strings.format(
+                "index [%s] is being referenced by ILM action [%s] on step [%s] but it doesn't exist",
                 targetIndexName,
                 getKey().action(),
                 getKey().name()

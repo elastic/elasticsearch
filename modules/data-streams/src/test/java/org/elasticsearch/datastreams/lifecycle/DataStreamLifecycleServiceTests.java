@@ -203,7 +203,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    @AwaitsFix(bugUrl = "this PR")
     public void testOperationsExecutedOnce() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
@@ -1525,7 +1524,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "this PR")
     public void testFailureStoreIsManagedEvenWhenDisabled() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 1;

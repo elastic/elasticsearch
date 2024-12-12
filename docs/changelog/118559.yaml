@@ -4,9 +4,8 @@ area: Logs
 type: feature
 issues: []
 highlight:
-  title: Make logsdb general available
+  title: Make logsdb index mode general available
   body: >-
     Logsdb index mode has been GA-ed. Logsdb is a feature that allows Elasticsearch to store logs more efficiently.
-    Logsdb index mode allows to reduce storage usage upto ~2.5 times compared to storing logs in Elasticsearch without
-    the Logsdb index mode.
+    Logsdb allows to reduce storage usage upto ~2.5 times compared to storing logs in Elasticsearch without the Logsdb.
   notable: true

@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -72,7 +71,7 @@ public final class UnfollowAction implements LifecycleAction {
         UnfollowFollowerIndexStep step5 = new UnfollowFollowerIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
         OpenIndexStep step6 = new OpenIndexStep(openFollowerIndex, waitForYellowStep, client);
         WaitForIndexColorStep step7 = new WaitForIndexColorStep(waitForYellowStep, nextStepKey, ClusterHealthStatus.YELLOW);
-        return Arrays.asList(conditionalSkipUnfollowStep, step1, step2, step3, step4, step5, step6, step7);
+        return List.of(conditionalSkipUnfollowStep, step1, step2, step3, step4, step5, step6, step7);
     }
 
     @Override

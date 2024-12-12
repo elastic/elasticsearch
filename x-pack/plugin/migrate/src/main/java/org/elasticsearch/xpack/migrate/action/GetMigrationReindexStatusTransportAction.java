@@ -88,7 +88,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
             listener.onFailure(
                 new ResourceNotFoundException(
                     Strings.format(
-                        "Persistent task [{}] is supposed to be running on node [{}], " + "but the task is not found on that node",
+                        "Persistent task [%s] is supposed to be running on node [%s], but the task is not found on that node",
                         persistentTaskId,
                         clusterService.localNode().getId()
                     )
@@ -106,7 +106,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
             listener.onFailure(
                 new ResourceNotFoundException(
                     Strings.format(
-                        "Persistent task [{}] is supposed to be running on node [{}], but that node is not part of the cluster",
+                        "Persistent task [%s] is supposed to be running on node [%s], but that node is not part of the cluster",
                         request.getIndex(),
                         nodeId
                     )

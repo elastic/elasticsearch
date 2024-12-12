@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -354,7 +353,7 @@ public class IndexLifecycleService
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.jobName().equals(XPackField.INDEX_LIFECYCLE)) {
-            logger.trace("job triggered: " + event.jobName() + ", " + event.scheduledTime() + ", " + event.triggeredTime());
+            logger.trace("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
             triggerPolicies(clusterService.state(), false);
         }
     }
@@ -500,7 +499,7 @@ public class IndexLifecycleService
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
-            return Collections.emptySet();
+            return Set.of();
         }
 
         Set<String> indicesPreventingShutdown = state.metadata()

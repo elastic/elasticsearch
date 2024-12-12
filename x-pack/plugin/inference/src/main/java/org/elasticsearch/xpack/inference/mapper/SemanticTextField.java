@@ -204,6 +204,10 @@ public record SemanticTextField(
         return getChunksFieldName(fieldName) + "." + CHUNKED_EMBEDDINGS_FIELD;
     }
 
+    public static String getOffsetsFieldName(String fieldName) {
+        return getOffsetsFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
+    }
+
     record ParserContext(IndexVersion indexVersionCreated, String fieldName, XContentType xContentType) {}
 
     static SemanticTextField parse(XContentParser parser, ParserContext context) throws IOException {

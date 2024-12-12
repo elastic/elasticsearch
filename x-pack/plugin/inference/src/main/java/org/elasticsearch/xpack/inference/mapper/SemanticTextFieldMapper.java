@@ -95,6 +95,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
 
@@ -723,7 +724,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         childScorer.iterator().nextDoc();
                     }
                     dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
-                    var terms = context.reader().terms(OffsetSourceMetaFieldMapper.NAME);
+                    var terms = context.reader().terms(getOffsetsFieldName(name()));
                     offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
                 } catch (IOException exc) {
                     throw new UncheckedIOException(exc);

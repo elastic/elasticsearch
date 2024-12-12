@@ -58,7 +58,7 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE1, REMOTE2);
     }
 

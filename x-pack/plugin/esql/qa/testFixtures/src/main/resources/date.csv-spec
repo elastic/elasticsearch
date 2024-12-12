@@ -216,7 +216,6 @@ string:keyword                                          |datetime:date
 ;
 
 convertFromUnsignedLong
-required_capability: convert_warn
 
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warningRegex:Line 1:58: evaluation of \[to_datetime\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -1285,4 +1284,109 @@ ROW a = GREATEST(TO_DATETIME("1957-05-23T00:00:00Z"), TO_DATETIME("1958-02-19T00
 
 a:datetime
 1958-02-19T00:00:00
+;
+
+evalDateTruncMonthInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| SORT hire_date
+| EVAL x = date_trunc("1 month", hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date                | x:date
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-01T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-01T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-01T00:00:00.000Z
+;
+
+evalDateTruncHourInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| SORT hire_date
+| EVAL x = date_trunc("240 hours", hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date                | x:date
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-21T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-12T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-09T00:00:00.000Z
+;
+
+evalDateTruncDayInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC("1 day", @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+;
+
+evalDateTruncMinuteInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC("1 minute", @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T12:15:00
+2023-10-23T12:27:00
+2023-10-23T13:33:00
+2023-10-23T13:51:00
+2023-10-23T13:52:00
+2023-10-23T13:53:00
+2023-10-23T13:55:00
+;
+
+evalDateTruncDayInStringNull
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| WHERE emp_no == 10040
+| EVAL x = date_trunc("1 day", birth_date)
+| KEEP emp_no, birth_date, x;
+
+emp_no:integer | birth_date:date               | x:date
+10040          | null                          | null
+;
+
+evalDateTruncYearInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+ROW a = 1
+| EVAL year_hired = DATE_TRUNC("1 year", "1991-06-26T00:00:00.000Z")
+;
+
+a:integer | year_hired:date
+1         | 1991-01-01T00:00:00.000Z
+;
+
+filteringWithTemporalAmountInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| SORT emp_no
+| WHERE birth_date < "2024-01-01" - 70 years
+| STATS cnt = count(*);
+
+cnt:long
+19
 ;

@@ -69,9 +69,9 @@ public class ShrinkAction implements LifecycleAction {
         .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
         .build();
 
-    private Integer numberOfShards;
-    private ByteSizeValue maxPrimaryShardSize;
-    private boolean allowWriteAfterShrink;
+    private final Integer numberOfShards;
+    private final ByteSizeValue maxPrimaryShardSize;
+    private final boolean allowWriteAfterShrink;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
@@ -89,11 +89,13 @@ public class ShrinkAction implements LifecycleAction {
                 throw new IllegalArgumentException("[max_primary_shard_size] must be greater than 0");
             }
             this.maxPrimaryShardSize = maxPrimaryShardSize;
+            this.numberOfShards = null;
         } else {
             if (numberOfShards <= 0) {
                 throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
             }
             this.numberOfShards = numberOfShards;
+            this.maxPrimaryShardSize = null;
         }
         this.allowWriteAfterShrink = allowWriteAfterShrink;
     }

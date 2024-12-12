@@ -450,11 +450,6 @@ nested fields:
                 type: long
                 time_series_metric: gauge
 
-  - do:
-      indices.get_mapping: {}
-
-  - match: {tsdb-synthetic.mappings._source.mode: synthetic}
-
 ---
 stored source is supported:
   - requires:
@@ -485,12 +480,6 @@ stored source is supported:
                       uid:
                         type: keyword
                         time_series_dimension: true
-
-  - do:
-      indices.get:
-        index: tsdb_index
-
-  - match: { tsdb_index.mappings._source.mode: "stored" }
 
 ---
 disabled source is not supported:

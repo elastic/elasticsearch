@@ -129,7 +129,7 @@ noop update:
             {}
 
 ---
-update:
+regular update:
   - requires:
       cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0

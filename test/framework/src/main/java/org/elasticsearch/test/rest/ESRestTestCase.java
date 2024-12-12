@@ -26,6 +26,8 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -63,12 +65,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -157,6 +159,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
+
+    private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -329,8 +333,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            var clientSettings = restClientSettings();
+            var adminSettings = restAdminSettings();
+            var hosts = clusterHosts.toArray(new HttpHost[0]);
+            client = buildClient(clientSettings, hosts);
+            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
@@ -396,30 +403,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    /**
-     * Override to provide additional test-only historical features.
-     *
-     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
-     * must contain only historical features, otherwise an assertion error is thrown.
-     */
-    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
-        return List.of();
-    }
-
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        // Historical features information is unavailable when using legacy test plugins
-        if (ESRestTestFeatureService.hasFeatureMetadata() == false) {
-            logger.warn(
-                "This test is running on the legacy test framework; historical features from production code will not be available. "
-                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
-                RestTestLegacyFeatures.class.getCanonicalName()
-            );
-        }
-        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -719,10 +707,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
     protected boolean resetFeatureStates() {
-        // ML reset fails when ML is disabled in versions before 8.7
-        if (isMlEnabled() == false && clusterHasFeature(RestTestLegacyFeatures.ML_STATE_RESET_FALLBACK_ON_DISABLED) == false) {
-            return false;
-        }
         return true;
     }
 
@@ -917,50 +901,46 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                // In case of bwc testing, we need to delete component and composable
-                // index templates only for clusters that support this historical feature
-                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
-                    try {
-                        Request getTemplatesRequest = new Request("GET", "_index_template");
-                        Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
-                            JsonXContent.jsonXContent,
-                            EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
-                            false
-                        );
-                        List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList());
-                        if (names.isEmpty() == false) {
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
-                            } catch (ResponseException e) {
-                                logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
-                            }
+                try {
+                    Request getTemplatesRequest = new Request("GET", "_index_template");
+                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
+                        false
+                    );
+                    List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    if (names.isEmpty() == false) {
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
                         }
-                    } catch (Exception e) {
-                        logger.debug("ignoring exception removing all composable index templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
-                    try {
-                        Request compReq = new Request("GET", "_component_template");
-                        String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                        Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                        List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList());
-                        if (names.isEmpty() == false) {
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
-                            } catch (ResponseException e) {
-                                logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
-                            }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all composable index templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
+                try {
+                    Request compReq = new Request("GET", "_component_template");
+                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                    List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    if (names.isEmpty() == false) {
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
                         }
-                    } catch (Exception e) {
-                        logger.debug("ignoring exception removing all component templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all component templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
 
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
@@ -1058,29 +1038,25 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (has(ProductFeature.XPACK)) {
-                // In case of bwc testing, we need to delete component and composable
-                // index templates only for clusters that support this historical feature
-                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
-                    Request getTemplatesRequest = new Request("GET", "_index_template");
-                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
-                        JsonXContent.jsonXContent,
-                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
-                        false
-                    );
-                    unexpectedTemplates.addAll(
-                        ((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toSet())
-                    );
-                    Request compReq = new Request("GET", "_component_template");
-                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    ((List<?>) cTemplates.get("component_templates")).stream()
+                Request getTemplatesRequest = new Request("GET", "_index_template");
+                Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
+                    false
+                );
+                unexpectedTemplates.addAll(
+                    ((List<?>) composableIndexTemplates.get("index_templates")).stream()
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .filter(name -> isXPackTemplate(name) == false)
-                        .forEach(unexpectedTemplates::add);
-                }
+                        .collect(Collectors.toSet())
+                );
+                Request compReq = new Request("GET", "_component_template");
+                String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                ((List<?>) cTemplates.get("component_templates")).stream()
+                    .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                    .filter(name -> isXPackTemplate(name) == false)
+                    .forEach(unexpectedTemplates::add);
 
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
                     Request getLegacyTemplatesRequest = new Request("GET", "_template");
@@ -1142,6 +1118,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
+
+            // If system index warning, ignore but log
+            // See: https://github.com/elastic/elasticsearch/issues/117099
+            // and: https://github.com/elastic/elasticsearch/issues/115809
+            deleteRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
+            );
+
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1152,6 +1136,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+        for (String warning : warnings) {
+            if (warning.startsWith("this request accesses system indices:")) {
+                SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
+            } else {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected static void wipeDataStreams() throws IOException {
@@ -1840,8 +1836,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        }
-
+        } else if (isSyntheticSourceConfiguredInMapping(mapping)
+            && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+            }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
@@ -1883,6 +1881,49 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             v.compatible(expectedWarning);
         }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInMapping(String mapping) {
+        if (mapping == null) {
+            return false;
+        }
+        var mappings = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}',
+            false
+        );
+        if (mappings.containsKey("_doc")) {
+            mappings = (Map<String, Object>) mappings.get("_doc");
+        }
+        Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+        if (sourceMapper == null) {
+            return false;
+        }
+        return sourceMapper.get("mode") != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
+        if (template == null) {
+            return false;
+        }
+        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
+        for (Object value : values.values()) {
+            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
+            if (mappings == null) {
+                continue;
+            }
+            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+            if (sourceMapper == null) {
+                continue;
+            }
+            Object mode = sourceMapper.get("mode");
+            if (mode != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -2282,7 +2323,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static IndexVersion minimumIndexVersion() throws IOException {
         final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version,nodes.*.index_version");
 
         final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
@@ -2290,10 +2331,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         IndexVersion minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
-            String versionStr = (String) nodeData.get("max_index_version");
+            Object versionStr = nodeData.get("index_version");
+            if (versionStr == null) {
+                versionStr = nodeData.get("max_index_version");
+            }
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
-                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                ? IndexVersion.fromId(Integer.parseInt(versionStr.toString()))
                 : IndexVersion.fromId(
                     parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id())
                 );

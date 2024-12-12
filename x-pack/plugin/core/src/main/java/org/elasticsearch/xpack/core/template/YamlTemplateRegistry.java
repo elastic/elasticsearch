@@ -11,15 +11,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -44,16 +41,12 @@ import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedR
  */
 public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(YamlTemplateRegistry.class);
-    // this node feature is a redefinition of {@link DataStreamFeatures#DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
-    // dependency to the data-streams module just for this
-    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
     private final int version;
 
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
     private final List<LifecyclePolicy> lifecyclePolicies;
-    private final FeatureService featureService;
     private volatile boolean enabled;
 
     public YamlTemplateRegistry(
@@ -61,10 +54,9 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        FeatureService featureService
+        NamedXContentRegistry xContentRegistry
     ) {
-        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, ignored -> true);
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, ignored -> true);
     }
 
     @SuppressWarnings({ "unchecked", "this-escape" })
@@ -74,7 +66,6 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        FeatureService featureService,
         Predicate<String> templateFilter
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
@@ -123,7 +114,6 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .filter(templateFilter)
                 .map(this::loadLifecyclePolicy)
                 .collect(Collectors.toList());
-            this.featureService = featureService;
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }
@@ -150,13 +140,6 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
 
     public void close() {
         clusterService.removeListener(this);
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only after versions that support data stream lifecycle
-        // due to the use of the feature in all the `@lifecycle` component templates
-        return featureService.clusterHasFeature(event.state(), DATA_STREAM_LIFECYCLE);
     }
 
     @Override

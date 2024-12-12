@@ -13,19 +13,21 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -37,6 +39,7 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 
@@ -52,6 +55,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
+
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
@@ -100,14 +106,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 
             test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
-            test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", BuildParams.getDefaultParallel().toString())));
+            test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", buildParams.get().getDefaultParallel().toString())));
 
             test.exclude("**/*$*.class");
 
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "-Djava.security.manager=allow",
                 "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
@@ -122,6 +127,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
+            test.getJvmArgumentProviders().add(() -> {
+                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
+                    return List.of("-Djava.security.manager=allow");
+                } else {
+                    return List.of();
+                }
+            });
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {
@@ -146,9 +158,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
             if (System.getProperty("ignore.tests.seed") != null) {
-                nonInputProperties.systemProperty("tests.seed", BuildParams.getTestSeed());
+                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeed());
             } else {
-                test.systemProperty("tests.seed", BuildParams.getTestSeed());
+                test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability
@@ -193,7 +205,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
              *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
-            project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+            project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
                 if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
                     // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
                     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

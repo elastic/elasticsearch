@@ -3,7 +3,6 @@
 ###############################################
 
 convertFromStringQuantize
-required_capability: spatial_points
 
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | eval pt = to_geopoint(wkt);

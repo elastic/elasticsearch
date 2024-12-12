@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -58,7 +57,6 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -356,40 +354,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        var loader = new SourceLoader.SyntheticFieldLoader() {
-            @Override
-            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                return Stream.of();
-            }
+        /*
+        If there was no value in the document, synthetic source should not have the value too.
+        This is consistent with stored source behavior and is important for scenarios
+        like reindexing into an index that has a different value of this value in the mapping.
 
-            @Override
-            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
-                return docId -> true;
-            }
-
-            @Override
-            public boolean hasValue() {
-                return true;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (fieldType().value != null) {
-                    b.field(leafName(), fieldType().value);
-                }
-            }
-
-            @Override
-            public void reset() {
-                // NOOP
-            }
-
-            @Override
-            public String fieldName() {
-                return fullPath();
-            }
-        };
-
-        return new SyntheticSourceSupport.Native(loader);
+        In order to do that we use fallback logic which implements exactly such logic (_source only contains value
+        if it was in the original document).
+         */
+        return new SyntheticSourceSupport.Fallback();
     }
 }

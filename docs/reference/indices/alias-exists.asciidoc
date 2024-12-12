@@ -52,6 +52,8 @@ Defaults to `all`.
 (Optional, Boolean) If `false`, requests that include a missing data stream or
 index in the `<target>` return an error. Defaults to `false`.
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[alias-exists-api-response-codes]]
 ==== {api-response-codes-title}
 

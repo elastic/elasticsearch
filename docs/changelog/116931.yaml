@@ -1,0 +1,5 @@
+pr: 116931
+summary: Enable built-in Inference Endpoints and default for Semantic Text
+area: "Machine Learning"
+type: enhancement
+issues: []

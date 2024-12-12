@@ -43,7 +43,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
@@ -436,8 +438,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
-            return JoinType.LEFT;
+            return JoinTypes.LEFT;
         }
+
         if (Expression.class == argClass) {
             /*
              * Rather than use any old subclass of expression lets
@@ -488,6 +491,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == Configuration.class) {
             return randomConfiguration();
         }
+        if (argClass == JoinConfig.class) {
+            return new JoinConfig(
+                JoinTypes.LEFT,
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute())
+            );
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {

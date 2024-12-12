@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
     private static final TransportVersion DRY_RUN_VERSION = TransportVersions.V_8_4_0;
@@ -115,11 +113,6 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
 
     public boolean isDryRun() {
         return dryRun;
-    }
-
-    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
-        return clusterHasFeature.test(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED)
-            || nodes.stream().allMatch(n -> n.clusterHasRequiredFeatures(clusterHasFeature));
     }
 
     @Override

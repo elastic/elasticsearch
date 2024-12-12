@@ -1048,8 +1048,6 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
-            clusterService,
-            featureService,
             realms
         );
         components.add(profileService);

@@ -46,11 +46,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
-
     protected static final String SUPPORTED_QUERY_FILE_PATH = "/supported-queries";
     protected static final String UNSUPPORTED_QUERY_FILE_PATH = "/unsupported-queries";
     protected static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\]*(NOT|AND|OR)[^}]*");
-
     protected static final String NESTED_FIELD_NAME = "mapped_nested";
 
     @Override

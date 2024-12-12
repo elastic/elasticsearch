@@ -10,15 +10,12 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
-
-import java.util.List;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -289,19 +286,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             }
             return blocks;
         }
-    }
-
-    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            IntBlock.ENTRY,
-            LongBlock.ENTRY,
-            FloatBlock.ENTRY,
-            DoubleBlock.ENTRY,
-            BytesRefBlock.ENTRY,
-            BooleanBlock.ENTRY,
-            ConstantNullBlock.ENTRY,
-            CompositeBlock.ENTRY
-        );
     }
 
     /**

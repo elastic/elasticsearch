@@ -30,7 +30,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -337,16 +336,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
             inferenceProvider.service()
-                .chunkedInfer(
-                    inferenceProvider.model(),
-                    null,
-                    inputs,
-                    Map.of(),
-                    InputType.INGEST,
-                    new ChunkingOptions(null, null),
-                    TimeValue.MAX_VALUE,
-                    completionListener
-                );
+                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
@@ -413,8 +403,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
-            int itemIndex = 0;
-            for (var item : bulkShardRequest.items()) {
+            for (int itemIndex = 0; itemIndex < bulkShardRequest.items().length; itemIndex++) {
+                var item = bulkShardRequest.items()[itemIndex];
                 if (item.getPrimaryResponse() != null) {
                     // item was already aborted/processed by a filter in the chain upstream (e.g. security)
                     continue;
@@ -441,6 +431,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     // ignore delete request
                     continue;
                 }
+
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
@@ -483,7 +474,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                     }
                 }
-                itemIndex++;
             }
             return fieldRequestsMap;
         }

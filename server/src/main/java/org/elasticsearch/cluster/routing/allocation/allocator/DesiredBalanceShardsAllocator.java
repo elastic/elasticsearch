@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -62,7 +64,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+    private final AtomicReference<DesiredBalance> currentDesiredBalanceRef = new AtomicReference<>(DesiredBalance.NOT_MASTER);
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
     private final DesiredBalanceMetrics desiredBalanceMetrics;
@@ -129,11 +131,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
 
+                final DesiredBalance initialDesiredBalance = getInitialDesiredBalance();
+                if (initialDesiredBalance == DesiredBalance.NOT_MASTER) {
+                    logger.debug("Abort desired balance computation because node is no longer master");
+                    return;
+                }
+
                 recordTime(
                     cumulativeComputationTime,
+                    // We set currentDesiredBalance back to INITIAL when the node stands down as master in onNoLongerMaster.
+                    // However, it is possible that we revert the effect here by setting it again since the computation is async
+                    // and does not check whether the node is master. This should have little to no practical impact. But it may
+                    // lead to unexpected behaviours for tests. See also https://github.com/elastic/elasticsearch/pull/116904
                     () -> setCurrentDesiredBalance(
                         desiredBalanceComputer.compute(
-                            getInitialDesiredBalance(),
+                            initialDesiredBalance,
                             desiredBalanceInput,
                             pendingDesiredBalanceMoves,
                             this::isFresh
@@ -142,7 +154,17 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 );
                 computationsExecuted.inc();
 
-                if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                final DesiredBalance currentDesiredBalance = currentDesiredBalanceRef.get();
+                if (currentDesiredBalance == DesiredBalance.NOT_MASTER || currentDesiredBalance == DesiredBalance.BECOME_MASTER_INITIAL) {
+                    logger.debug(
+                        () -> Strings.format(
+                            "Desired balance computation for [%s] is discarded since master has concurrently changed. "
+                                + "Current desiredBalance=[%s]",
+                            index,
+                            currentDesiredBalance
+                        )
+                    );
+                } else if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
                     logger.debug(
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index
@@ -160,10 +182,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             private DesiredBalance getInitialDesiredBalance() {
+                final DesiredBalance currentDesiredBalance = currentDesiredBalanceRef.get();
                 if (resetCurrentDesiredBalance) {
                     logger.info("Resetting current desired balance");
                     resetCurrentDesiredBalance = false;
-                    return new DesiredBalance(currentDesiredBalance.lastConvergedIndex(), Map.of());
+                    return currentDesiredBalance == DesiredBalance.NOT_MASTER
+                        ? DesiredBalance.NOT_MASTER
+                        : new DesiredBalance(currentDesiredBalance.lastConvergedIndex(), Map.of());
                 } else {
                     return currentDesiredBalance;
                 }
@@ -211,12 +236,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         var index = indexGenerator.incrementAndGet();
         logger.debug("Executing allocate for [{}]", index);
         queue.add(index, listener);
+        // This can only run on master, so unset not-master if exists
+        if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.BECOME_MASTER_INITIAL)) {
+            logger.debug("initialized desired balance for becoming master");
+        }
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
+        if (allocation.routingTable().indicesRouting().isEmpty()) {
+            logger.debug("No eager reconciliation needed for empty routing table");
+            return;
+        }
         // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
-        reconcile(currentDesiredBalance, allocation);
+        reconcile(currentDesiredBalanceRef.get(), allocation);
     }
 
     private void processNodeShutdowns(ClusterState clusterState) {
@@ -259,16 +292,26 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
-        if (logger.isTraceEnabled()) {
-            var diff = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance)
-                ? "Diff: " + DesiredBalance.humanReadableDiff(currentDesiredBalance, newDesiredBalance)
-                : "No changes";
-            logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
-        } else {
-            logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
+        while (true) {
+            final var oldDesiredBalance = currentDesiredBalanceRef.get();
+            if (oldDesiredBalance == DesiredBalance.NOT_MASTER) {
+                logger.debug("discard desired balance for [{}] since node is no longer master", newDesiredBalance.lastConvergedIndex());
+                return;
+            }
+
+            if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
+                if (logger.isTraceEnabled()) {
+                    var diff = DesiredBalance.hasChanges(oldDesiredBalance, newDesiredBalance)
+                        ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance, newDesiredBalance)
+                        : "No changes";
+                    logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
+                } else {
+                    logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
+                }
+                computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
+                break;
+            }
         }
-        computedShardMovements.inc(DesiredBalance.shardMovements(currentDesiredBalance, newDesiredBalance));
-        currentDesiredBalance = newDesiredBalance;
     }
 
     protected void submitReconcileTask(DesiredBalance desiredBalance) {
@@ -308,7 +351,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     public DesiredBalance getDesiredBalance() {
-        return currentDesiredBalance;
+        return currentDesiredBalanceRef.get();
     }
 
     public void resetDesiredBalance() {
@@ -317,7 +360,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     public DesiredBalanceStats getStats() {
         return new DesiredBalanceStats(
-            Math.max(currentDesiredBalance.lastConvergedIndex(), 0L),
+            Math.max(currentDesiredBalanceRef.get().lastConvergedIndex(), 0L),
             desiredBalanceComputation.isActive(),
             computationsSubmitted.count(),
             computationsExecuted.count(),
@@ -334,7 +377,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private void onNoLongerMaster() {
         if (indexGenerator.getAndSet(-1) != -1) {
-            currentDesiredBalance = DesiredBalance.INITIAL;
+            currentDesiredBalanceRef.set(DesiredBalance.NOT_MASTER);
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
@@ -404,7 +447,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     // only for tests - in production, this happens after reconciliation
     protected final void completeToLastConvergedIndex() {
-        queue.complete(currentDesiredBalance.lastConvergedIndex());
+        queue.complete(currentDesiredBalanceRef.get().lastConvergedIndex());
     }
 
     private void recordTime(CounterMetric metric, Runnable action) {

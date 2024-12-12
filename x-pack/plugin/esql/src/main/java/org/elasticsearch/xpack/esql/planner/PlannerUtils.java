@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,18 +26,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -44,10 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -83,29 +76,25 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static PhysicalPlan dataNodeReductionPlan(LogicalPlan plan, PhysicalPlan unused) {
-        var pipelineBreakers = plan.collectFirstChildren(Mapper::isPipelineBreaker);
-
-        if (pipelineBreakers.isEmpty() == false) {
-            UnaryPlan pipelineBreaker = (UnaryPlan) pipelineBreakers.get(0);
-            if (pipelineBreaker instanceof TopN) {
-                LocalMapper mapper = new LocalMapper();
-                var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
-                return physicalPlan.collectFirstChildren(TopNExec.class::isInstance).get(0);
-            } else if (pipelineBreaker instanceof Limit limit) {
-                return new LimitExec(limit.source(), unused, limit.limit());
-            } else if (pipelineBreaker instanceof OrderBy order) {
-                return new OrderExec(order.source(), unused, order.order());
-            } else if (pipelineBreaker instanceof Aggregate) {
-                LocalMapper mapper = new LocalMapper();
-                var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
-                var aggregate = (AggregateExec) physicalPlan.collectFirstChildren(AggregateExec.class::isInstance).get(0);
-                return aggregate.withMode(AggregatorMode.INITIAL);
-            } else {
-                throw new EsqlIllegalArgumentException("unsupported unary physical plan node [" + pipelineBreaker.nodeName() + "]");
-            }
+    public static PhysicalPlan reductionPlan(PhysicalPlan plan) {
+        // find the logical fragment
+        var fragments = plan.collectFirstChildren(p -> p instanceof FragmentExec);
+        if (fragments.isEmpty()) {
+            return null;
         }
-        return null;
+        final FragmentExec fragment = (FragmentExec) fragments.getFirst();
+
+        final var pipelineBreakers = fragment.fragment().collectFirstChildren(Mapper::isPipelineBreaker);
+        if (pipelineBreakers.isEmpty()) {
+            return null;
+        }
+        final var pipelineBreaker = pipelineBreakers.getFirst();
+        final LocalMapper mapper = new LocalMapper();
+        PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
+        if (reducePlan instanceof AggregateExec agg) {
+            reducePlan = agg.withMode(AggregatorMode.INITIAL); // force to emit intermediate outputs
+        }
+        return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
     }
 
     /**
@@ -130,10 +119,15 @@ public class PlannerUtils {
         var indices = new LinkedHashSet<String>();
         plan.forEachUp(
             FragmentExec.class,
-            f -> f.fragment()
-                .forEachUp(EsRelation.class, r -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(r.index().name()))))
+            f -> f.fragment().forEachUp(EsRelation.class, r -> addOriginalIndexIfNotLookup(indices, r.index()))
         );
         return indices.toArray(String[]::new);
+    }
+
+    private static void addOriginalIndexIfNotLookup(Set<String> indices, EsIndex index) {
+        if (index.indexNameWithModes().get(index.name()) != IndexMode.LOOKUP) {
+            indices.addAll(asList(Strings.commaDelimitedListToStringArray(index.name())));
+        }
     }
 
     public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {

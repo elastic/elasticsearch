@@ -1780,7 +1780,7 @@ public class MachineLearning extends Plugin
             ).addResultReader(InternalCategorizationAggregation::new)
                 .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
             new AggregationSpec(
-                new ParseField(FrequentItemSetsAggregationBuilder.NAME, FrequentItemSetsAggregationBuilder.DEPRECATED_NAME),
+                FrequentItemSetsAggregationBuilder.NAME,
                 FrequentItemSetsAggregationBuilder::new,
                 checkAggLicense(FrequentItemSetsAggregationBuilder.PARSER, FREQUENT_ITEM_SETS_AGG_FEATURE)
             ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())

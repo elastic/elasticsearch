@@ -318,7 +318,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             client,
             getRestoredIndexPrefix(mountSnapshotKey),
             storageType,
-            totalShardsPerNode
+            totalShardsPerNode,
+            0
         );
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
             waitForGreenRestoredIndexKey,

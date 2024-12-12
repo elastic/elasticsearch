@@ -43,7 +43,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String restoredIndexPrefix = randomAlphaOfLength(10);
         MountSearchableSnapshotRequest.Storage storage = randomStorageType();
         Integer totalShardsPerNode = randomTotalShardsPerNode(true);
-        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage, totalShardsPerNode);
+        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage, totalShardsPerNode, 0);
     }
 
     public static MountSearchableSnapshotRequest.Storage randomStorageType() {
@@ -62,7 +62,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             instance.getClient(),
             instance.getRestoredIndexPrefix(),
             instance.getStorage(),
-            instance.getTotalShardsPerNode()
+            instance.getTotalShardsPerNode(),
+            instance.getReplicas()
         );
     }
 
@@ -73,7 +74,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String restoredIndexPrefix = instance.getRestoredIndexPrefix();
         MountSearchableSnapshotRequest.Storage storage = instance.getStorage();
         Integer totalShardsPerNode = instance.getTotalShardsPerNode();
-        switch (between(0, 4)) {
+        int replicas = instance.getReplicas();
+        switch (between(0, 5)) {
             case 0:
                 key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
                 break;
@@ -95,10 +97,13 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             case 4:
                 totalShardsPerNode = totalShardsPerNode == null ? 1 : totalShardsPerNode + randomIntBetween(1, 100);
                 break;
+            case 5:
+                replicas = replicas == 0 ? 1 : 0; // swap between 0 and 1
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix, storage, totalShardsPerNode);
+        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix, storage, totalShardsPerNode, replicas);
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() throws Exception {
@@ -112,7 +117,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                invalidTotalShardsPerNode
+                invalidTotalShardsPerNode,
+                0
             )
         );
         assertEquals("[total_shards_per_node] must be >= 1", exception.getMessage());
@@ -197,7 +203,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 RESTORED_INDEX_PREFIX,
                 indexName,
                 new String[] { LifecycleSettings.LIFECYCLE_NAME },
-                null
+                null,
+                0
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 randomStepKey(),
@@ -205,7 +212,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                null
+                null,
+                0
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -241,7 +249,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     clientPropagatingOKResponse,
                     RESTORED_INDEX_PREFIX,
                     randomStorageType(),
-                    null
+                    null,
+                    0
                 );
                 performActionAndWait(step, indexMetadata, clusterState, null);
             }
@@ -257,7 +266,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     clientPropagatingACCEPTEDResponse,
                     RESTORED_INDEX_PREFIX,
                     randomStorageType(),
-                    null
+                    null,
+                    0
                 );
                 performActionAndWait(step, indexMetadata, clusterState, null);
             }
@@ -324,7 +334,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 RESTORED_INDEX_PREFIX,
                 indexNameSnippet,
                 new String[] { LifecycleSettings.LIFECYCLE_NAME },
-                null
+                null,
+                0
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 randomStepKey(),
@@ -332,7 +343,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                null
+                null,
+                0
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -369,7 +381,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 new String[] {
                     LifecycleSettings.LIFECYCLE_NAME,
                     ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() },
-                null
+                null,
+                0
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
@@ -377,7 +390,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                null
+                null,
+                0
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -404,6 +418,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .build();
 
         final Integer totalShardsPerNode = randomTotalShardsPerNode(false);
+        final int replicas = randomIntBetween(1, 5);
 
         try (var threadPool = createThreadPool()) {
             final var client = getRestoreSnapshotRequestAssertingClient(
@@ -414,7 +429,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 RESTORED_INDEX_PREFIX,
                 indexName,
                 new String[] { LifecycleSettings.LIFECYCLE_NAME },
-                totalShardsPerNode
+                totalShardsPerNode,
+                replicas
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
@@ -422,7 +438,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                totalShardsPerNode
+                totalShardsPerNode,
+                replicas
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -451,7 +468,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String restoredIndexPrefix,
         String expectedSnapshotIndexName,
         String[] expectedIgnoredIndexSettings,
-        @Nullable Integer totalShardsPerNode
+        @Nullable Integer totalShardsPerNode,
+        int replicas
     ) {
         return new NoOpClient(threadPool) {
             @Override
@@ -483,6 +501,18 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     assertThat(
                         mountSearchableSnapshotRequest.indexSettings()
                             .hasValue(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()),
+                        is(false)
+                    );
+                }
+
+                if (replicas > 0) {
+                    Integer numberOfReplicasSettingValue = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(
+                        mountSearchableSnapshotRequest.indexSettings()
+                    );
+                    assertThat(numberOfReplicasSettingValue, is(replicas));
+                } else {
+                    assertThat(
+                        mountSearchableSnapshotRequest.indexSettings().hasValue(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()),
                         is(false)
                     );
                 }

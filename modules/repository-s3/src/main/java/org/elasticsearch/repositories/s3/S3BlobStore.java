@@ -340,8 +340,7 @@ class S3BlobStore implements BlobStore {
         return new S3BlobContainer(path, this);
     }
 
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }

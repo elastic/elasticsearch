@@ -136,25 +136,28 @@ public class PluginsResolverTests extends ESTestCase {
         Path jar1 = createNonModularPluginJar(home, "plugin1", "p", "A");
         Path jar2 = createNonModularPluginJar(home, "plugin2", "q", "B");
 
-        var loader1 = createClassLoader(jar1);
-        var loader2 = createClassLoader(jar2);
+        try (var loader1 = createClassLoader(jar1); var loader2 = createClassLoader(jar2)) {
 
-        PluginBundle bundle1 = createMockBundle("plugin1", null, "p.A");
-        PluginBundle bundle2 = createMockBundle("plugin2", null, "q.B");
-        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
+            PluginBundle bundle1 = createMockBundle("plugin1", null, "p.A");
+            PluginBundle bundle2 = createMockBundle("plugin2", null, "q.B");
+            PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-        when(mockPluginsLoader.pluginLayers()).thenReturn(
-            Stream.of(new TestPluginLayer(bundle1, loader1, ModuleLayer.boot()), new TestPluginLayer(bundle2, loader2, ModuleLayer.boot()))
-        );
-        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+            when(mockPluginsLoader.pluginLayers()).thenReturn(
+                Stream.of(
+                    new TestPluginLayer(bundle1, loader1, ModuleLayer.boot()),
+                    new TestPluginLayer(bundle2, loader2, ModuleLayer.boot())
+                )
+            );
+            PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
 
-        var testClass1 = loader1.loadClass("p.A");
-        var testClass2 = loader2.loadClass("q.B");
-        var resolvedPluginName1 = pluginsResolver.resolveClassToPluginName(testClass1);
-        var resolvedPluginName2 = pluginsResolver.resolveClassToPluginName(testClass2);
+            var testClass1 = loader1.loadClass("p.A");
+            var testClass2 = loader2.loadClass("q.B");
+            var resolvedPluginName1 = pluginsResolver.resolveClassToPluginName(testClass1);
+            var resolvedPluginName2 = pluginsResolver.resolveClassToPluginName(testClass2);
 
-        assertEquals("plugin1", resolvedPluginName1);
-        assertEquals("plugin2", resolvedPluginName2);
+            assertEquals("plugin1", resolvedPluginName1);
+            assertEquals("plugin2", resolvedPluginName2);
+        }
     }
 
     public void testResolveNonModularPlugin() throws IOException, ClassNotFoundException {
@@ -164,22 +167,22 @@ public class PluginsResolverTests extends ESTestCase {
 
         Path jar = createNonModularPluginJar(home, pluginName, "p", "A");
 
-        var loader = createClassLoader(jar);
+        try (var loader = createClassLoader(jar)) {
+            PluginBundle bundle = createMockBundle(pluginName, null, "p.A");
+            PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
 
-        PluginBundle bundle = createMockBundle(pluginName, null, "p.A");
-        PluginsLoader mockPluginsLoader = mock(PluginsLoader.class);
+            when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot())));
+            PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
 
-        when(mockPluginsLoader.pluginLayers()).thenReturn(Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot())));
-        PluginsResolver pluginsResolver = PluginsResolver.create(mockPluginsLoader);
+            var testClass = loader.loadClass("p.A");
+            var resolvedPluginName = pluginsResolver.resolveClassToPluginName(testClass);
+            var unresolvedPluginName1 = pluginsResolver.resolveClassToPluginName(PluginsResolver.class);
+            var unresolvedPluginName2 = pluginsResolver.resolveClassToPluginName(String.class);
 
-        var testClass = loader.loadClass("p.A");
-        var resolvedPluginName = pluginsResolver.resolveClassToPluginName(testClass);
-        var unresolvedPluginName1 = pluginsResolver.resolveClassToPluginName(PluginsResolver.class);
-        var unresolvedPluginName2 = pluginsResolver.resolveClassToPluginName(String.class);
-
-        assertEquals(pluginName, resolvedPluginName);
-        assertNull(unresolvedPluginName1);
-        assertNull(unresolvedPluginName2);
+            assertEquals(pluginName, resolvedPluginName);
+            assertNull(unresolvedPluginName1);
+            assertNull(unresolvedPluginName2);
+        }
     }
 
     private static URLClassLoader createClassLoader(Path jar) throws MalformedURLException {

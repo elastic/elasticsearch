@@ -156,12 +156,12 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     File internalBuild(
             List<String> extraPlugins = [],
-            String bugfix = "7.15.2",
-            String bugfixLucene = "8.9.0",
-            String staged = "7.16.0",
-            String stagedLucene = "8.10.0",
-            String minor = "8.0.0",
-            String minorLucene = "9.0.0"
+            String maintenance = "7.16.10",
+            String bugfix2 = "8.1.3",
+            String bugfix = "8.2.1",
+            String staged = "8.3.0",
+            String minor = "8.4.0",
+            String current = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
@@ -172,15 +172,17 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
-        Version currentVersion = Version.fromString("8.1.0")
+        Version currentVersion = Version.fromString("${current}")
         def versionList = [
+          Version.fromString("$maintenance"),
+          Version.fromString("$bugfix2"),
           Version.fromString("$bugfix"),
           Version.fromString("$staged"),
           Version.fromString("$minor"),
           currentVersion
         ]
 
-        BwcVersions versions = new BwcVersions(currentVersion, versionList)
+        BwcVersions versions = new BwcVersions(currentVersion, versionList, ['main', '8.x', '8.3', '8.2', '8.1', '7.16'])
         buildParams.getBwcVersionsProperty().set(versions)
         """
     }

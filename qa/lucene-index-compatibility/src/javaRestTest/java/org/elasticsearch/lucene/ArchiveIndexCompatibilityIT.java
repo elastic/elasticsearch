@@ -13,14 +13,20 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
@@ -35,49 +41,61 @@ public class ArchiveIndexCompatibilityIT extends AbstractLuceneIndexCompatibilit
         super(version);
     }
 
-    public void testRestoreIndex() throws Exception {
-        final String repository = suffix("repository");
-        final String snapshot = suffix("snapshot");
-        final String index = suffix("index");
-        int numDocs = randomIntBetween(1, 10);
+    public void testArchiveIndicesV5() throws Exception {
+        verifyArchiveIndexCompatibility("5");
+    }
 
-        logger.debug("--> registering repository [{}]", repository);
-        registerRepository(
-            client(),
-            repository,
-            FsRepository.TYPE,
-            true,
-            Settings.builder().put("location", REPOSITORY_PATH.getRoot().getPath()).build()
-        );
+    public void verifyArchiveIndexCompatibility(String version) throws Exception {
+        final String repository = "repository";
+        final String snapshot = "snapshot";
+        final String index = "index";
 
-        if (VERSION_MINUS_2.equals(clusterVersion())) {
-            createIndex(
-                client(),
-                index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
-            );
-            addDocuments(client(), index, numDocs);
-            createSnapshot(client(), repository, snapshot, true);
-            deleteIndex(index);
-            return;
-        }
+        String repositoryPath = REPOSITORY_PATH.getRoot().getPath();
 
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             assertTrue(getIndices(client()).isEmpty());
+
+            Path resourceFolder = Paths.get(
+                Objects.requireNonNull(getClass().getClassLoader().getResource("snapshot_v" + version)).toURI()
+            );
+            copyFolder(resourceFolder, Paths.get(repositoryPath));
+
+            registerRepository(
+                client(),
+                repository,
+                FsRepository.TYPE,
+                true,
+                Settings.builder().put("location", repositoryPath).build()
+            );
+
             restoreSnapshot(client(), repository, snapshot, index);
             assertTrue(getIndices(client()).contains(index));
+
             return;
         }
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
-            ensureGreen(index);
             assertTrue(getIndices(client()).contains(index));
-            assertDocCount(client(), index, numDocs);
         }
+    }
+
+    private void copyFolder(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path targetDir = target.resolve(source.relativize(dir));
+                if (Files.exists(targetDir) == false) {
+                    Files.createDirectory(targetDir);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     private void addDocuments(RestClient client, String index, int numDocs) throws Exception {

@@ -365,7 +365,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
-        for (IndexMetadata idxMetadata : metadata) {
+          for (IndexMetadata idxMetadata : metadata) {
             if (idxMetadata.getCompatibilityVersion().after(maxSupportedVersion)) {
                 throw new IllegalStateException(
                     "index "
@@ -376,14 +376,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         + maxSupportedVersion.toReleaseVersion()
                 );
             }
-            if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
+            if (idxMetadata.getCompatibilityVersion().before(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
                         + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " minimum compatible index version is: "
-                        + minSupportedVersion.toReleaseVersion()
+                        + IndexVersions.MINIMUM_READONLY_COMPATIBLE.toReleaseVersion()
                 );
             }
         }

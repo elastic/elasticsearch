@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -80,7 +81,7 @@ public class MetadataDataStreamsService {
             ) {
                 return new Tuple<>(
                     setRolloverOnWrite(
-                        clusterState,
+                        clusterState.projectState(),
                         setRolloverOnWriteTask.getDataStreamName(),
                         setRolloverOnWriteTask.rolloverOnWrite(),
                         setRolloverOnWriteTask.targetFailureStore()
@@ -265,7 +266,7 @@ public class MetadataDataStreamsService {
         Metadata.Builder builder = Metadata.builder(metadata);
         boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata, dataStreamName);
+            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
             onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
         }
@@ -288,7 +289,7 @@ public class MetadataDataStreamsService {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata, dataStreamName);
+            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
@@ -298,29 +299,31 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data stream has the flag {@link DataStream#rolloverOnWrite()}
      * set to the value of the parameter rolloverOnWrite
      *
-     * @param currentState the initial cluster state
+     * @param currentState the initial project state
      * @param dataStreamName the name of the data stream to be updated
      * @param rolloverOnWrite the value of the flag
      * @param targetFailureStore whether this rollover targets the failure store or the backing indices
      * @return the updated cluster state
      */
     public static ClusterState setRolloverOnWrite(
-        ClusterState currentState,
+        ProjectState currentState,
         String dataStreamName,
         boolean rolloverOnWrite,
         boolean targetFailureStore
     ) {
-        Metadata metadata = currentState.metadata();
+        var metadata = currentState.metadata();
         var dataStream = validateDataStream(metadata, dataStreamName);
         var indices = dataStream.getDataStreamIndices(targetFailureStore);
         if (indices.isRolloverOnWrite() == rolloverOnWrite) {
-            return currentState;
+            return currentState.cluster();
         }
-        Metadata.Builder builder = Metadata.builder(metadata);
-        builder.put(
-            dataStream.copy().setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build()).build()
+        return currentState.updatedState(
+            builder -> builder.put(
+                dataStream.copy()
+                    .setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build())
+                    .build()
+            )
         );
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 
     private static void addBackingIndex(
@@ -332,7 +335,7 @@ public class MetadataDataStreamsService {
         boolean failureStore,
         Settings nodeSettings
     ) {
-        var dataStream = validateDataStream(metadata, dataStreamName);
+        var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
         var index = validateIndex(metadata, indexName);
 
         try {
@@ -365,7 +368,7 @@ public class MetadataDataStreamsService {
         boolean failureStore
     ) {
         boolean indexNotRemoved = true;
-        DataStream dataStream = validateDataStream(metadata, dataStreamName);
+        DataStream dataStream = validateDataStream(metadata.getProject(), dataStreamName);
         List<Index> targetIndices = failureStore ? dataStream.getFailureIndices().getIndices() : dataStream.getIndices();
         for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
@@ -394,8 +397,8 @@ public class MetadataDataStreamsService {
         }
     }
 
-    private static DataStream validateDataStream(Metadata metadata, String dataStreamName) {
-        IndexAbstraction dataStream = metadata.getProject().getIndicesLookup().get(dataStreamName);
+    private static DataStream validateDataStream(ProjectMetadata project, String dataStreamName) {
+        IndexAbstraction dataStream = project.getIndicesLookup().get(dataStreamName);
         if (dataStream == null || dataStream.getType() != IndexAbstraction.Type.DATA_STREAM) {
             throw new IllegalArgumentException("data stream [" + dataStreamName + "] not found");
         }

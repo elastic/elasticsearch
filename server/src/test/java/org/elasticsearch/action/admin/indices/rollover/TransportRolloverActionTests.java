@@ -28,11 +28,12 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -372,8 +373,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(indexMetadata2))
             .build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
@@ -384,6 +386,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -435,8 +438,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         doAnswer(invocation -> {
@@ -454,6 +458,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -492,8 +497,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
@@ -501,6 +507,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -556,15 +563,17 @@ public class TransportRolloverActionTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
-        Metadata.Builder metadataBuilder = Metadata.builder().put(backingIndexMetadata, false).put(dataStream);
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId).put(backingIndexMetadata, false).put(dataStream);
         metadataBuilder.put("ds-alias", dataStream.getName(), true, null);
-        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(metadataBuilder).build();
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,

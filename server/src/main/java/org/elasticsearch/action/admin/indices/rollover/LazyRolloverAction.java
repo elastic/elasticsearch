@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -77,6 +78,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             MetadataRolloverService rolloverService,
             AllocationService allocationService,
@@ -90,6 +92,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 clusterService,
                 threadPool,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 rolloverService,
                 client,
@@ -128,7 +131,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             }
             // We evaluate the names of the source index as well as what our newly created index would be.
             final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
-                clusterState,
+                clusterState.metadata().getProject(),
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
@@ -241,7 +244,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
             // Perform the actual rollover
             final var rolloverResult = rolloverService.rolloverClusterState(
-                currentState,
+                currentState.projectState(),
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),

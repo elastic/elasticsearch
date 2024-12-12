@@ -131,10 +131,10 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         assertThat(informationContextHolder[0], notNullValue());
         assertThat(exceptionHolder[0], nullValue());
         WaitForFollowShardTasksStep.Info info = (WaitForFollowShardTasksStep.Info) informationContextHolder[0];
-        assertThat(info.getShardFollowTaskInfos().size(), equalTo(1));
-        assertThat(info.getShardFollowTaskInfos().get(0).getShardId(), equalTo(1));
-        assertThat(info.getShardFollowTaskInfos().get(0).getLeaderGlobalCheckpoint(), equalTo(8L));
-        assertThat(info.getShardFollowTaskInfos().get(0).getFollowerGlobalCheckpoint(), equalTo(3L));
+        assertThat(info.shardFollowTaskInfos().size(), equalTo(1));
+        assertThat(info.shardFollowTaskInfos().get(0).shardId(), equalTo(1));
+        assertThat(info.shardFollowTaskInfos().get(0).leaderGlobalCheckpoint(), equalTo(8L));
+        assertThat(info.shardFollowTaskInfos().get(0).followerGlobalCheckpoint(), equalTo(3L));
     }
 
     public void testConditionNotMetNotAFollowerIndex() {

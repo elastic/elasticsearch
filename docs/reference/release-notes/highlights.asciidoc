@@ -1,12 +1,20 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
-
 Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
+
+[discrete]
+[[logsdb-index-mode-generally-available]]
+=== `logsdb` index mode is now generally available
+
+The `logsdb` index mode has been GA-ed. This feature allows Elasticsearch to store logs more efficiently.
+
+`logsdb` index mode allows to reduce storage usage up to ~3 times compared to storing logs in Elasticsearch using the default index mode.
+Refer to the <<logs-data-stream,documentation>> for further information.
+
 
 // Add previous release to the list
 Other versions:

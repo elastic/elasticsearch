@@ -23,6 +23,7 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -43,6 +44,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
 
     private final BiConsumer<String, String> newCredentialsConsumer;
+    private final Map<String, String> instanceAddresses;
     private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
     private final Supplier<String> availabilityZoneSupplier;
 
@@ -50,10 +52,12 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
         Ec2ImdsVersion ec2ImdsVersion,
         BiConsumer<String, String> newCredentialsConsumer,
         Collection<String> alternativeCredentialsEndpoints,
-        Supplier<String> availabilityZoneSupplier
+        Supplier<String> availabilityZoneSupplier,
+        Map<String, String> instanceAddresses
     ) {
         this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
+        this.instanceAddresses = instanceAddresses;
         this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
         this.availabilityZoneSupplier = availabilityZoneSupplier;
     }
@@ -97,17 +101,11 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                 if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH)) {
                     final var profileName = randomIdentifier();
                     validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
-                    final byte[] response = profileName.getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "text/plain");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    sendStringResponse(exchange, profileName);
                     return;
                 } else if (path.equals("/latest/meta-data/placement/availability-zone")) {
                     final var availabilityZone = availabilityZoneSupplier.get();
-                    final byte[] response = availabilityZone.getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "text/plain");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    sendStringResponse(exchange, availabilityZone);
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
                     final String accessKey = randomIdentifier();
@@ -132,10 +130,20 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                     return;
+                } else if (instanceAddresses.get(path) instanceof String instanceAddress) {
+                    sendStringResponse(exchange, instanceAddress);
+                    return;
                 }
             }
 
             ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("not supported: " + requestMethod + " " + path));
         }
+    }
+
+    private void sendStringResponse(HttpExchange exchange, String value) throws IOException {
+        final byte[] response = value.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "text/plain");
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+        exchange.getResponseBody().write(response);
     }
 }

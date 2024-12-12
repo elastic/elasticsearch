@@ -93,11 +93,6 @@ public class Match extends FullTextFunction implements Validatable {
         VERSION
     );
 
-    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
-        super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
-        this.field = field;
-    }
-
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -119,6 +114,11 @@ public class Match extends FullTextFunction implements Validatable {
         ) Expression matchQuery
     ) {
         this(source, field, matchQuery, null);
+    }
+
+    private Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
+        this.field = field;
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
@@ -260,9 +260,8 @@ public class Match extends FullTextFunction implements Validatable {
         return isOperator() ? "operator" : super.functionType();
     }
 
-    @SuppressWarnings("rawtypes")
     @Override
-    protected ExpressionTranslator translator() {
+    protected ExpressionTranslator<Match> translator() {
         return new EsqlExpressionTranslators.MatchFunctionTranslator();
     }
 

@@ -140,13 +140,13 @@ public abstract class FullTextFunction extends Function implements TranslationAw
         return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
     }
 
-    @SuppressWarnings("rawtypes")
+    @Override
     public Query asQuery(TranslatorHandler translatorHandler) {
         if (queryBuilder != null) {
             return new TranslationAwareExpressionQuery(source(), queryBuilder);
         }
 
-        ExpressionTranslator translator = translator();
+        ExpressionTranslator<? extends FullTextFunction> translator = translator();
         return translator.translate(this, translatorHandler);
     }
 
@@ -155,7 +155,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
     }
 
     @SuppressWarnings("rawtypes")
-    protected abstract ExpressionTranslator translator();
+    protected abstract ExpressionTranslator<? extends FullTextFunction> translator();
 
     public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 }

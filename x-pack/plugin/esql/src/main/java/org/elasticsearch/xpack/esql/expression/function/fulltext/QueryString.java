@@ -37,10 +37,6 @@ public class QueryString extends FullTextFunction {
         QueryString::readFrom
     );
 
-    public QueryString(Source source, Expression queryString, QueryBuilder queryBuilder) {
-        super(source, queryString, List.of(queryString), queryBuilder);
-    }
-
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -57,6 +53,10 @@ public class QueryString extends FullTextFunction {
         ) Expression queryString
     ) {
         super(source, queryString, List.of(queryString), null);
+    }
+
+    private QueryString(Source source, Expression queryString, QueryBuilder queryBuilder) {
+        super(source, queryString, List.of(queryString), queryBuilder);
     }
 
     private static QueryString readFrom(StreamInput in) throws IOException {
@@ -98,9 +98,8 @@ public class QueryString extends FullTextFunction {
         return NodeInfo.create(this, QueryString::new, query(), queryBuilder());
     }
 
-    @SuppressWarnings("rawtypes")
     @Override
-    protected ExpressionTranslator translator() {
+    protected ExpressionTranslator<QueryString> translator() {
         return new EsqlExpressionTranslators.QueryStringFunctionTranslator();
     }
 

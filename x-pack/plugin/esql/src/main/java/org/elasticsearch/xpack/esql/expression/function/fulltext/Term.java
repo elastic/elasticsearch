@@ -45,11 +45,6 @@ public class Term extends FullTextFunction implements Validatable {
 
     private final Expression field;
 
-    public Term(Source source, Expression field, Expression termQuery, QueryBuilder queryBuilder) {
-        super(source, termQuery, List.of(field, termQuery), queryBuilder);
-        this.field = field;
-    }
-
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -66,6 +61,11 @@ public class Term extends FullTextFunction implements Validatable {
         ) Expression termQuery
     ) {
         this(source, field, termQuery, null);
+    }
+
+    private Term(Source source, Expression field, Expression termQuery, QueryBuilder queryBuilder) {
+        super(source, termQuery, List.of(field, termQuery), queryBuilder);
+        this.field = field;
     }
 
     private static Term readFrom(StreamInput in) throws IOException {
@@ -128,9 +128,8 @@ public class Term extends FullTextFunction implements Validatable {
         return SECOND;
     }
 
-    @SuppressWarnings("rawtypes")
     @Override
-    protected ExpressionTranslator translator() {
+    protected ExpressionTranslator<Term> translator() {
         return new EsqlExpressionTranslators.TermFunctionTranslator();
     }
 

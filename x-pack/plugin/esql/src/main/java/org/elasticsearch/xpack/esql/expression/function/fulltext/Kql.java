@@ -32,10 +32,6 @@ import java.util.List;
 public class Kql extends FullTextFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);
 
-    public Kql(Source source, Expression queryString, QueryBuilder queryBuilder) {
-        super(source, queryString, List.of(queryString), queryBuilder);
-    }
-
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -51,6 +47,10 @@ public class Kql extends FullTextFunction {
         ) Expression queryString
     ) {
         super(source, queryString, List.of(queryString), null);
+    }
+
+    private Kql(Source source, Expression queryString, QueryBuilder queryBuilder) {
+        super(source, queryString, List.of(queryString), queryBuilder);
     }
 
     private static Kql readFrom(StreamInput in) throws IOException {
@@ -87,9 +87,8 @@ public class Kql extends FullTextFunction {
         return NodeInfo.create(this, Kql::new, query(), queryBuilder());
     }
 
-    @SuppressWarnings("rawtypes")
     @Override
-    protected ExpressionTranslator translator() {
+    protected ExpressionTranslator<Kql> translator() {
         return new EsqlExpressionTranslators.KqlFunctionTranslator();
     }
 

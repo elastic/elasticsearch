@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.profiling.ProfilingPlugin;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.search.AsyncSearch;
@@ -89,7 +88,6 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
                 FrozenIndices.class,
                 Graph.class,
                 IndexLifecycle.class,
-                InferencePlugin.class,
                 IngestCommonPlugin.class,
                 IngestTestPlugin.class,
                 MustachePlugin.class,

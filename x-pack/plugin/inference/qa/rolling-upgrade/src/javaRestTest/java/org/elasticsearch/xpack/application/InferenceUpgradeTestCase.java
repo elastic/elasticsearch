@@ -112,13 +112,10 @@ public class InferenceUpgradeTestCase extends AbstractRollingUpgradeTestCase {
     @SuppressWarnings("unchecked")
     // in version 8.15, there was a breaking change where "models" was renamed to "endpoints"
     LinkedList<Map<String, Object>> getConfigsWithBreakingChangeHandling(TaskType testTaskType, String oldClusterId) throws IOException {
-
+        var response = get(testTaskType, oldClusterId);
         LinkedList<Map<String, Object>> configs;
-        configs = new LinkedList<>(
-            (List<Map<String, Object>>) Objects.requireNonNullElse((get(testTaskType, oldClusterId).get("endpoints")), List.of())
-        );
-        configs.addAll(Objects.requireNonNullElse((List<Map<String, Object>>) get(testTaskType, oldClusterId).get("models"), List.of()));
-
+        configs = new LinkedList<>((List<Map<String, Object>>) response.getOrDefault("endpoints", List.of()));
+        configs.addAll((List<Map<String, Object>>) response.getOrDefault("models", List.of()));
         return configs;
     }
 }

@@ -26,15 +26,7 @@ public interface BuildParameterExtension {
 
     boolean getInFipsJvm();
 
-<<<<<<< HEAD
-    // This is a workaround for https://github.com/gradle/gradle/issues/25550
-    private <T> Provider<T> cache(ProviderFactory providerFactory, Provider<T> incomingProvider) {
-        SingleObjectCache<T> cache = new SingleObjectCache<>();
-        return providerFactory.provider(() -> cache.computeIfAbsent(() -> incomingProvider.getOrNull()));
-    }
-=======
     Provider<File> getRuntimeJavaHome();
->>>>>>> bcdddaba338 (Extract BuildParameterExtension public api into interface)
 
     void withFipsEnabledOnly(Task task);
 

@@ -230,8 +230,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             skipGeneratingSnapshotKey,
-            Instant::now,
-            client
+            Instant::now
         );
 
         // When generating a snapshot, we either jump to the force merge step, or we skip the

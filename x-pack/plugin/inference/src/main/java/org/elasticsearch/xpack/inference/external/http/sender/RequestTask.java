@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -64,7 +66,10 @@ class RequestTask implements RejectableTask {
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
             (ignored) -> notificationListener.onFailure(
-                new ElasticsearchTimeoutException(Strings.format("Request timed out waiting to be sent after [%s]", timeout))
+                new ElasticsearchStatusException(
+                    Strings.format("Request timed out waiting to be sent after [%s]", timeout),
+                    RestStatus.REQUEST_TIMEOUT
+                )
             )
         );
     }

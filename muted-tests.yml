@@ -52,12 +52,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/113325
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testFieldMappings
-  issue: https://github.com/elastic/elasticsearch/issues/113592
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testSearchAndMSearch
-  issue: https://github.com/elastic/elasticsearch/issues/113593
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
@@ -180,6 +174,12 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: "org.elasticsearch.xpack.esql.qa.mixed.MultilusterEsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/118460
+- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/118460
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {scoring.QstrWithFieldAndScoringSortedEval}
   issue: https://github.com/elastic/elasticsearch/issues/117751
@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
-- class: org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT
-  method: testTopNThenEnrichRemote
-  issue: https://github.com/elastic/elasticsearch/issues/118307
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/118350
@@ -302,6 +299,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/118517
 
 # Examples:
 #

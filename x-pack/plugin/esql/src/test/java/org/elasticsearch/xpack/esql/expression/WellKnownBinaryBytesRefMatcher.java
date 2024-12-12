@@ -15,6 +15,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+/** A wrapper for matching geometries encoded as WKB in a BytesRef. */
 public class WellKnownBinaryBytesRefMatcher<G extends Geometry> extends TypeSafeMatcher<BytesRef> {
     private final Matcher<G> matcher;
 

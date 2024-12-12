@@ -13,6 +13,10 @@ import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.hamcrest.TypeSafeMatcher;
 
+/**
+ * Example usage: <code>assertThat(actualRectangle, RectangleMatcher.closeTo(expectedRectangle, 0.0001, PointType.CARTESIAN));</code>, or it
+ * can be used as a parameter to {@link WellKnownBinaryBytesRefMatcher}.
+ */
 public class RectangleMatcher extends TypeSafeMatcher<Rectangle> {
     private final Rectangle r;
     private final PointType pointType;

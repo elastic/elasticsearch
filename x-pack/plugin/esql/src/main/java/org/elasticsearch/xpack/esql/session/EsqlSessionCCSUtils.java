@@ -9,18 +9,26 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -262,6 +270,9 @@ public class EsqlSessionCCSUtils {
     }
 
     private static boolean concreteIndexRequested(String indexExpression) {
+        if (Strings.isNullOrBlank(indexExpression)) {
+            return false;
+        }
         for (String expr : indexExpression.split(",")) {
             if (expr.charAt(0) == '<' || expr.startsWith("-<")) {
                 // skip date math expressions
@@ -291,6 +302,39 @@ public class EsqlSessionCCSUtils {
                             .setFailedShards(0)
                             .build()
                     );
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks the index expression for the presence of remote clusters. If found, it will ensure that the caller
+     * has a valid Enterprise (or Trial) license on the querying cluster.
+     * @param indices index expression requested by user
+     * @param indicesGrouper grouper of index expressions by cluster alias
+     * @param licenseState license state on the querying cluster
+     * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
+     */
+    public static void checkForCcsLicense(
+        List<TableInfo> indices,
+        IndicesExpressionGrouper indicesGrouper,
+        XPackLicenseState licenseState
+    ) {
+        for (TableInfo tableInfo : indices) {
+            Map<String, OriginalIndices> groupedIndices;
+            try {
+                groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().index());
+            } catch (NoSuchRemoteClusterException e) {
+                if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
+                    throw e;
+                } else {
+                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+                }
+            }
+            // check if it is a cross-cluster query
+            if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }
             }
         }

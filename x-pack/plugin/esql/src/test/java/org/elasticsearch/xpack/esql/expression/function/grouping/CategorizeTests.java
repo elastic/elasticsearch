@@ -58,4 +58,9 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new Categorize(source, args.get(0));
     }
+
+    @Override
+    public void testFold() {
+        // Cannot be folded
+    }
 }

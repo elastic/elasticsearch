@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -258,6 +257,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING,
         RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS,
         RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE,
+        RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
@@ -483,7 +483,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
         ClusterName.CLUSTER_NAME_SETTING,
-        Client.CLIENT_TYPE_SETTING_S,
         ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
         EsExecutors.NODE_PROCESSORS_SETTING,
         ThreadContext.DEFAULT_HEADERS_SETTING,

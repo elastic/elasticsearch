@@ -34,7 +34,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -75,13 +74,13 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER_1, randomBoolean());
+        return Map.of(REMOTE_CLUSTER_1, randomBoolean(), REMOTE_CLUSTER_2, randomBoolean());
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(EsqlNodeFailureIT.FailingFieldPlugin.class);
         return plugins;
@@ -187,7 +186,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testSearchesAgainstNonMatchingIndicesWithLocalOnly() {
-        Map<String, Object> testClusterInfo = setupClusters(2);
+        Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
 
         {
@@ -929,7 +928,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         // cluster-foo* matches nothing and so should not be present in the EsqlExecutionInfo
         try (
             EsqlQueryResponse resp = runQuery(
-                "from logs-*,no_such_index*,cluster-a:no_such_index*,cluster-foo*:* | stats sum (v)",
+                "FROM logs-*,no_such_index*,cluster-a:no_such_index*,cluster-foo*:* | STATS sum (v)",
                 requestIncludeMeta
             )
         ) {
@@ -1033,7 +1032,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
         try (
             EsqlQueryResponse resp = runQuery(
-                "FROM logs*,*:logs* METADATA _index | stats sum(v) by _index | sort _index",
+                Strings.format("FROM logs*,%s:logs* METADATA _index | stats sum(v) by _index | sort _index", REMOTE_CLUSTER_1),
                 requestIncludeMeta
             )
         ) {
@@ -1115,7 +1114,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         final int remoteOnlyProfiles;
         {
             EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query("FROM *:logs* | stats sum(v)");
+            request.query("FROM c*:logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
             try (EsqlQueryResponse resp = runQuery(request)) {
@@ -1148,7 +1147,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         final int allProfiles;
         {
             EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query("FROM logs*,*:logs* | stats total = sum(v)");
+            request.query("FROM logs*,c*:logs* | stats total = sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
             try (EsqlQueryResponse resp = runQuery(request)) {
@@ -1193,7 +1192,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM logs*,*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
+        request.query("FROM logs*,c*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
         InternalTestCluster cluster = cluster(LOCAL_CLUSTER);
         String node = randomFrom(cluster.getNodeNames());
         CountDownLatch latch = new CountDownLatch(1);

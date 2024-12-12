@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -75,7 +74,6 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         return Arrays.asList(
             MockTransportService.TestPlugin.class,
             MockFSIndexStore.TestPlugin.class,
-            RecoverySettingsChunkSizePlugin.class,
             InternalSettingsPlugin.class,
             MockEngineFactoryPlugin.class
         );

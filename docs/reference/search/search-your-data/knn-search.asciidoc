@@ -1090,19 +1090,7 @@ Generally, we have found that:
 * `int4` requires some rescoring for higher accuracy and larger recall scenarios. Generally, oversampling by 1.5x-2x recovers most of the accuracy loss.
 * `bbq` requires rescoring except on exceptionally large indices or models specifically designed for quantization. We have found that between 3x-5x oversampling is generally sufficient. But for fewer dimensions or vectors that do not quantize well, higher oversampling may be required.
 
-There are three main ways to oversample and rescore:
-
-* <<dense-vector-knn-search-reranking-rescore-parameter>>
-* <<dense-vector-knn-search-reranking-rescore-section>>
-* <<dense-vector-knn-search-reranking-script-score>>
-
-[discrete]
-[[dense-vector-knn-search-reranking-rescore-parameter]]
-===== Use the `rescore_vector` option to rescore per shard
-
-preview:[]
-
-You can use the `rescore_vector` option to automatically perform reranking.
+You can use the `rescore_vector` preview:[] option to automatically perform reranking.
 When a rescore `num_candidates_factor` parameter is specified, the approximate kNN search will retrieve the top `num_candidates * oversample` candidates per shard.
 It will then use the original vectors to rescore them, and return the top `k` results.
 
@@ -1134,12 +1122,19 @@ This example will:
 * Rescore the top 200 candidates per shard using the original, non quantized vectors.
 * Merge the rescored canddidates from all shards, and return the top 10 (`k`) results.
 
+[discrete]
+[[dense-vector-knn-search-reranking-rescore-additional]]
+===== Additional rescoring techniques
+
+The following sections provide additional ways of rescoring:
 
 [discrete]
 [[dense-vector-knn-search-reranking-rescore-section]]
-===== Use the `rescore_vector` section for top-level kNN search
+====== Use the `rescore_vector` section for top-level kNN search
 
-You can use the <<rescore, rescore section>> in the `_search` request to rescore the top results from a kNN search.
+You can use this option when you don't want to rescore on each shard, but on the top results from all shards.
+
+Use the <<rescore, rescore section>> in the `_search` request to rescore the top results from a kNN search.
 
 Here is an example using the top level `knn` search with oversampling and using `rescore` to rerank the results:
 
@@ -1191,9 +1186,12 @@ gathering 20 nearest neighbors according to quantized scoring and rescoring with
 
 [discrete]
 [[dense-vector-knn-search-reranking-script-score]]
-===== Use a `script_score` query to rescore per shard
+====== Use a `script_score` query to rescore per shard
 
-You can rescore per shard with the <<query-dsl-knn-query, knn query>> and <<query-dsl-script-score-query, script_score query >>.
+You can use this option when you want to rescore on each shard and want more fine-grained control on the rescoring
+than the `rescore_vector` option provides.
+
+Use rescore per shard with the <<query-dsl-knn-query, knn query>> and <<query-dsl-script-score-query, script_score query >>.
 Generally, this means that there will be more rescoring per shard, but this can increase overall recall at the cost of compute.
 
 [source,console]

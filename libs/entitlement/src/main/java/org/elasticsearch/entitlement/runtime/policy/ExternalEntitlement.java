@@ -40,5 +40,5 @@ public @interface ExternalEntitlement {
      * Using an entitlement that is not {@code pluginsAccessible} in an external
      * plugin policy will throw in exception while parsing.
      */
-    boolean modulesOnly() default true;
+    boolean esModulesOnly() default true;
 }

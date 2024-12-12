@@ -127,7 +127,7 @@ public class PolicyParser {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
 
-        if (entitlementMetadata.modulesOnly() && isExternalPlugin) {
+        if (entitlementMetadata.esModulesOnly() && isExternalPlugin) {
             throw newPolicyParserException("entitlement type [" + entitlementType + "] is allowed only on modules");
         }
 

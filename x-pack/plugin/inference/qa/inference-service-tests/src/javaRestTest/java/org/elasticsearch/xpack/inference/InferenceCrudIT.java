@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -49,7 +50,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = 11;
+        int numModels = 12;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -471,7 +472,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
             var expectedResponses = Stream.concat(
-                input.stream().map(String::toUpperCase).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
+                input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
                 Stream.of("[DONE]")
             ).iterator();
             assertThat(events.size(), equalTo((input.size() + 1) * 2));
@@ -510,7 +511,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     private static Iterator<String> expectedResultsIterator(List<String> input) {
-        return Stream.concat(input.stream().map(String::toUpperCase).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]")).iterator();
+        // The Locale needs to be ROOT to match what the test service is going to respond with
+        return Stream.concat(input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]"))
+            .iterator();
     }
 
     private static String expectedResult(String input) {
@@ -537,7 +540,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testGetZeroModels() throws IOException {
-        var models = getModels("_all", TaskType.RERANK);
+        var models = getModels("_all", TaskType.COMPLETION);
         assertThat(models, empty());
     }
 }

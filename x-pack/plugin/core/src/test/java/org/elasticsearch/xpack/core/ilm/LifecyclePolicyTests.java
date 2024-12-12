@@ -151,17 +151,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             // Remove the frozen phase, we'll randomly re-add it later
             .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
             .collect(Collectors.toList());
-        Map<String, Phase> phases = Maps.newMapWithExpectedSize(phaseNames.size());
-        Function<String, Set<String>> validActions = getPhaseToValidActions();
-        Function<String, LifecycleAction> randomAction = getNameToActionFunction();
-        // as what actions end up in the hot phase influence what actions are allowed in the subsequent phases we'll move the hot phase
-        // at the front of the phases to process (if it exists)
-        if (phaseNames.contains(TimeseriesLifecycleType.HOT_PHASE)) {
-            phaseNames.remove(TimeseriesLifecycleType.HOT_PHASE);
-            phaseNames.add(0, TimeseriesLifecycleType.HOT_PHASE);
-        }
-        boolean hotPhaseContainsSearchableSnap = false;
-        boolean coldPhaseContainsSearchableSnap = false;
+
         // let's order the phases so we can reason about actions in a previous phase in order to generate a random *valid* policy
         List<String> orderedPhases = new ArrayList<>(phaseNames.size());
         for (String validPhase : TimeseriesLifecycleType.ORDERED_VALID_PHASES) {
@@ -169,6 +159,12 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                 orderedPhases.add(validPhase);
             }
         }
+
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(phaseNames.size());
+        Function<String, Set<String>> validActions = getPhaseToValidActions();
+        Function<String, LifecycleAction> randomAction = getNameToActionFunction();
+        boolean hotPhaseContainsSearchableSnap = false;
+        boolean coldPhaseContainsSearchableSnap = false;
 
         TimeValue prev = null;
         for (String phase : orderedPhases) {

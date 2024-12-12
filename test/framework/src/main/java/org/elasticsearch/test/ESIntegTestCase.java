@@ -13,7 +13,6 @@ import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -272,26 +271,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ESIntegTestCase extends ESTestCase {
-
-    /**
-     * Property that controls whether ThirdParty Integration tests are run (not the default).
-     */
-    public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
-
-    /**
-     * Annotation for third-party integration tests.
-     * <p>
-     * These are tests, which require a third-party service in order to run. They
-     * may require the user to manually configure an external process (such as rabbitmq),
-     * or may additionally require some external configuration (e.g. AWS credentials)
-     * via the {@code tests.config} system property.
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = ESIntegTestCase.SYSPROP_THIRDPARTY)
-    public @interface ThirdParty {
-    }
 
     /** node names of the corresponding clusters will start with these prefixes */
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";

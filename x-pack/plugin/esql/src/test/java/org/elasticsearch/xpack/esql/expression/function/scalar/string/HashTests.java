@@ -42,46 +42,46 @@ public class HashTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        for (String alg : List.of("MD5", "SHA", "SHA-224", "SHA-256", "SHA-384", "SHA-512")) {
-            cases.addAll(createTestCases(alg));
+        for (String algorithm : List.of("MD5", "SHA", "SHA-224", "SHA-256", "SHA-384", "SHA-512")) {
+            cases.addAll(createTestCases(algorithm));
         }
-        cases.add(new TestCaseSupplier("Invalid alg", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+        cases.add(new TestCaseSupplier("Invalid algorithm", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             var input = randomAlphaOfLength(10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("invalid"), DataType.KEYWORD, "alg"),
+                    new TestCaseSupplier.TypedData(new BytesRef("invalid"), DataType.KEYWORD, "algorithm"),
                     new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "input")
                 ),
-                "HashEvaluator[alg=Attribute[channel=0], input=Attribute[channel=1]]",
+                "HashEvaluator[algorithm=Attribute[channel=0], input=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.security.NoSuchAlgorithmException: invalid MessageDigest not available")
-                .withFoldingException(InvalidArgumentException.class, "invalid alg for []: invalid MessageDigest not available");
+                .withFoldingException(InvalidArgumentException.class, "invalid algorithm for []: invalid MessageDigest not available");
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
     }
 
-    private static List<TestCaseSupplier> createTestCases(String alg) {
+    private static List<TestCaseSupplier> createTestCases(String algorithm) {
         return List.of(
-            createTestCase(alg, DataType.KEYWORD, DataType.KEYWORD),
-            createTestCase(alg, DataType.KEYWORD, DataType.TEXT),
-            createTestCase(alg, DataType.TEXT, DataType.KEYWORD),
-            createTestCase(alg, DataType.TEXT, DataType.TEXT)
+            createTestCase(algorithm, DataType.KEYWORD, DataType.KEYWORD),
+            createTestCase(algorithm, DataType.KEYWORD, DataType.TEXT),
+            createTestCase(algorithm, DataType.TEXT, DataType.KEYWORD),
+            createTestCase(algorithm, DataType.TEXT, DataType.TEXT)
         );
     }
 
-    private static TestCaseSupplier createTestCase(String alg, DataType algType, DataType inputType) {
-        return new TestCaseSupplier(alg, List.of(algType, inputType), () -> {
+    private static TestCaseSupplier createTestCase(String algorithm, DataType algorithmType, DataType inputType) {
+        return new TestCaseSupplier(algorithm, List.of(algorithmType, inputType), () -> {
             var input = randomAlphaOfLength(10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(alg), algType, "alg"),
+                    new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm"),
                     new TestCaseSupplier.TypedData(new BytesRef(input), inputType, "input")
                 ),
-                "HashEvaluator[alg=Attribute[channel=0], input=Attribute[channel=1]]",
+                "HashEvaluator[algorithm=Attribute[channel=0], input=Attribute[channel=1]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(hash(alg, input)))
+                equalTo(new BytesRef(hash(algorithm, input)))
             );
         });
     }
@@ -108,6 +108,6 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                 new Hash(source, new Literal(source, new BytesRef("invalid"), DataType.KEYWORD), field("str", DataType.KEYWORD))
             ).get(driverContext)
         );
-        assertThat(e.getMessage(), startsWith("invalid alg for [hast(\"invalid\", input)]: invalid MessageDigest not available"));
+        assertThat(e.getMessage(), startsWith("invalid algorithm for [hast(\"invalid\", input)]: invalid MessageDigest not available"));
     }
 }

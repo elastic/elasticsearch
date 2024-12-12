@@ -38,7 +38,7 @@ public class Hash extends EsqlScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hash", Hash::new);
 
-    private final Expression alg;
+    private final Expression algorithm;
     private final Expression input;
 
     @FunctionInfo(
@@ -47,11 +47,11 @@ public class Hash extends EsqlScalarFunction {
     )
     public Hash(
         Source source,
-        @Param(name = "alg", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression alg,
+        @Param(name = "algorithm", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression algorithm,
         @Param(name = "input", type = { "keyword", "text" }, description = "Input to hash.") Expression input
     ) {
-        super(source, List.of(alg, input));
-        this.alg = alg;
+        super(source, List.of(algorithm, input));
+        this.algorithm = algorithm;
         this.input = input;
     }
 
@@ -62,7 +62,7 @@ public class Hash extends EsqlScalarFunction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(alg);
+        out.writeNamedWriteable(algorithm);
         out.writeNamedWriteable(input);
     }
 
@@ -82,7 +82,7 @@ public class Hash extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isString(alg, sourceText(), FIRST);
+        TypeResolution resolution = isString(algorithm, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -92,28 +92,31 @@ public class Hash extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        return alg.foldable() && input.foldable();
+        return algorithm.foldable() && input.foldable();
     }
 
     @Evaluator(warnExceptions = NoSuchAlgorithmException.class)
-    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef alg, BytesRef input)
-        throws NoSuchAlgorithmException {
-        return hash(scratch, MessageDigest.getInstance(alg.utf8ToString()), input);
+    static BytesRef process(
+        @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
+        BytesRef algorithm,
+        BytesRef input
+    ) throws NoSuchAlgorithmException {
+        return hash(scratch, MessageDigest.getInstance(algorithm.utf8ToString()), input);
     }
 
     @Evaluator(extraName = "Constant")
     static BytesRef processConstant(
         @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
-        @Fixed(build = true) MessageDigest alg,
+        @Fixed(build = true) MessageDigest algorithm,
         BytesRef input
     ) {
-        return hash(scratch, alg, input);
+        return hash(scratch, algorithm, input);
     }
 
-    private static BytesRef hash(BreakingBytesRefBuilder scratch, MessageDigest alg, BytesRef input) {
-        alg.reset();
-        alg.update(input.bytes, input.offset, input.length);
-        var digest = alg.digest();
+    private static BytesRef hash(BreakingBytesRefBuilder scratch, MessageDigest algorithm, BytesRef input) {
+        algorithm.reset();
+        algorithm.update(input.bytes, input.offset, input.length);
+        var digest = algorithm.digest();
         scratch.clear();
         scratch.grow(digest.length * 2);
         appendUtf8HexDigest(scratch, digest);
@@ -135,9 +138,9 @@ public class Hash extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (alg.foldable()) {
+        if (algorithm.foldable()) {
             try {
-                var md = MessageDigest.getInstance(((BytesRef) alg.fold()).utf8ToString());
+                var md = MessageDigest.getInstance(((BytesRef) algorithm.fold()).utf8ToString());
                 return new HashConstantEvaluator.Factory(
                     source(),
                     context -> new BreakingBytesRefBuilder(context.breaker(), "hash"),
@@ -145,13 +148,13 @@ public class Hash extends EsqlScalarFunction {
                     toEvaluator.apply(input)
                 );
             } catch (NoSuchAlgorithmException e) {
-                throw new InvalidArgumentException(e, "invalid alg for [{}]: {}", sourceText(), e.getMessage());
+                throw new InvalidArgumentException(e, "invalid algorithm for [{}]: {}", sourceText(), e.getMessage());
             }
         } else {
             return new HashEvaluator.Factory(
                 source(),
                 context -> new BreakingBytesRefBuilder(context.breaker(), "hash"),
-                toEvaluator.apply(alg),
+                toEvaluator.apply(algorithm),
                 toEvaluator.apply(input)
             );
         }

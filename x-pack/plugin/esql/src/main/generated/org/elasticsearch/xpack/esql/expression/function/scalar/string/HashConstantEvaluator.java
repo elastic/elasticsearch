@@ -30,7 +30,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final MessageDigest alg;
+  private final MessageDigest algorithm;
 
   private final EvalOperator.ExpressionEvaluator input;
 
@@ -38,11 +38,12 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public HashConstantEvaluator(Source source, BreakingBytesRefBuilder scratch, MessageDigest alg,
-      EvalOperator.ExpressionEvaluator input, DriverContext driverContext) {
+  public HashConstantEvaluator(Source source, BreakingBytesRefBuilder scratch,
+      MessageDigest algorithm, EvalOperator.ExpressionEvaluator input,
+      DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
-    this.alg = alg;
+    this.algorithm = algorithm;
     this.input = input;
     this.driverContext = driverContext;
   }
@@ -73,7 +74,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.alg, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
       }
       return result.build();
     }
@@ -83,7 +84,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.alg, inputVector.getBytesRef(p, inputScratch)));
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputVector.getBytesRef(p, inputScratch)));
       }
       return result.build();
     }
@@ -91,7 +92,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "HashConstantEvaluator[" + "alg=" + alg + ", input=" + input + "]";
+    return "HashConstantEvaluator[" + "algorithm=" + algorithm + ", input=" + input + "]";
   }
 
   @Override
@@ -116,27 +117,27 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final Function<DriverContext, MessageDigest> alg;
+    private final Function<DriverContext, MessageDigest> algorithm;
 
     private final EvalOperator.ExpressionEvaluator.Factory input;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        Function<DriverContext, MessageDigest> alg,
+        Function<DriverContext, MessageDigest> algorithm,
         EvalOperator.ExpressionEvaluator.Factory input) {
       this.source = source;
       this.scratch = scratch;
-      this.alg = alg;
+      this.algorithm = algorithm;
       this.input = input;
     }
 
     @Override
     public HashConstantEvaluator get(DriverContext context) {
-      return new HashConstantEvaluator(source, scratch.apply(context), alg.apply(context), input.get(context), context);
+      return new HashConstantEvaluator(source, scratch.apply(context), algorithm.apply(context), input.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "HashConstantEvaluator[" + "alg=" + alg + ", input=" + input + "]";
+      return "HashConstantEvaluator[" + "algorithm=" + algorithm + ", input=" + input + "]";
     }
   }
 }

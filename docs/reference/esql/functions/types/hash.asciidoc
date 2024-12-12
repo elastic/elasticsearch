@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-alg | input | result
+algorithm | input | result
 keyword | keyword | keyword
 keyword | text | keyword
 text | keyword | keyword

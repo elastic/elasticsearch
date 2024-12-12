@@ -2,7 +2,7 @@
 
 *Parameters*
 
-`alg`::
+`algorithm`::
 Hash algorithm to use.
 
 `input`::

@@ -7,7 +7,7 @@
     {
       "params" : [
         {
-          "name" : "alg",
+          "name" : "algorithm",
           "type" : "keyword",
           "optional" : false,
           "description" : "Hash algorithm to use."
@@ -25,7 +25,7 @@
     {
       "params" : [
         {
-          "name" : "alg",
+          "name" : "algorithm",
           "type" : "keyword",
           "optional" : false,
           "description" : "Hash algorithm to use."
@@ -43,7 +43,7 @@
     {
       "params" : [
         {
-          "name" : "alg",
+          "name" : "algorithm",
           "type" : "text",
           "optional" : false,
           "description" : "Hash algorithm to use."
@@ -61,7 +61,7 @@
     {
       "params" : [
         {
-          "name" : "alg",
+          "name" : "algorithm",
           "type" : "text",
           "optional" : false,
           "description" : "Hash algorithm to use."

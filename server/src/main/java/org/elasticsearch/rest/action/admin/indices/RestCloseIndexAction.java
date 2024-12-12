@@ -27,6 +27,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -36,6 +37,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestCloseIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
+    public static final Set<String> WAIT_FOR_ACTIVE_SHARDS_INDEX_SETTING_REMOVED = Set.of("wait-for-active-shards-index-setting-removed");
 
     @Override
     public List<Route> routes() {
@@ -70,21 +72,27 @@ public class RestCloseIndexAction extends BaseRestHandler {
             return;
         }
         if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
-            String deprecationMessage =
-                "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter "
-                    + "should no longer be used since it is not supported in version "
-                    + Version.V_9_0_0.major;
             if (request.getRestApiVersion() == RestApiVersion.V_8) {
                 deprecationLogger.warn(
                     DeprecationCategory.SETTINGS,
                     "close-index-wait_for_active_shards-index-setting",
-                    deprecationMessage
+                    "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter "
+                        + "should no longer be used since it will become unsupported in version "
+                        + Version.V_9_0_0.major
                 );
             } else {
-                throw new IllegalArgumentException(deprecationMessage);
+                throw new IllegalArgumentException(
+                    "The 'index-setting' value for parameter 'wait_for_active_shards' is the default behaviour and this configuration"
+                        + " value is not supported anymore. Please remove 'wait_for_active_shards=index-setting'."
+                );
             }
         } else {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return WAIT_FOR_ACTIVE_SHARDS_INDEX_SETTING_REMOVED;
     }
 }

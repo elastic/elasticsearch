@@ -79,7 +79,7 @@ public class PolicyParserTests extends ESTestCase {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - set_https_connection_properties
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml").parsePolicy();
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true).parsePolicy();
         Policy builtPolicy = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))

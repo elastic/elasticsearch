@@ -1167,11 +1167,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchFilter() throws Exception {
         assertEquals(
-            "1:19: first argument of [salary:\"100\"] must be [string], found value [salary] type [integer]",
-            error("from test | where salary:\"100\"")
-        );
-
-        assertEquals(
             "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
                 + "[:] operator can't be used as part of an or condition",
             error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")

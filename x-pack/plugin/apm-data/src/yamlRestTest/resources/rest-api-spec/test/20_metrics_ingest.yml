@@ -1,0 +1,32 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test metrics-apm.app-* setting event.ingested via ingest pipeline":
+  - requires:
+      test_runner_features: [is_after]
+  - do:
+      bulk:
+        index: metrics-apm.app.ingest
+        refresh: true
+        body:
+          # No event.ingested field populated, it gets added
+          - create: {}
+          - '{"@timestamp": "2017-06-22"}'
+
+          # event.ingested populated, it is overwritten with current timestamp
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"ingested": "2017-06-22T00:00:00.789123Z"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: metrics-apm.app.ingest
+        body:
+          fields: ["event.ingested"]
+  - length: { hits.hits: 2 }
+  - is_after: { hits.hits.1.fields.event\.ingested.0: "2017-06-22T00:00:00.000Z" }

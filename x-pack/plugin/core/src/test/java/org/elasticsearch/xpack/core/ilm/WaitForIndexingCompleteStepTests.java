@@ -65,8 +65,8 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testConditionMetNotAFollowerIndex() {
@@ -82,8 +82,8 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testConditionNotMet() {
@@ -104,10 +104,10 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), notNullValue());
+        assertThat(result.complete(), is(false));
+        assertThat(result.informationContext(), notNullValue());
         WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-            .getInfomationContext();
+            .informationContext();
         assertThat(
             info.getMessage(),
             equalTo(
@@ -122,7 +122,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), clusterState);
-        assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(false));
+        assertThat(result.informationContext(), nullValue());
     }
 }

@@ -70,8 +70,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             new Index("testName", UUID.randomUUID().toString()),
             ClusterState.EMPTY_STATE
         );
-        assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(false));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testIsConditionMetForUnderlyingStep() {
@@ -95,8 +95,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), nullValue());
         }
 
         {
@@ -120,10 +120,10 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
 
-            assertThat(result.isComplete(), is(false));
-            assertThat(result.getInfomationContext(), notNullValue());
+            assertThat(result.complete(), is(false));
+            assertThat(result.informationContext(), notNullValue());
             WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-                .getInfomationContext();
+                .informationContext();
             assertThat(
                 info.getMessage(),
                 equalTo(
@@ -154,8 +154,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), nullValue());
             assertThat(underTest.getNextStepKey(), is(not(nextKeyOnThresholdBreach)));
             assertThat(underTest.getNextStepKey(), is(stepToExecute.getNextStepKey()));
         }
@@ -184,11 +184,11 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
 
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), notNullValue());
-            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), notNullValue());
+            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
             assertThat(
-                info.getMessage(),
+                info.message(),
                 equalTo(
                     "["
                         + currentStepKey.name()
@@ -267,7 +267,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             new StepKey("phase", "action", "breached")
         );
 
-        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
+        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).complete());
 
         assertThat(step.getNextStepKey().name(), equalTo("next-key"));
 
@@ -290,7 +290,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             },
             new StepKey("phase", "action", "breached")
         );
-        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
+        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).complete());
         assertThat(step.getNextStepKey().name(), equalTo("breached"));
     }
 }

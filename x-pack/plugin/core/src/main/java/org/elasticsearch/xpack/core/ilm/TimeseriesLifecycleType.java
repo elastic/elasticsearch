@@ -197,9 +197,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             }
             phase.getActions().forEach((actionName, action) -> {
                 if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
-                    throw new IllegalArgumentException(
-                        "invalid action [" + actionName + "] " + "defined in phase [" + phase.getName() + "]"
-                    );
+                    throw new IllegalArgumentException("invalid action [" + actionName + "] defined in phase [" + phase.getName() + "]");
                 }
             });
         });

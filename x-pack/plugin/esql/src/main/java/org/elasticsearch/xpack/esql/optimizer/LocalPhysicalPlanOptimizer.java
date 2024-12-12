@@ -57,7 +57,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
 
         if (optimizeForEsSource) {

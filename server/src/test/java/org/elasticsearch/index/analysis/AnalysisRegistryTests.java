@@ -140,7 +140,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexVersion version = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory("my_filter", Settings.EMPTY) {
+        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory("my_filter") {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
@@ -151,7 +151,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return tokenStream;
             }
         };
-        TokenizerFactory tokenizer = new AbstractTokenizerFactory(indexSettings, Settings.EMPTY, "my_tokenizer") {
+        TokenizerFactory tokenizer = new AbstractTokenizerFactory("my_tokenizer") {
             @Override
             public Tokenizer create() {
                 return new StandardTokenizer();
@@ -254,7 +254,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(name, settings);
+                    super(name);
                 }
 
                 @Override

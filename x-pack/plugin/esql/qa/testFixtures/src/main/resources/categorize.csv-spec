@@ -662,7 +662,7 @@ count:long | category:keyword         | timestamp:datetime
 
 
 multiple groupings with categorize and limit before stats
-required_capability: categorize_v5
+required_capability: categorize_multiple_groupings
 
 FROM sample_data | SORT message | LIMIT 5
   | STATS count=COUNT() BY category=CATEGORIZE(message), client_ip

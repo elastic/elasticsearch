@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 
 import fixture.azure.AzureHttpFixture;
+import fixture.azure.MockAzureBlobStore;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -37,7 +38,8 @@ public class AzureSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryR
         AZURE_TEST_CONTAINER,
         System.getProperty("test.azure.tenant_id"),
         System.getProperty("test.azure.client_id"),
-        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT),
+        MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
 
     private static TestTrustStore trustStore = new TestTrustStore(

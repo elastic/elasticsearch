@@ -15,6 +15,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Breaks text into smaller strings or chunks on Word boundaries.
@@ -35,7 +36,7 @@ public class WordBoundaryChunker implements Chunker {
         wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
     }
 
-    record ChunkPosition(int start, int end, int wordCount) {}
+    record ChunkPosition(ChunkOffset offsets, int wordCount) {}
 
     /**
      * Break the input text into small chunks as dictated
@@ -45,7 +46,7 @@ public class WordBoundaryChunker implements Chunker {
      * @return List of chunked text
      */
     @Override
-    public List<String> chunk(String input, ChunkingSettings chunkingSettings) {
+    public List<ChunkOffset> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof WordBoundaryChunkingSettings wordBoundaryChunkerSettings) {
             return chunk(input, wordBoundaryChunkerSettings.maxChunkSize, wordBoundaryChunkerSettings.overlap);
         } else {
@@ -64,18 +65,9 @@ public class WordBoundaryChunker implements Chunker {
      *                Can be 0 but must be non-negative.
      * @return List of chunked text
      */
-    public List<String> chunk(String input, int chunkSize, int overlap) {
-
-        if (input.isEmpty()) {
-            return List.of("");
-        }
-
+    public List<ChunkOffset> chunk(String input, int chunkSize, int overlap) {
         var chunkPositions = chunkPositions(input, chunkSize, overlap);
-        var chunks = new ArrayList<String>(chunkPositions.size());
-        for (var pos : chunkPositions) {
-            chunks.add(input.substring(pos.start, pos.end));
-        }
-        return chunks;
+        return chunkPositions.stream().map(ChunkPosition::offsets).collect(Collectors.toList());
     }
 
     /**
@@ -104,10 +96,6 @@ public class WordBoundaryChunker implements Chunker {
             throw new IllegalArgumentException("Invalid chunking parameters, overlap [" + overlap + "] must be >= 0");
         }
 
-        if (input.isEmpty()) {
-            return List.of();
-        }
-
         var chunkPositions = new ArrayList<ChunkPosition>();
 
         // This position in the chunk is where the next overlapping chunk will start
@@ -127,7 +115,7 @@ public class WordBoundaryChunker implements Chunker {
                 wordsSinceStartWindowWasMarked++;
 
                 if (wordsInChunkCountIncludingOverlap >= chunkSize) {
-                    chunkPositions.add(new ChunkPosition(windowStart, boundary, wordsInChunkCountIncludingOverlap));
+                    chunkPositions.add(new ChunkPosition(new ChunkOffset(windowStart, boundary), wordsInChunkCountIncludingOverlap));
                     wordsInChunkCountIncludingOverlap = overlap;
 
                     if (overlap == 0) {
@@ -149,7 +137,7 @@ public class WordBoundaryChunker implements Chunker {
         // if it ends on a boundary than the count should equal overlap in which case
         // we can ignore it, unless this is the first chunk in which case we want to add it
         if (wordsInChunkCountIncludingOverlap > overlap || chunkPositions.isEmpty()) {
-            chunkPositions.add(new ChunkPosition(windowStart, input.length(), wordsInChunkCountIncludingOverlap));
+            chunkPositions.add(new ChunkPosition(new ChunkOffset(windowStart, input.length()), wordsInChunkCountIncludingOverlap));
         }
 
         return chunkPositions;

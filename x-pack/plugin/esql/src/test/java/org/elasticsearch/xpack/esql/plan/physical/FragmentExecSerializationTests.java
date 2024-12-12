@@ -22,8 +22,7 @@ public class FragmentExecSerializationTests extends AbstractPhysicalPlanSerializ
         LogicalPlan fragment = AbstractLogicalPlanSerializationTests.randomChild(depth);
         QueryBuilder esFilter = EsqlQueryRequestTests.randomQueryBuilder();
         int estimatedRowSize = between(0, Integer.MAX_VALUE);
-        PhysicalPlan reducer = randomChild(depth);
-        return new FragmentExec(source, fragment, esFilter, estimatedRowSize, reducer);
+        return new FragmentExec(source, fragment, esFilter, estimatedRowSize);
     }
 
     @Override
@@ -36,15 +35,13 @@ public class FragmentExecSerializationTests extends AbstractPhysicalPlanSerializ
         LogicalPlan fragment = instance.fragment();
         QueryBuilder esFilter = instance.esFilter();
         int estimatedRowSize = instance.estimatedRowSize();
-        PhysicalPlan reducer = instance.reducer();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> fragment = randomValueOtherThan(fragment, () -> AbstractLogicalPlanSerializationTests.randomChild(0));
             case 1 -> esFilter = randomValueOtherThan(esFilter, EsqlQueryRequestTests::randomQueryBuilder);
             case 2 -> estimatedRowSize = randomValueOtherThan(estimatedRowSize, () -> between(0, Integer.MAX_VALUE));
-            case 3 -> reducer = randomValueOtherThan(reducer, () -> randomChild(0));
             default -> throw new UnsupportedEncodingException();
         }
-        return new FragmentExec(instance.source(), fragment, esFilter, estimatedRowSize, reducer);
+        return new FragmentExec(instance.source(), fragment, esFilter, estimatedRowSize);
     }
 
     @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsLoader;
@@ -42,7 +41,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
@@ -100,9 +98,7 @@ public class MockNode extends Node {
             ThreadPool threadPool,
             ScriptService scriptService,
             BigArrays bigArrays,
-            RankFeatureShardPhase rankFeatureShardPhase,
             FetchPhase fetchPhase,
-            ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer
@@ -115,9 +111,7 @@ public class MockNode extends Node {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    rankFeatureShardPhase,
                     fetchPhase,
-                    responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
                     tracer
@@ -129,9 +123,7 @@ public class MockNode extends Node {
                 threadPool,
                 scriptService,
                 bigArrays,
-                rankFeatureShardPhase,
                 fetchPhase,
-                responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
                 tracer
@@ -197,16 +189,6 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager.getTaskHeaders()
-                );
-            }
-        }
-
-        @Override
-        void processRecoverySettings(PluginsService pluginsService, ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-            if (pluginsService.filterPlugins(RecoverySettingsChunkSizePlugin.class).findAny().isEmpty() == false) {
-                clusterSettings.addSettingsUpdateConsumer(
-                    RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING,
-                    recoverySettings::setChunkSize
                 );
             }
         }

@@ -1,0 +1,5 @@
+pr: 117842
+summary: Limit size of `Literal#toString`
+area: ES|QL
+type: bug
+issues: []

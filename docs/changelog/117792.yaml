@@ -1,0 +1,6 @@
+pr: 117792
+summary: Address mapping and compute engine runtime field issues
+area: Mapping
+type: bug
+issues:
+ - 117644

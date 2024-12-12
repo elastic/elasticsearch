@@ -33,5 +33,5 @@ public enum Scoping {
     /**
      * One instance per {@link Injector}.
      */
-    EAGER_SINGLETON()
+    EAGER_SINGLETON
 }

@@ -82,7 +82,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testNoVersionConflictsMetricsForGets() {
+    public void testEmptyIndexingVersionConflictMetricsForGets() {
         final String dataNode = internalCluster().startNode();
         ensureStableCluster(1);
 

@@ -70,7 +70,7 @@ public final class MachineLearningField {
     // Ideally this would be 8.3.0, but it has to be 6.4.0 because due to an oversight it's impossible
     // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
     public static final MlConfigVersion MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.fromString("6.4.0");
-    // We tell the user we support model snapshots newer than 8.3.0 as that's the version with the last format change, 
+    // We tell the user we support model snapshots newer than 8.3.0 as that's the version with the last format change,
     // even though behind the scenes we have to support back to 6.4.0.
     public static final MlConfigVersion MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.V_8_3_0;
 

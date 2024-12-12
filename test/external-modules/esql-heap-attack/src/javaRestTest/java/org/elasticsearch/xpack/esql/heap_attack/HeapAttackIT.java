@@ -194,6 +194,16 @@ public class HeapAttackIT extends ESRestTestCase {
         );
     }
 
+    private void assertFoldCircuitBreaks(ThrowingRunnable r) throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, r);
+        Map<?, ?> map = responseAsMap(e.getResponse());
+        logger.info("expected fold circuit breaking {}", map);
+        assertMap(
+            map,
+            matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "ql_fold_too_much_memory_exception"))
+        );
+    }
+
     private void assertParseFailure(ThrowingRunnable r) throws IOException {
         ResponseException e = expectThrows(ResponseException.class, r);
         Map<?, ?> map = responseAsMap(e.getResponse());
@@ -326,10 +336,22 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     /**
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    public void testHugeManyConcatFromRow() throws IOException {
+        assertFoldCircuitBreaks(
+            () -> manyConcat(
+                "ROW a=9999999999999, b=99999999999999999, c=99999999999999999, d=99999999999999999, e=99999999999999999",
+                5000
+            )
+        );
+    }
+
+    /**
      * Fails to parse a huge huge query.
      */
     public void testHugeHugeManyConcatFromRow() throws IOException {
-        assertParseFailure(() -> manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", 50000));
+        assertParseFailure(() -> manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", 6000));
     }
 
     /**
@@ -387,13 +409,20 @@ public class HeapAttackIT extends ESRestTestCase {
      * Returns many moderately long strings.
      */
     public void testManyRepeatFromRow() throws IOException {
-        int strings = 10000;
+        int strings = 600;
         Response resp = manyRepeat("ROW a = 99", strings);
         assertManyStrings(resp, strings);
     }
 
     /**
-     * Fails to parse a huge huge query.
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    public void testHugeManyRepeatFromRow() throws IOException {
+        assertFoldCircuitBreaks(() -> manyRepeat("ROW a = 99", 1000));
+    }
+
+    /**
+     * Fails to parse a huge, huge query.
      */
     public void testHugeHugeManyRepeatFromRow() throws IOException {
         assertParseFailure(() -> manyRepeat("ROW a = 99", 100000));

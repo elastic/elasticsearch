@@ -11,20 +11,16 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
-import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -56,18 +52,9 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
              * it loads the field lazily. If we have more than one field we need to
              * make sure the fields are loaded for the standard hash aggregator.
              */
-            if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
-                // CATEGORIZE requires the standard hash aggregator as well.
-                if (agg.groupings().get(0).anyMatch(e -> e instanceof Categorize) == false) {
-                    var leaves = new LinkedList<>();
-                    // TODO: this seems out of place
-                    agg.aggregates()
-                        .stream()
-                        .filter(a -> agg.groupings().contains(a) == false)
-                        .forEach(a -> leaves.addAll(a.collectLeaves()));
-                    var remove = agg.groupings().stream().filter(g -> leaves.contains(g) == false).toList();
-                    missing.removeAll(Expressions.references(remove));
-                }
+            if (p instanceof AggregateExec agg) {
+                var ordinalAttributes = agg.ordinalAttributes();
+                missing.removeAll(Expressions.references(ordinalAttributes));
             }
 
             // add extractor
@@ -102,25 +89,17 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
         var missing = new LinkedHashSet<Attribute>();
         var input = p.inputSet();
 
-        // For LOOKUP JOIN we only need field-extraction on left fields used to match, since the right side is always materialized
-        if (p instanceof LookupJoinExec join) {
-            join.leftFields().forEach(f -> {
-                if (input.contains(f) == false) {
-                    missing.add(f);
-                }
-            });
-            return missing;
-        }
-
-        // collect field attributes used inside expressions
-        // TODO: Rather than going over all expressions manually, this should just call .references()
-        p.forEachExpression(TypedAttribute.class, f -> {
+        // Collect field attributes referenced by this plan but not yet present in the child's output.
+        // This is also correct for LookupJoinExec, where we only need field extraction on the left fields used to match, since the right
+        // side is always materialized.
+        p.references().forEach(f -> {
             if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {
                 if (input.contains(f) == false) {
                     missing.add(f);
                 }
             }
         });
+
         return missing;
     }
 }

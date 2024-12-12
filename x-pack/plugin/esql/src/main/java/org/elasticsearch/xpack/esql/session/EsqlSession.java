@@ -298,6 +298,9 @@ public class EsqlSession {
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
+
+        EsqlSessionCCSUtils.checkForCcsLicense(indices, indicesExpressionGrouper, verifier.licenseState());
+
         // TODO: make a separate call for lookup indices
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
@@ -374,10 +377,11 @@ public class EsqlSession {
             // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
             indexResolver.resolveAsMergedMapping(
                 table.index(),
-                Set.of("*"), // Current LOOKUP JOIN syntax does not allow for field selection
+                Set.of("*"), // TODO: for LOOKUP JOIN, this currently declares all lookup index fields relevant and might fetch too many.
                 null,
                 listener.map(indexResolution -> listenerResult.withLookupIndexResolution(indexResolution))
             );
+            // TODO: Verify that the resolved index actually has indexMode: "lookup"
         } else {
             try {
                 // No lookup indices specified

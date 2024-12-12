@@ -946,7 +946,9 @@ public final class DocumentParser {
             protected void parseCreateField(DocumentParserContext context) {
                 // Run-time fields are mapped to this mapper, so it needs to handle storing values for use in synthetic source.
                 // #parseValue calls this method once the run-time field is created.
-                if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
+                var fieldType = context.mappingLookup().getFieldType(path);
+                boolean isRuntimeField = fieldType instanceof AbstractScriptFieldType;
+                if ((context.dynamic() == ObjectMapper.Dynamic.RUNTIME || isRuntimeField) && context.canAddIgnoredField()) {
                     try {
                         context.addIgnoredField(
                             IgnoredSourceFieldMapper.NameValue.fromContext(context, path, context.encodeFlattenedToken())

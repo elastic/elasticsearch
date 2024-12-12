@@ -23,7 +23,7 @@ record RemoteClusterPlan(PhysicalPlan plan, String[] targetIndices, OriginalIndi
         var plan = planIn.readNamedWriteable(PhysicalPlan.class);
         var targetIndices = planIn.readStringArray();
         final OriginalIndices originalIndices;
-        if (planIn.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+        if (planIn.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             originalIndices = OriginalIndices.readOriginalIndices(planIn);
         } else {
             // fallback to the previous behavior
@@ -35,7 +35,7 @@ record RemoteClusterPlan(PhysicalPlan plan, String[] targetIndices, OriginalIndi
     public void writeTo(PlanStreamOutput out) throws IOException {
         out.writeNamedWriteable(plan);
         out.writeStringArray(targetIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);
         } else {
             out.writeStringArray(originalIndices.indices());

@@ -16,11 +16,11 @@ import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -87,6 +88,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
@@ -373,7 +375,7 @@ public class ComputeService {
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
-            try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
+            try (EsqlRefCountingListener refs = new EsqlRefCountingListener(lookupListener)) {
                 // update ExecutionInfo with shard counts (total and skipped)
                 executionInfo.swapCluster(
                     clusterAlias,
@@ -434,7 +436,7 @@ public class ComputeService {
     ) {
         var queryPragmas = configuration.pragmas();
         var linkExchangeListeners = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        try (RefCountingListener refs = new RefCountingListener(linkExchangeListeners)) {
+        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(linkExchangeListeners)) {
             for (RemoteCluster cluster : clusters) {
                 final var childSessionId = newChildSession(sessionId);
                 ExchangeService.openExchange(
@@ -471,12 +473,17 @@ public class ComputeService {
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts.size());
         for (int i = 0; i < context.searchContexts.size(); i++) {
             SearchContext searchContext = context.searchContexts.get(i);
+            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
+
+                @Override
+                public SourceProvider createSourceProvider() {
+                    final Supplier<SourceProvider> supplier = () -> super.createSourceProvider();
+                    return new ReinitializingSourceProvider(supplier);
+
+                }
+            };
             contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext.getSearchExecutionContext(),
-                    searchContext.request().getAliasFilter()
-                )
+                new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
         final List<Driver> drivers;

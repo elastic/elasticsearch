@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.security;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,23 +26,26 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.QueryRoleIT.assertQuery;
 import static org.elasticsearch.xpack.security.QueryRoleIT.waitForMigrationCompletion;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.iterableWithSize;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.*;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
 public class QueryableReservedRolesIT extends ESRestTestCase {
@@ -84,6 +89,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         .plugin("queryable-reserved-roles-test")
         .build();
 
+    private static Set<String> PREVIOUS_RESERVED_ROLES;
     private static Set<String> CONFIGURED_RESERVED_ROLES;
 
     @Override
@@ -143,12 +149,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
 
     @Order(20)
     public void testRestartForConfiguringReservedRoles() throws Exception {
-        CONFIGURED_RESERVED_ROLES = new HashSet<>();
-        CONFIGURED_RESERVED_ROLES.add("superuser");
-        CONFIGURED_RESERVED_ROLES.addAll(
-            randomSubsetOf(List.of("editor", "viewer", "kibana_system", "apm_system", "beats_system", "logstash_system"))
-        );
-        clusterSettings.put("xpack.security.reserved_roles.include", Strings.collectionToCommaDelimitedString(CONFIGURED_RESERVED_ROLES));
+        configureReservedRoles(List.of("editor", "viewer", "kibana_system", "apm_system", "beats_system", "logstash_system"));
         cluster.restart(false);
         closeClients();
     }
@@ -176,6 +177,116 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
             final Map<String, Object> responseMap = responseAsMap(response);
             assertThat(responseMap.keySet(), equalTo(CONFIGURED_RESERVED_ROLES));
         });
+    }
+
+    @Order(40)
+    public void testRestartForConfiguringReservedRolesAndClosingIndex() throws Exception {
+        configureReservedRoles(List.of("editor", "viewer"));
+        closeSecurityIndex();
+        cluster.restart(false);
+        closeClients();
+    }
+
+    @Order(50)
+    public void testConfiguredReservedRolesAfterClosingAndOpeningIndex() throws Exception {
+        assert CONFIGURED_RESERVED_ROLES != null;
+        assert PREVIOUS_RESERVED_ROLES != null;
+        assertThat(PREVIOUS_RESERVED_ROLES, is(not(equalTo(CONFIGURED_RESERVED_ROLES))));
+
+        // Test configured roles did not get updated because the security index is closed
+        assertMetadataContainsBuiltInRoles(PREVIOUS_RESERVED_ROLES);
+
+        // Open the security index
+        openSecurityIndex();
+
+        // Test that the roles are now updated after index got opened
+        assertBusy(() -> {
+            assertQuery(client(), """
+                { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
+                """, CONFIGURED_RESERVED_ROLES.size(), roles -> {
+                assertThat(roles, iterableWithSize(CONFIGURED_RESERVED_ROLES.size()));
+                for (var role : roles) {
+                    assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
+                }
+            });
+        });
+
+    }
+
+    @Order(60)
+    public void testDeletingAndCreatingSecurityIndexTriggersSynchronization() throws Exception {
+        deleteSecurityIndex();
+
+        // Creating a user will trigger .security index creation
+        createUser("superman", "superman", "superuser");
+
+        // Test that the roles are now updated after index got created
+        assertBusy(() -> {
+            assertQuery(client(), """
+                { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
+                """, CONFIGURED_RESERVED_ROLES.size(), roles -> {
+                assertThat(roles, iterableWithSize(CONFIGURED_RESERVED_ROLES.size()));
+                for (var role : roles) {
+                    assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
+                }
+            });
+        });
+    }
+
+    private void createUser(String name, String password, String role) throws IOException {
+        Request request = new Request("PUT", "/_security/user/" + name);
+        request.setJsonEntity("{ \"password\": \"" + password + "\", \"roles\": [ \"" + role + "\"] }");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private void deleteSecurityIndex() throws IOException {
+        final Request deleteRequest = new Request("DELETE", INTERNAL_SECURITY_MAIN_INDEX_7);
+        deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings));
+        final Response response = adminClient().performRequest(deleteRequest);
+        try (InputStream is = response.getEntity().getContent()) {
+            assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+        }
+    }
+
+    private void assertMetadataContainsBuiltInRoles(Set<String> builtInRoles) throws IOException {
+        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        final Response response = adminClient().performRequest(request);
+        assertOK(response);
+        final Map<String, String> builtInRolesDigests = ObjectPath.createFromResponse(response)
+            .evaluate("metadata.indices.\\.security-7." + QueryableBuiltInRolesSynchronizer.METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
+        assertThat(builtInRolesDigests.keySet(), equalTo(builtInRoles));
+    }
+
+    private void configureReservedRoles(List<String> reservedRoles) throws Exception {
+        PREVIOUS_RESERVED_ROLES = CONFIGURED_RESERVED_ROLES;
+        CONFIGURED_RESERVED_ROLES = new HashSet<>();
+        CONFIGURED_RESERVED_ROLES.add("superuser"); // superuser must always be included
+        CONFIGURED_RESERVED_ROLES.addAll(reservedRoles);
+        clusterSettings.put("xpack.security.reserved_roles.include", Strings.collectionToCommaDelimitedString(CONFIGURED_RESERVED_ROLES));
+    }
+
+    private void closeSecurityIndex() throws Exception {
+        Request request = new Request("POST", "/" + TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_close");
+        request.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-7], but in a future major version, "
+                    + "direct access to system indices will be prevented by default"
+            )
+        );
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+    }
+
+    private void openSecurityIndex() throws Exception {
+        Request request = new Request("POST", "/" + TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_open");
+        request.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-7], but in a future major version, "
+                    + "direct access to system indices will be prevented by default"
+            )
+        );
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
     }
 
     private void assertCannotDeleteReservedRoles() throws Exception {

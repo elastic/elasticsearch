@@ -18,25 +18,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
     private final long persistentTaskStartTime;
     private final int totalIndices;
     private final int totalIndicesToBeUpgraded;
-    private boolean complete = false;
-    private Exception exception;
+    private volatile boolean complete = false;
+    private volatile Exception exception;
     private final AtomicInteger inProgress = new AtomicInteger(0);
     private final AtomicInteger pending = new AtomicInteger();
     private final List<Tuple<String, Exception>> errors = new ArrayList<>();
     private final RunOnce completeTask;
-
-    /*
-     * This lock is used to make sure that we don't have a race condition where the task completes and is cancelled at the same time, which
-     * without this lock could lead to the task never being removed from the task manager (done in markAsCompleted).
-     */
-    private final ReentrantLock completionAndCancellationLock = new ReentrantLock();
 
     @SuppressWarnings("this-escape")
     public ReindexDataStreamTask(
@@ -78,16 +71,11 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     public void allReindexesCompleted(ThreadPool threadPool, TimeValue timeToLive) {
-        completionAndCancellationLock.lock();
-        try {
-            this.complete = true;
-            if (isCancelled()) {
-                completeTask.run();
-            } else {
-                threadPool.schedule(completeTask, timeToLive, threadPool.generic());
-            }
-        } finally {
-            completionAndCancellationLock.unlock();
+        this.complete = true;
+        if (isCancelled()) {
+            completeTask.run();
+        } else {
+            threadPool.schedule(completeTask, timeToLive, threadPool.generic());
         }
     }
 
@@ -121,13 +109,8 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
          * immediately. This results in the running task being removed from the task manager. If the task is not complete, then one of
          * allReindexesCompleted or taskFailed will be called in the future, resulting in the same thing.
          */
-        completionAndCancellationLock.lock();
-        try {
-            if (complete) {
-                completeTask.run();
-            }
-        } finally {
-            completionAndCancellationLock.unlock();
+        if (complete) {
+            completeTask.run();
         }
     }
 }
